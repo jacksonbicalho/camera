@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { applyFrameStep, applySameChunkStep, frameStepTime, loadedMetadataSeek, mergeRecordings, parseDurationToMs, recordingFromByID, secondStepTarget, shouldReplaceActiveRecording } from './cameraUtils'
-import type { Recording } from './cameraUtils'
+import { applyFrameStep, applySameChunkStep, frameStepTime, loadedMetadataSeek, mergeMotionEvents, mergeRecordings, parseDurationToMs, recordingFromByID, secondStepTarget, shouldReplaceActiveRecording } from './cameraUtils'
+import type { MotionEvent, Recording } from './cameraUtils'
 
 function rec(filename: string): Recording {
   const ts = filename.replace('.mp4', '')
@@ -11,6 +11,38 @@ function rec(filename: string): Recording {
     is_recording: false,
   }
 }
+
+// ─── mergeMotionEvents ──────────────────────────────────────────────────────
+
+function ev(id: number, over: Partial<MotionEvent> = {}): MotionEvent {
+  return { id, time: `2026-07-02T18:${String(id).padStart(2, '0')}:00Z`, score: 1, ...over }
+}
+
+describe('mergeMotionEvents', () => {
+  it('returns the SAME reference when the list is equivalent (enables React bail-out)', () => {
+    const prev = [ev(1, { frame: 'a.jpg', label: 'person' }), ev(2)]
+    const fresh = [ev(1, { frame: 'a.jpg', label: 'person' }), ev(2)] // new array, same content
+    expect(mergeMotionEvents(prev, fresh)).toBe(prev)
+  })
+
+  it('returns fresh when an event count changes (new event)', () => {
+    const prev = [ev(1)]
+    const fresh = [ev(1), ev(2)]
+    expect(mergeMotionEvents(prev, fresh)).toBe(fresh)
+  })
+
+  it('returns fresh when a frame arrives later (thumbnail hydration)', () => {
+    const prev = [ev(1, { frame: undefined })]
+    const fresh = [ev(1, { frame: 'a.jpg' })]
+    expect(mergeMotionEvents(prev, fresh)).toBe(fresh)
+  })
+
+  it('returns fresh when a label changes', () => {
+    const prev = [ev(1, { label: 'motion' })]
+    const fresh = [ev(1, { label: 'person' })]
+    expect(mergeMotionEvents(prev, fresh)).toBe(fresh)
+  })
+})
 
 // ─── recordingFromByID ──────────────────────────────────────────────────────
 

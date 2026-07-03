@@ -16,7 +16,7 @@ import { useSettings, type CameraSettings } from '../hooks/useSettings'
 import { useMotionPeak } from '../hooks/useMotionPeak'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useDebugTools } from '../hooks/useDebugTools'
-import { applyFrameStep, applySameChunkStep, loadedMetadataSeek, mergeRecordings, recordingFromByID, secondStepTarget, shouldReplaceActiveRecording } from './cameraUtils'
+import { applyFrameStep, applySameChunkStep, loadedMetadataSeek, mergeMotionEvents, mergeRecordings, recordingFromByID, secondStepTarget, shouldReplaceActiveRecording } from './cameraUtils'
 import { calendarContent, dateKey } from '../lib/calendar'
 import type { Recording, MotionEvent, RecordingByID } from './cameraUtils'
 import BboxCanvas, { type BboxRect } from '../components/BboxCanvas'
@@ -754,15 +754,19 @@ export default function CameraPage() {
       selectedDate.getMonth() === today.getMonth() &&
       selectedDate.getDate() === today.getDate()
 
+    // No dia de hoje só a cauda cresce: busca as PAGE_SIZE mais recentes e as
+    // funde via mergeRecordings (não re-baixa as milhares do dia). Dia passado é
+    // imutável, mas o poll de 30s ainda reflete exclusões do cleaner → lista cheia.
+    const pollLimit = isToday ? PAGE_SIZE : ALL_RECORDINGS_LIMIT
     const interval = setInterval(async () => {
       const [result, events] = await Promise.all([
-        loadRecordingsData(id!, selectedDate, 1, sortOrder, ALL_RECORDINGS_LIMIT),
+        loadRecordingsData(id!, selectedDate, 1, sortOrder, pollLimit),
         loadMotionEvents(id!, selectedDate),
       ])
       if (result === 401) { onUnauthorized(); return }
       setRecordings(prev => mergeRecordings(prev, result.recordings, sortOrder, result.hasMore))
       setRecordingsTotal(result.total)
-      setMotionEvents(events)
+      setMotionEvents(prev => mergeMotionEvents(prev, events))
     }, isToday ? 5_000 : 30_000)
 
     return () => clearInterval(interval)
