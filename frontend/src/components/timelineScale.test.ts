@@ -8,6 +8,7 @@ import {
   posToTime,
   recordingAtMs,
   filmstripSamples,
+  mergeRecordingRuns,
 } from './timelineScale'
 import type { Recording } from '../pages/cameraUtils'
 
@@ -118,5 +119,55 @@ describe('filmstripSamples', () => {
   })
   it('janela sem gravações devolve vazio', () => {
     expect(filmstripSamples([], { startMs: 0, endMs: 900_000 })).toEqual([])
+  })
+
+  it('limita a maxSamples por downsample uniforme, preservando os extremos', () => {
+    // 10 chunks a cada 60s; maxSamples=4 → mantém ~1 a cada k, incluindo 1º e último.
+    const recs = Array.from({ length: 10 }, (_, i) => rec(i + 1, i * 60_000))
+    const out = filmstripSamples(recs, { startMs: 0, endMs: 1_000_000 }, { maxSamples: 4 })
+    expect(out.length).toBeLessThanOrEqual(4)
+    expect(out[0].rec.id).toBe(1)
+    expect(out[out.length - 1].rec.id).toBe(10)
+  })
+
+  it('sempre inclui keepRecId mesmo quando o downsample o cortaria', () => {
+    const recs = Array.from({ length: 10 }, (_, i) => rec(i + 1, i * 60_000))
+    const out = filmstripSamples(recs, { startMs: 0, endMs: 1_000_000 }, { maxSamples: 4, keepRecId: 5 })
+    expect(out.map(s => s.rec.id)).toContain(5)
+    expect(out.length).toBeLessThanOrEqual(4)
+  })
+
+  it('sem cap (default alto) devolve todas as gravações da janela', () => {
+    const recs = Array.from({ length: 5 }, (_, i) => rec(i + 1, i * 60_000))
+    const out = filmstripSamples(recs, { startMs: 0, endMs: 1_000_000 })
+    expect(out.map(s => s.rec.id)).toEqual([1, 2, 3, 4, 5])
+  })
+})
+
+describe('mergeRecordingRuns', () => {
+  const CHUNK = 5 * 60_000
+  it('funde N chunks contíguos (gap <= chunkMs) num único run', () => {
+    // 4 chunks a cada 30s → um trecho contínuo → 1 run.
+    const recs = Array.from({ length: 4 }, (_, i) => rec(i + 1, i * 30_000))
+    const runs = mergeRecordingRuns(recs, CHUNK)
+    expect(runs).toEqual([{ startMs: 0, endMs: 3 * 30_000 + CHUNK }])
+  })
+
+  it('quebra em dois runs quando há vão real (gap > chunkMs)', () => {
+    const recs = [rec(1, 0), rec(2, 30_000), rec(3, 30_000 + 10 * 60_000)]
+    const runs = mergeRecordingRuns(recs, CHUNK)
+    expect(runs.length).toBe(2)
+    expect(runs[0]).toEqual({ startMs: 0, endMs: 30_000 + CHUNK })
+    expect(runs[1]).toEqual({ startMs: 30_000 + 10 * 60_000, endMs: 30_000 + 10 * 60_000 + CHUNK })
+  })
+
+  it('ignora o chunk em gravação (is_recording)', () => {
+    const recs = [rec(1, 0), rec(2, 30_000, true)]
+    const runs = mergeRecordingRuns(recs, CHUNK)
+    expect(runs).toEqual([{ startMs: 0, endMs: CHUNK }])
+  })
+
+  it('lista vazia devolve vazio', () => {
+    expect(mergeRecordingRuns([], CHUNK)).toEqual([])
   })
 })

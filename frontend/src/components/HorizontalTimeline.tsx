@@ -8,6 +8,7 @@ import {
   timelineTicks,
   posToTime,
   recordingAtMs,
+  mergeRecordingRuns,
   type TimelineRange,
 } from './timelineScale'
 import DatePicker from './DatePicker'
@@ -151,17 +152,16 @@ export default function HorizontalTimeline({
         onMouseDown={(e) => { setDragging(true); seekAtClientX(e.clientX, true) }}
         className="relative h-8 rounded bg-surface-2/60 overflow-hidden cursor-pointer select-none"
       >
-        {/* Faixa de gravação contínua */}
-        {recordings.map(rec => {
-          const startMs = Date.parse(rec.start)
-          const segEnd = startMs + CHUNK_FALLBACK_MS
-          if (segEnd < win.startMs || startMs > win.endMs) return null
-          const left = timePosFraction(startMs, win)
-          const right = timePosFraction(segEnd, win)
+        {/* Faixa de gravação contínua — um <span> por trecho contínuo (runs
+            fundem chunks contíguos), não um por chunk. */}
+        {mergeRecordingRuns(recordings, chunkMs).map(run => {
+          if (run.endMs < win.startMs || run.startMs > win.endMs) return null
+          const left = timePosFraction(run.startMs, win)
+          const right = timePosFraction(run.endMs, win)
           return (
             <span
-              key={`rec-${rec.id}`}
-              id={`timeline-rec-${rec.id}`}
+              key={`run-${run.startMs}`}
+              id={`timeline-run-${run.startMs}`}
               className="absolute top-1/2 -translate-y-1/2 h-2 bg-blue-500/70"
               style={{ left: `${left * 100}%`, width: `${Math.max(right - left, 0) * 100}%` }}
             />
