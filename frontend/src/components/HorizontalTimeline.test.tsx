@@ -62,7 +62,15 @@ describe('HorizontalTimeline', () => {
   it('renderiza a faixa de gravação contínua na janela', () => {
     const rec: Recording = { id: 1, filename: 'a.mp4', start: new Date(0).toISOString(), url: '', is_recording: false, has_motion: false }
     render(<HorizontalTimeline {...baseProps} recordings={[rec]} />)
-    expect(document.getElementById('timeline-rec-1')).toBeTruthy()
+    expect(document.getElementById('timeline-run-0')).toBeTruthy()
+  })
+
+  it('funde chunks contíguos num único run (um <span>, não um por gravação)', () => {
+    const mk = (id: number, ms: number): Recording => ({ id, filename: `r${id}.mp4`, start: new Date(ms).toISOString(), url: '', is_recording: false, has_motion: false })
+    // 3 chunks a cada 30s → contíguos → 1 run.
+    const recs = [mk(1, 0), mk(2, 30_000), mk(3, 60_000)]
+    const { container } = render(<HorizontalTimeline {...baseProps} recordings={recs} />)
+    expect(container.querySelectorAll('[id^="timeline-run-"]').length).toBe(1)
   })
 
   it('legenda lista as categorias', () => {

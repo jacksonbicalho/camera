@@ -57,7 +57,7 @@ export default function Filmstrip({
   const [failed, setFailed] = useState<Set<number>>(new Set())
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const samples = filmstripSamples(recordings, win)
+  const samples = filmstripSamples(recordings, win, { keepRecId: activeRecordingId })
 
   // Rola o filmstrip para centralizar a gravação que está tocando.
   useEffect(() => {
