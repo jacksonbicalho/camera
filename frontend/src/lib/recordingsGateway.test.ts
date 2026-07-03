@@ -57,6 +57,24 @@ describe('clipSegments', () => {
   it('devolve vazio para timestamp inválido', () => {
     expect(clipSegments('não-é-data', [A], 10, 10)).toEqual([])
   })
+
+  it('usa o `end` real do chunk (encurta toSeconds) e não cobre o vão', () => {
+    // Arquivos de 9s a cada 10s → vão de 1s entre o end real e o próximo start.
+    const a = rec({ start: '2026-05-03T10:00:00Z', end: '2026-05-03T10:00:09Z' })
+    const b = rec({ start: '2026-05-03T10:00:10Z', end: '2026-05-03T10:00:19Z' })
+    // evento 10:00:08, lead 4 / trail 4 → janela [10:00:04, 10:00:12]
+    const segs = clipSegments('2026-05-03T10:00:08Z', [a, b], 4, 4)
+    expect(segs).toHaveLength(2)
+    // A vai só até o end real (9s), não até o start do próximo (10s) — vão de 09→10 não coberto.
+    expect(segs[0]).toMatchObject({ recording: a, fromSeconds: 4, toSeconds: 9 })
+    // B começa no seu start (10:00:10) → 0s, até 10:00:12 → 2s.
+    expect(segs[1]).toMatchObject({ recording: b, fromSeconds: 0, toSeconds: 2 })
+  })
+
+  it('sem `end` mantém o fim inferido = start do próximo (retrocompatível)', () => {
+    const segs = clipSegments('2026-05-03T10:05:30Z', [A, B, C], 40, 40)
+    expect(segs[0]).toMatchObject({ recording: A, fromSeconds: 290, toSeconds: 300 })
+  })
 })
 
 describe('RecordingsGateway', () => {
@@ -125,6 +143,19 @@ describe('RecordingsGateway', () => {
     const fetchFn = vi.fn().mockResolvedValue(okResp([{ id: 'outra' }]))
     const gw = new RecordingsGateway({ fetchFn })
     expect(await gw.getPlaybackWindow('cam1')).toEqual({ lead: 10, trail: 10 })
+  })
+
+  it('getTimezone devolve o timezone do /api/config', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResp({ timezone: 'America/Sao_Paulo' }))
+    const gw = new RecordingsGateway({ fetchFn })
+    expect(await gw.getTimezone()).toBe('America/Sao_Paulo')
+    expect(fetchFn).toHaveBeenCalledWith('/api/config')
+  })
+
+  it('getTimezone cai em UTC quando /api/config falha', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResp({}, 500))
+    const gw = new RecordingsGateway({ fetchFn })
+    expect(await gw.getTimezone()).toBe('UTC')
   })
 
   it('playbackURL anexa o token à url servível', () => {

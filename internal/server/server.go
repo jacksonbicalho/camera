@@ -960,6 +960,7 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 		ID          int64                `json:"id,omitempty"`
 		Filename    string               `json:"filename"`
 		Start       string               `json:"start"`
+		End         string               `json:"end,omitempty"`
 		URL         string               `json:"url"`
 		IsRecording bool                 `json:"is_recording"`
 		HasMotion   bool                 `json:"has_motion"`
@@ -1030,6 +1031,14 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 		if idsByPath, err := db.IDsByPaths(s.db, paths); err == nil {
 			for i := range all {
 				all[i].ID = idsByPath[all[i].path]
+			}
+		}
+		// end = ended_at real (só chunks finalizados; o chunk em gravação fica sem).
+		if endedByPath, err := db.EndedAtByPaths(s.db, paths); err == nil {
+			for i := range all {
+				if e, ok := endedByPath[all[i].path]; ok {
+					all[i].End = e.UTC().Format(time.RFC3339)
+				}
 			}
 		}
 	}
