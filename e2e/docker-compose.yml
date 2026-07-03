@@ -10,6 +10,9 @@ services:
       target: e2e
     environment:
       CAMERA_SERVER_JWT_SECRET: e2e-fixed-secret
+      # Escala: smoke + perf rodam contra o mesmo fixture (o smoke navega pela
+      # gravação mais antiga, recording_id=1). ~representativo do dia real (~2.851).
+      E2E_RECORDINGS: "1500"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8099/api/config"]
       interval: 2s

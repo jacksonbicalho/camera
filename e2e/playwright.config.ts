@@ -5,7 +5,8 @@ import { defineConfig, devices } from '@playwright/test'
 // (sem `webServer`) porque o boot precisa de build + seed em Go antes.
 export default defineConfig({
   testDir: './tests',
-  timeout: 30_000,
+  // Generoso: os specs de perf carregam milhares de gravações e aguardam ≥1 poll.
+  timeout: 60_000,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,

@@ -6,9 +6,10 @@ set -e
 
 FIXTURE=/data
 PORT="${E2E_PORT:-8099}"
+RECORDINGS="${E2E_RECORDINGS:-8}"
 
-echo "→ seeding fixture at $FIXTURE"
-./seed -out "$FIXTURE" -port "$PORT"
+echo "→ seeding fixture at $FIXTURE ($RECORDINGS recordings)"
+./seed -out "$FIXTURE" -port "$PORT" -recordings "$RECORDINGS"
 
 echo "→ starting camera server on :$PORT"
 exec ./camera --config "$FIXTURE/camera.yaml"

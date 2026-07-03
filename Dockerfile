@@ -60,4 +60,5 @@ RUN apk add --no-cache ffmpeg curl
 WORKDIR /app
 COPY --from=e2e-builder /out/camera /out/seed ./
 COPY e2e/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
 ENTRYPOINT ["./docker-entrypoint.sh"]

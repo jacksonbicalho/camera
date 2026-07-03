@@ -109,8 +109,15 @@ rede compartilhada:
   (câmera id fixo, `recording_id=1` num DB novo).
 
 O smoke (`e2e/tests/smoke.spec.ts`): login → deep-link `/camera/recording/{id}/{recId}`
-→ `<video>` com `src` e a faixa da timeline (`timeline-run`) renderizados. **Nota:**
-semear em *hoje* é intencional — o deep-link cross-day dispara um segundo `load()` no
+→ `<video>` com `src` e a faixa da timeline (`timeline-run`) renderizados. O
+**`e2e/tests/perf.spec.ts`** prova as otimizações de performance em **escala**
+(`E2E_RECORDINGS`, ex.: 1500; o `e2e/seed` distribui N chunks na janela decorrida de
+hoje via `chunkLayout`, com teste unitário em `layout_test.go`): História 3 =
+contagem de DOM bounded (`timeline-run` ≤ 10, `filmstrip` ≤ 120 — no antigo seriam
+~N); História 1 = atrasando a resposta da lista do dia (`page.route`) o `<video src>`
+ainda aparece < 1,5s (independe da lista); História 2 = o poll usa `limit=10` (cauda);
+TTFF logado (métrica, teto só de sanidade — timing não é gate). **Nota:** semear em
+*hoje* é intencional — o deep-link cross-day dispara um segundo `load()` no
 `CameraPage` que expõe uma race (o `activeRecordingRef` defasado zera a gravação do
 by-id); o fluxo real da notificação usa `eventTime` e não sofre disso.
 
