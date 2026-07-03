@@ -88,6 +88,32 @@ docker run --rm \
 
 Nunca afirmar que os testes do frontend passaram sem ter rodado o comando acima (ou visto o CI verde).
 
+### E2E (Playwright) — `e2e/`
+
+Suíte end-to-end que dirige o app real (build embutido) num browser. **Tudo roda em
+Docker — o host só precisa de `docker` (sem Go, sem Node, sem servidor local).** Roda
+via **`scripts/e2e.sh`** (local-first, não está no `check.sh`/CI ainda), que só
+orquestra `e2e/docker-compose.yml` (`up --build --abort-on-container-exit --exit-code-from playwright`;
+o exit do Playwright vira o exit do script; `down -v` no teardown). Dois serviços numa
+rede compartilhada:
+- **`camera`** — imagem do stage **`e2e`** do `Dockerfile` (reusa o stage `frontend`
+  p/ o dist; `e2e-builder` compila `cmd/camera` + `e2e/seed`). O entrypoint
+  (`e2e/docker-entrypoint.sh`) **semeia o fixture e sobe o servidor** na mesma
+  imagem: `e2e/seed` (Go, reusa `internal/db`) roda as migrations via `db.Open`, cria
+  um admin **liberado** (`db.CreateUser(...,mustChange=false)`), uma câmera (id fixo) e
+  N gravações contíguas **em hoje** — os `.mp4` no disco (a lista vem do `os.ReadDir`)
+  + linhas no DB — e semeia retenção "infinita" (o cleaner não apaga o fixture).
+- **`playwright`** — container oficial `mcr.microsoft.com/playwright`; alcança o
+  servidor por **nome de serviço** (`http://camera:8099`, sem `--network host` →
+  portável), com `depends_on: service_healthy`. Ids do fixture vêm por env do compose
+  (câmera id fixo, `recording_id=1` num DB novo).
+
+O smoke (`e2e/tests/smoke.spec.ts`): login → deep-link `/camera/recording/{id}/{recId}`
+→ `<video>` com `src` e a faixa da timeline (`timeline-run`) renderizados. **Nota:**
+semear em *hoje* é intencional — o deep-link cross-day dispara um segundo `load()` no
+`CameraPage` que expõe uma race (o `activeRecordingRef` defasado zera a gravação do
+by-id); o fluxo real da notificação usa `eventTime` e não sofre disso.
+
 ### Serviço YOLO (`services/yolo/`)
 
 Microserviço Python/FastAPI opcional para análise de gravações e fine-tuning. Expõe:
