@@ -41,3 +41,23 @@ RUN apk add --no-cache ffmpeg
 WORKDIR /app
 COPY --from=builder /app/camera .
 CMD ["./camera", "--config", "/app/camera.yaml"]
+
+# E2E builder: compila o binário do servidor E o seed (fixture) para a arch nativa,
+# com o dist embutido. Native (sem cross) — o e2e roda onde é buildado.
+FROM golang:1.25-alpine AS e2e-builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+COPY --from=frontend /app/frontend/dist ./frontend/dist
+RUN CGO_ENABLED=0 go build -o /out/camera ./cmd/camera && \
+    CGO_ENABLED=0 go build -o /out/seed ./e2e/seed
+
+# E2E: imagem auto-contida que semeia um fixture determinístico e sobe o servidor
+# contra ele (usada pelo e2e/docker-compose.yml). Tudo em container — sem Go no host.
+FROM alpine:3.20 AS e2e
+RUN apk add --no-cache ffmpeg curl
+WORKDIR /app
+COPY --from=e2e-builder /out/camera /out/seed ./
+COPY e2e/docker-entrypoint.sh ./docker-entrypoint.sh
+ENTRYPOINT ["./docker-entrypoint.sh"]
