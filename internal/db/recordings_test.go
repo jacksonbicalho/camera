@@ -154,3 +154,39 @@ func TestGetRecordingByID_NotFound(t *testing.T) {
 		t.Error("expected error for missing ID, got nil")
 	}
 }
+
+func TestEndedAtByPaths(t *testing.T) {
+	database := openTestDB(t)
+	ensureCamera(t, database, "cam1")
+
+	base := time.Date(2026, 5, 28, 10, 0, 0, 0, time.UTC)
+	ended := base.Add(9 * time.Second)
+	// a.mp4 finalizado (ended_at); b.mp4 em gravação (ended_at NULL).
+	db.InsertRecording(database, db.Recording{CameraID: "cam1", StartedAt: base, EndedAt: ended, Path: "/storage/cam1/a.mp4"})
+	db.InsertRecording(database, db.Recording{CameraID: "cam1", StartedAt: base.Add(time.Minute), Path: "/storage/cam1/b.mp4"})
+
+	m, err := db.EndedAtByPaths(database, []string{"/storage/cam1/a.mp4", "/storage/cam1/b.mp4", "/storage/cam1/missing.mp4"})
+	if err != nil {
+		t.Fatalf("EndedAtByPaths: %v", err)
+	}
+	if got, ok := m["/storage/cam1/a.mp4"]; !ok || !got.Equal(ended) {
+		t.Errorf("a.mp4: want %v (ok=true), got %v (ok=%v)", ended, got, ok)
+	}
+	if _, ok := m["/storage/cam1/b.mp4"]; ok {
+		t.Error("b.mp4: sem ended_at deve ficar ausente do mapa")
+	}
+	if _, ok := m["/storage/cam1/missing.mp4"]; ok {
+		t.Error("missing.mp4: deve ficar ausente do mapa")
+	}
+}
+
+func TestEndedAtByPaths_EmptyInput(t *testing.T) {
+	database := openTestDB(t)
+	m, err := db.EndedAtByPaths(database, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if m != nil {
+		t.Errorf("expected nil, got %v", m)
+	}
+}

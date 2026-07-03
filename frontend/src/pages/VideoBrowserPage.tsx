@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import AppLayout from '../components/AppLayout'
-import { Play, Pause, Maximize, VolumeX, Volume2 } from '../components/Icons'
+import { Play, Pause, Repeat, Maximize, VolumeX, Volume2 } from '../components/Icons'
 import {
   RecordingsGateway,
   clipSegments,
@@ -11,6 +11,7 @@ import {
   type ClipSegment,
 } from '../lib/recordingsGateway'
 import { segmentDuration, clipTotal, globalTime, locate, formatClock } from '../lib/clipTimeline'
+import { formatDateTime } from '../lib/datetime'
 
 // VideoBrowserPage é a página nova (método estrangulamento) que reproduz gravações
 // consumindo SÓ o RecordingsGateway — o único intermediário com o backend. Não toca o
@@ -51,6 +52,7 @@ export default function VideoBrowserPage() {
   const durationsRef = useRef<number[]>([]) // duração reproduzível de cada segmento
   const playingRef = useRef(false) // intenção de reprodução (sobrevive à troca de src)
   const scrubbingRef = useRef(false)
+  const repeatRef = useRef(false) // loop do clipe ao terminar
 
   const [activeEl, setActiveEl] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -60,9 +62,11 @@ export default function VideoBrowserPage() {
   const [curSeg, setCurSeg] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(true) // muted p/ liberar autoplay sem gesto
+  const [repeat, setRepeat] = useState(false)
   const [pos, setPos] = useState(0) // posição global (s)
   const [total, setTotal] = useState(0) // duração total do clipe (s)
   const [fullscreen, setFullscreen] = useState(false)
+  const [timezone, setTimezone] = useState('UTC')
 
   const setPlayingIntent = useCallback((v: boolean) => {
     playingRef.current = v
@@ -124,12 +128,30 @@ export default function VideoBrowserPage() {
     if (el && el.readyState >= 1 && playingRef.current) el.play().catch(() => {})
   }, [])
 
+  // restartClip reinicia o clipe do segmento 0 (usado no loop). Mantém as durações reais
+  // já aprendidas (realDurRef/durationsRef) — não recomputa do zero.
+  const restartClip = useCallback(() => {
+    heldSegRef.current = [-1, -1]
+    pendingSeekRef.current = [null, null]
+    activeRef.current = 0
+    setActiveEl(0)
+    setCurSeg(0)
+    setPos(0)
+    setPlayingIntent(true)
+    loadInto(0, 0)
+    loadInto(1, 1)
+  }, [loadInto, setPlayingIntent])
+
   // advance troca para o próximo segmento (que o outro elemento já pré-carregou) e põe o
   // elemento liberado para pré-carregar o segmento seguinte.
   const advance = useCallback(() => {
     const active = activeRef.current
     const nextSeg = heldSegRef.current[active] + 1
     if (nextSeg >= segmentsRef.current.length) {
+      if (repeatRef.current) {
+        restartClip()
+        return
+      }
       elsRef.current[active]?.pause()
       setPlayingIntent(false)
       setPos(clipTotal(durationsRef.current)) // crava o fim (thumb chega na borda direita)
@@ -139,7 +161,7 @@ export default function VideoBrowserPage() {
     if (heldSegRef.current[other] !== nextSeg) loadInto(other, nextSeg)
     activate(other)
     loadInto(active, nextSeg + 1)
-  }, [activate, loadInto, setPlayingIntent])
+  }, [activate, loadInto, restartClip, setPlayingIntent])
 
   const onTimeUpdate = useCallback(
     (elIdx: number) => {
@@ -166,12 +188,13 @@ export default function VideoBrowserPage() {
     (elIdx: number) => {
       if (elIdx !== activeRef.current) return
       if (heldSegRef.current[elIdx] + 1 < segmentsRef.current.length) advance()
+      else if (repeatRef.current) restartClip()
       else {
         setPlayingIntent(false)
         setPos(clipTotal(durationsRef.current)) // crava o fim (thumb chega na borda direita)
       }
     },
-    [advance, setPlayingIntent],
+    [advance, restartClip, setPlayingIntent],
   )
 
   const togglePlay = useCallback(() => {
@@ -185,6 +208,13 @@ export default function VideoBrowserPage() {
       el.play().catch(() => {})
     }
   }, [setPlayingIntent])
+
+  const toggleRepeat = useCallback(() => {
+    setRepeat(r => {
+      repeatRef.current = !r
+      return !r
+    })
+  }, [])
 
   const toggleMute = useCallback(() => {
     setMuted(m => {
@@ -277,6 +307,10 @@ export default function VideoBrowserPage() {
   }, [])
 
   useEffect(() => {
+    gateway.getTimezone().then(setTimezone).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (!cameraId || !recordingId) return
     let cancelled = false
 
@@ -353,8 +387,13 @@ export default function VideoBrowserPage() {
               muted={muted}
               playsInline
               preload="auto"
+              // Transição sem piscada: os DOIS ficam pintados (opacity-1) e a troca é só
+              // por z-index. Se o buffer usasse opacity-0, o browser não pinta o frame do
+              // <video> oculto → ao revelar, aparecia 1 frame preto. Mantendo-o visível
+              // atrás (occluído pelo ativo, mesmo enquadramento), o incoming já está
+              // renderizado no fromSeconds quando vem pra frente.
               className={`absolute inset-0 h-full w-full ${
-                activeEl === i ? 'z-10 opacity-100' : 'z-0 opacity-0 pointer-events-none'
+                activeEl === i ? 'z-10' : 'z-0 pointer-events-none'
               }`}
               onClick={togglePlay}
               onLoadedMetadata={() => onMeta(i)}
@@ -403,6 +442,18 @@ export default function VideoBrowserPage() {
                 {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               </button>
               <button
+                id="video-browser-repeat"
+                type="button"
+                onClick={toggleRepeat}
+                className={`flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15 ${
+                  repeat ? 'text-primary' : ''
+                }`}
+                aria-label="Repetir"
+                aria-pressed={repeat}
+              >
+                <Repeat className="h-4 w-4" />
+              </button>
+              <button
                 id="video-browser-mute"
                 type="button"
                 onClick={toggleMute}
@@ -439,7 +490,7 @@ export default function VideoBrowserPage() {
         {anchor && (
           <p id="video-browser-meta" className="mt-3 text-muted text-caption tabular-nums">
             {anchor.filename}
-            {event ? ` · evento @ ${event.time}` : ''}
+            {event ? ` · evento @ ${formatDateTime(event.time, timezone)}` : ''}
           </p>
         )}
       </div>

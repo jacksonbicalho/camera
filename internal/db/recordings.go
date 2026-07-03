@@ -99,6 +99,37 @@ func IDsByPaths(db *DB, paths []string) (map[string]int64, error) {
 	return result, rows.Err()
 }
 
+// EndedAtByPaths returns a map of path → ended_at for the given file paths. Only rows
+// with a non-NULL ended_at are included — a chunk still recording (ended_at NULL) is
+// absent from the map (caller omits `end`). Mirrors IDsByPaths/HasMotionByPaths.
+func EndedAtByPaths(db *DB, paths []string) (map[string]time.Time, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(paths))
+	placeholders = placeholders[:len(placeholders)-1]
+	args := make([]any, len(paths))
+	for i, p := range paths {
+		args[i] = p
+	}
+	rows, err := db.Query(`SELECT path, ended_at FROM recordings WHERE ended_at IS NOT NULL AND path IN (`+placeholders+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string]time.Time, len(paths))
+	for rows.Next() {
+		var path, endedAt string
+		if err := rows.Scan(&path, &endedAt); err != nil {
+			return nil, err
+		}
+		if t, err := time.Parse(time.RFC3339, endedAt); err == nil {
+			result[path] = t
+		}
+	}
+	return result, rows.Err()
+}
+
 // GetRecordingByID returns the recording row for the given ID, or an error if not found.
 func GetRecordingByID(database *DB, id int64) (*Recording, error) {
 	var r Recording

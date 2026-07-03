@@ -334,6 +334,69 @@ func TestRecordingsMarksActiveFileAsRecording(t *testing.T) {
 	}
 }
 
+func TestRecordingsIncludesEndForFinishedChunks(t *testing.T) {
+	tmpDir := t.TempDir()
+	cameraID := "cam1"
+	dateDir := filepath.Join(tmpDir, cameraID, "2026", "05", "24")
+	if err := os.MkdirAll(dateDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"20260524150000.mp4", "20260524150010.mp4"} {
+		if err := os.WriteFile(filepath.Join(dateDir, name), []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CreateCamera(database, config.CameraConfig{ID: cameraID}, nil); err != nil {
+		t.Fatal(err)
+	}
+	start0 := time.Date(2026, 5, 24, 15, 0, 0, 0, time.UTC)
+	// Chunk finalizado (ended_at) e chunk em gravação (ended_at NULL).
+	db.InsertRecording(database, db.Recording{
+		CameraID: cameraID, StartedAt: start0, EndedAt: start0.Add(9 * time.Second),
+		Path: filepath.Join(dateDir, "20260524150000.mp4"),
+	})
+	db.InsertRecording(database, db.Recording{
+		CameraID: cameraID, StartedAt: start0.Add(10 * time.Second),
+		Path: filepath.Join(dateDir, "20260524150010.mp4"),
+	})
+
+	cfg := config.ServerConfig{RecordingsPath: tmpDir}
+	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{{ID: cameraID}}, discardLogger(), nil).WithDB(database)
+	token := loginAndGetToken(t, srv, "admin", "pw")
+	req := httptest.NewRequest(http.MethodGet, "/api/cameras/"+cameraID+"/recordings?date=2026-05-24&limit=0&order=asc", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Recordings []struct {
+			Filename string `json:"filename"`
+			End      string `json:"end"`
+		} `json:"recordings"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Recordings) != 2 {
+		t.Fatalf("expected 2 recordings, got %d", len(resp.Recordings))
+	}
+	// asc: [0]=150000 (finalizado), [1]=150010 (em gravação, sem ended_at)
+	if resp.Recordings[0].End != "2026-05-24T15:00:09Z" {
+		t.Errorf("chunk finalizado: want end 2026-05-24T15:00:09Z, got %q", resp.Recordings[0].End)
+	}
+	if resp.Recordings[1].End != "" {
+		t.Errorf("chunk em gravação: end deve ser omitido, got %q", resp.Recordings[1].End)
+	}
+}
+
 func TestRecordingsOnlyLatestFileIsMarkedAsRecording(t *testing.T) {
 	tmpDir := t.TempDir()
 	cameraID := "cam1"

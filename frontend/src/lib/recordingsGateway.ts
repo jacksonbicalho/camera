@@ -9,6 +9,7 @@ export interface Recording {
   id: number
   filename: string
   start: string // ISO — start exato (cravado no filename YYYYMMDDHHmmss.mp4)
+  end?: string // ISO — ended_at real; ausente no chunk em gravação (cai no fim inferido)
   url: string
   is_recording: boolean
   has_motion: boolean
@@ -71,9 +72,15 @@ export function clipSegments(
     const r = asc[i]
     if (r.is_recording) continue
     const start = Date.parse(r.start)
-    // Fim inferido = start do próximo chunk (mesmo que ele seja o chunk em gravação);
-    // só o último chunk fica aberto (+∞).
-    const end = i + 1 < asc.length ? Date.parse(asc[i + 1].start) : Infinity
+    // Fim do chunk: o `ended_at` real quando presente (preciso — não cobre o vão entre
+    // o fim real e o próximo start); senão infere o start do próximo chunk (mesmo que ele
+    // seja o chunk em gravação) e, no último, fica aberto (+∞).
+    const realEnd = r.end ? Date.parse(r.end) : NaN
+    const end = !Number.isNaN(realEnd)
+      ? realEnd
+      : i + 1 < asc.length
+        ? Date.parse(asc[i + 1].start)
+        : Infinity
     const from = Math.max(w0, start)
     const to = Math.min(w1, end)
     if (from >= to) continue // sem sobreposição com a janela
@@ -145,6 +152,16 @@ export class RecordingsGateway {
     }>
     const cam = list.find(c => c.id === cameraId)
     return { lead: cam?.playback_lead_seconds ?? 10, trail: cam?.playback_trail_seconds ?? 10 }
+  }
+
+  // getTimezone devolve o fuso configurado da instalação (`/api/config`), usado para
+  // localizar horários de gravações/eventos. Vive no gateway para a página não fazer fetch
+  // cru; default UTC. (Convenção do app: UTC no fio, cliente formata.)
+  async getTimezone(): Promise<string> {
+    const res = await this.fetchFn('/api/config')
+    if (!res.ok) return 'UTC'
+    const data = await res.json()
+    return data.timezone || 'UTC'
   }
 
   // playbackURL monta a URL servível do .mp4 com o token (necessário no <video src>).
