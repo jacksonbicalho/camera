@@ -80,6 +80,40 @@ export function mergeRecordings(
   return result
 }
 
+// Resposta do endpoint GET /api/cameras/{id}/recordings/by-id/{recId}.
+export interface RecordingByID {
+  id: number
+  filename: string
+  date: string
+  start: string
+  url: string
+  is_recording: boolean
+  has_motion: boolean
+}
+
+// Converte a resposta do by-id num Recording completo, para tocar imediatamente
+// ao abrir /camera/recording sem esperar a lista do dia inteiro. O by-id já traz
+// todos os campos do player (id/filename/start/url/is_recording/has_motion); só
+// `date` (usado para posicionar o calendário) fica de fora do Recording.
+export function recordingFromByID(data: RecordingByID): Recording {
+  return {
+    id: data.id,
+    filename: data.filename,
+    start: data.start,
+    url: data.url,
+    is_recording: data.is_recording,
+    has_motion: data.has_motion,
+  }
+}
+
+// Decide se `next` deve substituir a gravação ativa `current`. Retorna false
+// quando já estamos tocando a mesma gravação (mesmo filename) — trocar por um
+// objeto novo faria o efeito imperativo da <video> re-atribuir a src e reiniciar
+// o vídeo do zero.
+export function shouldReplaceActiveRecording(current: Recording | null, next: Recording): boolean {
+  return current?.filename !== next.filename
+}
+
 // Parses a Go-formatted duration string ("5m", "30s", "2h") to milliseconds.
 export function parseDurationToMs(s: string | undefined, defaultMs = 30_000): number {
   if (!s) return defaultMs

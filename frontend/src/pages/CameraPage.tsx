@@ -16,9 +16,9 @@ import { useSettings, type CameraSettings } from '../hooks/useSettings'
 import { useMotionPeak } from '../hooks/useMotionPeak'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useDebugTools } from '../hooks/useDebugTools'
-import { applyFrameStep, applySameChunkStep, loadedMetadataSeek, mergeRecordings, secondStepTarget } from './cameraUtils'
+import { applyFrameStep, applySameChunkStep, loadedMetadataSeek, mergeRecordings, recordingFromByID, secondStepTarget, shouldReplaceActiveRecording } from './cameraUtils'
 import { calendarContent, dateKey } from '../lib/calendar'
-import type { Recording, MotionEvent } from './cameraUtils'
+import type { Recording, MotionEvent, RecordingByID } from './cameraUtils'
 import BboxCanvas, { type BboxRect } from '../components/BboxCanvas'
 import CameraConfigMenu from '../components/CameraConfigMenu'
 import PlayerTitle from '../components/PlayerTitle'
@@ -660,9 +660,13 @@ export default function CameraPage() {
     if (!recId || !id) return
     fetch(`/api/cameras/${id}/recordings/by-id/${recId}`, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : null)
-      .then((data: { filename: string; date: string } | null) => {
+      .then((data: RecordingByID | null) => {
         if (!data) return
         pendingRecordingRef.current = { filename: data.filename }
+        // Toca imediatamente com a resposta do by-id (que já traz todos os campos
+        // do player) — sem esperar loadRecordingsData carregar a lista do dia. O
+        // load() continua populando timeline/filmstrip/eventos em segundo plano.
+        if (!data.is_recording) setActiveRecording(recordingFromByID(data))
         const [y, m, d] = data.date.split('-').map(Number)
         const date = new Date(y, m - 1, d)
         setSelectedDate(date)
@@ -716,8 +720,13 @@ export default function CameraPage() {
           const labeledEv = firstLabeledEventForRecording(rec, result.recordings, events)
           setActiveEventTime(labeledEv?.time ?? null)
           setActiveEventId(labeledEv?.id ?? null)
-          setActiveRecording(rec)
-        } else setActiveRecording(null)
+          // Só substitui se ainda não estamos tocando essa gravação — o efeito
+          // by-id já pode tê-la setado, e trocar o objeto reiniciaria o vídeo.
+          if (shouldReplaceActiveRecording(activeRecordingRef.current, rec)) setActiveRecording(rec)
+        } else if (activeRecordingRef.current?.filename !== pendingRec.filename) {
+          // rec não encontrada / em gravação e não estamos já tocando o pending → ao vivo.
+          setActiveRecording(null)
+        }
       } else {
         setActiveRecording(null)
       }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyFrameStep, applySameChunkStep, frameStepTime, loadedMetadataSeek, mergeRecordings, parseDurationToMs, secondStepTarget } from './cameraUtils'
+import { applyFrameStep, applySameChunkStep, frameStepTime, loadedMetadataSeek, mergeRecordings, parseDurationToMs, recordingFromByID, secondStepTarget, shouldReplaceActiveRecording } from './cameraUtils'
 import type { Recording } from './cameraUtils'
 
 function rec(filename: string): Recording {
@@ -11,6 +11,63 @@ function rec(filename: string): Recording {
     is_recording: false,
   }
 }
+
+// ─── recordingFromByID ──────────────────────────────────────────────────────
+
+describe('recordingFromByID', () => {
+  it('converts the by-id response into a full Recording', () => {
+    const data = {
+      id: 64850315,
+      filename: '20260702181824.mp4',
+      date: '2026-07-02',
+      start: '2026-07-02T18:18:24Z',
+      url: '/recordings/cam1/2026/07/02/20260702181824.mp4',
+      is_recording: false,
+      has_motion: true,
+    }
+    expect(recordingFromByID(data)).toEqual({
+      id: 64850315,
+      filename: '20260702181824.mp4',
+      start: '2026-07-02T18:18:24Z',
+      url: '/recordings/cam1/2026/07/02/20260702181824.mp4',
+      is_recording: false,
+      has_motion: true,
+    })
+  })
+
+  it('carries is_recording=true through', () => {
+    const data = {
+      id: 1,
+      filename: '20260702235959.mp4',
+      date: '2026-07-02',
+      start: '2026-07-02T23:59:59Z',
+      url: '/recordings/cam1/2026/07/02/20260702235959.mp4',
+      is_recording: true,
+      has_motion: false,
+    }
+    expect(recordingFromByID(data).is_recording).toBe(true)
+  })
+})
+
+// ─── shouldReplaceActiveRecording ───────────────────────────────────────────
+
+describe('shouldReplaceActiveRecording', () => {
+  it('replaces when nothing is playing', () => {
+    expect(shouldReplaceActiveRecording(null, rec('20260506120000.mp4'))).toBe(true)
+  })
+
+  it('replaces when the filename differs', () => {
+    const current = rec('20260506120000.mp4')
+    const next = rec('20260506130000.mp4')
+    expect(shouldReplaceActiveRecording(current, next)).toBe(true)
+  })
+
+  it('does NOT replace when already playing the same filename (avoids restart)', () => {
+    const current = rec('20260506120000.mp4')
+    const next = { ...rec('20260506120000.mp4') } // new object, same filename
+    expect(shouldReplaceActiveRecording(current, next)).toBe(false)
+  })
+})
 
 // ─── mergeRecordings ────────────────────────────────────────────────────────
 
