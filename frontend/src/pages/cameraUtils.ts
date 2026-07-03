@@ -80,6 +80,28 @@ export function mergeRecordings(
   return result
 }
 
+// Devolve `prev` (mesma referência) quando `fresh` é equivalente à lista atual de
+// eventos — permitindo o bail-out de re-render do React no poll periódico. Compara
+// por evento os campos que a UI renderiza (`id`, `time`, `frame`, `label`, `color`,
+// `score`, `kind`); qualquer diferença (novo evento, `frame` que chega depois,
+// `label` alterado) devolve `fresh`.
+export function mergeMotionEvents(prev: MotionEvent[], fresh: MotionEvent[]): MotionEvent[] {
+  if (prev.length !== fresh.length) return fresh
+  const same = prev.every((p, i) => {
+    const f = fresh[i]
+    return (
+      p.id === f.id &&
+      p.time === f.time &&
+      p.frame === f.frame &&
+      p.label === f.label &&
+      p.color === f.color &&
+      p.score === f.score &&
+      p.kind === f.kind
+    )
+  })
+  return same ? prev : fresh
+}
+
 // Resposta do endpoint GET /api/cameras/{id}/recordings/by-id/{recId}.
 export interface RecordingByID {
   id: number
