@@ -72,7 +72,10 @@ EOF
 
    > ⚠️ **Story sempre preenchida.** Contexto e Solução são escritos (investigados) **antes** da revisão — revisar um plano vazio não tem sentido. Escopo/ambiguidade se resolve no plano (AskUserQuestion **antes** da revisão), nunca depois.
 
-   > ⚠️ **Após `[x] História revisada` → só aprovação.** A revisão **autoriza** implementar; daí em diante a **única** interação com o navigator é o pedido de aprovação. O driver vai até o fim **sem perguntar nada e sem confirmar nenhum comando/execução** (check.sh, scripts, builds, git rodam direto).
+   > ⚠️ **Após `[x] História revisada`** implementar; O driver vai até o fim **sem perguntar nada e sem confirmar nenhum comando/execução** (check.sh, scripts, builds, git rodam direto).
+
+   > ⚠️ **Entre História revisada** e **Solicitação de aprovação** **NÃO SOLICITAR NADA EM PROMPT PARA O NAVIGATOR**.
+
 
 3. Escrever o teste que falha (**red**) — nunca escrever código de produção sem um teste falhando antes.
 4. Implementar o mínimo para o teste passar (**green**).
