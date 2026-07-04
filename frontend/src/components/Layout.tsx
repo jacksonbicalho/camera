@@ -1,30 +1,44 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import Footer from './Footer'
+import Sidebar from './Sidebar'
 
 interface LayoutProps {
   children: ReactNode
   id?: string
-  /** Estiliza o container raiz (coluna flex de altura de viewport). */
+  /** Estiliza o container raiz (linha flex de altura de viewport). */
   className?: string
   /** Estiliza o wrapper do conteúdo — é aqui que vai o padding de página, para o
    *  Footer permanecer flush nas bordas/fundo. */
   contentClassName?: string
   /** `id` repassado ao Footer, para rodapés únicos por página. */
   footerId?: string
+  /** Esconde o rail de navegação (ex.: player em tela cheia). */
+  hideNav?: boolean
 }
 
-// Layout — envoltório de conteúdo de página que compõe o conteúdo + o Footer no
-// rodapé. Distinto do AppLayout (chrome global da app: header/sidebar/StatusBar):
-// Layout é o miolo de uma página, garantindo um rodapé consistente.
-export default function Layout({ children, id = 'layout', className, contentClassName, footerId }: LayoutProps) {
+// Layout — envoltório de página que compõe navegação (Sidebar) + conteúdo + Footer.
+// Distinto do AppLayout (chrome global: AppSidebar/header/StatusBar): Layout é o
+// shell enxuto das páginas novas (LivePage, VideoBrowserPage).
+export default function Layout({
+  children,
+  id = 'layout',
+  className,
+  contentClassName,
+  footerId,
+  hideNav = false,
+}: LayoutProps) {
   return (
-    // min-h-screen + flex-col: o conteúdo (flex-1) cresce e empurra o Footer para o
-    // fundo da página mesmo quando o conteúdo é curto. O padding de página vai no
-    // wrapper de conteúdo (contentClassName), não no root — assim o Footer fica flush.
-    <div id={id} className={cn('flex min-h-screen flex-col', className)}>
-      <div className={cn('flex-1', contentClassName)}>{children}</div>
-      <Footer id={footerId} />
+    // Linha flex: [Sidebar] [coluna de conteúdo]. A coluna estica na altura (align
+    // stretch) e usa flex-col — o conteúdo (flex-1) empurra o Footer pro fundo. O
+    // padding de página vai no wrapper de conteúdo (contentClassName), não no root,
+    // pra o Footer ficar flush.
+    <div id={id} className={cn('flex min-h-screen', className)}>
+      {!hideNav && <Sidebar />}
+      <div className="flex flex-1 flex-col">
+        <div className={cn('flex-1', contentClassName)}>{children}</div>
+        <Footer id={footerId} />
+      </div>
     </div>
   )
 }

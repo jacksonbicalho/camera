@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { getUsername, authHeaders } from '../auth'
-import Sidebar from './Sidebar'
+import AppSidebar from './AppSidebar'
 import AlertBanner from './AlertBanner'
 import StatusBar from './StatusBar'
 
@@ -33,7 +33,7 @@ export default function AppLayout({ children, mainClassName = '', fill = false }
   if (fill) {
     return (
       <div className="flex h-screen overflow-hidden bg-gray-950">
-        <Sidebar username={getUsername() ?? undefined} />
+        <AppSidebar username={getUsername() ?? undefined} />
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <AlertBanner />
           <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
@@ -47,7 +47,7 @@ export default function AppLayout({ children, mainClassName = '', fill = false }
   return (
     <div className="flex min-h-screen bg-gray-950">
       <div className="sticky top-0 h-screen shrink-0 flex z-10">
-        <Sidebar username={getUsername() ?? undefined} />
+        <AppSidebar username={getUsername() ?? undefined} />
       </div>
       <div className="flex-1 flex flex-col min-w-0">
         <AlertBanner />
