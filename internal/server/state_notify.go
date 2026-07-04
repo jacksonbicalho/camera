@@ -10,7 +10,7 @@ import (
 // notifyStateTransition cria uma notificação persistida (sino) na transição de
 // estado — somente se o classificador tem `NotifyEnabled` e apenas para os usuários
 // destinatários do canal notify (interseção com acesso à câmera; admin sempre tem).
-func notifyStateTransition(database *db.DB, c stateclass.Classifier, state string) error {
+func notifyStateTransition(database *db.DB, c stateclass.Classifier, state string, publish func(userID int64)) error {
 	// Recarrega a config do banco para refletir edições de destinatários sem exigir
 	// restart (o runner passa o snapshot do boot). Fallback: o c recebido.
 	if fresh, err := db.GetStateClassifier(database, c.ID); err == nil {
@@ -49,6 +49,9 @@ func notifyStateTransition(database *db.DB, c stateclass.Classifier, state strin
 		}); err != nil {
 			return err
 		}
+		if publish != nil {
+			publish(u.ID)
+		}
 	}
 	return nil
 }
@@ -68,7 +71,8 @@ func (s *Server) PublishClassifierState(c stateclass.Classifier, state string, c
 	if s.db == nil {
 		return
 	}
-	if err := notifyStateTransition(s.db, c, state); err != nil && s.log != nil {
+	publish := func(uid int64) { s.notifHub.publish(uid, notifEvent{Type: "notification"}) }
+	if err := notifyStateTransition(s.db, c, state, publish); err != nil && s.log != nil {
 		s.log.Warn("state notification failed", "classifier", c.ID, "err", err)
 	}
 }

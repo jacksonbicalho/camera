@@ -43,6 +43,8 @@ func (s *Server) NotifyUpdateAvailable(st release.Status) {
 		n.UserID = u.ID
 		if _, err := db.InsertUserNotification(s.db, n); err != nil {
 			s.log.Warn("notify update: insert notification failed", "user_id", u.ID, "error", err)
+			continue
 		}
+		s.notifHub.publish(u.ID, notifEvent{Type: "notification"})
 	}
 }

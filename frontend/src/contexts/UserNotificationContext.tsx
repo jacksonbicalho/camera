@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
+import { useEventSource } from '../hooks/useEventSource'
 
 export type UserNotificationType = 'success' | 'error' | 'warning' | 'info'
 
@@ -25,11 +26,14 @@ interface UserNotificationContextValue {
 }
 
 const Ctx = createContext<UserNotificationContextValue | null>(null)
-const POLL_MS = 30000
+// O servidor empurra via SSE (/api/notifications/live). O poll é só rede de
+// segurança (longo) para eventos perdidos numa reconexão do EventSource.
+const POLL_MS = 300000
 
 export function UserNotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<UserNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
+  const [hasToken, setHasToken] = useState(() => !!getToken())
 
   // reload only mutates state asynchronously (inside the fetch .then) so it is
   // safe to call from an effect without cascading synchronous renders.
@@ -49,10 +53,16 @@ export function UserNotificationProvider({ children }: { children: React.ReactNo
       .catch(() => {})
   }, [])
 
+  // Push: assina o SSE por usuário e recarrega ao receber um evento. O path é
+  // gated pelo token — vira null no logout (fecha a conexão) e volta ao logar
+  // (reabre com o token novo). `reload` é estável, então não reabre à toa.
+  useEventSource(hasToken ? '/api/notifications/live' : null, reload)
+
   useEffect(() => {
     reload()
     const t = setInterval(reload, POLL_MS)
     const onToken = () => {
+      setHasToken(!!getToken())
       if (getToken()) {
         reload()
       } else {
