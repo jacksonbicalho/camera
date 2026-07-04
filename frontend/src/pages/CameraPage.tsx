@@ -1366,6 +1366,7 @@ function toggleFullscreen() {
               {isLive ? (
                 <div
                   ref={playerZoom.setContainer}
+                  data-on-video
                   className={`flex-1 min-h-0 relative overflow-hidden${playerZoom.isZoomed ? ' cursor-grab' : ''}`}
                   onPointerDown={playerZoom.onPointerDown}
                   onPointerMove={playerZoom.onPointerMove}
@@ -1399,6 +1400,7 @@ function toggleFullscreen() {
               ) : (
                 <div
                   ref={recContainerRef}
+                  data-on-video
                   className="flex-1 min-h-0 relative overflow-hidden"
                   onMouseMove={showRecControls}
                   onMouseLeave={() => { if (recPlaying) setRecControlsVisible(false) }}

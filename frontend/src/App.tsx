@@ -30,6 +30,7 @@ const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const RecordingsPage = lazy(() => import('./pages/RecordingsPage'))
 const VideoBrowserPage = lazy(() => import('./pages/VideoBrowserPage'))
+const LivePage = lazy(() => import('./pages/LivePage'))
 
 function UnauthorizedHandler() {
   const navigate = useNavigate()
@@ -72,6 +73,7 @@ export default function App() {
       <Route path="/camera/recording/:id/:recording_id" element={<Lazy><CameraPage /></Lazy>} />
       <Route path="/recording/:cameraId/:recordingId" element={<Lazy><VideoBrowserPage /></Lazy>} />
       <Route path="/recording/:cameraId/:recordingId/:motionId" element={<Lazy><VideoBrowserPage /></Lazy>} />
+      <Route path="/live/:cameraId" element={<Lazy><LivePage /></Lazy>} />
       <Route path="/stats" element={<Lazy><StatsPage /></Lazy>} />
       <Route path="/recordings" element={<Lazy><RecordingsPage /></Lazy>} />
       <Route path="/events" element={<Lazy><PlaceholderPage title="Eventos" description="Visão global de eventos em construção." /></Lazy>} />
