@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { authHeaders, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
-import HLSPlayer from '../components/HLSPlayer'
+import Player from '../components/Player'
 
 interface Camera {
   id: string
@@ -83,7 +83,8 @@ export default function LivePage() {
             data-on-video
             className="relative w-full overflow-hidden rounded-lg border border-border bg-black shadow-sm aspect-video"
           >
-            <HLSPlayer
+            <Player
+              id="live-player-video"
               src={`/stream/${camera.id}/index.m3u8`}
               cameraId={camera.id}
               transport={camera.live_transport}
