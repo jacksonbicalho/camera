@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import Sidebar from './Sidebar'
+import AppSidebar from './AppSidebar'
 
 vi.mock('../auth', () => ({
   getRole: () => 'admin',
@@ -43,7 +43,7 @@ afterEach(cleanup)
 function renderSidebar() {
   return render(
     <MemoryRouter>
-      <Sidebar username="admin" />
+      <AppSidebar username="admin" />
     </MemoryRouter>,
   )
 }
