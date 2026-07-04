@@ -7,8 +7,8 @@ vi.mock('../auth', () => ({
   onUnauthorized: vi.fn(),
 }))
 
-// HLSPlayer faz negociação WebRTC/HLS no mount — stub para inspecionar as props.
-vi.mock('../components/HLSPlayer', () => ({
+// Player faz negociação WebRTC/HLS no mount — stub para inspecionar as props.
+vi.mock('../components/Player', () => ({
   default: (props: { src?: string; cameraId?: string; transport?: string }) => (
     <div
       data-testid="hls"
