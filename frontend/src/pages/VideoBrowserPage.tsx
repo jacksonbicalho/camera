@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import { Play, Pause, Repeat, Maximize, VolumeX, Volume2 } from '../components/Icons'
@@ -383,6 +383,15 @@ export default function VideoBrowserPage() {
               : anchor
                 ? formatDateTime(anchor.start, timezone)
                 : undefined
+          }
+          actions={
+            <Link
+              id="video-browser-live-link"
+              to={`/live/${cameraId}`}
+              className="inline-flex items-center gap-1.5 rounded bg-danger/10 px-2.5 py-1 text-caption font-bold text-danger hover:bg-danger/20"
+            >
+              <span className="h-2 w-2 rounded-full bg-danger" /> Ao vivo
+            </Link>
           }
         />
         {error && (

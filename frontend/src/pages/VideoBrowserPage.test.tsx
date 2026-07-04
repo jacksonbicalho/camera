@@ -68,6 +68,10 @@ describe('VideoBrowserPage — estrutura visual', () => {
     expect(content.className).toContain('max-w-5xl')
     // #video-browser-meta foi removido (era redundante com o subtítulo do header).
     expect(document.getElementById('video-browser-meta')).toBeNull()
+    // Link "Ao vivo" no header → /live/{cameraId}.
+    expect(document.getElementById('video-browser-live-link')?.getAttribute('href')).toBe(
+      '/live/cam1',
+    )
   })
 
   it('marca a barra de controles com data-on-video (branca sobre o vídeo no modo claro)', async () => {
