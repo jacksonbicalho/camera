@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import AppLayout from '../components/AppLayout'
+import Layout from '../components/Layout'
 import { Play, Pause, Repeat, Maximize, VolumeX, Volume2 } from '../components/Icons'
 import {
   RecordingsGateway,
@@ -371,129 +371,127 @@ export default function VideoBrowserPage() {
   }, [cameraId, recordingId, motionId, startPlayback])
 
   return (
-    <AppLayout>
-      <div id="video-browser-page" className="p-4">
-        <div
-          ref={containerRef}
-          className="group relative w-full max-w-5xl overflow-hidden rounded bg-black aspect-video"
-        >
-          {[0, 1].map(i => (
-            <video
-              key={i}
-              id={i === 0 ? 'video-browser-player' : 'video-browser-player-b'}
-              ref={el => {
-                elsRef.current[i] = el
-              }}
-              muted={muted}
-              playsInline
-              preload="auto"
-              // Transição sem piscada: os DOIS ficam pintados (opacity-1) e a troca é só
-              // por z-index. Se o buffer usasse opacity-0, o browser não pinta o frame do
-              // <video> oculto → ao revelar, aparecia 1 frame preto. Mantendo-o visível
-              // atrás (occluído pelo ativo, mesmo enquadramento), o incoming já está
-              // renderizado no fromSeconds quando vem pra frente.
-              className={`absolute inset-0 h-full w-full ${
-                activeEl === i ? 'z-10' : 'z-0 pointer-events-none'
-              }`}
-              onClick={togglePlay}
-              onLoadedMetadata={() => onMeta(i)}
-              onTimeUpdate={() => onTimeUpdate(i)}
-              onEnded={() => onEnded(i)}
-            />
-          ))}
+    <Layout id="video-browser-page" footerId="video-browser-footer" contentClassName="p-4">
+      <div
+        ref={containerRef}
+        className="group relative w-full max-w-5xl overflow-hidden rounded bg-black aspect-video"
+      >
+        {[0, 1].map(i => (
+          <video
+            key={i}
+            id={i === 0 ? 'video-browser-player' : 'video-browser-player-b'}
+            ref={el => {
+              elsRef.current[i] = el
+            }}
+            muted={muted}
+            playsInline
+            preload="auto"
+            // Transição sem piscada: os DOIS ficam pintados (opacity-1) e a troca é só
+            // por z-index. Se o buffer usasse opacity-0, o browser não pinta o frame do
+            // <video> oculto → ao revelar, aparecia 1 frame preto. Mantendo-o visível
+            // atrás (occluído pelo ativo, mesmo enquadramento), o incoming já está
+            // renderizado no fromSeconds quando vem pra frente.
+            className={`absolute inset-0 h-full w-full ${
+              activeEl === i ? 'z-10' : 'z-0 pointer-events-none'
+            }`}
+            onClick={togglePlay}
+            onLoadedMetadata={() => onMeta(i)}
+            onTimeUpdate={() => onTimeUpdate(i)}
+            onEnded={() => onEnded(i)}
+          />
+        ))}
 
-          {/* Rodapé de controles ÚNICO — persiste através da troca de segmentos. */}
+        {/* Rodapé de controles ÚNICO — persiste através da troca de segmentos. */}
+        <div
+          id="video-browser-controls"
+          className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-1 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-6 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+        >
           <div
-            id="video-browser-controls"
-            className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-1 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-6 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+            id="video-browser-seek"
+            ref={seekBarRef}
+            onPointerDown={onSeekDown}
+            onPointerMove={onSeekMove}
+            onPointerUp={onSeekUp}
+            className="relative flex h-3 cursor-pointer items-center"
+            role="slider"
+            aria-label="Progresso da reprodução"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(total)}
+            aria-valuenow={Math.round(pos)}
           >
-            <div
-              id="video-browser-seek"
-              ref={seekBarRef}
-              onPointerDown={onSeekDown}
-              onPointerMove={onSeekMove}
-              onPointerUp={onSeekUp}
-              className="relative flex h-3 cursor-pointer items-center"
-              role="slider"
-              aria-label="Progresso da reprodução"
-              aria-valuemin={0}
-              aria-valuemax={Math.round(total)}
-              aria-valuenow={Math.round(pos)}
-            >
-              <div className="h-1 w-full rounded-full bg-white/25">
-                <div
-                  className="h-full rounded-full bg-primary"
-                  style={{ width: `${total > 0 ? (pos / total) * 100 : 0}%` }}
-                />
-              </div>
+            <div className="h-1 w-full rounded-full bg-white/25">
               <div
-                className="absolute h-3 w-3 -translate-x-1/2 rounded-full bg-primary shadow"
-                style={{ left: `${total > 0 ? (pos / total) * 100 : 0}%` }}
+                className="h-full rounded-full bg-primary"
+                style={{ width: `${total > 0 ? (pos / total) * 100 : 0}%` }}
               />
             </div>
-            <div className="flex items-center gap-3 text-white">
-              <button
-                id="video-browser-playpause"
-                type="button"
-                onClick={togglePlay}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
-                aria-label={playing ? 'Pausar' : 'Reproduzir'}
-              >
-                {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              </button>
-              <button
-                id="video-browser-repeat"
-                type="button"
-                onClick={toggleRepeat}
-                className={`flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15 ${
-                  repeat ? 'text-primary' : ''
-                }`}
-                aria-label="Repetir"
-                aria-pressed={repeat}
-              >
-                <Repeat className="h-4 w-4" />
-              </button>
-              <button
-                id="video-browser-mute"
-                type="button"
-                onClick={toggleMute}
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15"
-                aria-label={muted ? 'Ativar som' : 'Mudo'}
-              >
-                {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              </button>
-              <span className="text-caption tabular-nums text-white/80">
-                {formatClock(pos)} / {formatClock(total)}
+            <div
+              className="absolute h-3 w-3 -translate-x-1/2 rounded-full bg-primary shadow"
+              style={{ left: `${total > 0 ? (pos / total) * 100 : 0}%` }}
+            />
+          </div>
+          <div className="flex items-center gap-3 text-white">
+            <button
+              id="video-browser-playpause"
+              type="button"
+              onClick={togglePlay}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
+              aria-label={playing ? 'Pausar' : 'Reproduzir'}
+            >
+              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </button>
+            <button
+              id="video-browser-repeat"
+              type="button"
+              onClick={toggleRepeat}
+              className={`flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15 ${
+                repeat ? 'text-primary' : ''
+              }`}
+              aria-label="Repetir"
+              aria-pressed={repeat}
+            >
+              <Repeat className="h-4 w-4" />
+            </button>
+            <button
+              id="video-browser-mute"
+              type="button"
+              onClick={toggleMute}
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15"
+              aria-label={muted ? 'Ativar som' : 'Mudo'}
+            >
+              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+            <span className="text-caption tabular-nums text-white/80">
+              {formatClock(pos)} / {formatClock(total)}
+            </span>
+            {segments.length > 1 && (
+              <span className="text-caption tabular-nums text-white/60">
+                segmento {curSeg + 1}/{segments.length}
               </span>
-              {segments.length > 1 && (
-                <span className="text-caption tabular-nums text-white/60">
-                  segmento {curSeg + 1}/{segments.length}
-                </span>
-              )}
-              <button
-                id="video-browser-fullscreen"
-                type="button"
-                onClick={toggleFullscreen}
-                className="ml-auto flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15"
-                aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-              >
-                <Maximize className="h-4 w-4" />
-              </button>
-            </div>
+            )}
+            <button
+              id="video-browser-fullscreen"
+              type="button"
+              onClick={toggleFullscreen}
+              className="ml-auto flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15"
+              aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+            >
+              <Maximize className="h-4 w-4" />
+            </button>
           </div>
         </div>
-        {error && (
-          <p id="video-browser-error" className="mt-3 text-danger text-body">
-            {error}
-          </p>
-        )}
-        {anchor && (
-          <p id="video-browser-meta" className="mt-3 text-muted text-caption tabular-nums">
-            {anchor.filename}
-            {event ? ` · evento @ ${formatDateTime(event.time, timezone)}` : ''}
-          </p>
-        )}
       </div>
-    </AppLayout>
+      {error && (
+        <p id="video-browser-error" className="mt-3 text-danger text-body">
+          {error}
+        </p>
+      )}
+      {anchor && (
+        <p id="video-browser-meta" className="mt-3 text-muted text-caption tabular-nums">
+          {anchor.filename}
+          {event ? ` · evento @ ${formatDateTime(event.time, timezone)}` : ''}
+        </p>
+      )}
+    </Layout>
   )
 }
