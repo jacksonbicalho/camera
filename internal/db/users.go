@@ -198,6 +198,23 @@ func GetUserCameras(db *DB, userID int64) ([]string, error) {
 	return ids, rows.Err()
 }
 
+// UserHasCamera reports whether the user has been granted access to cameraID.
+// It answers the access-control boolean with a single indexed lookup rather
+// than fetching every camera the user can see and scanning (GetUserCameras).
+func UserHasCamera(db *DB, userID int64, cameraID string) (bool, error) {
+	var one int
+	err := db.QueryRow(
+		`SELECT 1 FROM user_cameras WHERE user_id=? AND camera_id=? LIMIT 1`, userID, cameraID,
+	).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // CheckPassword returns true when the plain-text password matches the bcrypt hash.
 func CheckPassword(hash, password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
