@@ -477,23 +477,20 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) canAccessCamera(r *http.Request, cameraID string) bool {
-	if s.db == nil {
-		return true
-	}
 	ac, _ := r.Context().Value(claimsKey).(authClaims)
 	if ac.Role == "admin" {
 		return true
 	}
-	cameras, err := db.GetUserCameras(s.db, ac.UserID)
+	// Fail closed: a viewer's grants live in the DB, so without it there is no
+	// way to authorize — deny rather than fall open.
+	if s.db == nil {
+		return false
+	}
+	ok, err := db.UserHasCamera(s.db, ac.UserID, cameraID)
 	if err != nil {
 		return false
 	}
-	for _, id := range cameras {
-		if id == cameraID {
-			return true
-		}
-	}
-	return false
+	return ok
 }
 
 func (s *Server) requireCameraAccess(next http.HandlerFunc) http.HandlerFunc {
@@ -522,10 +519,13 @@ func noCachePlaylist(next http.Handler) http.Handler {
 	})
 }
 
-func (s *Server) requireStreamAccess(next http.Handler) http.HandlerFunc {
+// requirePrefixCameraAccess gates a path-mounted file handler ("/stream/",
+// "/recordings/") by the camera id in the first path segment after prefix.
+func (s *Server) requirePrefixCameraAccess(prefix string, next http.Handler) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/stream/"), "/", 2)
-		if len(parts) == 0 || parts[0] == "" {
+		// SplitN always returns at least one element, so parts[0] is safe.
+		parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, prefix), "/", 2)
+		if parts[0] == "" {
 			http.NotFound(w, r)
 			return
 		}
@@ -537,19 +537,12 @@ func (s *Server) requireStreamAccess(next http.Handler) http.HandlerFunc {
 	})
 }
 
+func (s *Server) requireStreamAccess(next http.Handler) http.HandlerFunc {
+	return s.requirePrefixCameraAccess("/stream/", next)
+}
+
 func (s *Server) requireRecordingsAccess(next http.Handler) http.HandlerFunc {
-	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/recordings/"), "/", 2)
-		if len(parts) == 0 || parts[0] == "" {
-			http.NotFound(w, r)
-			return
-		}
-		if !s.canAccessCamera(r, parts[0]) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	return s.requirePrefixCameraAccess("/recordings/", next)
 }
 
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
@@ -574,19 +567,25 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if claims, ok := parsed.Claims.(jwt.MapClaims); ok {
-			var ac authClaims
-			if uid, ok := claims["user_id"].(float64); ok {
-				ac.UserID = int64(uid)
-			}
-			if roleStr, ok := claims["role"].(string); ok {
-				ac.Role = roleStr
-			}
-			if mcp, ok := claims["must_change_password"].(bool); ok {
-				ac.MustChangePassword = mcp
-			}
-			r = r.WithContext(context.WithValue(r.Context(), claimsKey, ac))
+		// A signature-valid token must still carry a usable identity. Reject
+		// (rather than silently degrade to a zero-value, anonymous-but-
+		// authenticated principal) when user_id/role are absent or unusable.
+		claims, ok := parsed.Claims.(jwt.MapClaims)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
 		}
+		uid, uidOK := claims["user_id"].(float64)
+		roleStr, roleOK := claims["role"].(string)
+		if !uidOK || int64(uid) <= 0 || !roleOK || roleStr == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		ac := authClaims{UserID: int64(uid), Role: roleStr}
+		if mcp, ok := claims["must_change_password"].(bool); ok {
+			ac.MustChangePassword = mcp
+		}
+		r = r.WithContext(context.WithValue(r.Context(), claimsKey, ac))
 		if strings.HasPrefix(r.URL.Path, "/stream/") {
 			s.touchStreamClient(r)
 		}
@@ -1415,11 +1414,17 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": signed})
+	if err := json.NewEncoder(w).Encode(map[string]string{"token": signed}); err != nil {
+		s.log.Error("encode login response", "error", err)
+	}
 }
 
 func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	ac, _ := r.Context().Value(claimsKey).(authClaims)
+	if ac.UserID == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	var body struct {
 		Password string `json:"password"`
