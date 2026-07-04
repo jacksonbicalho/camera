@@ -30,4 +30,10 @@ describe('index.css — paleta Material UI', () => {
     has(/--color-blue-600:\s*#1976d2/i)
     has(/--color-red-600:\s*#d32f2f/i)
   })
+
+  it('controles sobre vídeo (data-on-video) seguem brancos no modo claro', () => {
+    // Sem esta regra o remap da rampa (--color-white: #212121) escureceria os
+    // controles do player, sumindo sobre o vídeo/gradiente escuro.
+    has(/\[data-mode="light"\]\s*\[data-on-video\]/)
+  })
 })
