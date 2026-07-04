@@ -507,16 +507,6 @@ export default function VideoBrowserPage() {
             </div>
           </div>
         </div>
-        {anchor && (
-          <div id="video-browser-meta" className="flex items-center gap-2">
-            <span className="inline-flex items-center rounded bg-surface px-1.5 py-0.5 text-caption font-bold text-muted">
-              Reprodução
-            </span>
-            <span className="text-caption tabular-nums text-muted">
-              {event ? formatDateTime(event.time, timezone) : formatDateTime(anchor.start, timezone)}
-            </span>
-          </div>
-        )}
       </div>
     </Layout>
   )
