@@ -120,6 +120,14 @@
 [data-mode="light"] [class*="bg-white"].text-white {
   color: #fff;
 }
+/* Controles sobrepostos ao vídeo (marcados com data-on-video): o fundo é o
+   vídeo/gradiente escuro, não a superfície da app — então texto e ícones seguem
+   brancos também no claro. Sem isso o remap da rampa (--color-white: #212121)
+   escureceria os text-white, sumindo sobre o vídeo. */
+[data-mode="light"] [data-on-video],
+[data-mode="light"] [data-on-video] [class*="text-white"] {
+  color: #fff;
+}
 [data-mode="light"] body {
   background-color: #f5f5f5;
   color: rgba(0, 0, 0, 0.87);
