@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { authHeaders, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
+import CameraViewTabs from '../components/CameraViewTabs'
 import Player from '../components/Player'
 
 interface Camera {
@@ -57,17 +58,7 @@ export default function LivePage() {
         <PageHeader
           id="live-header"
           title={camera?.name ?? 'Ao vivo'}
-          actions={
-            camera && (
-              <span
-                id="live-indicator"
-                className="inline-flex items-center gap-1.5 rounded bg-danger/10 px-2 py-0.5 text-caption font-bold text-danger"
-              >
-                <span className="h-2 w-2 rounded-full bg-danger animate-pulse" />
-                AO VIVO
-              </span>
-            )
-          }
+          actions={camera && <CameraViewTabs cameraId={camera.id} active="live" />}
         />
         {error && (
           <div

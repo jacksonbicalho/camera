@@ -56,7 +56,9 @@ describe('LivePage', () => {
     await waitFor(() => {
       expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
     })
-    expect(document.getElementById('live-indicator')?.textContent).toContain('AO VIVO')
+    // Tabs no header: "Ao vivo" ativa, "Histórico" → /history/{id}.
+    expect(document.getElementById('camera-tab-live')?.getAttribute('aria-current')).toBe('page')
+    expect(document.getElementById('camera-tab-history')?.getAttribute('href')).toBe('/history/cam1')
     const player = document.getElementById('live-player')!
     expect(player.hasAttribute('data-on-video')).toBe(true)
     const hls = screen.getByTestId('hls')
