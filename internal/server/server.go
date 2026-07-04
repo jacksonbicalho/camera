@@ -109,6 +109,7 @@ type Server struct {
 	streamSeen         map[string]time.Time
 	motionBroadcasters map[string]*broadcaster
 	rawBroadcasters    map[string]*broadcaster
+	notifHub           *notifHub
 	peakMu             sync.RWMutex
 	dailyPeakRaw       map[string]float64
 	dailyPeakDate      map[string]string
@@ -165,6 +166,7 @@ func NewServer(cfg config.ServerConfig, timezone string, cameras []config.Camera
 		streamSeen:    make(map[string]time.Time),
 		probedStreams: make(map[string]ffprobe.StreamInfo),
 		startTime:     time.Now(),
+		notifHub:      newNotifHub(),
 	}
 	s.routes()
 	return s
@@ -384,6 +386,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/cameras/{id}/motion", s.requireCameraAccess(s.handleMotionEvents))
 	s.mux.HandleFunc("POST /api/cameras/{id}/webrtc", s.requireCameraAccess(s.handleWebRTC))
 	s.mux.HandleFunc("GET /api/motion/live", s.requireFullAuth(s.handleAllMotionLive))
+	s.mux.HandleFunc("GET /api/notifications/live", s.requireFullAuth(s.handleNotificationsLive))
 	s.mux.HandleFunc("GET /api/cameras/{id}/motion/live", s.requireCameraAccess(s.handleMotionLive))
 	s.mux.HandleFunc("GET /api/cameras/{id}/motion/scores", s.requireCameraAccess(s.handleMotionScores))
 	s.mux.HandleFunc("GET /api/cameras/{id}/motion/region-score", s.requireCameraAccess(s.handleMotionRegionScore))
@@ -1440,6 +1443,36 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleNotificationsLive é o SSE de notificações do usuário (push): assina o
+// hub pelo user_id do JWT e transmite um evento sempre que uma notificação é
+// criada para ele. Espelha handleMotionLive.
+func (s *Server) handleNotificationsLive(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+	ac, _ := r.Context().Value(claimsKey).(authClaims)
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	sub := s.notifHub.subscribe(ac.UserID)
+	defer s.notifHub.unsubscribe(ac.UserID, sub)
+
+	for {
+		select {
+		case ev := <-sub:
+			data, _ := json.Marshal(ev)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		case <-r.Context().Done():
+			return
+		}
+	}
 }
 
 func (s *Server) handleMotionLive(w http.ResponseWriter, r *http.Request) {
