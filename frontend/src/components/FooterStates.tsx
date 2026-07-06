@@ -11,18 +11,18 @@ export default function FooterStates() {
   if (states.length === 0) return null
 
   return (
-    <div id="footer-states" className="flex items-center gap-3 text-[11px] text-gray-500">
+    <div id="footer-states" className="flex items-center gap-3 text-[11px] text-faint">
       {states.map(s => (
         <Link
           key={s.classifier_id}
           to={`/settings/cameras/states/${s.camera_id}?history=${s.classifier_id}`}
           id={`footer-state-${s.classifier_id}`}
           title={`Ver histórico de ${s.name}`}
-          className="px-1.5 py-0.5 rounded hover:bg-gray-800/60 transition-colors"
+          className="px-1.5 py-0.5 rounded hover:bg-surface-2/60 transition-colors"
           style={flashing.has(s.classifier_id) ? { animation: 'footer-state-flash 1s ease-out' } : undefined}
         >
-          <span className="text-gray-400">{s.name}:</span>{' '}
-          <span className="text-gray-200 font-mono">{s.state || '—'}</span>
+          <span className="text-muted-foreground">{s.name}:</span>{' '}
+          <span className="text-foreground font-mono">{s.state || '—'}</span>
         </Link>
       ))}
     </div>

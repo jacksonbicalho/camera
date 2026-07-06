@@ -88,10 +88,10 @@ function NotificationItem({
         className="mt-0.5 w-3 h-3 flex-shrink-0 accent-blue-500 cursor-pointer"
       />
       <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
-        <div className="text-xs text-gray-300 font-medium truncate">
+        <div className="text-xs text-foreground font-medium truncate">
           {n.cameraName || n.cameraId}
         </div>
-        <div className="text-xs text-gray-400">
+        <div className="text-xs text-muted-foreground">
           {n.label && <span style={{ color: n.color ?? "#f97316" }}>{n.label} · </span>}
           {(n.score * 100).toFixed(1)}% · {relTime}
         </div>
@@ -411,7 +411,7 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
 
               <div className="overflow-y-auto flex-1">
                 {notifications.length === 0 ? (
-                  <p className="text-xs text-gray-500 text-center py-6">Nenhuma notificação</p>
+                  <p className="text-xs text-faint text-center py-6">Nenhuma notificação</p>
                 ) : (
                   notifications.map((n) => (
                     <NotificationItem
@@ -445,7 +445,7 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
 
               {browserSupported && (
                 <div className="border-t border-border px-3 py-2 flex items-center justify-between">
-                  <span className="text-xs text-gray-400">Alertas do sistema</span>
+                  <span className="text-xs text-muted-foreground">Alertas do sistema</span>
                   {browserPermission === "denied" ? (
                     <button onClick={enableBrowserNotifications} className="text-xs text-red-400 hover:text-red-300 transition-colors cursor-pointer" title="Permissão negada — tentar">
                       Permissão negada
@@ -453,7 +453,7 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
                   ) : browserEnabled ? (
                     <button onClick={disableBrowserNotifications} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Desativar</button>
                   ) : (
-                    <button onClick={enableBrowserNotifications} className="text-xs text-gray-400 hover:text-white transition-colors">Ativar</button>
+                    <button onClick={enableBrowserNotifications} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Ativar</button>
                   )}
                 </div>
               )}
@@ -490,7 +490,7 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
             style={{ position: 'fixed', top: settingsPos.top, left: settingsPos.left, zIndex: 9999 }}
             className="w-48 bg-surface border border-border rounded shadow-lg"
           >
-            <div className="px-3 py-2 text-xs text-gray-500 border-b border-border font-medium">Configurações</div>
+            <div className="px-3 py-2 text-xs text-faint border-b border-border font-medium">Configurações</div>
             {settingsLinks.map(({ to, label }) => (
               <Fragment key={to}>
                 {to === '/settings/about' && <ThemeModeNav onSelect={() => setSettingsOpen(false)} />}
@@ -579,7 +579,7 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
 
           {userOpen && (
             <div className="absolute left-full bottom-0 ml-2 w-44 bg-surface border border-border rounded shadow-lg z-50">
-              <div className="px-4 py-2 text-xs text-gray-500 border-b border-border truncate">{username} · {roleLabel}</div>
+              <div className="px-4 py-2 text-xs text-faint border-b border-border truncate">{username} · {roleLabel}</div>
               <Link
                 to="/notifications"
                 onClick={() => setUserOpen(false)}

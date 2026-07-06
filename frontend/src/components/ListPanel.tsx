@@ -26,14 +26,14 @@ export default function ListPanel({
 }: ListPanelProps) {
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="px-3 py-1.5 border-b border-gray-800 flex justify-end shrink-0">
+      <div className="px-3 py-1.5 border-b border-border flex justify-end shrink-0">
         <Button variant="link" size="sm" onClick={onSortOrderChange} className="h-auto p-0 text-xs">
           {sortOrder === 'desc' ? '↓ Recente' : '↑ Antigo'}
         </Button>
       </div>
-      <div className={`divide-y divide-gray-700 ${scroll ? 'flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full' : ''}`}>
+      <div className={`divide-y divide-border ${scroll ? 'flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full' : ''}`}>
         {empty
-          ? <p className="px-3 py-4 text-sm text-gray-500">{emptyMessage}</p>
+          ? <p className="px-3 py-4 text-sm text-faint">{emptyMessage}</p>
           : children
         }
         {hasMore && (

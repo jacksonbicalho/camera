@@ -236,7 +236,7 @@ const HLSPlayer = forwardRef<HLSPlayerHandle, HLSPlayerProps>(function HLSPlayer
       />
       {fatalError && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-          <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+          <Loader2 className="w-8 h-8 text-white/70 animate-spin" />
         </div>
       )}
       {!fatalError && playBlocked && (
@@ -251,9 +251,9 @@ const HLSPlayer = forwardRef<HLSPlayerHandle, HLSPlayerProps>(function HLSPlayer
       {motionAlert && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-yellow-400/30 animate-pulse">
           <div className="flex flex-col items-center gap-3 bg-yellow-500/60 backdrop-blur-sm px-6 py-5 rounded-xl">
-            <AlertTriangle className="w-8 h-8 text-gray-900" />
-            <span className="font-semibold text-gray-900 text-base">Movimento detectado</span>
-            <span className="text-xs font-mono text-gray-800">score: {motionAlert.score}</span>
+            <AlertTriangle className="w-8 h-8 text-black" />
+            <span className="font-semibold text-black text-base">Movimento detectado</span>
+            <span className="text-xs font-mono text-black/80">score: {motionAlert.score}</span>
             <div className="flex gap-2 mt-1">
               <button
                 onClick={() => {
@@ -266,7 +266,7 @@ const HLSPlayer = forwardRef<HLSPlayerHandle, HLSPlayerProps>(function HLSPlayer
                   }
                 }}
                 aria-label="Ir para o momento do evento"
-                className="px-3 py-1 text-xs font-medium text-gray-900 bg-yellow-300/70 hover:bg-yellow-300 rounded transition-colors cursor-pointer"
+                className="px-3 py-1 text-xs font-medium text-black bg-yellow-300/70 hover:bg-yellow-300 rounded transition-colors cursor-pointer"
               >
                 Ir para este momento
               </button>
@@ -276,7 +276,7 @@ const HLSPlayer = forwardRef<HLSPlayerHandle, HLSPlayerProps>(function HLSPlayer
                   setMotionAlert(null)
                 }}
                 aria-label="Fechar alerta"
-                className="px-3 py-1 text-xs font-medium text-gray-900 bg-yellow-300/70 hover:bg-yellow-300 rounded transition-colors cursor-pointer"
+                className="px-3 py-1 text-xs font-medium text-black bg-yellow-300/70 hover:bg-yellow-300 rounded transition-colors cursor-pointer"
               >
                 Fechar
               </button>

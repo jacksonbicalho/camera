@@ -31,9 +31,9 @@ export default function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 w-80 flex flex-col gap-4">
-        <h3 className="text-sm font-semibold text-gray-100">{title}</h3>
-        <p className="text-xs text-gray-400">{message}</p>
+      <div className="bg-surface-2 border border-border rounded-lg shadow-xl p-6 w-80 flex flex-col gap-4">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <p className="text-xs text-muted-foreground">{message}</p>
         {children}
         <div className="flex justify-end gap-3">
           <Button id="confirm-dialog-cancel" size="sm" variant="outline" onClick={onCancel}>

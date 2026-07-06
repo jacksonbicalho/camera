@@ -23,12 +23,12 @@ export default function CameraSettingsTabs({ id, active, camName }: Props) {
   const isAdmin = getRole() === 'admin'
   return (
     <div className="mb-6">
-      <nav className="flex items-center gap-1.5 text-xs text-gray-500 mb-4">
-        <Link to="/settings/cameras" className="hover:text-gray-300 transition-colors">Câmeras</Link>
+      <nav className="flex items-center gap-1.5 text-xs text-faint mb-4">
+        <Link to="/settings/cameras" className="hover:text-foreground transition-colors">Câmeras</Link>
         <span>/</span>
-        <span className="text-gray-300">{camName || id}</span>
+        <span className="text-foreground">{camName || id}</span>
       </nav>
-      <div className="flex items-center justify-between border-b border-gray-800">
+      <div className="flex items-center justify-between border-b border-border">
         <div className="flex gap-1">
           {TABS.map(tab => (
             <Link
@@ -37,7 +37,7 @@ export default function CameraSettingsTabs({ id, active, camName }: Props) {
               className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
                 active === tab.key
                   ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-600'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-faint'
               }`}
             >
               {tab.label}

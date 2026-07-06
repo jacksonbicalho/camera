@@ -32,16 +32,16 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-        <h2 className="text-lg font-semibold text-gray-200 mb-4">Câmeras ao vivo</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Câmeras ao vivo</h2>
         {cameras.length === 0 ? (
-          <p className="text-gray-500 text-sm">Nenhuma câmera configurada.</p>
+          <p className="text-faint text-sm">Nenhuma câmera configurada.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {cameras.map(cam => (
               <button
                 key={cam.id}
                 onClick={() => navigate(`/camera/live/${cam.id}`)}
-                className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden hover:border-blue-600 transition-colors text-left group"
+                className="bg-surface border border-border rounded-lg overflow-hidden hover:border-blue-600 transition-colors text-left group"
               >
                 <div className="relative">
                   <HLSPlayer
@@ -55,7 +55,7 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <div className="px-3 py-2">
-                  <p className="text-sm font-medium text-gray-200 group-hover:text-white">{cam.name}</p>
+                  <p className="text-sm font-medium text-foreground group-hover:text-foreground">{cam.name}</p>
                 </div>
               </button>
             ))}

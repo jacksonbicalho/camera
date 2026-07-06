@@ -2,7 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getUsername, changePassword, login, clearToken, getRole, authHeaders, mustChangePassword } from '../auth'
 import AppLayout from '../components/AppLayout'
+import { Loader2 } from '../components/Icons'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { postChangeRedirect } from './changePasswordRedirect'
 
 export default function ChangePasswordPage() {
@@ -51,17 +54,18 @@ export default function ChangePasswordPage() {
   }
 
   const form = (
-    <div className="w-full max-w-sm bg-gray-900 rounded-lg p-8 shadow-xl border border-gray-800">
+    <div className="w-full max-w-sm bg-surface rounded-lg p-5 shadow-xl border border-border">
       {mustChangePassword() && (
-        <p className="text-sm text-gray-400 text-center mb-6">
+        <p className="text-sm text-muted-foreground text-center mb-6">
           Por segurança, defina uma nova senha antes de continuar.
         </p>
       )}
-      <h2 className="text-lg font-semibold text-white mb-6">Alterar senha</h2>
+      <h2 className="text-lg font-semibold text-foreground mb-6">Alterar senha</h2>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
-          <label className="block text-sm text-gray-400 mb-1">Nova senha</label>
-          <input
+          <Label htmlFor="change-password-new" className="block text-muted-foreground mb-1">Nova senha</Label>
+          <Input
+            id="change-password-new"
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
@@ -69,22 +73,24 @@ export default function ChangePasswordPage() {
             autoFocus
             minLength={8}
             autoComplete="new-password"
-            className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            aria-invalid={error ? 'true' : undefined}
           />
         </div>
         <div>
-          <label className="block text-sm text-gray-400 mb-1">Confirmar senha</label>
-          <input
+          <Label htmlFor="change-password-confirm" className="block text-muted-foreground mb-1">Confirmar senha</Label>
+          <Input
+            id="change-password-confirm"
             type="password"
             value={confirm}
             onChange={e => setConfirm(e.target.value)}
             required
             autoComplete="new-password"
-            className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            aria-invalid={error ? 'true' : undefined}
           />
         </div>
-        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {error && <p role="alert" className="text-danger text-sm">{error}</p>}
         <Button id="change-password-submit" type="submit" disabled={loading}>
+          {loading && <Loader2 className="w-4 h-4 animate-spin" />}
           {loading ? 'Salvando...' : 'Definir nova senha'}
         </Button>
       </form>
@@ -93,7 +99,7 @@ export default function ChangePasswordPage() {
 
   if (mustChangePassword()) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         {form}
       </div>
     )
