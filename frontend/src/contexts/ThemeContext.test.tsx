@@ -32,12 +32,15 @@ global.fetch = mockFetch
 
 // dark/light/system are COLOR MODES; the theme identity is separate ("default").
 function Probe() {
-  const { mode, setMode, theme } = useTheme()
+  const { mode, setMode, theme, accent, setAccent } = useTheme()
   return (
     <>
       <span data-testid="mode">{mode}</span>
       <span data-testid="theme">{theme}</span>
+      <span data-testid="accent">{accent}</span>
       <button onClick={() => setMode('light')}>set-light</button>
+      <button onClick={() => setAccent('teal')}>set-teal</button>
+      <button onClick={() => setAccent('default')}>set-default-accent</button>
     </>
   )
 }
@@ -91,5 +94,56 @@ describe('ThemeContext', () => {
     )
     expect(put).toBeTruthy()
     expect(JSON.parse((put![1] as RequestInit).body as string)).toEqual({ theme: 'light' })
+  })
+
+  it('loads the saved accent and does not apply data-accent when it is "default"', async () => {
+    mockFetch.mockResolvedValue({ status: 200, json: async () => ({ theme: 'dark', accent: 'default' }) })
+
+    render(<ThemeProvider><Probe /></ThemeProvider>)
+
+    await waitFor(() => expect(screen.getByTestId('accent').textContent).toBe('default'))
+    expect(document.documentElement.hasAttribute('data-accent')).toBe(false)
+  })
+
+  it('applies data-accent on <html> when the saved accent is not "default"', async () => {
+    mockFetch.mockResolvedValue({ status: 200, json: async () => ({ theme: 'dark', accent: 'coral' }) })
+
+    render(<ThemeProvider><Probe /></ThemeProvider>)
+
+    await waitFor(() => expect(screen.getByTestId('accent').textContent).toBe('coral'))
+    expect(document.documentElement.getAttribute('data-accent')).toBe('coral')
+  })
+
+  it('setAccent applies data-accent and persists via PUT without touching theme', async () => {
+    mockFetch.mockResolvedValue({ status: 200, json: async () => ({ theme: 'dark', accent: 'default' }) })
+
+    render(<ThemeProvider><Probe /></ThemeProvider>)
+    await waitFor(() => expect(screen.getByTestId('accent').textContent).toBe('default'))
+
+    mockFetch.mockClear()
+    mockFetch.mockResolvedValue({ status: 200, json: async () => ({}) })
+    act(() => { fireEvent.click(screen.getByText('set-teal')) })
+
+    expect(document.documentElement.getAttribute('data-accent')).toBe('teal')
+    expect(screen.getByTestId('accent').textContent).toBe('teal')
+
+    const put = mockFetch.mock.calls.find(
+      (c: unknown[]) => c[0] === '/api/me/preferences' && (c[1] as RequestInit)?.method === 'PUT'
+    )
+    expect(put).toBeTruthy()
+    expect(JSON.parse((put![1] as RequestInit).body as string)).toEqual({ accent: 'teal' })
+  })
+
+  it('setAccent("default") removes the data-accent attribute', async () => {
+    mockFetch.mockResolvedValue({ status: 200, json: async () => ({ theme: 'dark', accent: 'coral' }) })
+
+    render(<ThemeProvider><Probe /></ThemeProvider>)
+    await waitFor(() => expect(screen.getByTestId('accent').textContent).toBe('coral'))
+
+    mockFetch.mockClear()
+    mockFetch.mockResolvedValue({ status: 200, json: async () => ({}) })
+    act(() => { fireEvent.click(screen.getByText('set-default-accent')) })
+
+    expect(document.documentElement.hasAttribute('data-accent')).toBe(false)
   })
 })

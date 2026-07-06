@@ -4,13 +4,14 @@
      - styles/primitives.css   → tipografia + rampas cruas (@theme, base)
      - styles/themes/default.css→ tema default: papéis semânticos dark + light
                                    (e o guia "como adicionar um tema")
+     - styles/themes/accents.css→ 2º eixo (independente de dark/light): cor de
+                                   destaque (accentColor) selecionável
      - styles/base.css          → keyframes, body, cursor (estrutural)
 
-   A migração das cores cruas (bg-gray-900/text-white) para papéis semânticos
-   (bg-surface/text-foreground) segue incremental — fora desta story.
    Imports vêm antes de qualquer regra (exigência do CSS).
    ============================================================================ */
 @import "tailwindcss";
 @import "./styles/primitives.css";
 @import "./styles/themes/default.css";
+@import "./styles/themes/accents.css";
 @import "./styles/base.css";
