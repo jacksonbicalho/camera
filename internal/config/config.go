@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -32,6 +33,16 @@ type Config struct {
 	Server   ServerConfig  `yaml:"server"`
 	Storage  StorageConfig `yaml:"storage"`
 	Admin    AdminConfig   `yaml:"admin"`
+	SMTP     SMTPConfig    `yaml:"smtp"`
+}
+
+// SMTPConfig holds outbound e-mail server settings (connection config only;
+// no e-mail-sending client lives here yet).
+type SMTPConfig struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
 
 type LogConfig struct {
@@ -201,11 +212,33 @@ func Load(path string) (Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
-	if v := os.Getenv("CAMERA_TIMEZONE"); v != "" {
+	if v := os.Getenv("OS_CAMERA_TIMEZONE"); v != "" {
 		cfg.Timezone = v
 	}
-	if v := os.Getenv("CAMERA_SERVER_JWT_SECRET"); v != "" {
+	if v := os.Getenv("OS_CAMERA_JWT_SECRET"); v != "" {
 		cfg.Server.JWTSecret = v
+	}
+	if v := os.Getenv("OS_CAMERA_DEBUG"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			cfg.Debug = b
+		}
+	}
+	if v := os.Getenv("OS_CAMERA_SMTP_HOST"); v != "" {
+		cfg.SMTP.Host = v
+	}
+	if v := os.Getenv("OS_CAMERA_SMTP_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			cfg.SMTP.Port = p
+		}
+	}
+	if v := os.Getenv("OS_CAMERA_SMTP_USERNAME"); v != "" {
+		cfg.SMTP.Username = v
+	}
+	if v := os.Getenv("OS_CAMERA_SMTP_PASSWORD"); v != "" {
+		cfg.SMTP.Password = v
+	}
+	if v := os.Getenv("OS_CAMERA_STORAGE_PATH"); v != "" {
+		cfg.Storage.Path = v
 	}
 	if cfg.Timezone == "" {
 		cfg.Timezone = "UTC"

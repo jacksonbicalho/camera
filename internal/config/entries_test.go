@@ -11,6 +11,7 @@ func sampleConfig() Config {
 	c.Storage.Path = "/data/recordings"
 	c.Admin.Username = "admin"
 	c.Admin.Password = "supersecret"
+	c.SMTP.Host = "smtp.example.com"
 	return c
 }
 
@@ -33,6 +34,7 @@ func TestEntries(t *testing.T) {
 		"server.segments_path": "/data/hls",
 		"log.output":           "stdout",
 		"admin.username":       "admin",
+		"smtp.host":            "smtp.example.com",
 	}
 	for k, v := range want {
 		if m[k] != v {
@@ -60,5 +62,24 @@ func TestEntriesHidesSecrets(t *testing.T) {
 	c.Server.JWTSecret = "topsecret"
 	if got := entryMap(c)["server.jwt_secret"]; got == "topsecret" {
 		t.Errorf("server.jwt_secret expôs o segredo: %q", got)
+	}
+}
+
+func TestEntriesHidesSMTPPassword(t *testing.T) {
+	c := sampleConfig()
+	c.SMTP.Password = "smtp-secret"
+	for _, kv := range c.Entries() {
+		if kv[1] == "smtp-secret" {
+			t.Fatalf("Entries() expôs a senha do SMTP em %q", kv[0])
+		}
+	}
+	m := entryMap(c)
+	if got := m["smtp.password"]; got == "" || got == "smtp-secret" {
+		t.Errorf("smtp.password = %q, esperava um indicador de configuração", got)
+	}
+
+	c.SMTP.Password = ""
+	if got := entryMap(c)["smtp.password"]; got == "smtp-secret" {
+		t.Errorf("smtp.password deveria indicar vazio, got %q", got)
 	}
 }

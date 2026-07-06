@@ -263,7 +263,7 @@ func TestLoadTimezoneDefaultsToUTC(t *testing.T) {
 }
 
 func TestLoadEnvVarOverridesTimezone(t *testing.T) {
-	t.Setenv("CAMERA_TIMEZONE", "America/Manaus")
+	t.Setenv("OS_CAMERA_TIMEZONE", "America/Manaus")
 
 	path := writeTempYAML(t, `timezone: America/Sao_Paulo`)
 
@@ -274,6 +274,22 @@ func TestLoadEnvVarOverridesTimezone(t *testing.T) {
 	}
 	if cfg.Timezone != "America/Manaus" {
 		t.Errorf("expected America/Manaus, got %q", cfg.Timezone)
+	}
+}
+
+func TestLoadEnvVarOverridesStoragePath(t *testing.T) {
+	t.Setenv("OS_CAMERA_STORAGE_PATH", "/mnt/env-recordings")
+
+	path := writeTempYAML(t, `storage:
+  path: /data/recordings`)
+
+	cfg, err := config.Load(path)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Storage.Path != "/mnt/env-recordings" {
+		t.Errorf("expected /mnt/env-recordings, got %q", cfg.Storage.Path)
 	}
 }
 
@@ -337,7 +353,7 @@ server:
 }
 
 func TestLoadEnvVarOverridesJWTSecret(t *testing.T) {
-	t.Setenv("CAMERA_SERVER_JWT_SECRET", "env-secret")
+	t.Setenv("OS_CAMERA_JWT_SECRET", "env-secret")
 
 	path := writeTempYAML(t, `
 server:
@@ -365,5 +381,92 @@ func TestLoadEmptyJWTSecretWhenNotSet(t *testing.T) {
 	}
 	if cfg.Server.JWTSecret != "" {
 		t.Errorf("expected empty JWTSecret when not configured, got %q", cfg.Server.JWTSecret)
+	}
+}
+
+func TestLoadEnvVarOverridesDebug(t *testing.T) {
+	t.Setenv("OS_CAMERA_DEBUG", "true")
+
+	path := writeTempYAML(t, `debug: false`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Debug {
+		t.Error("expected Debug=true from env var override")
+	}
+}
+
+func TestLoadDebugInvalidEnvVarIgnored(t *testing.T) {
+	t.Setenv("OS_CAMERA_DEBUG", "not-a-bool")
+
+	path := writeTempYAML(t, `debug: true`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Debug {
+		t.Error("expected Debug to keep YAML value when env var is invalid")
+	}
+}
+
+func TestLoadEnvVarOverridesSMTP(t *testing.T) {
+	t.Setenv("OS_CAMERA_SMTP_HOST", "smtp.example.com")
+	t.Setenv("OS_CAMERA_SMTP_PORT", "587")
+	t.Setenv("OS_CAMERA_SMTP_USERNAME", "no-reply@example.com")
+	t.Setenv("OS_CAMERA_SMTP_PASSWORD", "s3cr3t")
+
+	path := writeTempYAML(t, `storage:
+  path: /tmp`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SMTP.Host != "smtp.example.com" {
+		t.Errorf("expected Host from env var, got %q", cfg.SMTP.Host)
+	}
+	if cfg.SMTP.Port != 587 {
+		t.Errorf("expected Port=587 from env var, got %d", cfg.SMTP.Port)
+	}
+	if cfg.SMTP.Username != "no-reply@example.com" {
+		t.Errorf("expected Username from env var, got %q", cfg.SMTP.Username)
+	}
+	if cfg.SMTP.Password != "s3cr3t" {
+		t.Errorf("expected Password from env var, got %q", cfg.SMTP.Password)
+	}
+}
+
+func TestLoadSMTPPortInvalidEnvVarIgnored(t *testing.T) {
+	t.Setenv("OS_CAMERA_SMTP_PORT", "not-a-number")
+
+	path := writeTempYAML(t, `smtp:
+  port: 25`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SMTP.Port != 25 {
+		t.Errorf("expected Port to keep YAML value (25) when env var is invalid, got %d", cfg.SMTP.Port)
+	}
+}
+
+func TestLoadSMTPFromYAML(t *testing.T) {
+	path := writeTempYAML(t, `smtp:
+  host: mail.internal
+  port: 465
+  username: alerts@internal
+  password: yaml-secret`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SMTP.Host != "mail.internal" || cfg.SMTP.Port != 465 ||
+		cfg.SMTP.Username != "alerts@internal" || cfg.SMTP.Password != "yaml-secret" {
+		t.Errorf("expected SMTP fields from YAML, got %+v", cfg.SMTP)
 	}
 }

@@ -20,8 +20,8 @@ cp camera.yaml.example camera.yaml
 ## Referência completa
 
 ```yaml
-debug: false
-timezone: America/Sao_Paulo       # env: CAMERA_TIMEZONE
+debug: false                      # env: OS_CAMERA_DEBUG
+timezone: America/Sao_Paulo       # env: OS_CAMERA_TIMEZONE
 
 db_path: /var/camera/data/camera.db
 
@@ -37,12 +37,18 @@ log:
 server:
   port: 8080
   segments_path: /var/camera/data/hls
-  jwt_secret: ""        # env: CAMERA_SERVER_JWT_SECRET
+  jwt_secret: ""        # env: OS_CAMERA_JWT_SECRET
 
 storage:
-  path: /var/camera/data/recordings
+  path: /var/camera/data/recordings   # env: OS_CAMERA_STORAGE_PATH
   # retenção, tamanho máximo e intervalo de limpeza são configurados
   # via Configurações → Armazenamento na interface web
+
+# smtp:                 # opcional — servidor de e-mail (config only, sem envio ainda)
+#   host: smtp.example.com          # env: OS_CAMERA_SMTP_HOST
+#   port: 587                       # env: OS_CAMERA_SMTP_PORT
+#   username: no-reply@example.com  # env: OS_CAMERA_SMTP_USERNAME
+#   password: ""                    # env: OS_CAMERA_SMTP_PASSWORD
 
 admin:
   username: admin
@@ -86,9 +92,20 @@ admin:
 
 | Campo | Padrão | Descrição |
 |---|---|---|
-| `path` | — | Diretório raiz das gravações |
+| `path` | — | Diretório raiz das gravações (env: `OS_CAMERA_STORAGE_PATH`) |
 
 > Retenção, intervalo de limpeza, limite de tamanho e drives S3 são configurados via **Configurações → Armazenamento** na interface web e armazenados no banco de dados.
+
+### `smtp`
+
+| Campo | Padrão | Descrição |
+|---|---|---|
+| `host` | — | Endereço do servidor SMTP |
+| `port` | — | Porta do servidor SMTP |
+| `username` | — | Usuário de autenticação SMTP |
+| `password` | — | Senha de autenticação SMTP |
+
+> Só a configuração de conexão — ainda não há cliente SMTP nem envio de e-mail implementado.
 
 ### `admin`
 
@@ -107,8 +124,14 @@ As variáveis de ambiente sobrescrevem os campos correspondentes do `camera.yaml
 
 | Variável | Campo sobrescrito |
 |---|---|
-| `CAMERA_TIMEZONE` | `timezone` |
-| `CAMERA_SERVER_JWT_SECRET` | `server.jwt_secret` |
+| `OS_CAMERA_TIMEZONE` | `timezone` |
+| `OS_CAMERA_JWT_SECRET` | `server.jwt_secret` |
+| `OS_CAMERA_DEBUG` | `debug` |
+| `OS_CAMERA_SMTP_HOST` | `smtp.host` |
+| `OS_CAMERA_SMTP_PORT` | `smtp.port` |
+| `OS_CAMERA_SMTP_USERNAME` | `smtp.username` |
+| `OS_CAMERA_SMTP_PASSWORD` | `smtp.password` |
+| `OS_CAMERA_STORAGE_PATH` | `storage.path` |
 
 ---
 

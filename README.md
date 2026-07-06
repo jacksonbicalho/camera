@@ -109,8 +109,14 @@ Variáveis de ambiente sobrescrevem campos específicos:
 
 | Variável | Campo |
 |---|---|
-| `CAMERA_TIMEZONE` | `timezone` |
-| `CAMERA_SERVER_JWT_SECRET` | segredo JWT fixo (vazio = gerado aleatoriamente a cada boot) |
+| `OS_CAMERA_TIMEZONE` | `timezone` |
+| `OS_CAMERA_JWT_SECRET` | segredo JWT fixo (vazio = gerado aleatoriamente a cada boot) |
+| `OS_CAMERA_DEBUG` | `debug` |
+| `OS_CAMERA_SMTP_HOST` | `smtp.host` |
+| `OS_CAMERA_SMTP_PORT` | `smtp.port` |
+| `OS_CAMERA_SMTP_USERNAME` | `smtp.username` |
+| `OS_CAMERA_SMTP_PASSWORD` | `smtp.password` |
+| `OS_CAMERA_STORAGE_PATH` | `storage.path` |
 
 ---
 
