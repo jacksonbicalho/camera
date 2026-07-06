@@ -8,8 +8,8 @@ interface CameraViewTabsProps {
 
 const base =
   'inline-flex items-center gap-1.5 rounded px-3 py-1 text-caption font-bold transition-colors'
-const activeCls = 'bg-surface-2 text-foreground'
-const idleCls = 'text-muted hover:bg-surface-2 hover:text-foreground'
+const activeCls = 'bg-primary text-primary-foreground'
+const idleCls = 'bg-transparent text-muted-foreground'
 
 // CameraViewTabs — menu segmentado "Ao vivo | Histórico" no topo das páginas de
 // câmera (LivePage, HistoryPage). Alterna entre o ao-vivo e o histórico da mesma
@@ -20,7 +20,7 @@ export default function CameraViewTabs({ cameraId, active }: CameraViewTabsProps
     <nav
       id="camera-view-tabs"
       aria-label="Visão da câmera"
-      className="inline-flex items-center gap-1 rounded-lg bg-surface p-1"
+      className="inline-flex items-center gap-1 rounded-lg bg-surface p-[3px]"
     >
       <Link
         id="camera-tab-live"

@@ -31,6 +31,7 @@
   --color-danger: #d32f2f;
   --color-success: #2e7d32;
   --color-warning: #ed6c02;
+  --color-recording: #fb8c00;  /* badge "GRAVANDO" — mesmo hue do accent amber */
 
   /* glow de "tocando" do filmstrip (keyframe filmstrip-blink) — DARK = branco;
      o light sobrescreve para um tom escuro (senão some no fundo branco). */

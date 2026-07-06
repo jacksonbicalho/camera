@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import iconsSource from './Icons.tsx?raw'
-import { Play, Settings, X } from './Icons'
+import { Play, Settings, X, Minimize } from './Icons'
 
 afterEach(cleanup)
 
@@ -16,7 +16,7 @@ describe('Icons — sem dependência lucide-react', () => {
   })
 
   it('renderiza SVGs com os atributos base do lucide e repassa className', () => {
-    for (const Icon of [Settings, Play, X]) {
+    for (const Icon of [Settings, Play, X, Minimize]) {
       const { container } = render(<Icon className="w-4 h-4" />)
       const svg = container.querySelector('svg')!
       expect(svg.getAttribute('viewBox')).toBe('0 0 24 24')

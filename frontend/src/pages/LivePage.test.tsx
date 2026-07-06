@@ -31,7 +31,7 @@ function renderAt(path: string) {
   )
 }
 
-const cameras = [{ id: 'cam1', name: 'Entrada', live_transport: 'auto' }]
+const cameras = [{ id: 'cam1', name: 'Entrada', live_transport: 'auto', recording_enabled: true }]
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -65,6 +65,78 @@ describe('LivePage', () => {
     expect(hls.getAttribute('data-src')).toBe('/stream/cam1/index.m3u8')
     expect(hls.getAttribute('data-camera')).toBe('cam1')
     expect(hls.getAttribute('data-transport')).toBe('auto')
+  })
+
+  it('mostra os badges "AO VIVO" e "GRAVANDO" quando recording_enabled é true', async () => {
+    renderAt('/live/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
+    })
+    expect(document.getElementById('live-header')?.textContent).toContain('AO VIVO')
+    expect(document.getElementById('live-header')?.textContent).toContain('GRAVANDO')
+  })
+
+  it('esconde o badge "GRAVANDO" quando recording_enabled é false', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.startsWith('/api/cameras')) {
+          return Promise.resolve({
+            status: 200,
+            json: () => Promise.resolve([{ id: 'cam1', name: 'Entrada', live_transport: 'auto', recording_enabled: false }]),
+          })
+        }
+        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+    renderAt('/live/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
+    })
+    expect(document.getElementById('live-header')?.textContent).toContain('AO VIVO')
+    expect(document.getElementById('live-header')?.textContent).not.toContain('GRAVANDO')
+  })
+
+  it('badges usam o formato pill exato (mono, dot, borda) e as cores danger/recording', async () => {
+    renderAt('/live/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('live-badge-live')).not.toBeNull()
+    })
+    const live = document.getElementById('live-badge-live')!
+    expect(live.className).toContain('bg-danger/15')
+    expect(live.className).toContain('border-danger/40')
+    expect(live.className).toContain('font-mono')
+    expect(live.className).toContain('rounded-full')
+
+    const recording = document.getElementById('live-badge-recording')!
+    expect(recording.className).toContain('bg-recording/15')
+    expect(recording.className).toContain('border-recording/40')
+  })
+
+  it('botão de tela cheia fullscreena o wrapper cabeçalho+player e troca o ícone', async () => {
+    const rfs = vi.fn().mockResolvedValue(undefined)
+    ;(HTMLElement.prototype as unknown as { requestFullscreen: () => Promise<void> }).requestFullscreen = rfs
+    renderAt('/live/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('live-fullscreen-toggle')).not.toBeNull()
+    })
+    const wrapper = document.getElementById('live-header-and-player')!
+    const btn = document.getElementById('live-fullscreen-toggle')!
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(rfs).toHaveBeenCalled()
+
+    // Simula o browser entrando em fullscreen nesse wrapper.
+    Object.defineProperty(document, 'fullscreenElement', { value: wrapper, configurable: true })
+    document.dispatchEvent(new Event('fullscreenchange'))
+    await waitFor(() => {
+      expect(document.getElementById('live-header')?.className).toContain('absolute')
+    })
+
+    Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true })
+    document.dispatchEvent(new Event('fullscreenchange'))
+    await waitFor(() => {
+      expect(document.getElementById('live-header')?.className).not.toContain('absolute')
+    })
   })
 
   it('câmera inexistente → bloco de erro #live-error, sem player', async () => {

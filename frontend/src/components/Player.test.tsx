@@ -72,6 +72,12 @@ describe('Player', () => {
     })
     expect(rfs).toHaveBeenCalled()
   })
+
+  it('hideFullscreenButton oculta o botão de tela cheia próprio', async () => {
+    render(<Player id="p2" src="/stream/cam1/index.m3u8" hideFullscreenButton />)
+    await flush()
+    expect(document.getElementById('p2-fullscreen')).toBeNull()
+  })
 })
 
 describe('retryPlan — backoff exponencial com teto', () => {
