@@ -6,6 +6,13 @@ vi.mock('../auth', () => ({
   authHeaders: () => ({}),
   onUnauthorized: vi.fn(),
   getToken: () => 'tok',
+  getRole: () => 'admin',
+  getUsername: () => 'jackson',
+  clearToken: vi.fn(),
+}))
+
+vi.mock('../contexts/UserNotificationContext', () => ({
+  useUserNotifications: () => ({ unreadCount: 0 }),
 }))
 
 import HistoryPage from './HistoryPage'
@@ -104,6 +111,25 @@ describe('HistoryPage', () => {
     })
     expect(document.getElementById('history-recordings')).toBeNull()
     expect(document.querySelector('#history-player video')).toBeNull()
+  })
+
+  it('mostra loading até o vídeo carregar e volta a mostrar ao trocar de gravação', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-player-video')).not.toBeNull()
+    })
+    expect(document.getElementById('history-player-loading')).not.toBeNull()
+
+    const video = document.getElementById('history-player-video') as HTMLVideoElement
+    video.dispatchEvent(new Event('loadeddata'))
+    await waitFor(() => {
+      expect(document.getElementById('history-player-loading')).toBeNull()
+    })
+
+    document.getElementById('history-recording-2')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(document.getElementById('history-player-loading')).not.toBeNull()
+    })
   })
 
   it('câmera inexistente → bloco de erro #history-error', async () => {

@@ -3,15 +3,23 @@ import { render, act, cleanup } from '@testing-library/react'
 import Player from './Player'
 import { retryPlan, RETRY_MAX_ATTEMPTS } from './playerRetry'
 
+const { hlsInstances } = vi.hoisted(() => ({ hlsInstances: [] as { handlers: Record<string, (...args: unknown[]) => void> }[] }))
+
 vi.mock('hls.js', () => ({
   default: class {
     static isSupported() {
       return true
     }
     static Events = { MANIFEST_PARSED: 'manifestParsed', ERROR: 'error' }
+    handlers: Record<string, (...args: unknown[]) => void> = {}
+    constructor() {
+      hlsInstances.push(this)
+    }
     loadSource() {}
     attachMedia() {}
-    on() {}
+    on(event: string, cb: (...args: unknown[]) => void) {
+      this.handlers[event] = cb
+    }
     destroy() {}
   },
 }))
@@ -22,17 +30,22 @@ vi.mock('../lib/webrtc', async importOriginal => {
 })
 
 let rtcCalled = 0
+let rtcInstances: { connectionState: string; onconnectionstatechange: (() => void) | null }[] = []
 function stubRTC() {
   rtcCalled = 0
+  rtcInstances = []
+  hlsInstances.length = 0
   vi.stubGlobal('RTCPeerConnection', function RTCPeerConnectionStub() {
     rtcCalled++
-    return {
+    const inst = {
       connectionState: 'new',
       ontrack: null,
-      onconnectionstatechange: null,
+      onconnectionstatechange: null as (() => void) | null,
       addTransceiver: vi.fn(),
       close: vi.fn(),
     }
+    rtcInstances.push(inst)
+    return inst
   })
 }
 async function flush() {
@@ -77,6 +90,42 @@ describe('Player', () => {
     render(<Player id="p2" src="/stream/cam1/index.m3u8" hideFullscreenButton />)
     await flush()
     expect(document.getElementById('p2-fullscreen')).toBeNull()
+  })
+
+  it('mostra loading até o <video> ter um frame pra mostrar — conectar sozinho não basta', async () => {
+    render(<Player id="p3" src="/stream/cam1/index.m3u8" cameraId="cam1" />)
+    await flush()
+    expect(document.getElementById('p3-loading')).not.toBeNull()
+
+    // Conectar (WebRTC) não esconde o loading — ainda passa um tempo de tela preta
+    // até o browser decodificar o 1º frame.
+    act(() => {
+      rtcInstances[0].connectionState = 'connected'
+      rtcInstances[0].onconnectionstatechange?.()
+    })
+    expect(document.getElementById('p3-loading')).not.toBeNull()
+
+    // Só some quando o <video> de fato carrega dados (onLoadedData).
+    act(() => {
+      document.getElementById('p3')!.dispatchEvent(new Event('loadeddata'))
+    })
+    expect(document.getElementById('p3-loading')).toBeNull()
+  })
+
+  it('mostra loading até o <video> ter um frame (transport="hls") — manifest parsear não basta', async () => {
+    render(<Player id="p4" src="/stream/cam1/index.m3u8" cameraId="cam1" transport="hls" />)
+    await flush()
+    expect(document.getElementById('p4-loading')).not.toBeNull()
+
+    act(() => {
+      hlsInstances[hlsInstances.length - 1].handlers['manifestParsed']?.()
+    })
+    expect(document.getElementById('p4-loading')).not.toBeNull()
+
+    act(() => {
+      document.getElementById('p4')!.dispatchEvent(new Event('loadeddata'))
+    })
+    expect(document.getElementById('p4-loading')).toBeNull()
   })
 })
 

@@ -69,7 +69,6 @@ export default function LivePage() {
             cameraId={camera.id}
             cameraName={camera.name}
             active="live"
-            liveBadge
             recordingEnabled={camera.recording_enabled}
           >
             <div

@@ -12,12 +12,14 @@ import type { Notification } from "../contexts/NotificationContext"
 import ConfirmDialog from "./ConfirmDialog"
 import EventsPanelHeader from "./EventsPanelHeader"
 import ThemeModeNav from "./ThemeModeNav"
+import AccentSwatchNav from "./AccentSwatchNav"
 import {
   Bell, X, Check, Settings, CircleUser, CameraLogo, Cctv,
   Film, BarChart2, ChevronLeft,
 } from "./Icons"
 import { Button, buttonVariants } from "./ui/button"
 import { cn } from "@/lib/utils"
+import { ADMIN_SETTINGS_LINKS, VIEWER_SETTINGS_LINKS } from "./settingsNavLinks"
 
 interface AppSidebarProps {
   username?: string
@@ -211,22 +213,6 @@ function SidebarInjectedItem({ item, displayMode }: {
     </button>
   )
 }
-
-const ADMIN_SETTINGS_LINKS = [
-  { to: "/settings/cameras",    label: "Câmeras" },
-  { to: "/settings/discover",   label: "Rastrear câmeras" },
-  { to: "/settings/users",      label: "Usuários" },
-  { to: "/settings/server",     label: "Servidor" },
-  { to: "/settings/storage",    label: "Armazenamento" },
-  { to: "/settings/analysis",   label: "Análise de vídeo" },
-  { to: "/settings/system",     label: "Sistema" },
-  { to: "/settings/appearance", label: "Aparência" },
-  { to: "/settings/about",      label: "Sobre" },
-]
-
-const VIEWER_SETTINGS_LINKS = ADMIN_SETTINGS_LINKS.filter(
-  l => l.to === "/settings/cameras" || l.to === "/settings/appearance" || l.to === "/settings/about"
-)
 
 export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
   const location = useLocation()
@@ -494,6 +480,7 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
             {settingsLinks.map(({ to, label }) => (
               <Fragment key={to}>
                 {to === '/settings/about' && <ThemeModeNav onSelect={() => setSettingsOpen(false)} />}
+                {to === '/settings/about' && <AccentSwatchNav onSelect={() => setSettingsOpen(false)} />}
                 {to === '/settings/about' && (
                   <Link
                     to="/stats"

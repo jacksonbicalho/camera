@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import CameraStageHeader from '../components/CameraStageHeader'
-import { Play } from '../components/Icons'
+import { Loader2, Play } from '../components/Icons'
 import { loadMotionEvents, loadRecordingsData, type MotionEvent, type Recording } from './cameraUtils'
 import { recordingCategory, type RecordingCategory } from './eventCategory'
 
@@ -54,6 +54,7 @@ export default function HistoryPage() {
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [events, setEvents] = useState<MotionEvent[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [videoLoading, setVideoLoading] = useState(true)
 
   useEffect(() => {
     if (!cameraId) return
@@ -115,6 +116,11 @@ export default function HistoryPage() {
 
   const selected = useMemo(() => recordings.find(r => r.id === selectedId) ?? null, [recordings, selectedId])
 
+  function selectRecording(id: number) {
+    setSelectedId(id)
+    setVideoLoading(true)
+  }
+
   return (
     <Layout id="history-page" footerId="history-footer" contentClassName="p-4">
       <div id="history-content" className="mx-auto w-full max-w-5xl space-y-4">
@@ -140,15 +146,26 @@ export default function HistoryPage() {
               className="relative w-full overflow-hidden rounded-lg border border-border bg-black shadow-sm aspect-video"
             >
               {selected ? (
-                <video
-                  id="history-player-video"
-                  key={selected.id}
-                  src={`${selected.url}?token=${getToken()}`}
-                  className="h-full w-full"
-                  controls
-                  autoPlay
-                  muted
-                />
+                <>
+                  <video
+                    id="history-player-video"
+                    key={selected.id}
+                    src={`${selected.url}?token=${getToken()}`}
+                    className="h-full w-full"
+                    controls
+                    autoPlay
+                    muted
+                    onLoadedData={() => setVideoLoading(false)}
+                  />
+                  {videoLoading && (
+                    <div
+                      id="history-player-loading"
+                      className="absolute inset-0 flex items-center justify-center bg-black/70"
+                    >
+                      <Loader2 className="h-8 w-8 animate-spin text-white/70" />
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="flex h-full items-center justify-center text-body text-muted">
                   Sem gravações hoje.
@@ -172,16 +189,16 @@ export default function HistoryPage() {
                     key={rec.id}
                     id={`history-recording-${rec.id}`}
                     type="button"
-                    onClick={() => setSelectedId(rec.id)}
+                    onClick={() => selectRecording(rec.id)}
                     aria-current={active ? 'true' : undefined}
                     className={`relative flex h-20 w-32 shrink-0 flex-col justify-between rounded border-2 bg-surface-2 p-1.5 text-left transition-colors ${
                       active ? 'border-primary' : CAT_BORDER[cat]
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <Play className="h-4 w-4 text-white/70" />
+                      <Play className="h-4 w-4 text-muted-foreground" />
                       {duration && (
-                        <span className="rounded bg-black/60 px-1 text-caption text-white">{duration}</span>
+                        <span className="rounded bg-foreground/10 px-1 text-caption text-foreground">{duration}</span>
                       )}
                     </div>
                     <div>

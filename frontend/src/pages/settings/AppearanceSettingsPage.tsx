@@ -3,22 +3,12 @@ import PageHeader from '../../components/PageHeader'
 import { Check } from '../../components/Icons'
 import { useDisplayMode, useSetDisplayMode, type DisplayMode } from '../../contexts/DisplayModeContext'
 import { useTheme, type Mode, type AccentColor } from '../../contexts/ThemeContext'
+import { ACCENT_OPTIONS } from '../../components/accentOptions'
 
 const THEME_OPTIONS: { value: Mode; label: string }[] = [
   { value: 'dark', label: 'Dark' },
   { value: 'light', label: 'Light' },
   { value: 'system', label: 'Sistema' },
-]
-
-// 'default' is the current base blue (themes/default.css) — a normal,
-// explicitly selectable option, not just an invisible fallback (otherwise
-// there'd be no way back to it once another accent is picked).
-const ACCENT_OPTIONS: { value: AccentColor; label: string }[] = [
-  { value: 'default', label: 'Azul' },
-  { value: 'violet', label: 'Violeta' },
-  { value: 'teal', label: 'Teal' },
-  { value: 'coral', label: 'Coral' },
-  { value: 'amber', label: 'Âmbar' },
 ]
 
 function AccentSwatchGroup({

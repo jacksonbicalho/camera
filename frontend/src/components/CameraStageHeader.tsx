@@ -6,34 +6,23 @@ import { Maximize, Minimize } from './Icons'
 
 interface PlayerBadgesProps {
   idPrefix: string
-  live?: boolean
   recordingEnabled?: boolean
 }
 
-// PlayerBadges — "AO VIVO" (só quando `live`) + "GRAVANDO" (condicional a
-// recordingEnabled !== false — mesmo critério "ligado por padrão, só esconde se
-// explicitamente false" usado em CameraPage/CamerasSettingsPage pro badge "rec off").
-function PlayerBadges({ idPrefix, live, recordingEnabled }: PlayerBadgesProps) {
+// PlayerBadges — "GRAVANDO" (condicional a recordingEnabled !== false — mesmo
+// critério "ligado por padrão, só esconde se explicitamente false" usado em
+// CameraPage/CamerasSettingsPage pro badge "rec off"). O status "ao vivo" já é
+// sinalizado pelo dot pulsante da aba "Ao vivo" em CameraViewTabs — sem badge
+// redundante aqui.
+function PlayerBadges({ idPrefix, recordingEnabled }: PlayerBadgesProps) {
+  if (recordingEnabled === false) return null
   return (
-    <span className="inline-flex items-center gap-1.5">
-      {live && (
-        <span
-          id={`${idPrefix}-badge-live`}
-          className="inline-flex items-center gap-1.5 rounded-full border border-danger/40 bg-danger/15 px-[10px] py-[5px] text-caption font-mono tracking-wide leading-none text-danger"
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-danger" aria-hidden="true" />
-          AO VIVO
-        </span>
-      )}
-      {recordingEnabled !== false && (
-        <span
-          id={`${idPrefix}-badge-recording`}
-          className="inline-flex items-center gap-1.5 rounded-full border border-recording/40 bg-recording/15 px-[10px] py-[5px] text-caption font-mono tracking-wide leading-none text-recording"
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-recording" aria-hidden="true" />
-          GRAVANDO
-        </span>
-      )}
+    <span
+      id={`${idPrefix}-badge-recording`}
+      className="inline-flex items-center gap-1.5 rounded-full bg-recording/10 px-2 py-1 text-caption font-medium text-recording ring-1 ring-inset ring-recording/20"
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-recording" aria-hidden="true" />
+      GRAVANDO
     </span>
   )
 }
@@ -45,8 +34,6 @@ interface CameraStageHeaderProps {
   cameraName: string
   active: 'live' | 'history'
   recordingEnabled?: boolean
-  /** Badge "AO VIVO" — só a LivePage passa true. */
-  liveBadge?: boolean
   /** O player (Player/<video>) renderizado dentro do wrapper de fullscreen. */
   children: ReactNode
 }
@@ -62,7 +49,6 @@ export default function CameraStageHeader({
   cameraName,
   active,
   recordingEnabled,
-  liveBadge,
   children,
 }: CameraStageHeaderProps) {
   const [fullscreen, setFullscreen] = useState(false)
@@ -95,7 +81,7 @@ export default function CameraStageHeader({
           title={
             <span className={cn('flex items-center gap-2', fullscreen && 'text-white')}>
               {cameraName}
-              <PlayerBadges idPrefix={idPrefix} live={liveBadge} recordingEnabled={recordingEnabled} />
+              <PlayerBadges idPrefix={idPrefix} recordingEnabled={recordingEnabled} />
             </span>
           }
           actions={

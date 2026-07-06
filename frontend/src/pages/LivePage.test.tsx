@@ -5,6 +5,13 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 vi.mock('../auth', () => ({
   authHeaders: () => ({}),
   onUnauthorized: vi.fn(),
+  getRole: () => 'admin',
+  getUsername: () => 'jackson',
+  clearToken: vi.fn(),
+}))
+
+vi.mock('../contexts/UserNotificationContext', () => ({
+  useUserNotifications: () => ({ unreadCount: 0 }),
 }))
 
 // Player faz negociação WebRTC/HLS no mount — stub para inspecionar as props.
@@ -51,14 +58,20 @@ afterEach(() => {
 })
 
 describe('LivePage', () => {
-  it('header com nome da câmera, indicador AO VIVO e player (HLSPlayer com src correto)', async () => {
+  it('header com nome da câmera, tab "Ao vivo" ativa (dot maior/pulsante) e player (HLSPlayer com src correto)', async () => {
     renderAt('/live/cam1')
     await waitFor(() => {
       expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
     })
-    // Tabs no header: "Ao vivo" ativa, "Histórico" → /history/{id}.
+    // Tabs no header: "Ao vivo" ativa, "Histórico" → /history/{id}. O status "ao vivo" é
+    // sinalizado pelo dot da própria aba — sem badge redundante no header.
     expect(document.getElementById('camera-tab-live')?.getAttribute('aria-current')).toBe('page')
     expect(document.getElementById('camera-tab-history')?.getAttribute('href')).toBe('/history/cam1')
+    expect(document.getElementById('live-header')?.textContent).not.toContain('AO VIVO')
+    expect(document.getElementById('live-badge-live')).toBeNull()
+    const dot = document.getElementById('camera-tab-live-dot')!
+    expect(dot.className).toContain('animate-pulse')
+    expect(dot.className).toContain('h-2.5 w-2.5')
     const player = document.getElementById('live-player')!
     expect(player.hasAttribute('data-on-video')).toBe(true)
     const hls = screen.getByTestId('hls')
@@ -67,12 +80,11 @@ describe('LivePage', () => {
     expect(hls.getAttribute('data-transport')).toBe('auto')
   })
 
-  it('mostra os badges "AO VIVO" e "GRAVANDO" quando recording_enabled é true', async () => {
+  it('mostra o badge "GRAVANDO" quando recording_enabled é true', async () => {
     renderAt('/live/cam1')
     await waitFor(() => {
       expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
     })
-    expect(document.getElementById('live-header')?.textContent).toContain('AO VIVO')
     expect(document.getElementById('live-header')?.textContent).toContain('GRAVANDO')
   })
 
@@ -93,24 +105,18 @@ describe('LivePage', () => {
     await waitFor(() => {
       expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
     })
-    expect(document.getElementById('live-header')?.textContent).toContain('AO VIVO')
     expect(document.getElementById('live-header')?.textContent).not.toContain('GRAVANDO')
   })
 
-  it('badges usam o formato pill exato (mono, dot, borda) e as cores danger/recording', async () => {
+  it('badge GRAVANDO usa o formato pill com ring-inset (padrão de badge)', async () => {
     renderAt('/live/cam1')
     await waitFor(() => {
-      expect(document.getElementById('live-badge-live')).not.toBeNull()
+      expect(document.getElementById('live-badge-recording')).not.toBeNull()
     })
-    const live = document.getElementById('live-badge-live')!
-    expect(live.className).toContain('bg-danger/15')
-    expect(live.className).toContain('border-danger/40')
-    expect(live.className).toContain('font-mono')
-    expect(live.className).toContain('rounded-full')
-
     const recording = document.getElementById('live-badge-recording')!
-    expect(recording.className).toContain('bg-recording/15')
-    expect(recording.className).toContain('border-recording/40')
+    expect(recording.className).toContain('bg-recording/10')
+    expect(recording.className).toContain('ring-recording/20')
+    expect(recording.className).toContain('rounded-full')
   })
 
   it('botão de tela cheia fullscreena o wrapper cabeçalho+player e troca o ícone', async () => {
