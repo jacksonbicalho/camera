@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 interface PageHeaderProps {
-  title: string
+  /** Título: string ou nós (ex.: LivePage compõe nome + badges de status). */
+  title: ReactNode
   /** Subtítulo: string ou nós (ex.: Relatórios tem duas linhas). */
   subtitle?: ReactNode
   /** Bloco de ações alinhado à direita. */

@@ -18,6 +18,17 @@ describe('PageHeader', () => {
     expect(h.className).toContain('text-h2')
   })
 
+  it('title aceita ReactNode (não só string), compondo nome + badges', () => {
+    render(
+      <PageHeader
+        id="ph-node"
+        title={<><span>Entrada</span><span data-testid="badge">AO VIVO</span></>}
+      />,
+    )
+    expect(document.getElementById('ph-node')?.textContent).toContain('Entrada')
+    expect(screen.getByTestId('badge').textContent).toBe('AO VIVO')
+  })
+
   it('subtítulo e ações: presentes quando passados, ausentes quando não', () => {
     const { rerender } = render(<PageHeader title="T" />)
     expect(screen.queryByText('sub')).toBeNull()
