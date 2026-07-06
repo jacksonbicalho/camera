@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -13,7 +14,9 @@ import (
 // Tests may override this to bcrypt.MinCost (4) for speed.
 var BcryptCost = 12
 
-// User represents a row from the users table.
+// User represents a row from the users table. Email and Name are not columns
+// on users — they live in user_settings (keys "email"/"name", see
+// GetUserEmail/GetUserName) and are populated here as a convenience.
 type User struct {
 	ID                 int64
 	Username           string
@@ -21,6 +24,8 @@ type User struct {
 	Role               string
 	CreatedAt          time.Time
 	MustChangePassword bool
+	Email              string
+	Name               string
 }
 
 // CreateUser inserts a new user, hashing the password with bcrypt. Returns
@@ -58,16 +63,88 @@ func ClearMustChangePassword(db *DB, id int64, newPassword string) error {
 
 // GetUserByID returns the user with the given ID.
 func GetUserByID(db *DB, id int64) (User, error) {
-	return scanUser(db.QueryRow(
+	u, err := scanUser(db.QueryRow(
 		`SELECT id, username, password_hash, role, created_at, must_change_password FROM users WHERE id=?`, id,
 	))
+	if err != nil {
+		return User{}, err
+	}
+	return withEmailAndName(db, u)
 }
 
 // GetUserByUsername returns the user with the given username.
 func GetUserByUsername(db *DB, username string) (User, error) {
-	return scanUser(db.QueryRow(
+	u, err := scanUser(db.QueryRow(
 		`SELECT id, username, password_hash, role, created_at, must_change_password FROM users WHERE username=?`, username,
 	))
+	if err != nil {
+		return User{}, err
+	}
+	return withEmailAndName(db, u)
+}
+
+// GetUserByLogin returns the user matching identifier as either their
+// username or their email (user_settings key "email"). Tries username first.
+func GetUserByLogin(db *DB, identifier string) (User, error) {
+	u, err := GetUserByUsername(db, identifier)
+	if err == nil {
+		return u, nil
+	}
+	var userID int64
+	lookupErr := db.QueryRow(
+		`SELECT user_id FROM user_settings WHERE key='email' AND value=?`, identifier,
+	).Scan(&userID)
+	if lookupErr != nil {
+		return User{}, fmt.Errorf("user not found")
+	}
+	return GetUserByID(db, userID)
+}
+
+// withEmailAndName fills in u.Email/u.Name from user_settings.
+func withEmailAndName(db *DB, u User) (User, error) {
+	email, err := GetUserEmail(db, u.ID)
+	if err != nil {
+		return User{}, err
+	}
+	name, err := GetUserName(db, u.ID)
+	if err != nil {
+		return User{}, err
+	}
+	u.Email = email
+	u.Name = name
+	return u, nil
+}
+
+// GetUserEmail returns the user's email (default "" — not every user has one).
+func GetUserEmail(db *DB, userID int64) (string, error) {
+	return getUserSetting(db, userID, "email", "")
+}
+
+// SetUserEmail persists the user's email. Rejects the change if another user
+// already has this email (user_settings has no native uniqueness constraint
+// on value, so uniqueness is enforced here).
+func SetUserEmail(db *DB, userID int64, email string) error {
+	var existingUserID int64
+	err := db.QueryRow(
+		`SELECT user_id FROM user_settings WHERE key='email' AND value=?`, email,
+	).Scan(&existingUserID)
+	if err == nil && existingUserID != userID {
+		return fmt.Errorf("email %q already in use", email)
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("check existing email: %w", err)
+	}
+	return setUserSetting(db, userID, "email", email)
+}
+
+// GetUserName returns the user's display name (default "").
+func GetUserName(db *DB, userID int64) (string, error) {
+	return getUserSetting(db, userID, "name", "")
+}
+
+// SetUserName persists the user's display name. No uniqueness constraint.
+func SetUserName(db *DB, userID int64, name string) error {
+	return setUserSetting(db, userID, "name", name)
 }
 
 func scanUser(row *sql.Row) (User, error) {
@@ -111,7 +188,17 @@ func ListUsers(db *DB) ([]User, error) {
 		u.MustChangePassword = mustChange != 0
 		users = append(users, u)
 	}
-	return users, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i, u := range users {
+		filled, err := withEmailAndName(db, u)
+		if err != nil {
+			return nil, err
+		}
+		users[i] = filled
+	}
+	return users, nil
 }
 
 // UpdateUser updates username, password and role for the given user ID.
@@ -149,14 +236,17 @@ func PatchUser(db *DB, id int64, username, role, newPassword string) error {
 	return err
 }
 
-// DeleteUser removes the user and cascades to user_cameras.
+// DeleteUser removes the user and cascades to user_settings.
 func DeleteUser(db *DB, id int64) error {
 	_, err := db.Exec(`DELETE FROM users WHERE id=?`, id)
 	return err
 }
 
+const cameraKeyPrefix = "camera:"
+
 // SetUserCameras replaces the set of camera IDs allowed for a viewer.
-// Passing an empty slice removes all permissions.
+// Passing an empty slice removes all permissions. Stored in user_settings as
+// one key per camera ("camera:<id>" = "1") rather than a user_cameras table.
 func SetUserCameras(db *DB, userID int64, cameraIDs []string) error {
 	tx, err := db.Begin()
 	if err != nil {
@@ -164,12 +254,14 @@ func SetUserCameras(db *DB, userID int64, cameraIDs []string) error {
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	if _, err := tx.Exec(`DELETE FROM user_cameras WHERE user_id=?`, userID); err != nil {
+	if _, err := tx.Exec(
+		`DELETE FROM user_settings WHERE user_id=? AND key LIKE ?`, userID, cameraKeyPrefix+"%",
+	); err != nil {
 		return err
 	}
 	for _, cid := range cameraIDs {
 		if _, err := tx.Exec(
-			`INSERT INTO user_cameras(user_id, camera_id) VALUES(?,?)`, userID, cid,
+			`INSERT INTO user_settings(user_id, key, value) VALUES(?,?,?)`, userID, cameraKeyPrefix+cid, "1",
 		); err != nil {
 			return err
 		}
@@ -180,7 +272,8 @@ func SetUserCameras(db *DB, userID int64, cameraIDs []string) error {
 // GetUserCameras returns the list of camera IDs accessible to a user.
 func GetUserCameras(db *DB, userID int64) ([]string, error) {
 	rows, err := db.Query(
-		`SELECT camera_id FROM user_cameras WHERE user_id=? ORDER BY camera_id`, userID,
+		`SELECT key FROM user_settings WHERE user_id=? AND key LIKE ? ORDER BY key`,
+		userID, cameraKeyPrefix+"%",
 	)
 	if err != nil {
 		return nil, err
@@ -189,22 +282,21 @@ func GetUserCameras(db *DB, userID int64) ([]string, error) {
 
 	var ids []string
 	for rows.Next() {
-		var cid string
-		if err := rows.Scan(&cid); err != nil {
+		var key string
+		if err := rows.Scan(&key); err != nil {
 			return nil, err
 		}
-		ids = append(ids, cid)
+		ids = append(ids, strings.TrimPrefix(key, cameraKeyPrefix))
 	}
 	return ids, rows.Err()
 }
 
 // UserHasCamera reports whether the user has been granted access to cameraID.
-// It answers the access-control boolean with a single indexed lookup rather
-// than fetching every camera the user can see and scanning (GetUserCameras).
+// A single lookup by the user_settings primary key (user_id, key).
 func UserHasCamera(db *DB, userID int64, cameraID string) (bool, error) {
 	var one int
 	err := db.QueryRow(
-		`SELECT 1 FROM user_cameras WHERE user_id=? AND camera_id=? LIMIT 1`, userID, cameraID,
+		`SELECT 1 FROM user_settings WHERE user_id=? AND key=? LIMIT 1`, userID, cameraKeyPrefix+cameraID,
 	).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil

@@ -13,6 +13,8 @@ interface User {
   username: string
   role: 'admin' | 'viewer'
   cameras: string[]
+  email?: string
+  name?: string
 }
 
 export interface UserFormData {
@@ -20,6 +22,8 @@ export interface UserFormData {
   password: string
   role: 'admin' | 'viewer'
   cameras: string[]
+  email: string
+  name: string
 }
 
 interface UserFormProps {
@@ -37,6 +41,8 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving, o
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<'admin' | 'viewer'>(initial?.role ?? 'viewer')
   const [selectedCameras, setSelectedCameras] = useState<string[]>(initial?.cameras ?? [])
+  const [email, setEmail] = useState(initial?.email ?? '')
+  const [name, setName] = useState(initial?.name ?? '')
 
   const toggleCamera = (id: string) => {
     setSelectedCameras(prev =>
@@ -46,7 +52,7 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving, o
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({ username, password, role, cameras: selectedCameras })
+    onSave({ username, password, role, cameras: selectedCameras, email, name })
   }
 
   return (
@@ -74,6 +80,23 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving, o
             />
           </div>
         )}
+        <div>
+          <Label htmlFor="user-form-email" className="block text-xs text-muted-foreground mb-1">E-mail</Label>
+          <Input
+            id="user-form-email"
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="user-form-name" className="block text-xs text-muted-foreground mb-1">Nome</Label>
+          <Input
+            id="user-form-name"
+            value={name}
+            onChange={e => setName(e.target.value)}
+          />
+        </div>
         <div>
           <Label htmlFor="user-form-role" className="block text-xs text-muted-foreground mb-1">Role</Label>
           <select

@@ -127,6 +127,53 @@ func TestCreateUser_Success(t *testing.T) {
 	}
 }
 
+func TestCreateUser_WithEmailAndName(t *testing.T) {
+	srv, adminToken, _ := setupUsersServer(t)
+
+	body := `{"username":"newviewer","password":"pw1234","role":"viewer","email":"newviewer@example.com","name":"New Viewer"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/users", bytes.NewBufferString(body))
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["email"] != "newviewer@example.com" {
+		t.Errorf("expected email=newviewer@example.com, got %v", resp["email"])
+	}
+	if resp["name"] != "New Viewer" {
+		t.Errorf("expected name='New Viewer', got %v", resp["name"])
+	}
+}
+
+func TestCreateUser_DuplicateEmail(t *testing.T) {
+	srv, adminToken, _ := setupUsersServer(t)
+
+	body1 := `{"username":"user1","password":"pw1234","role":"viewer","email":"shared@example.com"}`
+	req1 := httptest.NewRequest(http.MethodPost, "/api/users", bytes.NewBufferString(body1))
+	req1.Header.Set("Authorization", "Bearer "+adminToken)
+	req1.Header.Set("Content-Type", "application/json")
+	w1 := httptest.NewRecorder()
+	srv.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for first user, got %d: %s", w1.Code, w1.Body.String())
+	}
+
+	body2 := `{"username":"user2","password":"pw1234","role":"viewer","email":"shared@example.com"}`
+	req2 := httptest.NewRequest(http.MethodPost, "/api/users", bytes.NewBufferString(body2))
+	req2.Header.Set("Authorization", "Bearer "+adminToken)
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	srv.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for duplicate email, got %d: %s", w2.Code, w2.Body.String())
+	}
+}
+
 func TestCreateUser_ForbiddenForViewer(t *testing.T) {
 	srv, _, viewerToken := setupUsersServer(t)
 
@@ -232,6 +279,39 @@ func TestUpdateUser_SetCameras(t *testing.T) {
 	cameras, ok := resp["cameras"].([]any)
 	if !ok || len(cameras) != 2 {
 		t.Errorf("expected cameras=[cam1,cam2], got %v", resp["cameras"])
+	}
+}
+
+func TestUpdateUser_SetEmailAndName(t *testing.T) {
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "admin_user", "adminpw", "admin", false); err != nil {
+		t.Fatalf("criar admin: %v", err)
+	}
+	viewerID, err := db.CreateUser(database, "viewer_user", "viewerpw", "viewer", false)
+	if err != nil {
+		t.Fatalf("criar viewer: %v", err)
+	}
+
+	srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
+	adminToken := loginAndGetToken(t, srv, "admin_user", "adminpw")
+
+	body := `{"username":"viewer_user","role":"viewer","email":"viewer@example.com","name":"Viewer Name"}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/users/%d", viewerID), bytes.NewBufferString(body))
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["email"] != "viewer@example.com" {
+		t.Errorf("expected email=viewer@example.com, got %v", resp["email"])
+	}
+	if resp["name"] != "Viewer Name" {
+		t.Errorf("expected name='Viewer Name', got %v", resp["name"])
 	}
 }
 

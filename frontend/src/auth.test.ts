@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { setToken, clearToken, getUsername, mustChangePassword } from './auth'
+import { setToken, clearToken, getToken, getUsername, mustChangePassword } from './auth'
 
 function makeJwt(payload: object): string {
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
@@ -22,6 +22,39 @@ describe('getUsername', () => {
   it('returns null when token is malformed', () => {
     setToken('not.a.jwt')
     expect(getUsername()).toBeNull()
+  })
+})
+
+describe('setToken — lembrar de mim', () => {
+  afterEach(() => clearToken())
+
+  it('defaults to localStorage (remember=true)', () => {
+    setToken('tok-default')
+    expect(localStorage.getItem('camera_token')).toBe('tok-default')
+    expect(sessionStorage.getItem('camera_token')).toBeNull()
+    expect(getToken()).toBe('tok-default')
+  })
+
+  it('remember=true stores in localStorage', () => {
+    setToken('tok-remember', true)
+    expect(localStorage.getItem('camera_token')).toBe('tok-remember')
+    expect(sessionStorage.getItem('camera_token')).toBeNull()
+  })
+
+  it('remember=false stores in sessionStorage, not localStorage', () => {
+    setToken('tok-session', false)
+    expect(sessionStorage.getItem('camera_token')).toBe('tok-session')
+    expect(localStorage.getItem('camera_token')).toBeNull()
+    expect(getToken()).toBe('tok-session')
+  })
+
+  it('clearToken removes the token from both storages', () => {
+    setToken('tok-a', true)
+    setToken('tok-b', false)
+    clearToken()
+    expect(localStorage.getItem('camera_token')).toBeNull()
+    expect(sessionStorage.getItem('camera_token')).toBeNull()
+    expect(getToken()).toBeNull()
   })
 })
 
