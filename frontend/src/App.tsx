@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { getToken, mustChangePassword } from './auth'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
@@ -9,6 +9,9 @@ import ResetPasswordPage from './pages/ResetPasswordPage'
 import { SidebarItemsProvider } from './contexts/SidebarContext'
 import { DisplayModeProvider } from './contexts/DisplayModeContext'
 import { AlertProvider } from './contexts/AlertContext'
+import { ThemeProvider } from './contexts/ThemeContext'
+import { NotificationProvider } from './contexts/NotificationContext'
+import { UserNotificationProvider } from './contexts/UserNotificationContext'
 
 const CameraPage = lazy(() => import('./pages/CameraPage'))
 const StatsPage = lazy(() => import('./pages/StatsPage'))
@@ -63,6 +66,10 @@ function Lazy({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <BrowserRouter>
+    <ThemeProvider>
+    <NotificationProvider>
+    <UserNotificationProvider>
     <DisplayModeProvider>
     <AlertProvider>
     <SidebarItemsProvider>
@@ -110,5 +117,9 @@ export default function App() {
     </SidebarItemsProvider>
     </AlertProvider>
     </DisplayModeProvider>
+    </UserNotificationProvider>
+    </NotificationProvider>
+    </ThemeProvider>
+    </BrowserRouter>
   )
 }
