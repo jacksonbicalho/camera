@@ -283,7 +283,7 @@ export default function CameraForm({ initial, prefillRtsp, prefillName, onSave, 
                   type="checkbox"
                   checked={form.hls_segment_seconds_default}
                   onChange={e => set('hls_segment_seconds_default', e.target.checked)}
-                  className="accent-blue-500"
+                  className="accent-primary"
                 />
                 <span className="text-xs text-faint">Usar padrão (2 s)</span>
               </label>
@@ -309,7 +309,7 @@ export default function CameraForm({ initial, prefillRtsp, prefillName, onSave, 
                   type="checkbox"
                   checked={form.hls_list_size_default}
                   onChange={e => set('hls_list_size_default', e.target.checked)}
-                  className="accent-blue-500"
+                  className="accent-primary"
                 />
                 <span className="text-xs text-faint">Usar padrão (5 segmentos)</span>
               </label>
@@ -341,7 +341,7 @@ export default function CameraForm({ initial, prefillRtsp, prefillName, onSave, 
             id="recording_enabled"
             checked={form.recording_enabled}
             onChange={e => set('recording_enabled', e.target.checked)}
-            className="accent-blue-500"
+            className="accent-primary"
           />
           <span className="text-xs text-muted-foreground">Gravar em disco</span>
         </label>

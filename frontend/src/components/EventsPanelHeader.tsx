@@ -41,7 +41,7 @@ export default function EventsPanelHeader({
           checked={allSelected}
           ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
           onChange={onToggleAll}
-          className="w-3 h-3 accent-blue-500 cursor-pointer"
+          className="w-3 h-3 accent-primary cursor-pointer"
         />
         <span className="text-xs text-muted-foreground">Selecionar todos</span>
       </label>
@@ -56,7 +56,7 @@ export default function EventsPanelHeader({
               onClick={onMarkRead}
               className="gap-1.5 text-xs [&_svg]:size-3.5"
             >
-              <Check className="text-blue-400" />
+              <Check className="text-primary" />
               Marcar como lido
             </Button>
           )}

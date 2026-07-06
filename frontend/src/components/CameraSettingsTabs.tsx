@@ -36,7 +36,7 @@ export default function CameraSettingsTabs({ id, active, camName }: Props) {
               to={tab.path(id)}
               className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
                 active === tab.key
-                  ? 'border-blue-500 text-blue-400'
+                  ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground hover:border-faint'
               }`}
             >

@@ -64,7 +64,7 @@ function ModeRadioGroup({
             name={undefined}
             checked={value === opt.value}
             onChange={() => onChange(opt.value)}
-            className="accent-blue-500 cursor-pointer"
+            className="accent-primary cursor-pointer"
           />
           <span className="text-sm text-foreground group-hover:text-white transition-colors">
             {opt.label}
@@ -97,7 +97,7 @@ export default function AppearanceSettingsPage() {
                   type="radio"
                   checked={colorMode === opt.value}
                   onChange={() => setMode(opt.value)}
-                  className="accent-blue-500 cursor-pointer"
+                  className="accent-primary cursor-pointer"
                 />
                 <span className="text-sm text-foreground group-hover:text-white transition-colors">
                   {opt.label}

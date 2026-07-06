@@ -525,7 +525,7 @@ export default function AnalysisSettingsPage() {
             <button
               type="button"
               onClick={() => setCfg(c => ({ ...c, enabled: !c.enabled }))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${cfg.enabled ? 'bg-blue-600' : 'bg-surface-2'}`}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${cfg.enabled ? 'bg-primary' : 'bg-surface-2'}`}
             >
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cfg.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
@@ -599,7 +599,7 @@ export default function AnalysisSettingsPage() {
                 min={0.1}
                 max={0.9}
                 step={0.05}
-                className="w-full accent-blue-500"
+                className="w-full accent-primary"
                 value={cfg.confidence_threshold}
                 onChange={e => setCfg(c => ({ ...c, confidence_threshold: Number(e.target.value) }))}
               />
@@ -748,7 +748,7 @@ export default function AnalysisSettingsPage() {
                 <label className={`flex items-center gap-1.5 text-xs cursor-pointer select-none ${labelSearch ? 'text-muted-foreground cursor-not-allowed' : 'text-muted-foreground'}`}>
                   <input
                     type="checkbox"
-                    className="accent-blue-500"
+                    className="accent-primary"
                     checked={unlabeledOnly && !labelSearch}
                     disabled={!!labelSearch}
                     onChange={e => { setUnlabeledOnly(e.target.checked); setLabelPage(1); setLabelEvents(null); clearSelection() }}
@@ -794,18 +794,18 @@ export default function AnalysisSettingsPage() {
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input
                         type="checkbox"
-                        className="accent-blue-500"
+                        className="accent-primary"
                         checked={(labelEvents?.length ?? 0) > 0 && labelEvents!.every(e => selected.has(e.id))}
                         onChange={e => e.target.checked ? selectAllOnPage() : clearSelection()}
                       />
                       Selecionar todos da página
                     </label>
                     {selected.size > 0 && (
-                      <span className="text-blue-400">{selected.size} selecionado{selected.size !== 1 ? 's' : ''}</span>
+                      <span className="text-primary">{selected.size} selecionado{selected.size !== 1 ? 's' : ''}</span>
                     )}
                   </div>
                   {selected.size > 0 && (
-                    <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-blue-900/20 border-b border-blue-700/40 sticky top-0 z-10">
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-primary/10 border-b border-primary/30 sticky top-0 z-10">
                       <input
                         type="text"
                         placeholder="label para aplicar em lote…"
@@ -854,10 +854,10 @@ export default function AnalysisSettingsPage() {
                         : 'border-border'
                       const isSelected = selected.has(ev.id)
                       return (
-                        <li key={ev.id} className={`flex items-center gap-3 px-4 py-2 ${isSelected ? 'bg-blue-900/10' : ''}`}>
+                        <li key={ev.id} className={`flex items-center gap-3 px-4 py-2 ${isSelected ? 'bg-primary/10' : ''}`}>
                           <input
                             type="checkbox"
-                            className="accent-blue-500 flex-shrink-0"
+                            className="accent-primary flex-shrink-0"
                             checked={isSelected}
                             onChange={() => toggleSelect(ev.id)}
                           />

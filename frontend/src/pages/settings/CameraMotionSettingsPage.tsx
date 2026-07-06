@@ -207,7 +207,7 @@ function MotionFormContent({ cam, id, peak, reload }: MotionFormContentProps) {
             id="motion_enabled"
             checked={form.motion_enabled}
             onChange={e => set('motion_enabled', e.target.checked)}
-            className="accent-blue-500"
+            className="accent-primary"
           />
           <label htmlFor="motion_enabled" className="text-xs text-muted-foreground cursor-pointer">Habilitado</label>
         </div>
@@ -272,7 +272,7 @@ function MotionFormContent({ cam, id, peak, reload }: MotionFormContentProps) {
                     id="motion_capture_auto"
                     checked={form.motion_capture_auto}
                     onChange={e => set('motion_capture_auto', e.target.checked)}
-                    className="accent-blue-500"
+                    className="accent-primary"
                   />
                   <label htmlFor="motion_capture_auto" className="text-xs text-muted-foreground cursor-pointer">
                     Automático (stream ÷ 4{previewW !== null ? ` → ${previewW} × ${previewH} px` : ''})
@@ -286,7 +286,7 @@ function MotionFormContent({ cam, id, peak, reload }: MotionFormContentProps) {
                         min={5} max={100} step={5}
                         value={form.motion_capture_pct}
                         onChange={e => set('motion_capture_pct', parseInt(e.target.value))}
-                        className="flex-1 accent-blue-500"
+                        className="flex-1 accent-primary"
                       />
                       <span className="text-xs text-foreground font-mono w-10 text-right">{form.motion_capture_pct}%</span>
                     </div>

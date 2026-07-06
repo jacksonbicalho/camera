@@ -59,7 +59,7 @@ export default function NotificationsPage() {
                     <Link
                       to={n.link}
                       onClick={() => markRead(n.id)}
-                      className="text-sm text-blue-400 hover:text-blue-300 break-words underline-offset-2 hover:underline"
+                      className="text-sm text-primary hover:text-primary/80 break-words underline-offset-2 hover:underline"
                     >
                       {n.message}
                     </Link>

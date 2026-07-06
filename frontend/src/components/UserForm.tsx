@@ -122,7 +122,7 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving, o
                 onClick={() => toggleCamera(cam.id)}
                 className={`px-3 py-1 text-xs rounded border transition-colors ${
                   selectedCameras.includes(cam.id)
-                    ? 'bg-blue-700 border-blue-600 text-white'
+                    ? 'bg-primary border-primary text-on-primary'
                     : 'bg-surface border-border text-muted-foreground hover:border-faint'
                 }`}
               >

@@ -57,7 +57,7 @@ function NotificationItem({
   return (
     <div
       className={`flex items-start gap-2 px-3 py-2 hover:bg-accent transition-colors ${
-        !n.read ? "border-l-2 border-blue-500" : "border-l-2 border-transparent"
+        !n.read ? "border-l-2 border-primary" : "border-l-2 border-transparent"
       }`}
     >
       <input
@@ -65,7 +65,7 @@ function NotificationItem({
         checked={checked}
         onChange={onToggle}
         onClick={(e) => e.stopPropagation()}
-        className="mt-0.5 w-3 h-3 flex-shrink-0 accent-blue-500 cursor-pointer"
+        className="mt-0.5 w-3 h-3 flex-shrink-0 accent-primary cursor-pointer"
       />
       <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
         <div className="text-xs text-foreground font-medium truncate">
@@ -208,7 +208,7 @@ export default function Header({ username = "usuário" }: HeaderProps) {
                       if (el) el.indeterminate = someSelected && !allSelected;
                     }}
                     onChange={toggleAll}
-                    className="w-3 h-3 accent-blue-500 cursor-pointer"
+                    className="w-3 h-3 accent-primary cursor-pointer"
                   />
                   <span className="text-xs text-muted-foreground">Selecionar todos</span>
                 </label>
@@ -240,7 +240,7 @@ export default function Header({ username = "usuário" }: HeaderProps) {
                           }
                           className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent"
                         >
-                          <Check className="w-3.5 h-3.5 text-blue-400" />
+                          <Check className="w-3.5 h-3.5 text-primary" />
                           Marcar como lidas
                         </button>
                       )}
@@ -347,7 +347,7 @@ export default function Header({ username = "usuário" }: HeaderProps) {
                   ) : browserEnabled ? (
                     <button
                       onClick={disableBrowserNotifications}
-                      className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                      className="text-xs text-primary hover:text-primary/80 transition-colors"
                     >
                       Desativar
                     </button>

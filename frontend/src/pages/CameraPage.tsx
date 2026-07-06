@@ -1633,7 +1633,7 @@ function toggleFullscreen() {
                           type="checkbox"
                           checked={showDebugChart}
                           onChange={e => setShowDebugChart(e.target.checked)}
-                          className="accent-blue-500 w-3 h-3"
+                          className="accent-primary w-3 h-3"
                         />
                         gráfico limiar
                       </label>
@@ -1646,7 +1646,7 @@ function toggleFullscreen() {
                               setAnalyzeMode(e.target.checked)
                               if (!e.target.checked) { setAnalyzeBox(null); setAnalyzeScore(null) }
                             }}
-                            className="accent-blue-500 w-3 h-3"
+                            className="accent-primary w-3 h-3"
                           />
                           analisar limiar (desenhe uma região)
                         </label>
