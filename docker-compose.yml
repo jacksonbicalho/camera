@@ -25,6 +25,9 @@ services:
       - .:/app
       - ./storage:/data
       #- frontend_node_modules:/app/frontend/node_modules
+    env_file:
+      - path: .env
+        required: false
     environment:
       - VERSION=${VERSION:-dev}
       - GOCACHE=/app/.cache/go-build

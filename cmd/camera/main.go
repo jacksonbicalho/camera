@@ -22,6 +22,7 @@ import (
 	"camera/internal/config"
 	"camera/internal/db"
 	"camera/internal/dbbackup"
+	"camera/internal/email"
 	"camera/internal/exec"
 	"camera/internal/ffprobe"
 	"camera/internal/live"
@@ -388,6 +389,9 @@ func main() {
 			WithCameraCallbacks(startCameraProcs, stopCameraProcs).
 			WithDB(database).
 			WithProber(prober)
+		if cfg.SMTP.Host != "" {
+			srv.WithEmailSender(email.NewSMTPSender(cfg.SMTP))
+		}
 
 		camMu.Lock()
 		for id, si := range streamsByID {

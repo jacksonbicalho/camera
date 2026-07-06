@@ -18,7 +18,7 @@ func TestOpen_CreatesSchema(t *testing.T) {
 	}
 	defer database.Close()
 
-	tables := []string{"users", "user_cameras", "cameras", "camera_motion", "system_config", "schema_migrations"}
+	tables := []string{"users", "user_settings", "cameras", "camera_motion", "system_config", "schema_migrations"}
 	for _, tbl := range tables {
 		var name string
 		err := database.QueryRow(

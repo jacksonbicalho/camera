@@ -131,6 +131,14 @@ type Server struct {
 	applier            applyRunner
 	updateNotifyMu     sync.Mutex
 	updateNotified     string // última versão latest já notificada (dedup)
+	emailSender        emailSender
+}
+
+// emailSender envia e-mail (esqueci-a-senha hoje). Definido aqui no
+// consumidor para manter o acoplamento mínimo — a implementação real vive em
+// internal/email (Sender).
+type emailSender interface {
+	Send(to, subject, body string) error
 }
 
 // updateStatuser fornece o snapshot da checagem de versão e o manifesto cacheado
@@ -174,6 +182,14 @@ func NewServer(cfg config.ServerConfig, timezone string, cameras []config.Camera
 
 func (s *Server) WithDB(database *db.DB) *Server {
 	s.db = database
+	return s
+}
+
+// WithEmailSender wires the e-mail sender used for password-reset (and any
+// future outbound e-mail). Without it, handleForgotPassword no-ops (no SMTP
+// configured — see internal/config.SMTPConfig).
+func (s *Server) WithEmailSender(sender emailSender) *Server {
+	s.emailSender = sender
 	return s
 }
 
@@ -314,6 +330,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	s.mux.HandleFunc("POST /api/auth/change-password", s.requireAuth(s.handleChangePassword))
+	s.mux.HandleFunc("POST /api/auth/forgot-password", s.handleForgotPassword)
+	s.mux.HandleFunc("POST /api/auth/reset-password", s.handleResetPassword)
 	s.mux.HandleFunc("GET /api/config", s.handleClientConfig)
 	s.mux.HandleFunc("GET /api/settings", s.requireAdmin(s.handleSettings))
 	s.mux.HandleFunc("GET /api/about", s.requireFullAuth(s.handleAbout))
@@ -1397,7 +1415,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "database unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	user, err := db.GetUserByUsername(s.db, creds.Username)
+	user, err := db.GetUserByLogin(s.db, creds.Username)
 	if err != nil || !db.CheckPassword(user.PasswordHash, creds.Password) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return

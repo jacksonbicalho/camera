@@ -1,16 +1,24 @@
 const TOKEN_KEY = 'camera_token'
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
+  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY)
 }
 
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token)
+// remember=true (default, "Lembrar de mim" marcado) persiste em localStorage,
+// sobrevivendo a fechar o browser (comportamento atual). remember=false usa
+// sessionStorage — o token some ao fechar a aba/browser, mesmo JWT/expiração.
+export function setToken(token: string, remember = true): void {
+  if (remember) {
+    localStorage.setItem(TOKEN_KEY, token)
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token)
+  }
   window.dispatchEvent(new Event('camera:token-changed'))
 }
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
 }
 
 export function onUnauthorized(): void {
@@ -18,7 +26,7 @@ export function onUnauthorized(): void {
   window.dispatchEvent(new CustomEvent('camera:unauthorized'))
 }
 
-export async function login(username: string, password: string): Promise<void> {
+export async function login(username: string, password: string, remember = true): Promise<void> {
   const res = await fetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -26,7 +34,7 @@ export async function login(username: string, password: string): Promise<void> {
   })
   if (!res.ok) throw new Error('Credenciais inválidas')
   const data = await res.json()
-  setToken(data.token)
+  setToken(data.token, remember)
 }
 
 export function getUsername(): string | null {

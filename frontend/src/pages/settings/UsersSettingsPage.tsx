@@ -19,6 +19,8 @@ interface User {
   role: 'admin' | 'viewer'
   cameras: string[]
   created_at: string
+  email?: string
+  name?: string
 }
 
 export default function UsersSettingsPage() {
@@ -137,6 +139,9 @@ export default function UsersSettingsPage() {
                 >
                   {user.username}
                 </Link>
+                {user.name && (
+                  <span className="text-xs text-muted-foreground truncate">{user.name}</span>
+                )}
                 <RoleBadge role={user.role} />
                 {user.role === 'viewer' && (
                   <span className="text-xs text-muted-foreground truncate">

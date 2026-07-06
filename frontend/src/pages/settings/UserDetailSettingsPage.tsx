@@ -19,6 +19,8 @@ interface User {
   role: 'admin' | 'viewer'
   cameras: string[]
   created_at: string
+  email?: string
+  name?: string
 }
 
 export default function UserDetailSettingsPage() {
@@ -119,6 +121,8 @@ export default function UserDetailSettingsPage() {
             title="Conta"
             fields={[
               { label: 'Username', value: user.username },
+              ...(user.name ? [{ label: 'Nome', value: user.name }] : []),
+              ...(user.email ? [{ label: 'E-mail', value: user.email }] : []),
               { label: 'Role', value: <RoleBadge role={user.role} /> },
               {
                 label: 'Câmeras',

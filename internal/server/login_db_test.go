@@ -74,6 +74,30 @@ func TestLoginWithDB_UnknownUser(t *testing.T) {
 	}
 }
 
+func TestLoginWithDB_AcceptsEmailInUsernameField(t *testing.T) {
+	database := openServerTestDB(t)
+	id, err := db.CreateUser(database, "alice", "pass123", "admin", false)
+	if err != nil {
+		t.Fatalf("criar usuário: %v", err)
+	}
+	if err := db.SetUserEmail(database, id, "alice@example.com"); err != nil {
+		t.Fatalf("SetUserEmail: %v", err)
+	}
+
+	srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).
+		WithDB(database)
+
+	body := `{"username":"alice@example.com","password":"pass123"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestLoginWithDB_TokenAuthorizesProtectedEndpoint(t *testing.T) {
 	database := openServerTestDB(t)
 	if _, err := db.CreateUser(database, "alice", "pass123", "admin", false); err != nil {

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { login, mustChangePassword, getToken } from '../auth'
 import { CameraLogo, Loader2 } from '../components/Icons'
 import { Button } from '@/components/ui/button'
@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -28,7 +30,7 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await login(username, password)
+      await login(identifier, password, remember)
       navigate(mustChangePassword() ? '/change-password' : from, { replace: true })
     } catch {
       setError('Usuário ou senha inválidos')
@@ -44,25 +46,38 @@ export default function LoginPage() {
           <CameraLogo className="w-12 h-12" />
           <span className="text-foreground font-semibold text-lg tracking-wide">os-camera</span>
         </div>
+        <p className="text-sm text-muted-foreground text-center mb-6">
+          Entre para monitorar suas câmeras em tempo real.
+        </p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <Label htmlFor="login-username" className="block text-muted-foreground mb-1">Usuário</Label>
+            <Label htmlFor="login-username" className="block text-muted-foreground mb-1">E-mail</Label>
             <Input
               id="login-username"
               type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
+              value={identifier}
+              onChange={e => setIdentifier(e.target.value)}
               required
               autoFocus
               autoComplete="username"
+              placeholder="voce@exemplo.com"
               aria-invalid={error ? 'true' : undefined}
             />
           </div>
           <div>
-            <Label htmlFor="login-password" className="block text-muted-foreground mb-1">Senha</Label>
+            <div className="flex items-center justify-between mb-1">
+              <Label htmlFor="login-password" className="text-muted-foreground">Senha</Label>
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="text-xs text-primary hover:underline"
+              >
+                {showPassword ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
             <Input
               id="login-password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
@@ -71,6 +86,21 @@ export default function LoginPage() {
             />
           </div>
           {error && <p role="alert" className="text-danger text-sm">{error}</p>}
+          <div className="flex items-center justify-between">
+            <label htmlFor="login-remember" className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+              <input
+                id="login-remember"
+                type="checkbox"
+                checked={remember}
+                onChange={e => setRemember(e.target.checked)}
+                className="accent-primary cursor-pointer"
+              />
+              Lembrar de mim
+            </label>
+            <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+              Esqueceu a senha?
+            </Link>
+          </div>
           <Button id="login-submit" type="submit" disabled={loading}>
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {loading ? 'Entrando...' : 'Entrar'}

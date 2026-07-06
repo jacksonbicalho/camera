@@ -16,6 +16,8 @@ type userDTO struct {
 	Role      string   `json:"role"`
 	Cameras   []string `json:"cameras"`
 	CreatedAt string   `json:"created_at"`
+	Email     string   `json:"email,omitempty"`
+	Name      string   `json:"name,omitempty"`
 }
 
 func (s *Server) userToDTO(u db.User) (userDTO, error) {
@@ -32,6 +34,8 @@ func (s *Server) userToDTO(u db.User) (userDTO, error) {
 		Role:      u.Role,
 		Cameras:   cameras,
 		CreatedAt: u.CreatedAt.UTC().Format(time.RFC3339),
+		Email:     u.Email,
+		Name:      u.Name,
 	}, nil
 }
 
@@ -74,6 +78,8 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		Password string   `json:"password"`
 		Role     string   `json:"role"`
 		Cameras  []string `json:"cameras"`
+		Email    string   `json:"email"`
+		Name     string   `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -100,6 +106,18 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 	if len(req.Cameras) > 0 {
 		if err := db.SetUserCameras(s.db, id, req.Cameras); err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+	}
+	if req.Email != "" {
+		if err := db.SetUserEmail(s.db, id, req.Email); err != nil {
+			http.Error(w, "email already in use", http.StatusConflict)
+			return
+		}
+	}
+	if req.Name != "" {
+		if err := db.SetUserName(s.db, id, req.Name); err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -136,6 +154,8 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		Role     string    `json:"role"`
 		Password string    `json:"password"`
 		Cameras  *[]string `json:"cameras"`
+		Email    string    `json:"email"`
+		Name     string    `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -162,6 +182,18 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 			cams = []string{}
 		}
 		if err := db.SetUserCameras(s.db, id, cams); err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+	}
+	if req.Email != "" {
+		if err := db.SetUserEmail(s.db, id, req.Email); err != nil {
+			http.Error(w, "email already in use", http.StatusConflict)
+			return
+		}
+	}
+	if req.Name != "" {
+		if err := db.SetUserName(s.db, id, req.Name); err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}

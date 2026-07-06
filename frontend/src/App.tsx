@@ -4,6 +4,8 @@ import { getToken, mustChangePassword } from './auth'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import { SidebarItemsProvider } from './contexts/SidebarContext'
 import { DisplayModeProvider } from './contexts/DisplayModeContext'
 import { AlertProvider } from './contexts/AlertContext'
@@ -67,6 +69,8 @@ export default function App() {
     <UnauthorizedHandler />
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route path="/" element={<RequireAuth><DashboardPage /></RequireAuth>} />
       <Route path="/cameras/:id" element={<Lazy><CameraPage /></Lazy>} />
