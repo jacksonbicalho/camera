@@ -44,17 +44,17 @@ export default function NotificationsPage() {
         />
 
         {notifications.length === 0 ? (
-          <p className="text-gray-500 text-sm">Nenhuma notificação.</p>
+          <p className="text-faint text-sm">Nenhuma notificação.</p>
         ) : (
           <ul className="space-y-2">
             {notifications.map(n => (
               <li
                 key={n.id}
-                className={`flex items-start gap-3 rounded-lg border border-gray-800 px-4 py-3 ${n.read ? 'bg-gray-900/40' : 'bg-gray-900'}`}
+                className={`flex items-start gap-3 rounded-lg border border-border px-4 py-3 ${n.read ? 'bg-surface/40' : 'bg-surface'}`}
               >
                 <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${variantDot[n.type]}`} aria-hidden="true" />
                 <div className="flex-1 min-w-0">
-                  {n.title && <p className="text-sm font-medium text-gray-200">{n.title}</p>}
+                  {n.title && <p className="text-sm font-medium text-foreground">{n.title}</p>}
                   {n.link ? (
                     <Link
                       to={n.link}
@@ -64,9 +64,9 @@ export default function NotificationsPage() {
                       {n.message}
                     </Link>
                   ) : (
-                    <p className="text-sm text-gray-300 break-words">{n.message}</p>
+                    <p className="text-sm text-foreground break-words">{n.message}</p>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">{fmt(n.created_at)}</p>
+                  <p className="text-xs text-faint mt-1">{fmt(n.created_at)}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {!n.read && (

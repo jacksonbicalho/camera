@@ -71,7 +71,7 @@ function NotificationItem({
         <div className="text-xs text-foreground font-medium truncate">
           {n.cameraName || n.cameraId}
         </div>
-        <div className="text-xs text-gray-400">
+        <div className="text-xs text-muted-foreground">
           {n.label && <span style={{ color: n.color ?? '#f97316' }}>{n.label} · </span>}
           {(n.score * 100).toFixed(1)}% · {relTime}
         </div>
@@ -168,7 +168,7 @@ export default function Header({ username = "usuário" }: HeaderProps) {
     <header className="flex items-center justify-between px-6 py-3 bg-surface border-b border-border">
       <Link
         to="/"
-        className="text-white font-semibold tracking-wide hover:text-foreground transition-colors"
+        className="text-foreground font-semibold tracking-wide hover:text-foreground transition-colors"
       >
         📷 Camera
       </Link>
@@ -210,7 +210,7 @@ export default function Header({ username = "usuário" }: HeaderProps) {
                     onChange={toggleAll}
                     className="w-3 h-3 accent-blue-500 cursor-pointer"
                   />
-                  <span className="text-xs text-gray-400">Selecionar todos</span>
+                  <span className="text-xs text-muted-foreground">Selecionar todos</span>
                 </label>
 
                 {/* Kebab (···) */}
@@ -257,7 +257,7 @@ export default function Header({ username = "usuário" }: HeaderProps) {
                           }
                           className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent"
                         >
-                          <Eye className="w-3.5 h-3.5 text-gray-400" />
+                          <Eye className="w-3.5 h-3.5 text-muted-foreground" />
                           Marcar como não lidas
                         </button>
                       )}
@@ -294,7 +294,7 @@ export default function Header({ username = "usuário" }: HeaderProps) {
               {/* Lista */}
               <div className="overflow-y-auto flex-1">
                 {notifications.length === 0 ? (
-                  <p className="text-xs text-gray-500 text-center py-6">
+                  <p className="text-xs text-faint text-center py-6">
                     Nenhuma notificação
                   </p>
                 ) : (
@@ -335,7 +335,7 @@ export default function Header({ username = "usuário" }: HeaderProps) {
               {/* Rodapé: toggle de notificações do browser */}
               {browserSupported && (
                 <div className="border-t border-border px-3 py-2 flex items-center justify-between">
-                  <span className="text-xs text-gray-400">Alertas do sistema</span>
+                  <span className="text-xs text-muted-foreground">Alertas do sistema</span>
                   {browserPermission === 'denied' ? (
                     <button
                       onClick={enableBrowserNotifications}

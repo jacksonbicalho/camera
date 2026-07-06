@@ -24,8 +24,8 @@ export function SettingsSidebar({ NAV_LINKS }: SettingsSidebarProps) {
                     text-sm transition-colors
                     ${
                       isActive
-                        ? "bg-gray-800 text-white font-medium"
-                        : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                        ? "bg-surface-2 text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-surface-2 hover:text-foreground"
                     }
                   `
                 }

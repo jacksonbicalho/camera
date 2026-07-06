@@ -339,7 +339,7 @@ export default function StorageSettingsPage() {
       {/* Drive form modal */}
       {showDriveForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface rounded-xl p-6 w-full max-w-md border border-border shadow-xl">
+          <div className="bg-surface rounded-xl p-5 w-full max-w-md border border-border shadow-xl">
             <h3 className="text-base font-semibold text-foreground mb-4">{editDrive ? 'Editar drive' : 'Novo drive S3'}</h3>
             <div className="space-y-3">
               {([

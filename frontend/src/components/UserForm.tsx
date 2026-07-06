@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 interface Camera {
   id: string
@@ -51,32 +53,34 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving, o
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-gray-400 mb-1">Username</label>
-          <input
+          <Label htmlFor="user-form-username" className="block text-xs text-muted-foreground mb-1">Username</Label>
+          <Input
+            id="user-form-username"
             value={username}
             onChange={e => setUsername(e.target.value)}
             required
-            className="w-full bg-gray-950 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-blue-500"
           />
         </div>
         {!initial && (
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Senha</label>
-            <input
+            <Label htmlFor="user-form-password" className="block text-xs text-muted-foreground mb-1">Senha</Label>
+            <Input
+              id="user-form-password"
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className="w-full bg-gray-950 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-blue-500"
+              autoComplete="new-password"
             />
           </div>
         )}
         <div>
-          <label className="block text-xs text-gray-400 mb-1">Role</label>
+          <Label htmlFor="user-form-role" className="block text-xs text-muted-foreground mb-1">Role</Label>
           <select
+            id="user-form-role"
             value={role}
             onChange={e => setRole(e.target.value as 'admin' | 'viewer')}
-            className="w-full bg-gray-950 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-blue-500"
+            className="w-full bg-background border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-primary"
           >
             <option value="viewer">viewer</option>
             <option value="admin">admin</option>
@@ -86,7 +90,7 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving, o
 
       {role === 'viewer' && cameras.length > 0 && (
         <div>
-          <label className="block text-xs text-gray-400 mb-2">Câmeras com acesso</label>
+          <Label className="block text-xs text-muted-foreground mb-2">Câmeras com acesso</Label>
           <div className="flex flex-wrap gap-2">
             {cameras.map(cam => (
               <button
@@ -96,7 +100,7 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving, o
                 className={`px-3 py-1 text-xs rounded border transition-colors ${
                   selectedCameras.includes(cam.id)
                     ? 'bg-blue-700 border-blue-600 text-white'
-                    : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500'
+                    : 'bg-surface border-border text-muted-foreground hover:border-faint'
                 }`}
               >
                 {cam.name || cam.id}
