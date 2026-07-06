@@ -124,7 +124,7 @@ export default function CamerasSettingsPage() {
               <Link
                 key={cam.id}
                 to={`/settings/cameras/${cam.id}`}
-                className="flex items-center gap-4 bg-surface border border-border rounded-lg px-4 py-3 hover:border-blue-600 transition-colors"
+                className="flex items-center gap-4 bg-surface border border-border rounded-lg px-4 py-3 hover:border-primary transition-colors"
               >
                 <Thumbnail cameraId={cam.id} name={cam.name} />
                 <div className="flex-1 min-w-0">
@@ -199,7 +199,7 @@ export default function CamerasSettingsPage() {
               onDragLeave={() => setDragOverId(null)}
               onDrop={() => handleDrop(cam.id)}
               onDragEnd={() => { dragIdRef.current = null; setDragOverId(null) }}
-              className={`group bg-surface border rounded-lg flex items-stretch transition-colors ${dragOverId === cam.id ? 'border-blue-500' : 'border-border hover:border-blue-600'}`}
+              className={`group bg-surface border rounded-lg flex items-stretch transition-colors ${dragOverId === cam.id ? 'border-primary' : 'border-border hover:border-primary'}`}
             >
               {/* drag handle */}
               <div className="flex items-center pl-3 shrink-0">

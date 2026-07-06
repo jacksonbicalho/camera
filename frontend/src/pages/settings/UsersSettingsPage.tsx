@@ -135,7 +135,7 @@ export default function UsersSettingsPage() {
               <div className="flex items-center gap-3 min-w-0">
                 <Link
                   to={`/settings/users/${user.id}`}
-                  className="text-sm font-mono text-foreground hover:text-blue-400 transition-colors truncate min-w-0"
+                  className="text-sm font-mono text-foreground hover:text-primary transition-colors truncate min-w-0"
                 >
                   {user.username}
                 </Link>

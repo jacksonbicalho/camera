@@ -733,7 +733,7 @@ export default function CameraZonesSettingsPage() {
                           value={t}
                           checked={(selectedZone.type ?? 'exclude') === t}
                           onChange={() => updateSelectedZone({ type: t })}
-                          className="accent-blue-500"
+                          className="accent-primary"
                         />
                         {t === 'exclude' ? 'Exclusão' : 'Detecção'}
                       </label>
@@ -786,7 +786,7 @@ export default function CameraZonesSettingsPage() {
                           min={10} max={100} step={5}
                           value={Math.round((selectedZone.scale || 1) * 100)}
                           onChange={e => updateSelectedZone({ scale: parseInt(e.target.value) / 100 })}
-                          className="w-32 accent-blue-500"
+                          className="w-32 accent-primary"
                         />
                         <span className="text-xs text-foreground font-mono w-10 text-right">
                           {Math.round((selectedZone.scale || 1) * 100)}%

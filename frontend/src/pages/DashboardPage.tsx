@@ -41,7 +41,7 @@ export default function DashboardPage() {
               <button
                 key={cam.id}
                 onClick={() => navigate(`/camera/live/${cam.id}`)}
-                className="bg-surface border border-border rounded-lg overflow-hidden hover:border-blue-600 transition-colors text-left group"
+                className="bg-surface border border-border rounded-lg overflow-hidden hover:border-primary transition-colors text-left group"
               >
                 <div className="relative">
                   <HLSPlayer

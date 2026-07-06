@@ -79,7 +79,7 @@ function NotificationItem({
   return (
     <div
       className={`flex items-start gap-2 px-3 py-2 hover:bg-accent transition-colors ${
-        !n.read ? "border-l-2 border-blue-500" : "border-l-2 border-transparent"
+        !n.read ? "border-l-2 border-primary" : "border-l-2 border-transparent"
       }`}
     >
       <input
@@ -87,7 +87,7 @@ function NotificationItem({
         checked={checked}
         onChange={onToggle}
         onClick={(e) => e.stopPropagation()}
-        className="mt-0.5 w-3 h-3 flex-shrink-0 accent-blue-500 cursor-pointer"
+        className="mt-0.5 w-3 h-3 flex-shrink-0 accent-primary cursor-pointer"
       />
       <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
         <div className="text-xs text-foreground font-medium truncate">
@@ -160,7 +160,7 @@ function SidebarInjectedItem({ item, displayMode }: {
                 disabled={opt.disabled}
                 className={`flex items-center justify-between gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors ${
                   opt.active
-                    ? 'text-blue-400 font-semibold'
+                    ? 'text-primary font-semibold'
                     : 'text-foreground hover:bg-accent hover:text-accent-foreground'
                 } ${opt.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
               >
@@ -437,7 +437,7 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
                       Permissão negada
                     </button>
                   ) : browserEnabled ? (
-                    <button onClick={disableBrowserNotifications} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Desativar</button>
+                    <button onClick={disableBrowserNotifications} className="text-xs text-primary hover:text-primary/80 transition-colors">Desativar</button>
                   ) : (
                     <button onClick={enableBrowserNotifications} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Ativar</button>
                   )}
