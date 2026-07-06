@@ -70,7 +70,7 @@ server:
 Ou via variável de ambiente:
 
 ```bash
-CAMERA_SERVER_JWT_SECRET="meu-segredo-fixo" ./camera --config camera.yaml
+OS_CAMERA_JWT_SECRET="meu-segredo-fixo" ./camera --config camera.yaml
 ```
 
 O token é aceito por:

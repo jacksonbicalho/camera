@@ -10,6 +10,10 @@ func (c Config) Entries() [][2]string {
 	if c.Server.JWTSecret != "" {
 		jwt = "(fixo)"
 	}
+	smtpPassword := "(vazio)"
+	if c.SMTP.Password != "" {
+		smtpPassword = "(configurado)"
+	}
 	return [][2]string{
 		{"server.port", strconv.Itoa(c.Server.Port)},
 		{"timezone", c.Timezone},
@@ -20,6 +24,8 @@ func (c Config) Entries() [][2]string {
 		{"log.output", c.Log.Output},
 		{"admin.username", c.Admin.Username},
 		{"server.jwt_secret", jwt},
+		{"smtp.host", c.SMTP.Host},
+		{"smtp.password", smtpPassword},
 	}
 }
 

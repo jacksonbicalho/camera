@@ -164,10 +164,20 @@ Fluxo de primeiro acesso: o admin inicial é criado com `must_change_password = 
 
 ## Variáveis de ambiente
 
+Todas seguem o prefixo `OS_CAMERA_`.
+
 | Variável | Campo sobrescrito |
 |---|---|
-| `CAMERA_TIMEZONE` | `timezone` (fuso da instalação; usado pelo servidor para interpretar datas locais) |
-| `CAMERA_SERVER_JWT_SECRET` | `server.jwt_secret` (segredo JWT fixo; vazio = gerado aleatoriamente a cada boot) |
+| `OS_CAMERA_TIMEZONE` | `timezone` (fuso da instalação; usado pelo servidor para interpretar datas locais) |
+| `OS_CAMERA_JWT_SECRET` | `server.jwt_secret` (segredo JWT fixo; vazio = gerado aleatoriamente a cada boot) |
+| `OS_CAMERA_DEBUG` | `debug` (ativa logs de nível debug) |
+| `OS_CAMERA_SMTP_HOST` | `smtp.host` |
+| `OS_CAMERA_SMTP_PORT` | `smtp.port` |
+| `OS_CAMERA_SMTP_USERNAME` | `smtp.username` |
+| `OS_CAMERA_SMTP_PASSWORD` | `smtp.password` |
+| `OS_CAMERA_STORAGE_PATH` | `storage.path` (diretório raiz das gravações) |
+
+`smtp.*` é só configuração de conexão (`internal/config.SMTPConfig`) — ainda não há cliente SMTP nem envio de e-mail implementado.
 
 ## Diretório `amostras/`
 
