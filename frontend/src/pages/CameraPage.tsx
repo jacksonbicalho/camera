@@ -16,7 +16,7 @@ import { useSettings, type CameraSettings } from '../hooks/useSettings'
 import { useMotionPeak } from '../hooks/useMotionPeak'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useDebugTools } from '../hooks/useDebugTools'
-import { applyFrameStep, applySameChunkStep, loadedMetadataSeek, mergeRecordings, secondStepTarget } from './cameraUtils'
+import { applyFrameStep, applySameChunkStep, loadedMetadataSeek, loadMotionEvents, loadRecordingsData, mergeRecordings, secondStepTarget } from './cameraUtils'
 import { calendarContent, dateKey } from '../lib/calendar'
 import type { Recording, MotionEvent } from './cameraUtils'
 import BboxCanvas, { type BboxRect } from '../components/BboxCanvas'
@@ -39,26 +39,10 @@ import { useSetSidebarItems } from '../contexts/SidebarContext'
 import { useDisplayMode } from '../contexts/DisplayModeContext'
 import type { HLSStats } from '../components/HLSPlayer'
 
-interface RecordingsResponse {
-  recordings: Recording[]
-  hasMore: boolean
-  total: number
-}
-
 const PAGE_SIZE = 10
 // 0 = sem cap: carrega TODAS as gravações do dia (necessário p/ seek/timeline/filmstrip
 // verem o dia inteiro — câmeras com chunk curto passam de 1000 arquivos/dia).
 const ALL_RECORDINGS_LIMIT = 0
-
-async function loadRecordingsData(cameraId: string, date: Date, page: number, order: 'asc' | 'desc', limit = PAGE_SIZE): Promise<RecordingsResponse | 401> {
-  const dateStr = format(date, 'yyyy-MM-dd')
-  const res = await fetch(
-    `/api/cameras/${cameraId}/recordings?date=${dateStr}&page=${page}&limit=${limit}&order=${order}`,
-    { headers: authHeaders() }
-  )
-  if (res.status === 401) return 401
-  return res.json()
-}
 
 async function deleteRecording(cameraId: string, filename: string): Promise<{ ok: boolean; serverError: boolean }> {
   const res = await fetch(`/api/cameras/${cameraId}/recordings/${filename}`, {
@@ -66,14 +50,6 @@ async function deleteRecording(cameraId: string, filename: string): Promise<{ ok
     headers: authHeaders(),
   })
   return { ok: res.status === 204, serverError: res.status >= 500 }
-}
-
-async function loadMotionEvents(cameraId: string, date: Date): Promise<MotionEvent[]> {
-  const dateStr = format(date, 'yyyy-MM-dd')
-  const res = await fetch(`/api/cameras/${cameraId}/motion?date=${dateStr}`, { headers: authHeaders() })
-  if (!res.ok) return []
-  const data = await res.json()
-  return data.events ?? []
 }
 
 function snapshotURL(cameraId: string, eventTime: string, frame: string): string {

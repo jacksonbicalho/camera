@@ -9,7 +9,7 @@ import (
 	"camera/internal/stateclass"
 )
 
-// Canais de destinatário (chaves em user_permissions: "{channel}:{classifierID}").
+// Canais de destinatário (chaves em user_settings: "{channel}:{classifierID}").
 const (
 	permNotify = "state_notify"
 	permFooter = "state_footer"
@@ -23,12 +23,12 @@ func permKey(channel string, classifierID int64) string {
 // classificador (numa tx): apaga as chaves e reinsere as dos usuários dados.
 func setChannelRecipients(tx *sql.Tx, classifierID int64, channel string, userIDs []int64) error {
 	key := permKey(channel, classifierID)
-	if _, err := tx.Exec(`DELETE FROM user_permissions WHERE key = ?`, key); err != nil {
+	if _, err := tx.Exec(`DELETE FROM user_settings WHERE key = ?`, key); err != nil {
 		return err
 	}
 	for _, uid := range userIDs {
 		if _, err := tx.Exec(
-			`INSERT OR IGNORE INTO user_permissions (user_id, key, value) VALUES (?, ?, '1')`, uid, key,
+			`INSERT OR IGNORE INTO user_settings (user_id, key, value) VALUES (?, ?, '1')`, uid, key,
 		); err != nil {
 			return err
 		}
@@ -41,7 +41,7 @@ func loadChannelRecipients(q interface {
 	Query(string, ...any) (*sql.Rows, error)
 }, classifierID int64, channel string) ([]int64, error) {
 	rows, err := q.Query(
-		`SELECT user_id FROM user_permissions WHERE key = ? AND value = '1' ORDER BY user_id`,
+		`SELECT user_id FROM user_settings WHERE key = ? AND value = '1' ORDER BY user_id`,
 		permKey(channel, classifierID),
 	)
 	if err != nil {
@@ -250,12 +250,12 @@ type FooterClassifier struct {
 }
 
 // FooterClassifiersForUser devolve os classificadores com `footer_enabled` em que
-// `userID` é destinatário do canal footer (chave state_footer:{id} em user_permissions).
+// `userID` é destinatário do canal footer (chave state_footer:{id} em user_settings).
 func FooterClassifiersForUser(database *DB, userID int64) ([]FooterClassifier, error) {
 	rows, err := database.Query(
 		`SELECT c.id, c.camera_id, c.name
 		 FROM camera_state_classifiers c
-		 JOIN user_permissions p
+		 JOIN user_settings p
 		   ON p.user_id = ? AND p.value = '1' AND p.key = 'state_footer:' || c.id
 		 WHERE c.footer_enabled = 1
 		 ORDER BY c.id`,
@@ -277,7 +277,7 @@ func FooterClassifiersForUser(database *DB, userID int64) ([]FooterClassifier, e
 }
 
 // DeleteStateClassifier removes a classifier (classes/history cascade) e limpa as
-// chaves de destinatário em user_permissions (não há FK pro classificador).
+// chaves de destinatário em user_settings (não há FK pro classificador).
 func DeleteStateClassifier(database *DB, id int64) error {
 	tx, err := database.Begin()
 	if err != nil {
@@ -288,7 +288,7 @@ func DeleteStateClassifier(database *DB, id int64) error {
 		return err
 	}
 	for _, ch := range []string{permNotify, permFooter} {
-		if _, err := tx.Exec(`DELETE FROM user_permissions WHERE key = ?`, permKey(ch, id)); err != nil {
+		if _, err := tx.Exec(`DELETE FROM user_settings WHERE key = ?`, permKey(ch, id)); err != nil {
 			return err
 		}
 	}
