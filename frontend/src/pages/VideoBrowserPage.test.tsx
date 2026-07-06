@@ -13,6 +13,10 @@ const g = vi.hoisted(() => ({
   getPlaybackWindow: vi.fn(),
 }))
 
+vi.mock('../contexts/UserNotificationContext', () => ({
+  useUserNotifications: () => ({ unreadCount: 0 }),
+}))
+
 vi.mock('../lib/recordingsGateway', async importOriginal => {
   const actual = await importOriginal<typeof import('../lib/recordingsGateway')>()
   return {

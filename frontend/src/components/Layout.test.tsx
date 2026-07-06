@@ -1,8 +1,12 @@
 import type { ReactNode } from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Layout from './Layout'
+
+vi.mock('../contexts/UserNotificationContext', () => ({
+  useUserNotifications: () => ({ unreadCount: 0 }),
+}))
 
 afterEach(cleanup)
 

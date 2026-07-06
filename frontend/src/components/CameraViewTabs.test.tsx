@@ -14,10 +14,22 @@ function renderTabs(active: 'live' | 'history') {
 }
 
 describe('CameraViewTabs', () => {
-  it('Ao vivo → /live/{id} e Histórico → /history/{id}', () => {
+  it('a aba INATIVA é um link pra rota correspondente', () => {
     renderTabs('live')
-    expect(document.getElementById('camera-tab-live')?.getAttribute('href')).toBe('/live/cam1')
     expect(document.getElementById('camera-tab-history')?.getAttribute('href')).toBe('/history/cam1')
+    cleanup()
+    renderTabs('history')
+    expect(document.getElementById('camera-tab-live')?.getAttribute('href')).toBe('/live/cam1')
+  })
+
+  it('a aba ATIVA não é clicável (não é link — já é a página atual)', () => {
+    renderTabs('live')
+    expect(document.getElementById('camera-tab-live')?.tagName).toBe('SPAN')
+    expect(document.getElementById('camera-tab-live')?.hasAttribute('href')).toBe(false)
+    cleanup()
+    renderTabs('history')
+    expect(document.getElementById('camera-tab-history')?.tagName).toBe('SPAN')
+    expect(document.getElementById('camera-tab-history')?.hasAttribute('href')).toBe(false)
   })
 
   it('marca a aba ativa com aria-current="page"', () => {
@@ -26,20 +38,22 @@ describe('CameraViewTabs', () => {
     expect(document.getElementById('camera-tab-live')?.getAttribute('aria-current')).toBeNull()
   })
 
-  it('a aba ativa usa um pill vívido (bg-primary), a inativa não', () => {
+  it('a aba ativa vira um chip neutro (bg-surface + ring-border), a inativa não', () => {
     renderTabs('live')
-    expect(document.getElementById('camera-tab-live')?.className).toContain('bg-primary')
-    expect(document.getElementById('camera-tab-history')?.className).not.toContain('bg-primary')
+    expect(document.getElementById('camera-tab-live')?.className).toContain('bg-surface')
+    expect(document.getElementById('camera-tab-live')?.className).toContain('ring-border')
+    expect(document.getElementById('camera-tab-history')?.className).not.toContain('bg-surface')
     cleanup()
     renderTabs('history')
-    expect(document.getElementById('camera-tab-history')?.className).toContain('bg-primary')
-    expect(document.getElementById('camera-tab-live')?.className).not.toContain('bg-primary')
+    expect(document.getElementById('camera-tab-history')?.className).toContain('bg-surface')
+    expect(document.getElementById('camera-tab-live')?.className).not.toContain('bg-surface')
   })
 
-  it('container com padding de 3px; aba inativa sem hover de fundo', () => {
+  it('container em pill (rounded-full) com fundo translúcido; aba inativa com hover de texto', () => {
     renderTabs('live')
-    expect(document.getElementById('camera-view-tabs')?.className).toContain('p-[3px]')
-    expect(document.getElementById('camera-tab-history')?.className).not.toContain('hover:bg-surface-2')
+    expect(document.getElementById('camera-view-tabs')?.className).toContain('rounded-full')
+    expect(document.getElementById('camera-view-tabs')?.className).toContain('bg-foreground/8')
+    expect(document.getElementById('camera-tab-history')?.className).toContain('hover:text-foreground')
   })
 
   it('o dot de "Ao vivo" só pulsa quando a aba ativa é live (status real, não decoração)', () => {

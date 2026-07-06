@@ -43,6 +43,7 @@ export default function Player({
   const [playBlocked, setPlayBlocked] = useState(false)
   const [fatalError, setFatalError] = useState(false)
   const [noSignal, setNoSignal] = useState(false)
+  const [connecting, setConnecting] = useState(true)
 
   const zoom = usePlayerZoom(() => videoRef.current)
   const bindZoom = zoom.setContainer
@@ -77,7 +78,10 @@ export default function Player({
         })
     }
 
-    // Conexão bem-sucedida zera o backoff.
+    // Conexão bem-sucedida zera o backoff — o loading só some quando o <video>
+    // realmente tem um frame pra mostrar (onLoadedData), não neste momento: entre
+    // "conectado" (WebRTC/HLS) e o 1º frame decodificado ainda passa um tempo de
+    // tela preta, e o loading precisa cobrir esse intervalo todo.
     const onConnected = () => {
       attemptRef.current = 0
     }
@@ -118,6 +122,7 @@ export default function Player({
       setFatalError(false)
       setNoSignal(false)
       setPlayBlocked(false)
+      setConnecting(true)
       v.muted = true
 
       if (transport !== 'hls' && cameraId && typeof RTCPeerConnection !== 'undefined') {
@@ -235,7 +240,15 @@ export default function Player({
       onPointerUp={zoom.onPointerUp}
       className={`group relative overflow-hidden${zoom.isZoomed ? ' cursor-grab' : ''}${containerClassName ? ` ${containerClassName}` : ''}`}
     >
-      <video id={id} ref={videoRef} className={className} autoPlay muted playsInline />
+      <video
+        id={id}
+        ref={videoRef}
+        className={className}
+        autoPlay
+        muted
+        playsInline
+        onLoadedData={() => setConnecting(false)}
+      />
 
       {/* Controles sobre o vídeo: reset de zoom (quando ativo) + tela cheia. */}
       <div className="absolute bottom-2 right-2 z-20 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
@@ -276,6 +289,13 @@ export default function Player({
         </div>
       ) : fatalError ? (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+          <Loader2 className="w-8 h-8 text-white/70 animate-spin" />
+        </div>
+      ) : connecting ? (
+        <div
+          id={`${id}-loading`}
+          className="absolute inset-0 flex items-center justify-center bg-black/70"
+        >
           <Loader2 className="w-8 h-8 text-white/70 animate-spin" />
         </div>
       ) : playBlocked ? (
