@@ -171,14 +171,25 @@ func TestStateClassifierRecipients(t *testing.T) {
 		t.Fatalf("footer após update deveria estar vazio: %v", got2.FooterUserIDs)
 	}
 
-	// delete limpa as chaves em user_permissions (sem FK pro classificador)
+	// destinatários são persistidos em user_settings, não numa tabela dedicada
+	var notifyCount int
+	if err := database.QueryRow(
+		`SELECT COUNT(*) FROM user_settings WHERE key = ? AND value = '1'`, fmt.Sprintf("state_notify:%d", id),
+	).Scan(&notifyCount); err != nil {
+		t.Fatal(err)
+	}
+	if notifyCount != 1 {
+		t.Fatalf("esperava 1 destinatário notify em user_settings, got %d", notifyCount)
+	}
+
+	// delete limpa as chaves em user_settings (sem FK pro classificador)
 	if err := db.DeleteStateClassifier(database, id); err != nil {
 		t.Fatal(err)
 	}
 	for _, ch := range []string{"state_notify", "state_footer"} {
 		var n int
 		if err := database.QueryRow(
-			`SELECT COUNT(*) FROM user_permissions WHERE key = ?`, fmt.Sprintf("%s:%d", ch, id),
+			`SELECT COUNT(*) FROM user_settings WHERE key = ?`, fmt.Sprintf("%s:%d", ch, id),
 		).Scan(&n); err != nil {
 			t.Fatal(err)
 		}

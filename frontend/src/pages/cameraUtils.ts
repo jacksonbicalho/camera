@@ -1,7 +1,11 @@
+import { format } from 'date-fns'
+import { authHeaders } from '../auth'
+
 export interface Recording {
   id: number
   filename: string
   start: string
+  end?: string
   url: string
   is_recording: boolean
   has_motion: boolean
@@ -213,4 +217,36 @@ export function loadedMetadataSeek(
   if (pendingFromEnd !== null) seekTo = Math.max(0, duration - pendingFromEnd)
   else if (pending !== null) seekTo = pending
   return { seekTo, shouldPlay: !stepPaused }
+}
+
+export interface RecordingsResponse {
+  recordings: Recording[]
+  hasMore: boolean
+  total: number
+}
+
+// loadRecordingsData busca as gravações de um dia (limit=0 = todas — necessário p/
+// timeline/filmstrip verem o dia inteiro). Usado por CameraPage e HistoryPage.
+export async function loadRecordingsData(
+  cameraId: string,
+  date: Date,
+  page: number,
+  order: 'asc' | 'desc',
+  limit: number,
+): Promise<RecordingsResponse | 401> {
+  const dateStr = format(date, 'yyyy-MM-dd')
+  const res = await fetch(
+    `/api/cameras/${cameraId}/recordings?date=${dateStr}&page=${page}&limit=${limit}&order=${order}`,
+    { headers: authHeaders() }
+  )
+  if (res.status === 401) return 401
+  return res.json()
+}
+
+export async function loadMotionEvents(cameraId: string, date: Date): Promise<MotionEvent[]> {
+  const dateStr = format(date, 'yyyy-MM-dd')
+  const res = await fetch(`/api/cameras/${cameraId}/motion?date=${dateStr}`, { headers: authHeaders() })
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.events ?? []
 }
