@@ -32,10 +32,16 @@ export default function Layout({
     // Linha flex: [Sidebar] [coluna de conteúdo]. A coluna estica na altura (align
     // stretch) e usa flex-col — o conteúdo (flex-1) empurra o Footer pro fundo. O
     // padding de página vai no wrapper de conteúdo (contentClassName), não no root,
-    // pra o Footer ficar flush.
+    // pra o Footer ficar flush. O Sidebar vai num wrapper sticky+h-screen (mesmo padrão
+    // do AppLayout) — sem isso, em página com conteúdo mais alto que a viewport, o rail
+    // rolava junto com a página em vez de ficar fixo cobrindo a altura toda.
     <div id={id} className={cn('flex min-h-screen', className)}>
-      {!hideNav && <Sidebar />}
-      <div className="flex flex-1 flex-col">
+      {!hideNav && (
+        <div className="sticky top-0 h-screen shrink-0 flex z-10">
+          <Sidebar />
+        </div>
+      )}
+      <div className="flex flex-1 flex-col min-w-0">
         <div className={cn('flex-1', contentClassName)}>{children}</div>
         <Footer id={footerId} />
       </div>

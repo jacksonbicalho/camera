@@ -233,6 +233,41 @@ func TestSetAndGetUserName(t *testing.T) {
 	}
 }
 
+func TestSetUsername_RenamesLogin(t *testing.T) {
+	database := openTestDB(t)
+	id, _ := db.CreateUser(database, "nina", "x", "viewer", false)
+
+	if err := db.SetUsername(database, id, "nina2"); err != nil {
+		t.Fatalf("SetUsername: %v", err)
+	}
+	u, err := db.GetUserByID(database, id)
+	if err != nil {
+		t.Fatalf("GetUserByID: %v", err)
+	}
+	if u.Username != "nina2" {
+		t.Errorf("expected username 'nina2', got %q", u.Username)
+	}
+}
+
+func TestSetUsername_RejectsDuplicate(t *testing.T) {
+	database := openTestDB(t)
+	id1, _ := db.CreateUser(database, "oscar", "x", "viewer", false)
+	_, _ = db.CreateUser(database, "paula", "x", "viewer", false)
+
+	if err := db.SetUsername(database, id1, "paula"); err == nil {
+		t.Error("expected error renaming to an already-taken username")
+	}
+}
+
+func TestSetUsername_AllowsSameUserToKeepItsOwnUsername(t *testing.T) {
+	database := openTestDB(t)
+	id, _ := db.CreateUser(database, "quincy", "x", "viewer", false)
+
+	if err := db.SetUsername(database, id, "quincy"); err != nil {
+		t.Errorf("re-setting the same username for the same user should not error: %v", err)
+	}
+}
+
 func TestGetUserByLogin_MatchesUsername(t *testing.T) {
 	database := openTestDB(t)
 	if _, err := db.CreateUser(database, "mia", "x", "viewer", false); err != nil {

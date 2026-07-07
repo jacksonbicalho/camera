@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import { DisplayModeProvider } from '../contexts/DisplayModeContext'
 import { clearToken, getRole } from '../auth'
 
 vi.mock('../auth', () => ({
@@ -14,6 +15,9 @@ vi.mock('../contexts/UserNotificationContext', () => ({
   useUserNotifications: () => ({ unreadCount: 0 }),
 }))
 
+beforeEach(() => {
+  localStorage.clear()
+})
 afterEach(() => {
   cleanup()
   vi.mocked(getRole).mockReturnValue('admin')
@@ -22,7 +26,9 @@ afterEach(() => {
 function renderAt(path: string) {
   render(
     <MemoryRouter initialEntries={[path]}>
-      <Sidebar />
+      <DisplayModeProvider>
+        <Sidebar />
+      </DisplayModeProvider>
     </MemoryRouter>,
   )
 }
@@ -31,7 +37,7 @@ describe('Sidebar (enxuto)', () => {
   it('renderiza os itens de navegação com ids e hrefs corretos', () => {
     renderAt('/')
     const items: [string, string][] = [
-      ['sidebar-inicio', '/'],
+      ['sidebar-cameras', '/'],
       ['sidebar-gravacoes', '/recordings'],
       ['sidebar-relatorios', '/reports'],
     ]
@@ -44,11 +50,16 @@ describe('Sidebar (enxuto)', () => {
     expect(document.getElementById('sidebar')).toBeTruthy()
   })
 
+  it('"Todas as câmeras" (antigo "Início") aponta pra "/"', () => {
+    renderAt('/')
+    expect(document.getElementById('sidebar-cameras')?.getAttribute('aria-label')).toBe('Todas as câmeras')
+  })
+
   it('marca o item da rota atual como ativo (aria-current) — "/" só ativo em exato', () => {
     renderAt('/recordings')
     expect(document.getElementById('sidebar-gravacoes')?.getAttribute('aria-current')).toBe('page')
-    // "Início" (to="/") NÃO fica ativo em /recordings graças ao `end`.
-    expect(document.getElementById('sidebar-inicio')?.getAttribute('aria-current')).toBeNull()
+    // "Todas as câmeras" (to="/") NÃO fica ativo em /recordings graças ao `end`.
+    expect(document.getElementById('sidebar-cameras')?.getAttribute('aria-current')).toBeNull()
   })
 
   it('Configurações é um botão (não link) que abre um flyout com as seções — admin vê todas', () => {
@@ -86,7 +97,7 @@ describe('Sidebar (enxuto)', () => {
     expect(document.getElementById('sidebar-config')?.className).toContain('bg-primary')
   })
 
-  it('usuário aparece no rodapé (sidebar-bottom) e abre menu com Notificações/Alterar senha/Sair', () => {
+  it('usuário aparece no rodapé (sidebar-bottom) e abre menu com Notificações/Perfil/Sair', () => {
     renderAt('/')
     const bottom = document.getElementById('sidebar-bottom')!
     const btn = document.getElementById('sidebar-user')!
@@ -94,7 +105,8 @@ describe('Sidebar (enxuto)', () => {
     expect(document.querySelector('a[href="/notifications"]')).toBeNull()
     fireEvent.click(btn)
     expect(document.querySelector('a[href="/notifications"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/change-password"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/profile"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/change-password"]')).toBeNull()
     expect(document.body.textContent).toContain('Sair')
   })
 
@@ -115,5 +127,30 @@ describe('Sidebar (enxuto)', () => {
     expect(document.getElementById('accent-swatch-teal')).not.toBeNull()
     expect(document.getElementById('accent-swatch-coral')).not.toBeNull()
     expect(document.getElementById('accent-swatch-amber')).not.toBeNull()
+  })
+
+  it('recolhido por padrão (w-14, sem labels de texto) e o botão de recolher expande (w-48, com labels)', () => {
+    renderAt('/')
+    expect(document.getElementById('sidebar')?.className).toContain('w-14')
+    expect(document.getElementById('sidebar')?.textContent).not.toContain('Todas as câmeras')
+
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    expect(document.getElementById('sidebar')?.className).toContain('w-48')
+    expect(document.getElementById('sidebar')?.textContent).toContain('Todas as câmeras')
+    expect(document.getElementById('sidebar')?.textContent).toContain('Gravações')
+  })
+
+  it('clicar em recolher de novo (expandido) volta pro estado recolhido', () => {
+    renderAt('/')
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    expect(document.getElementById('sidebar')?.className).toContain('w-48')
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    expect(document.getElementById('sidebar')?.className).toContain('w-14')
+  })
+
+  it('preferência de recolher/expandir persiste em localStorage (mesma chave do AppSidebar)', () => {
+    renderAt('/')
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    expect(JSON.parse(localStorage.getItem('ui-display-mode')!).sidebar).toBe('icons-text')
   })
 })

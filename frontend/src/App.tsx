@@ -33,6 +33,8 @@ const AppearanceSettingsPage = lazy(() => import('./pages/settings/AppearanceSet
 const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const RecordingsPage = lazy(() => import('./pages/RecordingsPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const ProfileChangePasswordPage = lazy(() => import('./pages/ProfileChangePasswordPage'))
 
 function UnauthorizedHandler() {
   const navigate = useNavigate()
@@ -69,6 +71,8 @@ export default function App() {
       <Route path="/users" element={<Lazy><PlaceholderPage title="Usuários" description="Gestão de usuários em construção." /></Lazy>} />
       <Route path="/reports" element={<Lazy><ReportsPage /></Lazy>} />
       <Route path="/notifications" element={<Lazy><NotificationsPage /></Lazy>} />
+      <Route path="/profile" element={<Lazy><ProfilePage /></Lazy>} />
+      <Route path="/profile/change-password" element={<Lazy><ProfileChangePasswordPage /></Lazy>} />
       <Route path="/settings/cameras" element={<Lazy><CamerasSettingsPage /></Lazy>} />
       <Route path="/settings/cameras/new" element={<Lazy><CamerasSettingsPage /></Lazy>} />
       <Route path="/settings/cameras/edit/:id" element={<Lazy><CameraDetailSettingsPage /></Lazy>} />

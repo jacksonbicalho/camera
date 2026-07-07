@@ -52,6 +52,19 @@ describe('Layout', () => {
     expect(document.getElementById('sidebar')).toBeNull()
   })
 
+  it('Sidebar fica num wrapper sticky+h-screen — acompanha a altura da página igual ao AppLayout', () => {
+    renderLayout(
+      <Layout>
+        <span>x</span>
+      </Layout>,
+    )
+    const sidebar = document.getElementById('sidebar')!
+    const wrapper = sidebar.parentElement!
+    expect(wrapper.className).toContain('sticky')
+    expect(wrapper.className).toContain('h-screen')
+    expect(wrapper.className).toContain('top-0')
+  })
+
   it('fixa o rodapé no fundo: coluna de conteúdo é flex-col e o conteúdo cresce (flex-1)', () => {
     renderLayout(
       <Layout>

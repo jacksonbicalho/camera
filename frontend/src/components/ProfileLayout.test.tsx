@@ -1,0 +1,57 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, render } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import ProfileLayout from './ProfileLayout'
+import { vi } from 'vitest'
+
+vi.mock('../auth', () => ({
+  getRole: () => 'admin',
+  getUsername: () => 'jackson',
+  clearToken: vi.fn(),
+}))
+
+vi.mock('../contexts/UserNotificationContext', () => ({
+  useUserNotifications: () => ({ unreadCount: 0 }),
+}))
+
+afterEach(cleanup)
+
+function renderAt(path: string) {
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <ProfileLayout>
+        <p>conteúdo</p>
+      </ProfileLayout>
+    </MemoryRouter>,
+  )
+}
+
+describe('ProfileLayout', () => {
+  it('renderiza os filhos e os 2 links do Perfil (Perfil / Alterar senha)', () => {
+    renderAt('/profile')
+    expect(document.body.textContent).toContain('conteúdo')
+    expect(document.getElementById('profile-nav-perfil')?.getAttribute('href')).toBe('/profile')
+    expect(document.getElementById('profile-nav-senha')?.getAttribute('href')).toBe('/profile/change-password')
+  })
+
+  it('marca o link ativo conforme a rota atual', () => {
+    renderAt('/profile/change-password')
+    expect(document.getElementById('profile-nav-senha')?.getAttribute('aria-current')).toBe('page')
+    expect(document.getElementById('profile-nav-perfil')?.getAttribute('aria-current')).toBeNull()
+  })
+
+  it('os links do Perfil continuam visíveis independente da sub-rota (não somem ao trocar de página)', () => {
+    renderAt('/profile')
+    expect(document.getElementById('profile-nav-perfil')).not.toBeNull()
+    expect(document.getElementById('profile-nav-senha')).not.toBeNull()
+    cleanup()
+    renderAt('/profile/change-password')
+    expect(document.getElementById('profile-nav-perfil')).not.toBeNull()
+    expect(document.getElementById('profile-nav-senha')).not.toBeNull()
+  })
+
+  it('inclui o Sidebar (rail principal) — chegada normal via Layout novo', () => {
+    renderAt('/profile')
+    expect(document.getElementById('sidebar')).not.toBeNull()
+  })
+})
