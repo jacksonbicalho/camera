@@ -453,6 +453,15 @@ export default function CameraPage() {
     }
   }
 
+  const openRecording = useCallback(
+    (rec: Recording) => {
+      setNoRecordingAt(null)
+      setActiveRecording(rec)
+      if (rec.id) navigate(`/camera/recording/${id}/${rec.id}`, { replace: true })
+    },
+    [id, navigate],
+  )
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       // Ctrl+←/→: passo frame a frame na gravação ativa.
@@ -779,12 +788,6 @@ export default function CameraPage() {
     setMotionEvents(events)
   }
 
-  function openRecording(rec: Recording) {
-    setNoRecordingAt(null)
-    setActiveRecording(rec)
-    if (rec.id) navigate(`/camera/recording/${id}/${rec.id}`, { replace: true })
-  }
-
   function handleTimelineSeek(recording: Recording, offsetSeconds: number) {
     setNoRecordingAt(null)
     // Chunk com evento → seleciona e dá seek direto no primeiro evento (aparece
@@ -1023,7 +1026,7 @@ export default function CameraPage() {
       const p = JSON.parse(data)
       if (typeof p.score === 'number') setAnalyzeScore(p.score)
     } catch { /* ignore malformed */ }
-  }, [])
+  }, [setAnalyzeScore])
   const analyzeURL = isLive && analyzeMode && analyzeBox && id
     ? `/api/cameras/${id}/motion/region-score?x=${analyzeBox.x}&y=${analyzeBox.y}&w=${analyzeBox.w}&h=${analyzeBox.h}`
     : null

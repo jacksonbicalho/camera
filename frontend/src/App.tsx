@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { getToken, mustChangePassword } from './auth'
+import { newRoutes, legacyRoutes, Lazy, RequireAuth } from './routes'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
@@ -13,7 +13,6 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { NotificationProvider } from './contexts/NotificationContext'
 import { UserNotificationProvider } from './contexts/UserNotificationContext'
 
-const CameraPage = lazy(() => import('./pages/CameraPage'))
 const StatsPage = lazy(() => import('./pages/StatsPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
 const CamerasSettingsPage = lazy(() => import('./pages/settings/CamerasSettingsPage'))
@@ -34,9 +33,6 @@ const AppearanceSettingsPage = lazy(() => import('./pages/settings/AppearanceSet
 const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const RecordingsPage = lazy(() => import('./pages/RecordingsPage'))
-const VideoBrowserPage = lazy(() => import('./pages/VideoBrowserPage'))
-const LivePage = lazy(() => import('./pages/LivePage'))
-const HistoryPage = lazy(() => import('./pages/HistoryPage'))
 
 function UnauthorizedHandler() {
   const navigate = useNavigate()
@@ -47,21 +43,6 @@ function UnauthorizedHandler() {
     return () => window.removeEventListener('camera:unauthorized', handler)
   }, [navigate, location])
   return null
-}
-
-function RequireAuth({ children }: { children: React.ReactNode }) {
-  const location = useLocation()
-  if (!getToken()) return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />
-  if (mustChangePassword()) return <Navigate to="/change-password" replace />
-  return <>{children}</>
-}
-
-function Lazy({ children }: { children: React.ReactNode }) {
-  return (
-    <RequireAuth>
-      <Suspense>{children}</Suspense>
-    </RequireAuth>
-  )
 }
 
 export default function App() {
@@ -80,13 +61,8 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route path="/" element={<RequireAuth><DashboardPage /></RequireAuth>} />
-      <Route path="/cameras/:id" element={<Lazy><CameraPage /></Lazy>} />
-      <Route path="/camera/live/:id" element={<Lazy><CameraPage /></Lazy>} />
-      <Route path="/camera/recording/:id/:recording_id" element={<Lazy><CameraPage /></Lazy>} />
-      <Route path="/recording/:cameraId/:recordingId" element={<Lazy><VideoBrowserPage /></Lazy>} />
-      <Route path="/recording/:cameraId/:recordingId/:motionId" element={<Lazy><VideoBrowserPage /></Lazy>} />
-      <Route path="/live/:cameraId" element={<Lazy><LivePage /></Lazy>} />
-      <Route path="/history/:cameraId" element={<Lazy><HistoryPage /></Lazy>} />
+      {newRoutes}
+      {legacyRoutes}
       <Route path="/stats" element={<Lazy><StatsPage /></Lazy>} />
       <Route path="/recordings" element={<Lazy><RecordingsPage /></Lazy>} />
       <Route path="/events" element={<Lazy><PlaceholderPage title="Eventos" description="Visão global de eventos em construção." /></Lazy>} />
