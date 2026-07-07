@@ -7,7 +7,7 @@ interface PlayerBadgesProps {
   recordingEnabled?: boolean
 }
 
-// PlayerBadges — "GRAVANDO" (condicional a recordingEnabled !== false — mesmo
+// PlayerBadges — "REC" (condicional a recordingEnabled !== false — mesmo
 // critério "ligado por padrão, só esconde se explicitamente false" usado em
 // CameraPage/CamerasSettingsPage pro badge "rec off"). O status "ao vivo" já é
 // sinalizado pelo dot pulsante da aba "Ao vivo" em CameraViewTabs — sem badge
@@ -17,10 +17,10 @@ function PlayerBadges({ idPrefix, recordingEnabled }: PlayerBadgesProps) {
   return (
     <span
       id={`${idPrefix}-badge-recording`}
-      className="inline-flex items-center gap-1.5 rounded-full bg-recording/10 px-2 py-1 text-caption font-medium text-recording ring-1 ring-inset ring-recording/20"
+      className="inline-flex items-center gap-1.5 rounded-md border border-recording/20 bg-foreground/5 px-2 py-1 text-caption font-bold tracking-wide text-recording"
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-recording" aria-hidden="true" />
-      GRAVANDO
+      <span className="h-1.5 w-1.5 rounded-full bg-recording animate-pulse" aria-hidden="true" />
+      REC
     </span>
   )
 }

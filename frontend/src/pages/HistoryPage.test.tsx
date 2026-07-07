@@ -141,6 +141,15 @@ describe('HistoryPage', () => {
     expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
   })
 
+  it('player de histórico ganha o mesmo overlay de tela cheia do Ao vivo (PlayerControlsOverlay)', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-player-video')).not.toBeNull()
+    })
+    expect(document.getElementById('history-player-video-fullscreen')).not.toBeNull()
+    expect(document.getElementById('history-player-video-zoom-reset')).toBeNull()
+  })
+
   it('clicar num card do filmstrip troca a gravação em reprodução', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {

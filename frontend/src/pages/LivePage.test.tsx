@@ -80,15 +80,15 @@ describe('LivePage', () => {
     expect(hls.getAttribute('data-transport')).toBe('auto')
   })
 
-  it('mostra o badge "GRAVANDO" quando recording_enabled é true', async () => {
+  it('mostra o badge "REC" quando recording_enabled é true', async () => {
     renderAt('/live/cam1')
     await waitFor(() => {
       expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
     })
-    expect(document.getElementById('live-header')?.textContent).toContain('GRAVANDO')
+    expect(document.getElementById('live-header')?.textContent).toContain('REC')
   })
 
-  it('esconde o badge "GRAVANDO" quando recording_enabled é false', async () => {
+  it('esconde o badge "REC" quando recording_enabled é false', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {
@@ -105,18 +105,19 @@ describe('LivePage', () => {
     await waitFor(() => {
       expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
     })
-    expect(document.getElementById('live-header')?.textContent).not.toContain('GRAVANDO')
+    expect(document.getElementById('live-header')?.textContent).not.toContain('REC')
   })
 
-  it('badge GRAVANDO usa o formato pill com ring-inset (padrão de badge)', async () => {
+  it('badge REC usa formato de badge discreto (borda âmbar, dot pulsante)', async () => {
     renderAt('/live/cam1')
     await waitFor(() => {
       expect(document.getElementById('live-badge-recording')).not.toBeNull()
     })
     const recording = document.getElementById('live-badge-recording')!
-    expect(recording.className).toContain('bg-recording/10')
-    expect(recording.className).toContain('ring-recording/20')
-    expect(recording.className).toContain('rounded-full')
+    expect(recording.className).toContain('bg-foreground/5')
+    expect(recording.className).toContain('border-recording/20')
+    expect(recording.className).toContain('rounded-md')
+    expect(recording.querySelector('span')?.className).toContain('animate-pulse')
   })
 
   it('sem botão de tela cheia no cabeçalho — o Player tem o próprio (canto)', async () => {
