@@ -1,14 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, waitFor, fireEvent } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import ReportsPage from './ReportsPage'
 
 vi.mock('../auth', () => ({
   authHeaders: () => ({}),
   onUnauthorized: vi.fn(),
 }))
-vi.mock('../components/AppLayout', () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
+vi.mock('../components/Layout', () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
 vi.mock('../components/DatePicker', () => ({ default: () => <div data-testid="datepicker" /> }))
+
+function LocationProbe() {
+  const location = useLocation()
+  return <div id="test-location">{location.pathname}</div>
+}
+
+function renderAt(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/reports/:cameraId/:date/:days" element={<ReportsPage />} />
+      </Routes>
+      <LocationProbe />
+    </MemoryRouter>,
+  )
+}
 
 const cameras = [{ id: 'cam1', name: 'Corredor' }]
 
@@ -39,7 +55,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('ReportsPage cabeçalho', () => {
   it('mostra o nome da câmera selecionada como subtítulo, acima da linha de estatísticas', async () => {
-    render(<MemoryRouter initialEntries={['/reports']}><ReportsPage /></MemoryRouter>)
+    renderAt('/reports/cam1/2026-06-24/7')
     const name = await waitFor(() => {
       const el = document.getElementById('report-camera-name')
       if (!el) throw new Error('nome da câmera não renderizou')
@@ -56,11 +72,7 @@ describe('ReportsPage cabeçalho', () => {
 
 describe('ReportsPage heatmap', () => {
   it('busca o bucket=heatmap e renderiza uma linha por dia, rotulada DD + dia da semana', async () => {
-    render(
-      <MemoryRouter initialEntries={['/reports']}>
-        <ReportsPage />
-      </MemoryRouter>,
-    )
+    renderAt('/reports/cam1/2026-06-24/7')
 
     await waitFor(() => {
       const grid = document.getElementById('report-heatmap')
@@ -88,7 +100,7 @@ describe('ReportsPage heatmap', () => {
   })
 
   it('rotula todas as 24 horas (0–23) no cabeçalho do heatmap', async () => {
-    render(<MemoryRouter initialEntries={['/reports']}><ReportsPage /></MemoryRouter>)
+    renderAt('/reports/cam1/2026-06-24/7')
     const grid = await waitFor(() => {
       const el = document.getElementById('report-heatmap')
       if (!el) throw new Error('heatmap não renderizou')
@@ -101,7 +113,7 @@ describe('ReportsPage heatmap', () => {
 
   it('no modo "1 dia" esconde o heatmap e busca barras por hora', async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
-    render(<MemoryRouter initialEntries={['/reports']}><ReportsPage /></MemoryRouter>)
+    renderAt('/reports/cam1/2026-06-24/7')
     await waitFor(() => {
       if (!document.getElementById('report-heatmap')) throw new Error('heatmap não renderizou')
     })
@@ -113,5 +125,35 @@ describe('ReportsPage heatmap', () => {
       if (document.getElementById('report-heatmap')) throw new Error('heatmap deveria sumir no modo 1 dia')
     })
     expect(fetchMock.mock.calls.some(([u]: [string]) => u.includes('bucket=hour'))).toBe(true)
+  })
+})
+
+describe('ReportsPage rota (câmera/data/range na URL)', () => {
+  it('inicializa câmera e range a partir dos parâmetros da URL', async () => {
+    renderAt('/reports/cam1/2026-06-24/3')
+    await waitFor(() => {
+      if (!document.getElementById('report-camera-name')) throw new Error('não renderizou')
+    })
+    expect((document.getElementById('report-camera-select') as HTMLSelectElement).value).toBe('cam1')
+    expect((document.getElementById('report-range-select') as HTMLSelectElement).value).toBe('3')
+  })
+
+  it('range inválido na URL cai pro mais próximo em vez de quebrar', async () => {
+    renderAt('/reports/cam1/2026-06-24/999')
+    await waitFor(() => {
+      if (!document.getElementById('report-camera-name')) throw new Error('não renderizou')
+    })
+    expect((document.getElementById('report-range-select') as HTMLSelectElement).value).toBe('90')
+  })
+
+  it('trocar o range pelo seletor atualiza a URL (compartilhável)', async () => {
+    renderAt('/reports/cam1/2026-06-24/7')
+    await waitFor(() => {
+      if (!document.getElementById('report-camera-name')) throw new Error('não renderizou')
+    })
+    fireEvent.change(document.getElementById('report-range-select')!, { target: { value: '14' } })
+    await waitFor(() => {
+      expect(document.getElementById('test-location')!.textContent).toBe('/reports/cam1/2026-06-24/14')
+    })
   })
 })

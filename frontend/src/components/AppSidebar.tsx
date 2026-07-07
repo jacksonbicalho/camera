@@ -15,7 +15,7 @@ import ThemeModeNav from "./ThemeModeNav"
 import AccentSwatchNav from "./AccentSwatchNav"
 import {
   Bell, X, Check, Settings, CircleUser, CameraLogo, Cctv,
-  Film, BarChart2, ChevronLeft,
+  Film, ChevronLeft,
 } from "./Icons"
 import { Button, buttonVariants } from "./ui/button"
 import { cn } from "@/lib/utils"
@@ -34,13 +34,12 @@ interface ConfirmState {
 }
 
 // Itens de rota da nav rail principal (mockup do redesign). Os destinos
-// Mapas/Dispositivos/Usuários/Relatórios são páginas placeholder por enquanto
-// — preenchidas nas histórias seguintes do roadmap.
+// Mapas/Dispositivos/Usuários são páginas placeholder por enquanto — preenchidas
+// nas histórias seguintes do roadmap. "Relatórios" mudou pro sidebar novo (Sidebar.tsx).
 // O sino "Eventos" é renderizado antes destes (1º item do nav); ver o JSX.
 const NAV_LINKS: Array<{ id: string; to: string; label: string; icon: React.ReactNode }> = [
   { id: "nav-live", to: "/", label: "Ao vivo", icon: <Cctv /> },
   { id: "nav-recordings", to: "/recordings", label: "Gravações", icon: <Film /> },
-  { id: "nav-reports", to: "/reports", label: "Relatórios", icon: <BarChart2 /> },
 ]
 
 function useDropdown(extraRef?: React.RefObject<HTMLElement | null>) {

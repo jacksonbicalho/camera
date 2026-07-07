@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
-import AppLayout from '../components/AppLayout'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import DatePicker from '../components/DatePicker'
 import { authHeaders, onUnauthorized } from '../auth'
@@ -8,6 +9,23 @@ import { categoryBuckets, axisTicks, categoryDetail, type EventReport } from './
 import type { EventCategory } from './eventCategory'
 
 const RANGE_OPTS = [1, 2, 3, 4, 5, 6, 7, 14, 30, 90]
+
+// nearestRange — resolve um valor de :days da URL pro range válido mais próximo
+// (ex.: alguém edita a URL na mão pra um valor fora de RANGE_OPTS). NaN nunca bate
+// nenhuma comparação, então o reduce mantém o 1º candidato (1 dia) como fallback.
+function nearestRange(n: number): number {
+  if (RANGE_OPTS.includes(n)) return n
+  return RANGE_OPTS.reduce((best, opt) => (Math.abs(opt - n) < Math.abs(best - n) ? opt : best), RANGE_OPTS[0])
+}
+
+// parseLocalDate — parseia "yyyy-MM-dd" como data LOCAL (sem o deslocamento de fuso
+// de `new Date(string)`, que interpreta como UTC). Sem :date válido, cai em hoje.
+function parseLocalDate(s: string | undefined): Date {
+  const [y, m, d] = (s ?? '').split('-').map(Number)
+  if (!y || !m || !d) return new Date()
+  return new Date(y, m - 1, d)
+}
+
 const CAT_LABEL: Record<string, string> = { movimento: 'Movimento', pessoa: 'Pessoa', ia: 'IA', estados: 'Estados' }
 const CAT_COLOR: Record<string, string> = { movimento: 'bg-amber-400', pessoa: 'bg-red-500', ia: 'bg-violet-500', estados: 'bg-green-500' }
 const CAT_DESC: Record<string, string> = {
@@ -25,14 +43,27 @@ interface Bar { key: string; count: number; bc: Record<string, number> }
 const WEEKDAY_LABEL = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 export default function ReportsPage() {
+  const { cameraId, date: dateParam, days: daysParam } = useParams<{ cameraId: string; date: string; days: string }>()
+  const navigate = useNavigate()
+  const location = useLocation()
+
   const [report, setReport] = useState<EventReport | null>(null)
   const [heatmap, setHeatmap] = useState<EventReport | null>(null)
-  const [days, setDays] = useState(7)
-  const [date, setDate] = useState<Date>(new Date())
+  const [days, setDays] = useState(() => nearestRange(Number(daysParam)))
+  const [date, setDate] = useState<Date>(() => parseLocalDate(dateParam))
   const [cameras, setCameras] = useState<CameraOption[]>([])
-  const [camera, setCamera] = useState('')
+  const [camera, setCamera] = useState(cameraId ?? '')
   const [contentDays, setContentDays] = useState<string[]>([])
   const [modalCat, setModalCat] = useState<EventCategory | null>(null)
+
+  // Mantém a URL sincronizada com câmera/data/range (fonte compartilhável) — mesmo
+  // padrão de HistoryPage.tsx: só navega quando o alvo difere da rota atual, senão
+  // entraria em loop com a navegação disparada por esta própria troca.
+  useEffect(() => {
+    if (!camera) return
+    const target = `/reports/${camera}/${format(date, 'yyyy-MM-dd')}/${days}`
+    if (location.pathname !== target) navigate(target, { replace: true })
+  }, [camera, date, days, location.pathname, navigate])
 
   // Dias com evento da câmera selecionada — habilitam só esses no calendário.
   useEffect(() => {
@@ -63,16 +94,12 @@ export default function ReportsPage() {
     ? `${WEEKDAY_LABEL[date.getDay()]} ${format(date, 'dd/MM')}`
     : `${format(periodStart, 'dd/MM')} – ${format(date, 'dd/MM')}`
 
-  // Lista de câmeras do usuário → popula o seletor. Inicia na primeira (o relatório é
-  // sempre de uma câmera; não há modo "Todas").
+  // Lista de câmeras do usuário → popula o seletor. A câmera ativa vem da URL
+  // (:cameraId); esta lista só alimenta o <select> e o nome exibido no cabeçalho.
   useEffect(() => {
     fetch('/api/cameras', { headers: authHeaders() })
       .then(r => { if (r.status === 401) { onUnauthorized(); return null } return r.json() })
-      .then((list: CameraOption[] | null) => {
-        if (!list) return
-        setCameras(list)
-        if (list.length > 0) setCamera(c => c || list[0].id)
-      })
+      .then((list: CameraOption[] | null) => { if (list) setCameras(list) })
       .catch(() => {})
   }, [])
 
@@ -153,7 +180,8 @@ export default function ReportsPage() {
   }
 
   return (
-    <AppLayout>
+    <Layout id="reports-page" footerId="reports-footer" contentClassName="p-6">
+    <div id="reports-content" className="page-content space-y-4">
       <PageHeader
         title="Relatórios"
         subtitle={
@@ -367,6 +395,7 @@ export default function ReportsPage() {
           </div>
         )
       })()}
-    </AppLayout>
+    </div>
+    </Layout>
   )
 }

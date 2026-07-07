@@ -53,7 +53,6 @@ function renderSidebar(initialPath = '/') {
 const LINK_ITEMS: Array<[string, string, string]> = [
   ['nav-live', '/', 'Ao vivo'],
   ['nav-recordings', '/recordings', 'Gravações'],
-  ['nav-reports', '/reports', 'Relatórios'],
 ]
 
 const FOLLOWS = Node.DOCUMENT_POSITION_FOLLOWING
@@ -74,6 +73,11 @@ describe('Sidebar — nav rail principal', () => {
     expect(document.getElementById('nav-users')).toBeNull()
   })
 
+  it('não renderiza mais "Relatórios" (mudou pro sidebar novo)', () => {
+    renderSidebar()
+    expect(document.getElementById('nav-reports')).toBeNull()
+  })
+
   it('Eventos (sino) é o primeiro item do nav, antes de "Ao vivo"', () => {
     renderSidebar()
     const events = document.getElementById('sidebar-notifications')!
@@ -90,15 +94,15 @@ describe('Sidebar — nav rail principal', () => {
     expect(settings.textContent).toContain('Configurações')
   })
 
-  it('Configurações fica na nav do topo (após Relatórios), fora do grupo inferior', () => {
+  it('Configurações fica na nav do topo (após Gravações), fora do grupo inferior', () => {
     renderSidebar()
     const settings = document.getElementById('sidebar-settings')!
-    const reports = document.getElementById('nav-reports')!
+    const recordings = document.getElementById('nav-recordings')!
     const bottom = document.getElementById('sidebar-bottom')!
     // não está no grupo inferior
     expect(bottom.contains(settings)).toBe(false)
-    // aparece depois de Relatórios no DOM
-    expect(reports.compareDocumentPosition(settings) & FOLLOWS).toBeTruthy()
+    // aparece depois de Gravações no DOM
+    expect(recordings.compareDocumentPosition(settings) & FOLLOWS).toBeTruthy()
   })
 
   it('o grupo inferior contém apenas Recolher menu e o bloco de usuário', () => {
