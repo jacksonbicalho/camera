@@ -119,30 +119,12 @@ describe('LivePage', () => {
     expect(recording.className).toContain('rounded-full')
   })
 
-  it('botão de tela cheia fullscreena o wrapper cabeçalho+player e troca o ícone', async () => {
-    const rfs = vi.fn().mockResolvedValue(undefined)
-    ;(HTMLElement.prototype as unknown as { requestFullscreen: () => Promise<void> }).requestFullscreen = rfs
+  it('sem botão de tela cheia no cabeçalho — o Player tem o próprio (canto)', async () => {
     renderAt('/live/cam1')
     await waitFor(() => {
-      expect(document.getElementById('live-fullscreen-toggle')).not.toBeNull()
+      expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
     })
-    const wrapper = document.getElementById('live-header-and-player')!
-    const btn = document.getElementById('live-fullscreen-toggle')!
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    expect(rfs).toHaveBeenCalled()
-
-    // Simula o browser entrando em fullscreen nesse wrapper.
-    Object.defineProperty(document, 'fullscreenElement', { value: wrapper, configurable: true })
-    document.dispatchEvent(new Event('fullscreenchange'))
-    await waitFor(() => {
-      expect(document.getElementById('live-header')?.className).toContain('absolute')
-    })
-
-    Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true })
-    document.dispatchEvent(new Event('fullscreenchange'))
-    await waitFor(() => {
-      expect(document.getElementById('live-header')?.className).not.toContain('absolute')
-    })
+    expect(document.getElementById('live-fullscreen-toggle')).toBeNull()
   })
 
   it('câmera inexistente → bloco de erro #live-error, sem player', async () => {

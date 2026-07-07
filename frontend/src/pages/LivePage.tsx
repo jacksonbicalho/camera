@@ -82,7 +82,6 @@ export default function LivePage() {
                 cameraId={camera.id}
                 transport={camera.live_transport}
                 muted
-                hideFullscreenButton
                 className="w-full h-full"
                 containerClassName="w-full h-full"
               />

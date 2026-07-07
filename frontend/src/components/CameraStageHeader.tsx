@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { cn } from '@/lib/utils'
+import type { ReactNode } from 'react'
 import PageHeader from './PageHeader'
 import CameraViewTabs from './CameraViewTabs'
-import { Maximize, Minimize } from './Icons'
 
 interface PlayerBadgesProps {
   idPrefix: string
@@ -34,15 +32,13 @@ interface CameraStageHeaderProps {
   cameraName: string
   active: 'live' | 'history'
   recordingEnabled?: boolean
-  /** O player (Player/<video>) renderizado dentro do wrapper de fullscreen. */
+  /** O player (Player/<video>) renderizado logo abaixo do cabeçalho. */
   children: ReactNode
 }
 
-// CameraStageHeader — cabeçalho (nome + badges + tabs Ao vivo/Histórico + botão de
-// tela cheia) compartilhado entre LivePage e HistoryPage. O fullscreen alveja o
-// wrapper {cabeçalho + player} juntos — não só o player — pra o cabeçalho poder
-// flutuar sobre o vídeo em tela cheia (a Fullscreen API só exibe o elemento pedido
-// e seus descendentes).
+// CameraStageHeader — cabeçalho (nome + badge + tabs Ao vivo/Histórico) compartilhado
+// entre LivePage e HistoryPage, seguido do player. Sem botão de tela cheia próprio —
+// o Player (ao vivo) e o <video controls> (Histórico) já têm o deles.
 export default function CameraStageHeader({
   idPrefix,
   cameraId,
@@ -51,56 +47,21 @@ export default function CameraStageHeader({
   recordingEnabled,
   children,
 }: CameraStageHeaderProps) {
-  const [fullscreen, setFullscreen] = useState(false)
-  const wrapperRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const onFsChange = () => setFullscreen(document.fullscreenElement === wrapperRef.current)
-    document.addEventListener('fullscreenchange', onFsChange)
-    return () => document.removeEventListener('fullscreenchange', onFsChange)
-  }, [])
-
-  const toggleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
-    else wrapperRef.current?.requestFullscreen().catch(() => {})
-  }, [])
-
   return (
-    <div ref={wrapperRef} id={`${idPrefix}-header-and-player`} className="relative">
-      <div
-        id={`${idPrefix}-header`}
-        data-on-video={fullscreen || undefined}
-        className={cn(
-          fullscreen
-            ? 'absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/70 to-transparent px-4 py-3'
-            : 'mb-4',
-        )}
-      >
+    <>
+      <div id={`${idPrefix}-header`} className="mb-4">
         <PageHeader
           className="items-center mb-0"
           title={
-            <span className={cn('flex items-center gap-2', fullscreen && 'text-white')}>
+            <span className="flex items-center gap-2">
               {cameraName}
               <PlayerBadges idPrefix={idPrefix} recordingEnabled={recordingEnabled} />
             </span>
           }
-          actions={
-            <>
-              <CameraViewTabs cameraId={cameraId} active={active} />
-              <button
-                id={`${idPrefix}-fullscreen-toggle`}
-                type="button"
-                onClick={toggleFullscreen}
-                aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-2 text-muted-foreground hover:text-foreground"
-              >
-                {fullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-              </button>
-            </>
-          }
+          actions={<CameraViewTabs cameraId={cameraId} active={active} />}
         />
       </div>
       {children}
-    </div>
+    </>
   )
 }

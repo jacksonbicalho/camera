@@ -14,10 +14,6 @@ interface PlayerProps {
   id?: string
   className?: string
   containerClassName?: string
-  /** Oculta o botão de tela cheia próprio — usado quando a página tem seu
-   *  próprio controle de fullscreen sobre um alvo maior (ex.: LivePage, que
-   *  fullscreena cabeçalho+player juntos). */
-  hideFullscreenButton?: boolean
 }
 
 // Player — player de live enxuto para as páginas novas (estrangulamento):
@@ -32,7 +28,6 @@ export default function Player({
   id = 'player-video',
   className,
   containerClassName,
-  hideFullscreenButton = false,
 }: PlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -263,17 +258,15 @@ export default function Player({
             <ZoomOut className="h-3.5 w-3.5" /> {zoom.scale.toFixed(1)}×
           </button>
         )}
-        {!hideFullscreenButton && (
-          <button
-            id={`${id}-fullscreen`}
-            type="button"
-            onClick={toggleFullscreen}
-            aria-label="Tela cheia"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
-          >
-            <Maximize className="h-4 w-4" />
-          </button>
-        )}
+        <button
+          id={`${id}-fullscreen`}
+          type="button"
+          onClick={toggleFullscreen}
+          aria-label="Tela cheia"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+        >
+          <Maximize className="h-4 w-4" />
+        </button>
       </div>
 
       {noSignal ? (
