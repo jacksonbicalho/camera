@@ -80,20 +80,9 @@ export default function HistoryPage() {
   const [readyForUrlSync, setReadyForUrlSync] = useState(!initialRecordingId)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
-  const playerContainerRef = useRef<HTMLDivElement | null>(null)
   const zoom = usePlayerZoom(() => videoRef.current)
   const bindZoom = zoom.setContainer
-  const setPlayerContainer = useCallback(
-    (node: HTMLDivElement | null) => {
-      playerContainerRef.current = node
-      bindZoom(node)
-    },
-    [bindZoom],
-  )
-  const toggleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
-    else playerContainerRef.current?.requestFullscreen().catch(() => {})
-  }, [])
+  const setPlayerContainer = useCallback((node: HTMLDivElement | null) => bindZoom(node), [bindZoom])
 
   // Resolve o :recordingId da URL (se veio um) pro dia que ele pertence — só na carga inicial.
   useEffect(() => {
@@ -254,7 +243,7 @@ export default function HistoryPage() {
                     muted
                     onLoadedData={() => setVideoLoading(false)}
                   />
-                  <PlayerControlsOverlay id="history-player-video" zoom={zoom} onToggleFullscreen={toggleFullscreen} />
+                  <PlayerControlsOverlay id="history-player-video" zoom={zoom} />
                   {videoLoading && (
                     <div
                       id="history-player-loading"
