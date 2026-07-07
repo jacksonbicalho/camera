@@ -141,12 +141,13 @@ describe('HistoryPage', () => {
     expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
   })
 
-  it('player de histórico ganha o mesmo overlay de tela cheia do Ao vivo (PlayerControlsOverlay)', async () => {
+  it('player de histórico ganha zoom (PlayerControlsOverlay) mas sem botão de tela cheia próprio — só o nativo do <video controls>', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
       expect(document.getElementById('history-player-video')).not.toBeNull()
     })
-    expect(document.getElementById('history-player-video-fullscreen')).not.toBeNull()
+    expect(document.getElementById('history-player-video')?.hasAttribute('controls')).toBe(true)
+    expect(document.getElementById('history-player-video-fullscreen')).toBeNull()
     expect(document.getElementById('history-player-video-zoom-reset')).toBeNull()
   })
 

@@ -19,7 +19,7 @@ function PlayerBadges({ idPrefix, recordingEnabled }: PlayerBadgesProps) {
       id={`${idPrefix}-badge-recording`}
       className="inline-flex items-center gap-1.5 rounded-md border border-recording/20 bg-foreground/5 px-2 py-1 text-caption font-bold tracking-wide text-recording"
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-recording animate-pulse" aria-hidden="true" />
+      <span className="h-2.5 w-2.5 rounded-full bg-recording animate-pulse" aria-hidden="true" />
       REC
     </span>
   )
@@ -49,7 +49,7 @@ export default function CameraStageHeader({
 }: CameraStageHeaderProps) {
   return (
     <>
-      <div id={`${idPrefix}-header`} className="mb-4">
+      <div id={`${idPrefix}-header`} className="mb-2">
         <PageHeader
           className="items-center mb-0"
           title={

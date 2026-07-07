@@ -46,4 +46,9 @@ describe('PlayerControlsOverlay', () => {
     fireEvent.click(document.getElementById('p1-fullscreen')!)
     expect(onToggleFullscreen).toHaveBeenCalled()
   })
+
+  it('sem onToggleFullscreen, não renderiza o botão de tela cheia (evita duplicar com controles nativos)', () => {
+    render(<PlayerControlsOverlay id="p1" zoom={makeZoom()} />)
+    expect(document.getElementById('p1-fullscreen')).toBeNull()
+  })
 })
