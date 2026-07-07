@@ -49,18 +49,21 @@ describe('CameraViewTabs', () => {
     expect(document.getElementById('camera-tab-live')?.className).not.toContain('bg-surface')
   })
 
-  it('container em pill (rounded-full) com fundo translúcido; aba inativa com hover de texto', () => {
+  it('container em pill (rounded-full) com fundo translúcido e borda; aba inativa com hover de texto', () => {
     renderTabs('live')
     expect(document.getElementById('camera-view-tabs')?.className).toContain('rounded-full')
     expect(document.getElementById('camera-view-tabs')?.className).toContain('bg-foreground/8')
+    expect(document.getElementById('camera-view-tabs')?.className).toContain('border-border')
     expect(document.getElementById('camera-tab-history')?.className).toContain('hover:text-foreground')
   })
 
-  it('o dot de "Ao vivo" só pulsa quando a aba ativa é live (status real, não decoração)', () => {
+  it('o dot de "Ao vivo" só pulsa e fica vermelho quando a aba ativa é live (status real, não decoração)', () => {
     renderTabs('live')
     expect(document.getElementById('camera-tab-live-dot')?.className).toContain('animate-pulse')
+    expect(document.getElementById('camera-tab-live-dot')?.className).toContain('bg-danger')
     cleanup()
     renderTabs('history')
     expect(document.getElementById('camera-tab-live-dot')?.className).not.toContain('animate-pulse')
+    expect(document.getElementById('camera-tab-live-dot')?.className).toContain('bg-muted-foreground')
   })
 })

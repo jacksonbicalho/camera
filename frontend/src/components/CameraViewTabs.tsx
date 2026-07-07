@@ -15,15 +15,15 @@ const idleCls = 'bg-transparent text-muted-foreground hover:text-foreground'
 // câmera (LivePage, HistoryPage). Alterna entre o ao-vivo e o histórico da mesma
 // câmera; a aba ativa é marcada com aria-current e vira um <span> — não um link —
 // já que clicar nela de novo não levaria a lugar nenhum (já é a página atual). O
-// dot da aba "Ao vivo" só pulsa quando ela está ativa — vira status real
-// ("streamando agora"), não decoração.
+// dot da aba "Ao vivo" só fica vermelho e pulsa quando ela está ativa (cinza,
+// estático, quando inativa) — vira status real ("streamando agora"), não decoração.
 export default function CameraViewTabs({ cameraId, active }: CameraViewTabsProps) {
   const liveDot = (
     <span
       id="camera-tab-live-dot"
       className={cn(
-        'rounded-full bg-danger',
-        active === 'live' ? 'h-2.5 w-2.5 animate-pulse' : 'h-1.5 w-1.5',
+        'rounded-full',
+        active === 'live' ? 'h-2.5 w-2.5 animate-pulse bg-danger' : 'h-1.5 w-1.5 bg-muted-foreground',
       )}
     />
   )
@@ -32,7 +32,7 @@ export default function CameraViewTabs({ cameraId, active }: CameraViewTabsProps
     <nav
       id="camera-view-tabs"
       aria-label="Visão da câmera"
-      className="inline-flex items-center gap-1 rounded-full bg-foreground/8 p-1"
+      className="inline-flex items-center gap-1 rounded-full border border-border bg-foreground/8 p-1"
     >
       {active === 'live' ? (
         <span id="camera-tab-live" aria-label="Ao vivo" aria-current="page" className={cn(base, activeCls)}>

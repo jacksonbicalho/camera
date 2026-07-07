@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import CameraStageHeader from '../components/CameraStageHeader'
 import DatePicker from '../components/DatePicker'
 import { Loader2, Play } from '../components/Icons'
+import PlayerControlsOverlay from '../components/PlayerControlsOverlay'
+import { usePlayerZoom } from '../hooks/usePlayerZoom'
 import { loadMotionEvents, loadRecordingsData, type MotionEvent, type Recording } from './cameraUtils'
 import { recordingCategory, type RecordingCategory } from './eventCategory'
 import { RecordingsGateway } from '../lib/recordingsGateway'
@@ -76,6 +78,22 @@ export default function HistoryPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => (initialRecordingId ? null : new Date()))
   const [availableDays, setAvailableDays] = useState<string[]>([])
   const [readyForUrlSync, setReadyForUrlSync] = useState(!initialRecordingId)
+
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const playerContainerRef = useRef<HTMLDivElement | null>(null)
+  const zoom = usePlayerZoom(() => videoRef.current)
+  const bindZoom = zoom.setContainer
+  const setPlayerContainer = useCallback(
+    (node: HTMLDivElement | null) => {
+      playerContainerRef.current = node
+      bindZoom(node)
+    },
+    [bindZoom],
+  )
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+    else playerContainerRef.current?.requestFullscreen().catch(() => {})
+  }, [])
 
   // Resolve o :recordingId da URL (se veio um) pro dia que ele pertence — só na carga inicial.
   useEffect(() => {
@@ -183,6 +201,13 @@ export default function HistoryPage() {
 
   const selected = useMemo(() => recordings.find(r => r.id === selectedId) ?? null, [recordings, selectedId])
 
+  // O <video> remonta a cada troca de gravação (key={selected.id}) — sem isso o zoom
+  // acumulado ficaria "preso" no estado antigo (transform não reaplicado ao elemento novo).
+  const resetZoom = zoom.reset
+  useEffect(() => {
+    resetZoom()
+  }, [selectedId, resetZoom])
+
   function selectRecording(id: number) {
     setSelectedId(id)
     setVideoLoading(true)
@@ -209,13 +234,18 @@ export default function HistoryPage() {
           >
             <div
               id="history-player"
+              ref={setPlayerContainer}
+              onPointerDown={zoom.onPointerDown}
+              onPointerMove={zoom.onPointerMove}
+              onPointerUp={zoom.onPointerUp}
               data-on-video
-              className="relative w-full overflow-hidden rounded-lg border border-border bg-black shadow-sm aspect-video"
+              className={`group relative w-full overflow-hidden rounded-lg border border-border bg-black shadow-sm aspect-video${zoom.isZoomed ? ' cursor-grab' : ''}`}
             >
               {selected ? (
                 <>
                   <video
                     id="history-player-video"
+                    ref={videoRef}
                     key={selected.id}
                     src={`${selected.url}?token=${getToken()}`}
                     className="h-full w-full"
@@ -224,6 +254,7 @@ export default function HistoryPage() {
                     muted
                     onLoadedData={() => setVideoLoading(false)}
                   />
+                  <PlayerControlsOverlay id="history-player-video" zoom={zoom} onToggleFullscreen={toggleFullscreen} />
                   {videoLoading && (
                     <div
                       id="history-player-loading"
