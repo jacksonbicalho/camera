@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
-import { clearToken, getRole, getUsername } from '../auth'
+import { authHeaders, clearToken, getRole, getUsername } from '../auth'
 import { useUserNotifications } from '../contexts/UserNotificationContext'
 import { useDisplayMode, useSetDisplayMode } from '../contexts/DisplayModeContext'
 import { ADMIN_SETTINGS_LINKS, VIEWER_SETTINGS_LINKS } from './settingsNavLinks'
 import ThemeModeNav from './ThemeModeNav'
 import AccentSwatchNav from './AccentSwatchNav'
-import { BarChart2, Cctv, ChevronLeft, CircleUser, Film, Settings } from './Icons'
+import { BarChart2, CameraLogo, Cctv, ChevronLeft, CircleUser, Film, Settings } from './Icons'
 
 interface NavItem {
   id: string
@@ -21,8 +22,6 @@ interface NavItem {
 
 const items: NavItem[] = [
   { id: 'sidebar-cameras', to: '/', label: 'Todas as câmeras', icon: <Cctv className="h-5 w-5" />, end: true },
-  { id: 'sidebar-gravacoes', to: '/recordings', label: 'Gravações', icon: <Film className="h-5 w-5" /> },
-  { id: 'sidebar-relatorios', to: '/reports', label: 'Relatórios', icon: <BarChart2 className="h-5 w-5" /> },
 ]
 
 const navItemClass = (active: boolean, showLabel: boolean) =>
@@ -33,13 +32,14 @@ const navItemClass = (active: boolean, showLabel: boolean) =>
   )
 
 // useFlyout — abre/fecha um flyout posicionado (portal) à direita de um botão,
-// fechando em clique fora. Compartilhado por SettingsFlyout e UserMenu — ambos no
-// rodapé do rail, então o painel ancora pela BASE (bottom) do botão e cresce pra
-// cima; ancorar pelo topo (como o flyout do AppSidebar, que fica mais alto na
-// tela) faria o painel nascer abaixo do botão e sair da viewport.
+// fechando em clique fora. `pos` traz as duas âncoras possíveis: SettingsFlyout e
+// UserMenu (rodapé do rail) usam `bottom` — o painel ancora pela BASE do botão e
+// cresce pra cima, senão nasceria abaixo do botão e sairia da viewport; itens do
+// nav principal (ex.: CameraListFlyout) usam `top` — ancora pelo TOPO do botão e
+// cresce pra baixo (mesmo padrão do flyout de dropdown do AppSidebar).
 function useFlyout<T extends HTMLElement>() {
   const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState({ bottom: 0, left: 0 })
+  const [pos, setPos] = useState({ top: 0, bottom: 0, left: 0 })
   const btnRef = useRef<T>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -57,12 +57,122 @@ function useFlyout<T extends HTMLElement>() {
   function toggle() {
     if (btnRef.current) {
       const r = btnRef.current.getBoundingClientRect()
-      setPos({ bottom: window.innerHeight - r.bottom, left: r.right + 8 })
+      setPos({ top: r.top, bottom: window.innerHeight - r.bottom, left: r.right + 8 })
     }
     setOpen(v => !v)
   }
 
   return { open, setOpen, pos, btnRef, panelRef, toggle }
+}
+
+interface CameraOption { id: string; name: string }
+
+interface CameraListFlyoutProps {
+  id: string
+  label: string
+  icon: ReactNode
+  showLabel: boolean
+  /** Prefixo de rota que acende o botão como ativo (ex.: "/reports"). */
+  activePrefix: string
+  /** Constrói a URL de destino a partir do id da câmera clicada. */
+  buildTarget: (cameraId: string) => string
+}
+
+// CameraListFlyout — botão do nav principal que abre um flyout (mesmo mecanismo do
+// SettingsFlyout, ancorado pelo TOPO — ver useFlyout) com a lista de câmeras do
+// usuário; clicar numa câmera navega pro destino calculado por `buildTarget`.
+// Reaproveitado por "Relatórios" e "Gravações" — mesmo estilo de submenu pros dois,
+// só muda o destino da navegação.
+function CameraListFlyout({ id, label, icon, showLabel, activePrefix, buildTarget }: CameraListFlyoutProps) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
+  const [cameras, setCameras] = useState<CameraOption[]>([])
+  const active = location.pathname.startsWith(activePrefix)
+
+  useEffect(() => {
+    if (!open) return
+    fetch('/api/cameras', { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : [])
+      .then((list: CameraOption[]) => setCameras(list))
+      .catch(() => {})
+  }, [open])
+
+  function selectCamera(cameraId: string) {
+    setOpen(false)
+    navigate(buildTarget(cameraId))
+  }
+
+  return (
+    <>
+      <button
+        id={id}
+        ref={btnRef}
+        type="button"
+        onClick={toggle}
+        title={label}
+        aria-label={label}
+        className={navItemClass(active || open, showLabel)}
+      >
+        {icon}
+        {showLabel && <span className="truncate text-sm">{label}</span>}
+      </button>
+      {open && createPortal(
+        <div
+          ref={panelRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
+        >
+          {cameras.length === 0 ? (
+            <p className="px-3 py-1.5 text-xs text-faint">Nenhuma câmera</p>
+          ) : (
+            cameras.map(c => (
+              <button
+                key={c.id}
+                id={`${id}-camera-${c.id}`}
+                type="button"
+                onClick={() => selectCamera(c.id)}
+                className="block w-full truncate px-3 py-1.5 text-left text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
+              >
+                {c.name}
+              </button>
+            ))
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
+  )
+}
+
+function ReportsFlyout({ showLabel }: { showLabel: boolean }) {
+  return (
+    <CameraListFlyout
+      id="sidebar-relatorios"
+      label="Relatórios"
+      icon={<BarChart2 className="h-5 w-5 shrink-0" />}
+      showLabel={showLabel}
+      activePrefix="/reports"
+      buildTarget={cameraId => `/reports/${cameraId}/${format(new Date(), 'yyyy-MM-dd')}/1`}
+    />
+  )
+}
+
+// RecordingsFlyout — "Gravações" segue o mesmo estilo de submenu de "Relatórios"
+// (pedido do navigator): lista de câmeras → histórico da câmera clicada
+// (/history/:cameraId, a página nova por câmera — ver routes.tsx/newRoutes),
+// em vez do link direto pro /recordings global.
+function RecordingsFlyout({ showLabel }: { showLabel: boolean }) {
+  return (
+    <CameraListFlyout
+      id="sidebar-gravacoes"
+      label="Gravações"
+      icon={<Film className="h-5 w-5 shrink-0" />}
+      showLabel={showLabel}
+      activePrefix="/history"
+      buildTarget={cameraId => `/history/${cameraId}`}
+    />
+  )
 }
 
 // SettingsFlyout — botão "Configurações" que abre um flyout (portal, posicionado
@@ -218,42 +328,55 @@ export default function Sidebar() {
       id="sidebar"
       aria-label="Navegação"
       className={cn(
-        'flex shrink-0 flex-col gap-1 border-r border-border bg-surface py-3 transition-[width]',
-        showLabel ? 'w-48 items-stretch px-2' : 'w-14 items-center',
+        'flex shrink-0 flex-col border-r border-border bg-surface transition-[width]',
+        showLabel ? 'w-48 items-stretch' : 'w-14 items-center',
       )}
     >
-      {items.map(item => (
-        <NavLink
-          key={item.id}
-          id={item.id}
-          to={item.to}
-          end={item.end}
-          title={item.label}
-          aria-label={item.label}
-          className={({ isActive }) => navItemClass(isActive, showLabel)}
-        >
-          {item.icon}
-          {showLabel && <span className="truncate text-sm">{item.label}</span>}
-        </NavLink>
-      ))}
-      <div className="flex-1" />
-      <div
-        id="sidebar-bottom"
-        className={cn('flex flex-col gap-1 border-t border-border pt-2', showLabel ? 'items-stretch' : 'items-center')}
+      <Link
+        to="/"
+        id="sidebar-logo"
+        className={cn('flex items-center h-14 hover:opacity-80 transition-opacity border-b border-border flex-none', showLabel ? 'gap-2 px-4' : 'justify-center')}
+        title="os-camera"
       >
-        <button
-          id="sidebar-collapse"
-          type="button"
-          onClick={toggleCollapse}
-          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          className={cn(navItemClass(false, showLabel))}
+        <CameraLogo className="w-8 h-8 shrink-0" />
+        {showLabel && <span className="text-sm font-semibold text-foreground truncate">os-camera</span>}
+      </Link>
+      <div className={cn('flex flex-1 flex-col gap-1 py-3', showLabel ? 'items-stretch px-2' : 'items-center')}>
+        {items.map(item => (
+          <NavLink
+            key={item.id}
+            id={item.id}
+            to={item.to}
+            end={item.end}
+            title={item.label}
+            aria-label={item.label}
+            className={({ isActive }) => navItemClass(isActive, showLabel)}
+          >
+            {item.icon}
+            {showLabel && <span className="truncate text-sm">{item.label}</span>}
+          </NavLink>
+        ))}
+        <RecordingsFlyout showLabel={showLabel} />
+        <ReportsFlyout showLabel={showLabel} />
+        <div className="flex-1" />
+        <div
+          id="sidebar-bottom"
+          className={cn('flex flex-col gap-1 border-t border-border pt-2', showLabel ? 'items-stretch' : 'items-center')}
         >
-          <ChevronLeft className={cn('h-5 w-5 shrink-0', collapsed && 'rotate-180')} />
-          {showLabel && <span className="truncate text-sm">Recolher menu</span>}
-        </button>
-        <SettingsFlyout showLabel={showLabel} />
-        <UserMenu showLabel={showLabel} />
+          <button
+            id="sidebar-collapse"
+            type="button"
+            onClick={toggleCollapse}
+            title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+            aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+            className={cn(navItemClass(false, showLabel))}
+          >
+            <ChevronLeft className={cn('h-5 w-5 shrink-0', collapsed && 'rotate-180')} />
+            {showLabel && <span className="truncate text-sm">Recolher menu</span>}
+          </button>
+          <SettingsFlyout showLabel={showLabel} />
+          <UserMenu showLabel={showLabel} />
+        </div>
       </div>
     </nav>
   )

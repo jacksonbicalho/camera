@@ -7,6 +7,7 @@ const CameraPage = lazy(() => import('./pages/CameraPage'))
 const LivePage = lazy(() => import('./pages/LivePage'))
 const HistoryPage = lazy(() => import('./pages/HistoryPage'))
 const VideoBrowserPage = lazy(() => import('./pages/VideoBrowserPage'))
+const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation()
@@ -33,6 +34,7 @@ export const newRoutes = (
     <Route path="/history/:cameraId/:recordingId" element={<Lazy><HistoryPage /></Lazy>} />
     <Route path="/recording/:cameraId/:recordingId" element={<Lazy><VideoBrowserPage /></Lazy>} />
     <Route path="/recording/:cameraId/:recordingId/:motionId" element={<Lazy><VideoBrowserPage /></Lazy>} />
+    <Route path="/reports/:cameraId/:date/:days" element={<Lazy><ReportsPage /></Lazy>} />
   </>
 )
 
