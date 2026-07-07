@@ -81,6 +81,11 @@ export default function HistoryPage() {
   const pendingSelectRef = useRef<number | null>(null)
   const [camera, setCamera] = useState<Camera | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Gravação da URL (:recordingId) não encontrada — mostrado como overlay no PLAYER (tela preta
+  // + mensagem centralizada), não como banner no topo da página: só faz sentido junto do player,
+  // que já cai pro dia atual nesse caso (diferente de "Câmera não encontrada", que não tem
+  // player nenhum pra mostrar — esse continua no banner `error` do topo).
+  const [recordingNotFound, setRecordingNotFound] = useState(false)
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [events, setEvents] = useState<MotionEvent[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -100,6 +105,15 @@ export default function HistoryPage() {
   const [hasMore, setHasMore] = useState(false)
   const [page, setPage] = useState(1)
   const [loadingMore, setLoadingMore] = useState(false)
+  // Espelha `page` pro poll ler sem fechar sobre um valor obsoleto — sem entrar nas deps do
+  // useEffect do poll, que senão reiniciaria o intervalo a cada "Carregar mais".
+  const pageRef = useRef(1)
+  // Total REAL de gravações do dia (campo `total` da API — contagem no filesystem, não afetada
+  // por paginação), exclui a gravação em andamento (mesmo critério que já exclui `is_recording`
+  // do filmstrip). `recordings.length` NÃO serve pro contador: cresce com o que o poll/"Carregar
+  // mais" foi acumulando em tela, sem nunca refletir uma exclusão pelo `storage.Cleaner` fora da
+  // janela carregada — dava pra "a contagem chega a 22/23, recarrega a página e mostra 19".
+  const [dayTotal, setDayTotal] = useState<number | null>(null)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const zoom = usePlayerZoom(() => videoRef.current)
@@ -115,7 +129,7 @@ export default function HistoryPage() {
     gateway.getRecording(cameraId, targetId).then(meta => {
       if (cancelled) return
       if (!meta) {
-        setError('Gravação não encontrada.')
+        setRecordingNotFound(true)
         setSelectedDate(new Date())
         return
       }
@@ -127,6 +141,18 @@ export default function HistoryPage() {
       cancelled = true
     }
   }, [cameraId, initialRecordingId])
+
+  // Some sozinho depois de um tempo pro usuário ler — NÃO fica condicionado a nenhum efeito de
+  // carregamento terminar (ex.: `camera`/`recordings` resolvendo) porque isso corria risco de
+  // limpar o aviso ANTES do player (que só monta com `camera` carregada) sequer ter chance de
+  // renderizá-lo uma vez — na prática (fetches reais, ordem de resolução não determinística) o
+  // usuário nunca via a mensagem. Um timer próprio garante que, uma vez montado, o overlay fica
+  // visível por um tempo fixo independente da corrida entre os outros carregamentos.
+  useEffect(() => {
+    if (!recordingNotFound) return
+    const timer = setTimeout(() => setRecordingNotFound(false), 5_000)
+    return () => clearTimeout(timer)
+  }, [recordingNotFound])
 
   useEffect(() => {
     if (!cameraId) return
@@ -175,6 +201,8 @@ export default function HistoryPage() {
       let currentPage = 1
       let recs: Recording[] = []
       let more: boolean
+      let total: number
+      let sawActive = false
       for (;;) {
         const recRes = await loadRecordingsData(cameraId!, selectedDate!, currentPage, 'desc', PAGE_SIZE)
         if (cancelled) return
@@ -184,6 +212,8 @@ export default function HistoryPage() {
         }
         recs = [...recs, ...recRes.recordings.filter(r => !r.is_recording)]
         more = recRes.hasMore
+        total = recRes.total
+        if (recRes.recordings.some(r => r.is_recording)) sawActive = true
         // Sem alvo pendente (navegação normal): só a 1ª página, mesmo que hasMore — a
         // paginação automática é só pra achar uma gravação específica vinda da URL.
         if (pending == null) break
@@ -195,6 +225,8 @@ export default function HistoryPage() {
       setEvents(evs)
       setHasMore(more)
       setPage(currentPage)
+      pageRef.current = currentPage
+      setDayTotal(total - (sawActive ? 1 : 0))
       pendingSelectRef.current = null
       const initial = pending != null && recs.some(r => r.id === pending) ? pending : recs.length > 0 ? recs[0].id : null
       setSelectedId(initial)
@@ -210,13 +242,14 @@ export default function HistoryPage() {
 
   // Poll pra manter a lista/contador atualizados sem precisar recarregar a página (mesmo
   // cadência do CameraPage: 5s pro dia de hoje — chunks novos terminando —, 30s pra dias
-  // passados). Só re-busca a 1ª página (é onde gravações novas aparecem — páginas mais antigas
-  // já carregadas via "Carregar mais" não mudam) e mescla com `mergeRecordings`, que preserva
-  // essas páginas antigas fora da janela da página 1 (`hasMore=true` nela sinaliza que há mais
-  // gravações além do que essa página cobre). Nunca mexe em `selectedId`/`videoLoading`/`page`
-  // — não interrompe a reprodução nem invalida o "Carregar mais" que o usuário já clicou.
-  // `mergeRecordings` devolve a MESMA referência quando nada mudou, evitando remount do
-  // <video> (key={selected.id}) à toa.
+  // passados). Re-busca TODA a janela já carregada (page*PAGE_SIZE, não só a página 1) numa
+  // chamada só — é a única forma de `mergeRecordings` enxergar uma gravação que já estava em
+  // tela e foi apagada pelo `storage.Cleaner` (retenção tende a apagar as mais antigas, que
+  // ficam justamente fora da página 1 depois de "Carregar mais"); itens além do que já foi
+  // carregado continuam preservados via `hasMore`. Nunca mexe em `selectedId`/`videoLoading`/
+  // `page` — não interrompe a reprodução nem invalida o "Carregar mais" que o usuário já
+  // clicou. `mergeRecordings` devolve a MESMA referência quando nada mudou, evitando remount
+  // do <video> (key={selected.id}) à toa.
   useEffect(() => {
     if (!cameraId || !selectedDate) return
     const today = new Date()
@@ -227,7 +260,7 @@ export default function HistoryPage() {
 
     const interval = setInterval(async () => {
       const [recRes, evs] = await Promise.all([
-        loadRecordingsData(cameraId, selectedDate, 1, 'desc', PAGE_SIZE),
+        loadRecordingsData(cameraId, selectedDate, 1, 'desc', pageRef.current * PAGE_SIZE),
         loadMotionEvents(cameraId, selectedDate),
       ])
       if (recRes === 401) {
@@ -237,6 +270,7 @@ export default function HistoryPage() {
       const recs = recRes.recordings.filter(r => !r.is_recording)
       setRecordings(prev => mergeRecordings(prev, recs, 'desc', recRes.hasMore))
       setEvents(evs)
+      setDayTotal(recRes.total - (recRes.recordings.some(r => r.is_recording) ? 1 : 0))
     }, isToday ? 5_000 : 30_000)
 
     return () => clearInterval(interval)
@@ -260,6 +294,16 @@ export default function HistoryPage() {
     const target = selectedId != null ? `/history/${cameraId}/${selectedId}` : `/history/${cameraId}`
     if (location.pathname !== target) navigate(target, { replace: true })
   }, [cameraId, selectedId, readyForUrlSync, location.pathname, navigate])
+
+  // A gravação selecionada pode sumir de `recordings` sem nenhuma ação do usuário — o poll
+  // removeu ela porque o storage.Cleaner apagou o arquivo (mergeRecordings). Sem essa correção,
+  // `selected` virava null e o player caía em "Sem gravações nesse dia" mesmo com outras
+  // gravações do dia ainda disponíveis; troca pra mais recente ainda existente. Ajuste durante o
+  // render (mesmo padrão do `playingForId` abaixo), não useEffect+setState.
+  if (selectedId != null && recordings.length > 0 && !recordings.some(r => r.id === selectedId)) {
+    setSelectedId(recordings[0].id)
+    setVideoLoading(true)
+  }
 
   const selected = useMemo(() => recordings.find(r => r.id === selectedId) ?? null, [recordings, selectedId])
 
@@ -327,6 +371,8 @@ export default function HistoryPage() {
       })
       setHasMore(recRes.hasMore)
       setPage(nextPage)
+      pageRef.current = nextPage
+      setDayTotal(recRes.total - (recRes.recordings.some(r => r.is_recording) ? 1 : 0))
     } finally {
       setLoadingMore(false)
     }
@@ -412,6 +458,18 @@ export default function HistoryPage() {
                   Sem gravações nesse dia.
                 </div>
               )}
+              {recordingNotFound && (
+                // Overlay (não um branch exclusivo do ternário acima): assim, uma vez montado,
+                // é exibido garantidamente por cima do que já estiver no player (vídeo ou "Sem
+                // gravações"), independente de qual carregamento (câmera/gravações) terminou
+                // primeiro — ver comentário no useEffect do timer de dismiss.
+                <div
+                  id="history-recording-not-found"
+                  className="absolute inset-0 flex items-center justify-center bg-black text-body text-danger"
+                >
+                  Gravação não encontrada.
+                </div>
+              )}
             </div>
           </CameraStageHeader>
         )}
@@ -419,7 +477,7 @@ export default function HistoryPage() {
           <div id="history-recordings" className="rounded-lg border border-border p-2">
             <div className="mb-1.5 flex items-center justify-between">
               <p className="text-caption font-medium uppercase tracking-wide text-muted">
-                {recordings.length > 0 ? `Gravações · ${recordings.length}` : 'Gravações'}
+                {dayTotal ? `Gravações · ${dayTotal}` : 'Gravações'}
               </p>
               <DatePicker
                 id="history-date-picker"
