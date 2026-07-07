@@ -21,6 +21,11 @@ interface Camera {
 // `end` não veio na API — mesmo fallback de tamanho usado no Filmstrip legado.
 const CHUNK_FALLBACK_MS = 5 * 60_000
 
+// Quantidade de gravações buscada por página — não o dia inteiro de uma vez (que podia
+// significar centenas de chunks). ~2x o que cabe visível num filmstrip de cards w-32 numa
+// coluna page-content; o resto carrega sob demanda ("Carregar mais").
+const PAGE_SIZE = 20
+
 const CAT_BORDER: Record<RecordingCategory, string> = {
   continua: 'border-blue-500',
   movimento: 'border-amber-400',
@@ -89,6 +94,12 @@ export default function HistoryPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => (initialRecordingId ? null : new Date()))
   const [availableDays, setAvailableDays] = useState<string[]>([])
   const [readyForUrlSync, setReadyForUrlSync] = useState(!initialRecordingId)
+  // Paginação do filmstrip: `recordings` acumula as páginas já carregadas (sempre em ordem
+  // cronológica DECRESCENTE — mais recente primeiro), `page` é a última página carregada,
+  // `hasMore` indica se o dia tem mais gravações além do que já foi buscado.
+  const [hasMore, setHasMore] = useState(false)
+  const [page, setPage] = useState(1)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const zoom = usePlayerZoom(() => videoRef.current)
@@ -154,19 +165,36 @@ export default function HistoryPage() {
     let cancelled = false
 
     async function load() {
-      const [recRes, evs] = await Promise.all([
-        loadRecordingsData(cameraId!, selectedDate!, 1, 'asc', 0),
-        loadMotionEvents(cameraId!, selectedDate!),
-      ])
+      const pending = pendingSelectRef.current
+      const evs = await loadMotionEvents(cameraId!, selectedDate!)
       if (cancelled) return
-      if (recRes === 401) {
-        onUnauthorized()
-        return
+
+      // Busca a 1ª página (mais recentes) e, só se a URL compartilhável pedir uma gravação
+      // específica que não veio nessa página, continua paginando até achar ou até acabarem
+      // as páginas (hasMore). Navegação normal (sem :recordingId pendente) para na 1ª página.
+      let currentPage = 1
+      let recs: Recording[] = []
+      let more: boolean
+      for (;;) {
+        const recRes = await loadRecordingsData(cameraId!, selectedDate!, currentPage, 'desc', PAGE_SIZE)
+        if (cancelled) return
+        if (recRes === 401) {
+          onUnauthorized()
+          return
+        }
+        recs = [...recs, ...recRes.recordings.filter(r => !r.is_recording)]
+        more = recRes.hasMore
+        // Sem alvo pendente (navegação normal): só a 1ª página, mesmo que hasMore — a
+        // paginação automática é só pra achar uma gravação específica vinda da URL.
+        if (pending == null) break
+        if (recs.some(r => r.id === pending) || !more) break
+        currentPage += 1
       }
-      const recs = recRes.recordings.filter(r => !r.is_recording)
+
       setRecordings(recs)
       setEvents(evs)
-      const pending = pendingSelectRef.current
+      setHasMore(more)
+      setPage(currentPage)
       pendingSelectRef.current = null
       const initial = pending != null && recs.some(r => r.id === pending) ? pending : recs.length > 0 ? recs[0].id : null
       setSelectedId(initial)
@@ -182,9 +210,13 @@ export default function HistoryPage() {
 
   // Poll pra manter a lista/contador atualizados sem precisar recarregar a página (mesmo
   // cadência do CameraPage: 5s pro dia de hoje — chunks novos terminando —, 30s pra dias
-  // passados). Só atualiza `recordings`/`events`; nunca mexe em `selectedId`/`videoLoading`,
-  // então não interrompe a reprodução em andamento. `mergeRecordings` devolve a MESMA
-  // referência quando nada mudou, evitando remount do <video> (key={selected.id}) à toa.
+  // passados). Só re-busca a 1ª página (é onde gravações novas aparecem — páginas mais antigas
+  // já carregadas via "Carregar mais" não mudam) e mescla com `mergeRecordings`, que preserva
+  // essas páginas antigas fora da janela da página 1 (`hasMore=true` nela sinaliza que há mais
+  // gravações além do que essa página cobre). Nunca mexe em `selectedId`/`videoLoading`/`page`
+  // — não interrompe a reprodução nem invalida o "Carregar mais" que o usuário já clicou.
+  // `mergeRecordings` devolve a MESMA referência quando nada mudou, evitando remount do
+  // <video> (key={selected.id}) à toa.
   useEffect(() => {
     if (!cameraId || !selectedDate) return
     const today = new Date()
@@ -195,7 +227,7 @@ export default function HistoryPage() {
 
     const interval = setInterval(async () => {
       const [recRes, evs] = await Promise.all([
-        loadRecordingsData(cameraId, selectedDate, 1, 'asc', 0),
+        loadRecordingsData(cameraId, selectedDate, 1, 'desc', PAGE_SIZE),
         loadMotionEvents(cameraId, selectedDate),
       ])
       if (recRes === 401) {
@@ -203,7 +235,7 @@ export default function HistoryPage() {
         return
       }
       const recs = recRes.recordings.filter(r => !r.is_recording)
-      setRecordings(prev => mergeRecordings(prev, recs, 'asc', recRes.hasMore))
+      setRecordings(prev => mergeRecordings(prev, recs, 'desc', recRes.hasMore))
       setEvents(evs)
     }, isToday ? 5_000 : 30_000)
 
@@ -231,11 +263,12 @@ export default function HistoryPage() {
 
   const selected = useMemo(() => recordings.find(r => r.id === selectedId) ?? null, [recordings, selectedId])
 
-  // Duração calculada na ordem cronológica original (precisa do próximo cronológico pra
-  // inferir o fim quando `end` não veio) e só ENTÃO invertida pra exibição — a mais recente
-  // cai à esquerda no filmstrip sem bagunçar o fallback de duração.
+  // `recordings` já vem em ordem decrescente (mais recente primeiro — pedido igual à exibição
+  // do filmstrip, sem precisar reverter). O "próximo cronológico" (pra inferir a duração quando
+  // `end` não veio) de um item no índice `i` é o índice ANTERIOR (`i - 1`), que é mais recente
+  // que ele nessa ordem — o mais recente de todos (índice 0) não tem "próximo".
   const filmstripItems = useMemo(
-    () => recordings.map((rec, i) => ({ rec, duration: formatDuration(rec, recordings[i + 1]) })).reverse(),
+    () => recordings.map((rec, i) => ({ rec, duration: formatDuration(rec, recordings[i - 1]) })),
     [recordings],
   )
 
@@ -272,6 +305,31 @@ export default function HistoryPage() {
     if (id === selectedId) return
     setSelectedId(id)
     setVideoLoading(true)
+  }
+
+  // "Carregar mais" — busca a próxima página (mais antiga) sob demanda e concatena no fim do
+  // filmstrip (que já está em ordem decrescente, então a página nova continua a sequência).
+  // Filtra por id pra não duplicar se, por azar, sobrepuser algo que o poll já trouxe.
+  async function loadMore() {
+    if (!cameraId || !selectedDate || loadingMore || !hasMore) return
+    setLoadingMore(true)
+    try {
+      const nextPage = page + 1
+      const recRes = await loadRecordingsData(cameraId, selectedDate, nextPage, 'desc', PAGE_SIZE)
+      if (recRes === 401) {
+        onUnauthorized()
+        return
+      }
+      const newRecs = recRes.recordings.filter(r => !r.is_recording)
+      setRecordings(prev => {
+        const existing = new Set(prev.map(r => r.id))
+        return [...prev, ...newRecs.filter(r => !existing.has(r.id))]
+      })
+      setHasMore(recRes.hasMore)
+      setPage(nextPage)
+    } finally {
+      setLoadingMore(false)
+    }
   }
 
   return (
@@ -415,6 +473,17 @@ export default function HistoryPage() {
                     </button>
                   )
                 })}
+                {hasMore && (
+                  <button
+                    id="history-load-more"
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="flex h-16 w-24 shrink-0 flex-col items-center justify-center gap-1 rounded border-2 border-dashed border-border text-caption text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+                  >
+                    {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Carregar mais'}
+                  </button>
+                )}
               </div>
             )}
           </div>
