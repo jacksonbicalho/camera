@@ -7,7 +7,12 @@ interface CameraViewTabsProps {
   active: 'live' | 'history'
 }
 
-const label = 'relative z-10 flex-1 flex items-center justify-center gap-1.5 whitespace-nowrap px-4 py-1.5 text-body font-medium transition-colors'
+// h-full (não py-1.5): a pílula tem altura FIXA (h-8, ver <nav>) igual ao line-height do
+// título (text-h1/text-2xl, 2rem) — antes a altura vinha só do padding vertical do botão,
+// maior que a do título, e o `items-center` do PageHeader centralizava as duas caixas com
+// alturas bem diferentes, dando a impressão de desalinhamento (o texto do título, com seu
+// próprio leading interno, ficava visualmente mais baixo que a pílula).
+const label = 'relative z-10 flex-1 flex h-full items-center justify-center gap-1.5 whitespace-nowrap px-4 text-body font-medium transition-colors'
 const activeLabelCls = 'text-foreground'
 const idleLabelCls = 'text-muted-foreground hover:text-foreground'
 
@@ -74,7 +79,7 @@ export default function CameraViewTabs({ cameraId, active }: CameraViewTabsProps
     <nav
       id="camera-view-tabs"
       aria-label="Visão da câmera"
-      className="relative flex items-center rounded-full border border-border bg-foreground/8 p-1"
+      className="relative flex h-8 items-center rounded-full border border-border bg-foreground/8 p-1"
     >
       <span
         id="camera-tab-glider"

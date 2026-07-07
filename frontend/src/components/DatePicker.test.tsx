@@ -22,6 +22,13 @@ describe('DatePicker', () => {
     expect(document.getElementById('dp-popover')).toBeNull()
   })
 
+  it('openUp: popover abre pra cima (bottom-full), não pra baixo — evita ficar escondido perto do rodapé', () => {
+    render(<DatePicker id="dp" value={new Date(2026, 5, 15)} onChange={() => {}} openUp />)
+    fireEvent.click(document.getElementById('dp')!)
+    expect(document.getElementById('dp-popover')?.className).toContain('bottom-full')
+    expect(document.getElementById('dp-popover')?.className).not.toContain('mt-1')
+  })
+
   it('com availableDays: dia sem conteúdo fica desabilitado, dia com conteúdo habilitado', () => {
     const onChange = vi.fn()
     render(

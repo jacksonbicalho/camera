@@ -58,6 +58,14 @@ afterEach(() => {
 })
 
 describe('LivePage', () => {
+  it('conteúdo usa a largura padrão compartilhada (.page-content — mesma classe de Histórico/Reprodução)', async () => {
+    renderAt('/live/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('live-content')).not.toBeNull()
+    })
+    expect(document.getElementById('live-content')?.className).toContain('page-content')
+  })
+
   it('header com nome da câmera, tab "Ao vivo" ativa (dot maior/pulsante) e player (HLSPlayer com src correto)', async () => {
     renderAt('/live/cam1')
     await waitFor(() => {

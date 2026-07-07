@@ -50,3 +50,13 @@ a,
 .rdp-nav button[aria-disabled="true"] .rdp-chevron {
   fill: currentColor;
 }
+
+/* Largura padrão do conteúdo nas páginas novas (Layout: LivePage/HistoryPage/
+   VideoBrowserPage) — fonte única, pra garantir a MESMA largura nas três (antes cada
+   página repetia `mx-auto w-full max-w-*` na mão, e acabaram divergindo). Pra mudar a
+   largura padrão de todas de uma vez, mexe só aqui. */
+.page-content {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 80rem; /* 1280px — mesmo valor de max-w-7xl (Tailwind), usado também no `wide` do SettingsLayout */
+}

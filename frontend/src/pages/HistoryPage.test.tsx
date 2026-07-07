@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 
 // RecordingsGateway captura globalThis.fetch no construtor e a instância nasce no nível do
@@ -122,12 +122,13 @@ describe('HistoryPage', () => {
     expect(document.getElementById('camera-tab-live')?.getAttribute('href')).toBe('/live/cam1')
   })
 
-  it('mesma largura de conteúdo que a LivePage (max-w-5xl)', async () => {
+  it('conteúdo usa a largura padrão compartilhada (.page-content — mesma largura de Ao vivo/Reprodução)', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
       expect(document.getElementById('history-content')).not.toBeNull()
     })
-    expect(document.getElementById('history-content')?.className).toContain('max-w-5xl')
+    expect(document.getElementById('history-content')?.className).toContain('page-content')
+    expect(document.getElementById('history-content')?.className).not.toContain('max-w-5xl')
   })
 
   it('toca a gravação mais antiga do dia por padrão e lista as demais no filmstrip', async () => {
@@ -138,6 +139,115 @@ describe('HistoryPage', () => {
     expect(document.getElementById('history-recording-1')?.getAttribute('aria-current')).toBe('true')
     const video = document.getElementById('history-player-video') as HTMLVideoElement
     expect(video.getAttribute('src')).toBe('/recordings/cam1/a.mp4?token=tok')
+    expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
+  })
+
+  it('rola o filmstrip até o card ativo (scrollIntoView) — essencial ao abrir a URL compartilhável de uma gravação distante na lista', async () => {
+    const scrollIntoView = vi.fn()
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+      })
+      expect(scrollIntoView).toHaveBeenCalledWith(
+        expect.objectContaining({ inline: 'center', block: 'nearest' }),
+      )
+      scrollIntoView.mockClear()
+      document.getElementById('history-recording-2')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(scrollIntoView).toHaveBeenCalled()
+      })
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+  })
+
+  it('filmstrip lista da mais recente pra mais antiga (esquerda pra direita)', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
+    })
+    const older = document.getElementById('history-recording-1')!
+    const newer = document.getElementById('history-recording-2')!
+    // DOCUMENT_POSITION_FOLLOWING (4): `newer` vem DEPOIS de `older` no argumento — ou seja,
+    // `older` precisa aparecer ANTES de `newer` no DOM pra esse bit não estar setado. Aqui
+    // queremos o oposto: `newer` (b.mp4, mais recente) primeiro no DOM.
+    expect(newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('bloco de gravações tem borda suave; a lista (scroll horizontal) usa scrollbar fino', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recordings')).not.toBeNull()
+    })
+    expect(document.getElementById('history-recordings')?.className).toContain('border-border')
+    expect(document.getElementById('history-recordings')?.className).toContain('rounded-lg')
+    const list = document.getElementById('history-recordings-list')
+    expect(list?.className).toContain('[&::-webkit-scrollbar]:h-1')
+    expect(list?.className).toContain('[&::-webkit-scrollbar-thumb]:rounded-full')
+  })
+
+  it('card ativo usa a cor de destaque como fundo (bg-primary/15 + border-primary) e pisca enquanto o vídeo toca', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-1')).not.toBeNull()
+    })
+    const active = document.getElementById('history-recording-1')!
+    expect(active.className).toContain('bg-primary/15')
+    expect(active.className).toContain('border-primary')
+    expect(active.getAttribute('style')).toContain('filmstrip-blink')
+
+    const inactive = document.getElementById('history-recording-2')!
+    expect(inactive.className).toContain('bg-surface-2')
+    expect(inactive.className).not.toContain('bg-primary/15')
+    expect(inactive.getAttribute('style') ?? '').not.toContain('filmstrip-blink')
+  })
+
+  it('pausar o vídeo para o pisca do card ativo (só pisca tocando de verdade, não só selecionado)', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-1')).not.toBeNull()
+    })
+    const video = document.getElementById('history-player-video') as HTMLVideoElement
+    video.dispatchEvent(new Event('pause'))
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-1')?.getAttribute('style') ?? '').not.toContain('filmstrip-blink')
+    })
+  })
+
+  it('duração exibida no card continua correta com o filmstrip invertido (usa o próximo cronológico, não o índice invertido)', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-1')).not.toBeNull()
+    })
+    // a.mp4: start 07:12:00, end 07:12:42 → 0:42 (usa `end`, não depende de ordem)
+    expect(document.getElementById('history-recording-1')?.textContent).toContain('0:42')
+  })
+
+  it('card mostra a hora em formato 24h com segundos (HH:MM:SS, sem AM/PM)', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-1')).not.toBeNull()
+    })
+    // Sem \b: o textContent concatena a duração ("0:42") direto com a hora ("07:12:00"),
+    // sem espaço entre os dígitos — não há fronteira de palavra entre "2" e "0".
+    const text = document.getElementById('history-recording-1')?.textContent ?? ''
+    expect(text).toMatch(/([01]\d|2[0-3]):[0-5]\d:[0-5]\d/)
+    expect(text).not.toMatch(/AM|PM/i)
+  })
+
+  it('gravação em andamento (is_recording) não aparece no filmstrip nem no contador', async () => {
+    stubFetch([
+      ...recordings,
+      { id: 4, filename: 'd.mp4', start: '2026-07-05T09:00:00Z', url: '/recordings/cam1/d.mp4', is_recording: true, has_motion: false },
+    ])
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-1')).not.toBeNull()
+    })
+    expect(document.getElementById('history-recording-4')).toBeNull()
     expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
   })
 
@@ -222,6 +332,77 @@ describe('HistoryPage', () => {
     await waitFor(() => {
       expect(document.getElementById('history-player-loading')).not.toBeNull()
     })
+  })
+
+  it('erro ao carregar o vídeo mostra mensagem e para o loading (em vez de girar pra sempre)', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-player-video')).not.toBeNull()
+    })
+    const video = document.getElementById('history-player-video') as HTMLVideoElement
+    video.dispatchEvent(new Event('error'))
+    await waitFor(() => {
+      expect(document.getElementById('history-player-error')).not.toBeNull()
+    })
+    expect(document.getElementById('history-player-loading')).toBeNull()
+  })
+
+  it('erro de uma gravação some ao trocar pra outra (não gruda no card seguinte)', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-player-video')).not.toBeNull()
+    })
+    const video = document.getElementById('history-player-video') as HTMLVideoElement
+    video.dispatchEvent(new Event('error'))
+    await waitFor(() => {
+      expect(document.getElementById('history-player-error')).not.toBeNull()
+    })
+    document.getElementById('history-recording-2')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(document.getElementById('history-player-error')).toBeNull()
+    })
+  })
+
+  it('clicar no card já ativo não trava o loading (o <video> não remonta, "loadeddata" não dispara de novo)', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-player-video')).not.toBeNull()
+    })
+    const video = document.getElementById('history-player-video') as HTMLVideoElement
+    video.dispatchEvent(new Event('loadeddata'))
+    await waitFor(() => {
+      expect(document.getElementById('history-player-loading')).toBeNull()
+    })
+
+    document.getElementById('history-recording-1')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(document.getElementById('history-player-loading')).toBeNull()
+  })
+
+  it('lista de gravações atualiza sozinha via poll (sem precisar recarregar a página)', async () => {
+    // `waitFor` não avança sob fake timers (trava o teste e vaza os fake timers pros
+    // testes seguintes) — flush do carregamento inicial e do poll via
+    // `advanceTimersByTimeAsync`, sem `waitFor`, o tempo todo sob fake timers.
+    vi.useFakeTimers()
+    try {
+      renderAt('/history/cam1')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(document.getElementById('history-recording-1')).not.toBeNull()
+      expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
+
+      stubFetch([
+        ...recordings,
+        { id: 5, filename: 'e.mp4', start: '2026-07-05T10:00:00Z', end: '2026-07-05T10:01:00Z', url: '/recordings/cam1/e.mp4', is_recording: false, has_motion: false },
+      ])
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(document.getElementById('history-recording-5')).not.toBeNull()
+      expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 3')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('câmera inexistente → bloco de erro #history-error', async () => {

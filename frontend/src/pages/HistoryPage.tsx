@@ -7,7 +7,7 @@ import DatePicker from '../components/DatePicker'
 import { Loader2, Play } from '../components/Icons'
 import PlayerControlsOverlay from '../components/PlayerControlsOverlay'
 import { usePlayerZoom } from '../hooks/usePlayerZoom'
-import { loadMotionEvents, loadRecordingsData, type MotionEvent, type Recording } from './cameraUtils'
+import { loadMotionEvents, loadRecordingsData, mergeRecordings, type MotionEvent, type Recording } from './cameraUtils'
 import { recordingCategory, type RecordingCategory } from './eventCategory'
 import { RecordingsGateway } from '../lib/recordingsGateway'
 
@@ -44,7 +44,12 @@ function formatDuration(rec: Recording, next: Recording | undefined): string | n
 }
 
 function formatClockTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
 }
 
 const gateway = new RecordingsGateway()
@@ -75,6 +80,12 @@ export default function HistoryPage() {
   const [events, setEvents] = useState<MotionEvent[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [videoLoading, setVideoLoading] = useState(true)
+  // Alimenta o "pisca" do card ativo no filmstrip (igual ao Filmstrip.tsx legado) — só pisca
+  // enquanto o vídeo está de fato tocando, não só "selecionado" (usuário pode pausar).
+  const [playing, setPlaying] = useState(true)
+  // Sem "onError", uma gravação que falha em carregar (arquivo ausente/corrompido, rede lenta)
+  // deixava o spinner de loading girando pra sempre — nunca chegava a "onLoadedData".
+  const [videoError, setVideoError] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => (initialRecordingId ? null : new Date()))
   const [availableDays, setAvailableDays] = useState<string[]>([])
   const [readyForUrlSync, setReadyForUrlSync] = useState(!initialRecordingId)
@@ -169,6 +180,36 @@ export default function HistoryPage() {
     }
   }, [cameraId, selectedDate])
 
+  // Poll pra manter a lista/contador atualizados sem precisar recarregar a página (mesmo
+  // cadência do CameraPage: 5s pro dia de hoje — chunks novos terminando —, 30s pra dias
+  // passados). Só atualiza `recordings`/`events`; nunca mexe em `selectedId`/`videoLoading`,
+  // então não interrompe a reprodução em andamento. `mergeRecordings` devolve a MESMA
+  // referência quando nada mudou, evitando remount do <video> (key={selected.id}) à toa.
+  useEffect(() => {
+    if (!cameraId || !selectedDate) return
+    const today = new Date()
+    const isToday =
+      selectedDate.getFullYear() === today.getFullYear() &&
+      selectedDate.getMonth() === today.getMonth() &&
+      selectedDate.getDate() === today.getDate()
+
+    const interval = setInterval(async () => {
+      const [recRes, evs] = await Promise.all([
+        loadRecordingsData(cameraId, selectedDate, 1, 'asc', 0),
+        loadMotionEvents(cameraId, selectedDate),
+      ])
+      if (recRes === 401) {
+        onUnauthorized()
+        return
+      }
+      const recs = recRes.recordings.filter(r => !r.is_recording)
+      setRecordings(prev => mergeRecordings(prev, recs, 'asc', recRes.hasMore))
+      setEvents(evs)
+    }, isToday ? 5_000 : 30_000)
+
+    return () => clearInterval(interval)
+  }, [cameraId, selectedDate])
+
   // Dias com gravação ou evento — o calendário só habilita esses.
   useEffect(() => {
     if (!cameraId) return
@@ -190,6 +231,23 @@ export default function HistoryPage() {
 
   const selected = useMemo(() => recordings.find(r => r.id === selectedId) ?? null, [recordings, selectedId])
 
+  // Duração calculada na ordem cronológica original (precisa do próximo cronológico pra
+  // inferir o fim quando `end` não veio) e só ENTÃO invertida pra exibição — a mais recente
+  // cai à esquerda no filmstrip sem bagunçar o fallback de duração.
+  const filmstripItems = useMemo(
+    () => recordings.map((rec, i) => ({ rec, duration: formatDuration(rec, recordings[i + 1]) })).reverse(),
+    [recordings],
+  )
+
+  // Rola o filmstrip (scroll horizontal) até o card ativo entrar em vista, centralizado —
+  // sobretudo importante ao abrir a URL compartilhável de uma gravação específica
+  // (/history/:cameraId/:recordingId): sem isso, se a gravação estiver longe no filmstrip
+  // (dia com muitos chunks), o card destacado fica fora da área visível.
+  const activeCardRef = useRef<HTMLButtonElement | null>(null)
+  useEffect(() => {
+    activeCardRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [selectedId])
+
   // O <video> remonta a cada troca de gravação (key={selected.id}) — sem isso o zoom
   // acumulado ficaria "preso" no estado antigo (transform não reaplicado ao elemento novo).
   const resetZoom = zoom.reset
@@ -197,14 +255,37 @@ export default function HistoryPage() {
     resetZoom()
   }, [selectedId, resetZoom])
 
+  // <video> tem autoPlay — assume tocando até "onPause" provar o contrário. Ajuste durante o
+  // render (não useEffect+setState — dispararia um render extra e o eslint
+  // react-hooks/set-state-in-effect barra esse padrão), mesmo truque do CameraViewTabs.
+  const [playingForId, setPlayingForId] = useState(selectedId)
+  if (selectedId !== playingForId) {
+    setPlayingForId(selectedId)
+    setPlaying(true)
+    setVideoError(false)
+  }
+
   function selectRecording(id: number) {
+    // Clicar no card já ativo não é uma troca de verdade: `key={selected.id}` não muda, o
+    // <video> não remonta, e "onLoadedData" não dispara de novo — sem esse guard,
+    // `videoLoading` ficava travado em `true` até o usuário clicar noutro card.
+    if (id === selectedId) return
     setSelectedId(id)
     setVideoLoading(true)
   }
 
   return (
-    <Layout id="history-page" footerId="history-footer" contentClassName="p-4">
-      <div id="history-content" className="mx-auto w-full max-w-5xl space-y-4">
+    <Layout id="history-page" footerId="history-footer" contentClassName="p-6">
+      {/* .page-content: MESMA largura de Ao vivo/Reprodução (largura das páginas é padrão —
+          antes cada página tinha seu próprio max-w-* divergente). Histórico tem o filmstrip
+          abaixo do player, então soma mais altura que as outras duas — os espaçamentos abaixo
+          (space-y-2, margens do bloco de gravações, cards do filmstrip em h-16 em vez de h-20)
+          foram enxugados ao máximo pra ajudar a caber sem scroll (medido: mesmo com o dia
+          vazio, sem filmstrip nenhum, Histórico já soma ~50px a mais que Ao vivo em 1366×768 só
+          com o bloco "Gravações"/calendário — com o filmstrip real a diferença é maior). Ainda
+          assim pode rolar em viewports baixas — normal pra uma página com mais conteúdo vertical
+          que as outras, não um bug de layout a "consertar" estreitando o player ou a página. */}
+      <div id="history-content" className="page-content space-y-2">
         {error && (
           <div
             id="history-error"
@@ -242,15 +323,30 @@ export default function HistoryPage() {
                     autoPlay
                     muted
                     onLoadedData={() => setVideoLoading(false)}
+                    onPlay={() => setPlaying(true)}
+                    onPause={() => setPlaying(false)}
+                    onError={() => {
+                      setVideoLoading(false)
+                      setVideoError(true)
+                    }}
                   />
                   <PlayerControlsOverlay id="history-player-video" zoom={zoom} />
-                  {videoLoading && (
+                  {videoError ? (
                     <div
-                      id="history-player-loading"
-                      className="absolute inset-0 flex items-center justify-center bg-black/70"
+                      id="history-player-error"
+                      className="absolute inset-0 flex items-center justify-center bg-black/70 text-body text-danger"
                     >
-                      <Loader2 className="h-8 w-8 animate-spin text-white/70" />
+                      Não foi possível carregar a gravação.
                     </div>
+                  ) : (
+                    videoLoading && (
+                      <div
+                        id="history-player-loading"
+                        className="absolute inset-0 flex items-center justify-center bg-black/70"
+                      >
+                        <Loader2 className="h-8 w-8 animate-spin text-white/70" />
+                      </div>
+                    )
                   )}
                 </>
               ) : (
@@ -262,8 +358,8 @@ export default function HistoryPage() {
           </CameraStageHeader>
         )}
         {camera && (
-          <div id="history-recordings">
-            <div className="mb-2 flex items-center justify-between">
+          <div id="history-recordings" className="rounded-lg border border-border p-2">
+            <div className="mb-1.5 flex items-center justify-between">
               <p className="text-caption font-medium uppercase tracking-wide text-muted">
                 {recordings.length > 0 ? `Gravações · ${recordings.length}` : 'Gravações'}
               </p>
@@ -274,23 +370,34 @@ export default function HistoryPage() {
                 disableFuture
                 availableDays={availableDays}
                 align="right"
+                openUp
               />
             </div>
             {recordings.length > 0 && (
-              <div id="history-recordings-list" className="flex gap-2 overflow-x-auto pb-1">
-                {recordings.map((rec, i) => {
+              <div
+                id="history-recordings-list"
+                className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-surface-2"
+              >
+                {filmstripItems.map(({ rec, duration }) => {
                   const cat = recordingCategory(rec, events, CHUNK_FALLBACK_MS)
                   const active = rec.id === selectedId
-                  const duration = formatDuration(rec, recordings[i + 1])
+                  // Ativo: fundo na cor de destaque do usuário (mesma convenção do item ativo
+                  // da sidebar) + borda cheia (em vez da cor de categoria) + pisca (box-shadow,
+                  // keyframe já usado no Filmstrip legado) enquanto o vídeo está tocando de
+                  // verdade — só "selecionado" (pausado) não pisca. Cards inativos mantêm a
+                  // cor de categoria intacta (informação real, não deve ser ofuscada).
+                  const blinkStyle = active && playing ? { animation: 'filmstrip-blink 1.1s ease-in-out infinite' } : undefined
                   return (
                     <button
                       key={rec.id}
                       id={`history-recording-${rec.id}`}
+                      ref={active ? activeCardRef : undefined}
                       type="button"
                       onClick={() => selectRecording(rec.id)}
                       aria-current={active ? 'true' : undefined}
-                      className={`relative flex h-20 w-32 shrink-0 flex-col justify-between rounded border-2 bg-surface-2 p-1.5 text-left transition-colors ${
-                        active ? 'border-primary' : CAT_BORDER[cat]
+                      style={blinkStyle}
+                      className={`relative flex h-16 w-32 shrink-0 flex-col justify-between rounded border-2 p-1.5 text-left transition-colors ${
+                        active ? 'border-primary bg-primary/15' : `bg-surface-2 ${CAT_BORDER[cat]}`
                       }`}
                     >
                       <div className="flex items-center justify-between">

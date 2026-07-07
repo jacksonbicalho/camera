@@ -68,8 +68,7 @@ describe('VideoBrowserPage — estrutura visual', () => {
       expect(header!.textContent).toContain('Reprodução')
     })
     const content = document.getElementById('video-browser-content')!
-    expect(content.className).toContain('mx-auto')
-    expect(content.className).toContain('max-w-5xl')
+    expect(content.className).toContain('page-content')
     // #video-browser-meta foi removido (era redundante com o subtítulo do header).
     expect(document.getElementById('video-browser-meta')).toBeNull()
     // Link "Ao vivo" no header → /live/{cameraId}.
