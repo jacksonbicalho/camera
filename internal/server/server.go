@@ -361,6 +361,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/me/preferences", s.requireFullAuth(s.handleGetPreferences))
 	s.mux.HandleFunc("PUT /api/me/preferences", s.requireFullAuth(s.handleUpdatePreferences))
 
+	// Perfil: dados do usuário + troca de e-mail com código de confirmação.
+	s.mux.HandleFunc("GET /api/me", s.requireFullAuth(s.handleGetMe))
+	s.mux.HandleFunc("PUT /api/me", s.requireFullAuth(s.handleUpdateMe))
+	s.mux.HandleFunc("POST /api/me/email/request-change", s.requireFullAuth(s.handleRequestEmailChange))
+	s.mux.HandleFunc("POST /api/me/email/confirm-change", s.requireFullAuth(s.handleConfirmEmailChange))
+
 	s.mux.HandleFunc("GET /api/users", s.requireAdmin(s.handleListUsers))
 	s.mux.HandleFunc("POST /api/users", s.requireAdmin(s.handleCreateUser))
 	s.mux.HandleFunc("PUT /api/users/{id}", s.requireAdmin(s.handleUpdateUser))

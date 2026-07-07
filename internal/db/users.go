@@ -147,6 +147,22 @@ func SetUserName(db *DB, userID int64, name string) error {
 	return setUserSetting(db, userID, "name", name)
 }
 
+// SetUsername renames the user's login. `users.username` already has a DB-level UNIQUE
+// constraint, but we pre-check (same convention as SetUserEmail) for a friendly error
+// instead of surfacing the raw driver error.
+func SetUsername(db *DB, userID int64, username string) error {
+	var existingUserID int64
+	err := db.QueryRow(`SELECT id FROM users WHERE username=?`, username).Scan(&existingUserID)
+	if err == nil && existingUserID != userID {
+		return fmt.Errorf("username %q already in use", username)
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("check existing username: %w", err)
+	}
+	_, err = db.Exec(`UPDATE users SET username=? WHERE id=?`, username, userID)
+	return err
+}
+
 func scanUser(row *sql.Row) (User, error) {
 	var u User
 	var createdAt string

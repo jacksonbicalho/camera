@@ -4,10 +4,11 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { clearToken, getRole, getUsername } from '../auth'
 import { useUserNotifications } from '../contexts/UserNotificationContext'
+import { useDisplayMode, useSetDisplayMode } from '../contexts/DisplayModeContext'
 import { ADMIN_SETTINGS_LINKS, VIEWER_SETTINGS_LINKS } from './settingsNavLinks'
 import ThemeModeNav from './ThemeModeNav'
 import AccentSwatchNav from './AccentSwatchNav'
-import { BarChart2, Cctv, CircleUser, Film, Settings } from './Icons'
+import { BarChart2, Cctv, ChevronLeft, CircleUser, Film, Settings } from './Icons'
 
 interface NavItem {
   id: string
@@ -19,14 +20,15 @@ interface NavItem {
 }
 
 const items: NavItem[] = [
-  { id: 'sidebar-inicio', to: '/', label: 'Início', icon: <Cctv className="h-5 w-5" />, end: true },
+  { id: 'sidebar-cameras', to: '/', label: 'Todas as câmeras', icon: <Cctv className="h-5 w-5" />, end: true },
   { id: 'sidebar-gravacoes', to: '/recordings', label: 'Gravações', icon: <Film className="h-5 w-5" /> },
   { id: 'sidebar-relatorios', to: '/reports', label: 'Relatórios', icon: <BarChart2 className="h-5 w-5" /> },
 ]
 
-const navItemClass = (active: boolean) =>
+const navItemClass = (active: boolean, showLabel: boolean) =>
   cn(
-    'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+    'flex items-center rounded-lg transition-colors h-10',
+    showLabel ? 'w-full justify-start gap-3 px-3' : 'w-10 justify-center',
     active ? 'bg-primary text-on-primary' : 'text-muted hover:bg-surface-2 hover:text-foreground',
   )
 
@@ -68,7 +70,7 @@ function useFlyout<T extends HTMLElement>() {
 // mesmo componente do AppSidebar) + as seções de settings. Sem os outros extras do
 // AppSidebar (/stats): o rail enxuto fica só com o que o pedido original cobre
 // (preview das seções antes de navegar).
-function SettingsFlyout() {
+function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
   const location = useLocation()
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
   const active = location.pathname.startsWith('/settings')
@@ -83,9 +85,10 @@ function SettingsFlyout() {
         onClick={toggle}
         title="Configurações"
         aria-label="Configurações"
-        className={navItemClass(active || open)}
+        className={navItemClass(active || open, showLabel)}
       >
-        <Settings className="h-5 w-5" />
+        <Settings className="h-5 w-5 shrink-0" />
+        {showLabel && <span className="truncate text-sm">Configurações</span>}
       </button>
       {open && createPortal(
         <div
@@ -120,8 +123,8 @@ function SettingsFlyout() {
 }
 
 // UserMenu — avatar do usuário logado no rodapé do rail, mesmo padrão de flyout
-// do SettingsFlyout: Notificações, Alterar senha e Sair.
-function UserMenu() {
+// do SettingsFlyout: Notificações, Perfil e Sair.
+function UserMenu({ showLabel }: { showLabel: boolean }) {
   const navigate = useNavigate()
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
   const { unreadCount } = useUserNotifications()
@@ -143,14 +146,19 @@ function UserMenu() {
         onClick={toggle}
         title={username}
         aria-label={username}
-        className={cn(navItemClass(open), 'relative')}
+        className={navItemClass(open, showLabel)}
       >
-        <CircleUser className="h-5 w-5" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-on-primary">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
+        {/* badge de não-lidas ancorado ao ícone (span relative própria) — não ao botão
+            inteiro, senão com showLabel (botão largo) o badge ficaria longe do ícone. */}
+        <span className="relative inline-flex shrink-0">
+          <CircleUser className="h-5 w-5" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-on-primary">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </span>
+        {showLabel && <span className="truncate text-sm">{username}</span>}
       </button>
       {open && createPortal(
         <div
@@ -169,11 +177,11 @@ function UserMenu() {
             Notificações
           </NavLink>
           <NavLink
-            to="/change-password"
+            to="/profile"
             onClick={() => setOpen(false)}
             className="block px-3 py-1.5 text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
           >
-            Alterar senha
+            Perfil
           </NavLink>
           <button
             type="button"
@@ -189,15 +197,30 @@ function UserMenu() {
   )
 }
 
-// Sidebar — rail de navegação enxuto para o Layout (páginas novas). Só links +
-// o flyout de Configurações: sem sino, user-menu, painéis pesados ou contextos —
-// esses vivem no AppSidebar (o sidebar completo do AppLayout).
+// Sidebar — rail de navegação enxuto para o Layout (páginas novas). Links + recolher/expandir
+// (mesmo DisplayModeContext global do AppSidebar — só 2 dos 3 modos, não faz sentido
+// "text-only" pra um rail de 3 itens; se o usuário estiver em "text-only", tratamos como
+// expandido e o botão de recolher força de volta pra "icons-only") + flyout de Configurações +
+// UserMenu: sem sino/painéis pesados — esses vivem no AppSidebar (o sidebar completo do
+// AppLayout).
 export default function Sidebar() {
+  const { sidebar: sidebarMode } = useDisplayMode()
+  const setDisplayMode = useSetDisplayMode()
+  const collapsed = sidebarMode === 'icons-only'
+  const showLabel = !collapsed
+
+  function toggleCollapse() {
+    setDisplayMode('sidebar', collapsed ? 'icons-text' : 'icons-only')
+  }
+
   return (
     <nav
       id="sidebar"
       aria-label="Navegação"
-      className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-surface py-3"
+      className={cn(
+        'flex shrink-0 flex-col gap-1 border-r border-border bg-surface py-3 transition-[width]',
+        showLabel ? 'w-48 items-stretch px-2' : 'w-14 items-center',
+      )}
     >
       {items.map(item => (
         <NavLink
@@ -207,15 +230,30 @@ export default function Sidebar() {
           end={item.end}
           title={item.label}
           aria-label={item.label}
-          className={({ isActive }) => navItemClass(isActive)}
+          className={({ isActive }) => navItemClass(isActive, showLabel)}
         >
           {item.icon}
+          {showLabel && <span className="truncate text-sm">{item.label}</span>}
         </NavLink>
       ))}
       <div className="flex-1" />
-      <div id="sidebar-bottom" className="flex flex-col items-center gap-1 border-t border-border pt-2">
-        <SettingsFlyout />
-        <UserMenu />
+      <div
+        id="sidebar-bottom"
+        className={cn('flex flex-col gap-1 border-t border-border pt-2', showLabel ? 'items-stretch' : 'items-center')}
+      >
+        <button
+          id="sidebar-collapse"
+          type="button"
+          onClick={toggleCollapse}
+          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          className={cn(navItemClass(false, showLabel))}
+        >
+          <ChevronLeft className={cn('h-5 w-5 shrink-0', collapsed && 'rotate-180')} />
+          {showLabel && <span className="truncate text-sm">Recolher menu</span>}
+        </button>
+        <SettingsFlyout showLabel={showLabel} />
+        <UserMenu showLabel={showLabel} />
       </div>
     </nav>
   )
