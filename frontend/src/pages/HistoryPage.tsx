@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import CameraStageHeader from '../components/CameraStageHeader'
+import DatePicker from '../components/DatePicker'
 import { Loader2, Play } from '../components/Icons'
 import { loadMotionEvents, loadRecordingsData, type MotionEvent, type Recording } from './cameraUtils'
 import { recordingCategory, type RecordingCategory } from './eventCategory'
@@ -43,10 +44,10 @@ function formatClockTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-// HistoryPage — histórico de gravações da câmera (rota /history/:cameraId). Mostra
-// as gravações de hoje: player tocando a selecionada + tira de cards ("GRAVAÇÕES · N")
-// pra trocar de gravação. Cabeçalho compartilhado com LivePage via CameraStageHeader
-// (mesma largura, mesmo padrão de fullscreen — só sem o badge "AO VIVO").
+// HistoryPage — histórico de gravações da câmera (rota /history/:cameraId). Mostra as
+// gravações do dia selecionado (calendário via DatePicker, default hoje): player
+// tocando a selecionada + tira de cards ("GRAVAÇÕES · N") pra trocar de gravação.
+// Cabeçalho compartilhado com LivePage via CameraStageHeader (mesma largura).
 export default function HistoryPage() {
   const { cameraId } = useParams<{ cameraId: string }>()
   const [camera, setCamera] = useState<Camera | null>(null)
@@ -55,6 +56,8 @@ export default function HistoryPage() {
   const [events, setEvents] = useState<MotionEvent[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [videoLoading, setVideoLoading] = useState(true)
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [availableDays, setAvailableDays] = useState<string[]>([])
 
   useEffect(() => {
     if (!cameraId) return
@@ -94,8 +97,8 @@ export default function HistoryPage() {
 
     async function load() {
       const [recRes, evs] = await Promise.all([
-        loadRecordingsData(cameraId!, new Date(), 1, 'asc', 0),
-        loadMotionEvents(cameraId!, new Date()),
+        loadRecordingsData(cameraId!, selectedDate, 1, 'asc', 0),
+        loadMotionEvents(cameraId!, selectedDate),
       ])
       if (cancelled) return
       if (recRes === 401) {
@@ -106,12 +109,22 @@ export default function HistoryPage() {
       setRecordings(recs)
       setEvents(evs)
       setSelectedId(recs.length > 0 ? recs[0].id : null)
+      setVideoLoading(true)
     }
 
     load()
     return () => {
       cancelled = true
     }
+  }, [cameraId, selectedDate])
+
+  // Dias com gravação ou evento — o calendário só habilita esses.
+  useEffect(() => {
+    if (!cameraId) return
+    fetch(`/api/cameras/${cameraId}/content-days`, { headers: authHeaders() })
+      .then(r => (r.ok ? r.json() : { days: [] }))
+      .then((d: { days?: string[] }) => setAvailableDays(d.days ?? []))
+      .catch(() => {})
   }, [cameraId])
 
   const selected = useMemo(() => recordings.find(r => r.id === selectedId) ?? null, [recordings, selectedId])
@@ -168,49 +181,61 @@ export default function HistoryPage() {
                 </>
               ) : (
                 <div className="flex h-full items-center justify-center text-body text-muted">
-                  Sem gravações hoje.
+                  Sem gravações nesse dia.
                 </div>
               )}
             </div>
           </CameraStageHeader>
         )}
-        {recordings.length > 0 && (
+        {camera && (
           <div id="history-recordings">
-            <p className="mb-2 text-caption font-medium uppercase tracking-wide text-muted">
-              Gravações · {recordings.length}
-            </p>
-            <div id="history-recordings-list" className="flex gap-2 overflow-x-auto pb-1">
-              {recordings.map((rec, i) => {
-                const cat = recordingCategory(rec, events, CHUNK_FALLBACK_MS)
-                const active = rec.id === selectedId
-                const duration = formatDuration(rec, recordings[i + 1])
-                return (
-                  <button
-                    key={rec.id}
-                    id={`history-recording-${rec.id}`}
-                    type="button"
-                    onClick={() => selectRecording(rec.id)}
-                    aria-current={active ? 'true' : undefined}
-                    className={`relative flex h-20 w-32 shrink-0 flex-col justify-between rounded border-2 bg-surface-2 p-1.5 text-left transition-colors ${
-                      active ? 'border-primary' : CAT_BORDER[cat]
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <Play className="h-4 w-4 text-muted-foreground" />
-                      {duration && (
-                        <span className="rounded bg-foreground/10 px-1 text-caption text-foreground">{duration}</span>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-caption font-medium tabular-nums text-foreground">
-                        {formatClockTime(rec.start)}
-                      </p>
-                      <p className="text-caption capitalize text-muted">{cat}</p>
-                    </div>
-                  </button>
-                )
-              })}
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-caption font-medium uppercase tracking-wide text-muted">
+                {recordings.length > 0 ? `Gravações · ${recordings.length}` : 'Gravações'}
+              </p>
+              <DatePicker
+                id="history-date-picker"
+                value={selectedDate}
+                onChange={setSelectedDate}
+                disableFuture
+                availableDays={availableDays}
+                align="right"
+              />
             </div>
+            {recordings.length > 0 && (
+              <div id="history-recordings-list" className="flex gap-2 overflow-x-auto pb-1">
+                {recordings.map((rec, i) => {
+                  const cat = recordingCategory(rec, events, CHUNK_FALLBACK_MS)
+                  const active = rec.id === selectedId
+                  const duration = formatDuration(rec, recordings[i + 1])
+                  return (
+                    <button
+                      key={rec.id}
+                      id={`history-recording-${rec.id}`}
+                      type="button"
+                      onClick={() => selectRecording(rec.id)}
+                      aria-current={active ? 'true' : undefined}
+                      className={`relative flex h-20 w-32 shrink-0 flex-col justify-between rounded border-2 bg-surface-2 p-1.5 text-left transition-colors ${
+                        active ? 'border-primary' : CAT_BORDER[cat]
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <Play className="h-4 w-4 text-muted-foreground" />
+                        {duration && (
+                          <span className="rounded bg-foreground/10 px-1 text-caption text-foreground">{duration}</span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-caption font-medium tabular-nums text-foreground">
+                          {formatClockTime(rec.start)}
+                        </p>
+                        <p className="text-caption capitalize text-muted">{cat}</p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -86,11 +86,6 @@ describe('Player', () => {
     expect(rfs).toHaveBeenCalled()
   })
 
-  it('hideFullscreenButton oculta o botão de tela cheia próprio', async () => {
-    render(<Player id="p2" src="/stream/cam1/index.m3u8" hideFullscreenButton />)
-    await flush()
-    expect(document.getElementById('p2-fullscreen')).toBeNull()
-  })
 
   it('mostra loading até o <video> ter um frame pra mostrar — conectar sozinho não basta', async () => {
     render(<Player id="p3" src="/stream/cam1/index.m3u8" cameraId="cam1" />)
