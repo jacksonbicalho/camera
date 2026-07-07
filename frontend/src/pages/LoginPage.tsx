@@ -10,7 +10,10 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [remember, setRemember] = useState(true)
+  // Default desmarcado (opt-in): sem escolha explícita, o login não persiste em
+  // localStorage — evita repopular o campo como marcado (e o token sobrevivendo) a cada
+  // novo carregamento da tela, independente do que o usuário escolheu da última vez.
+  const [remember, setRemember] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -51,7 +54,7 @@ export default function LoginPage() {
         </p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <Label htmlFor="login-username" className="block text-muted-foreground mb-1">E-mail</Label>
+            <Label htmlFor="login-username" className="block text-muted-foreground mb-1">Usuário ou e-mail</Label>
             <Input
               id="login-username"
               type="text"
@@ -60,9 +63,13 @@ export default function LoginPage() {
               required
               autoFocus
               autoComplete="username"
-              placeholder="voce@exemplo.com"
+              placeholder="usuario ou voce@exemplo.com"
               aria-invalid={error ? 'true' : undefined}
+              aria-describedby="login-username-hint"
             />
+            <p id="login-username-hint" className="mt-1 text-caption text-muted">
+              Você pode entrar com seu usuário ou e-mail cadastrado.
+            </p>
           </div>
           <div>
             <div className="flex items-center justify-between mb-1">

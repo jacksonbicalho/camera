@@ -44,6 +44,12 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('Senha')).toBeInstanceOf(HTMLInputElement)
   })
 
+  it('informa que o login aceita usuário ou e-mail', () => {
+    renderLogin()
+    expect(screen.getByLabelText(/usuário ou e-mail/i)).toBeInstanceOf(HTMLInputElement)
+    expect(screen.getByText(/pode entrar com seu usuário ou e-mail/i)).not.toBeNull()
+  })
+
   it('sets autoComplete for email/username and current password', () => {
     renderLogin()
     expect(screen.getByLabelText(/e-mail/i).getAttribute('autocomplete')).toBe('username')
@@ -62,10 +68,10 @@ describe('LoginPage', () => {
     expect(passwordInput.type).toBe('password')
   })
 
-  it('has a "Lembrar de mim" checkbox, checked by default', () => {
+  it('has a "Lembrar de mim" checkbox, unchecked by default (opt-in, não persiste sem escolha explícita)', () => {
     renderLogin()
     const checkbox = screen.getByLabelText(/lembrar de mim/i) as HTMLInputElement
-    expect(checkbox.checked).toBe(true)
+    expect(checkbox.checked).toBe(false)
   })
 
   it('has a link to "Esqueceu a senha?"', () => {
@@ -104,7 +110,18 @@ describe('LoginPage', () => {
     await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull())
   })
 
-  it('calls login with the remember flag from the checkbox', async () => {
+  it('sem marcar "Lembrar de mim", loga com remember=false (default opt-in)', async () => {
+    vi.mocked(login).mockResolvedValueOnce(undefined)
+    renderLogin()
+
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: 'admin@example.com' } })
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'secret' } })
+    fireEvent.click(screen.getByRole('button', { name: /entrar/i }))
+
+    await waitFor(() => expect(login).toHaveBeenCalledWith('admin@example.com', 'secret', false))
+  })
+
+  it('marcando "Lembrar de mim", loga com remember=true', async () => {
     vi.mocked(login).mockResolvedValueOnce(undefined)
     renderLogin()
 
@@ -113,7 +130,7 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByLabelText(/lembrar de mim/i))
     fireEvent.click(screen.getByRole('button', { name: /entrar/i }))
 
-    await waitFor(() => expect(login).toHaveBeenCalledWith('admin@example.com', 'secret', false))
+    await waitFor(() => expect(login).toHaveBeenCalledWith('admin@example.com', 'secret', true))
   })
 
   it('redirects to / on mount when a valid token already exists', async () => {

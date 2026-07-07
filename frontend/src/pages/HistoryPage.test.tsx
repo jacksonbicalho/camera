@@ -1,6 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, waitFor } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
+
+// RecordingsGateway captura globalThis.fetch no construtor e a instância nasce no nível do
+// módulo do HistoryPage — stubar fetch não a alcança (mesma razão documentada em
+// VideoBrowserPage.test.tsx). Mocka só getRecording, controlável por teste.
+const gateway = vi.hoisted(() => ({ getRecording: vi.fn() }))
+
+vi.mock('../lib/recordingsGateway', async importOriginal => {
+  const actual = await importOriginal<typeof import('../lib/recordingsGateway')>()
+  return {
+    ...actual,
+    RecordingsGateway: class {
+      getRecording = gateway.getRecording
+    },
+  }
+})
 
 vi.mock('../auth', () => ({
   authHeaders: () => ({}),
@@ -29,14 +44,25 @@ vi.mock('../components/DatePicker', () => ({
 
 import HistoryPage from './HistoryPage'
 
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location-probe" data-pathname={location.pathname} />
+}
+
 function renderAt(path: string) {
   render(
     <MemoryRouter initialEntries={[path]}>
+      <LocationProbe />
       <Routes>
         <Route path="/history/:cameraId" element={<HistoryPage />} />
+        <Route path="/history/:cameraId/:recordingId" element={<HistoryPage />} />
       </Routes>
     </MemoryRouter>,
   )
+}
+
+function currentPathname(): string {
+  return document.querySelector('[data-testid="location-probe"]')!.getAttribute('data-pathname')!
 }
 
 const cameras = [{ id: 'cam1', name: 'Corredor de entrada', recording_enabled: true }]
@@ -74,7 +100,10 @@ function stubFetch(defaultDayRecordings: typeof recordings = recordings) {
   )
 }
 
-beforeEach(() => stubFetch())
+beforeEach(() => {
+  stubFetch()
+  gateway.getRecording.mockResolvedValue(null)
+})
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -193,5 +222,46 @@ describe('HistoryPage', () => {
       return el
     })
     expect(err.textContent).toContain('não encontrada')
+  })
+
+  it('abrir /history/:cameraId/:recordingId carrega o dia certo (não hoje) e seleciona a gravação', async () => {
+    gateway.getRecording.mockResolvedValue({ filename: 'c.mp4', date: '2026-07-04' })
+    renderAt('/history/cam1/3')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-3')).not.toBeNull()
+    })
+    expect(document.getElementById('history-recording-3')?.getAttribute('aria-current')).toBe('true')
+    const video = document.getElementById('history-player-video') as HTMLVideoElement
+    expect(video.getAttribute('src')).toBe('/recordings/cam1/c.mp4?token=tok')
+    expect(document.querySelector('[data-testid="history-datepicker"]')?.getAttribute('data-value')).toBe('2026-07-04')
+  })
+
+  it('recordingId inexistente na URL → erro, mas Histórico segue navegável (dia default)', async () => {
+    gateway.getRecording.mockResolvedValue(null)
+    renderAt('/history/cam1/999')
+    await waitFor(() => {
+      const el = document.getElementById('history-error')
+      if (!el) throw new Error('erro não renderizou')
+      return el
+    })
+    expect(document.getElementById('history-error')?.textContent).toContain('não encontrada')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-1')).not.toBeNull()
+    })
+  })
+
+  it('selecionar gravação (padrão ou clique) mantém a URL sincronizada e compartilhável', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-1')).not.toBeNull()
+    })
+    await waitFor(() => {
+      expect(currentPathname()).toBe('/history/cam1/1')
+    })
+
+    document.getElementById('history-recording-2')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(currentPathname()).toBe('/history/cam1/2')
+    })
   })
 })

@@ -601,7 +601,12 @@ export function ClassifierForm({
 
   function showImage(url: string) { setLive(false); setStaticImage(url) }
 
-  // Reidrata as amostras salvas ao editar um classificador existente.
+  // Reidrata as amostras salvas ao editar um classificador existente — só quando o
+  // classificador muda (value.id), não a cada edição de campo do form. valueRef guarda o
+  // `value` atual pro crop usado no capture (crop_w/crop_h/crop_x/crop_y) refletir o form
+  // sem re-disparar a reidratação a cada keystroke.
+  const valueRef = useRef(value)
+  useEffect(() => { valueRef.current = value }, [value])
   useEffect(() => {
     if (value.id == null) return
     fetch(`/api/settings/cameras/${cameraId}/classifiers/${value.id}/samples`, { headers: authHeaders() })
@@ -616,7 +621,7 @@ export function ClassifierForm({
             // vínculo para o carrossel marcar a imagem como já inserida.
             const filename = u.split('/').pop() ?? ''
             const frame = filename.endsWith('_motion.jpg') ? filename : undefined
-            const cap = await captureFromUrl(`${u}?token=${getToken()}`, value)
+            const cap = await captureFromUrl(`${u}?token=${getToken()}`, valueRef.current)
             loaded[label].push({ ...cap, frame })
           }
         }

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import CameraStageHeader from '../components/CameraStageHeader'
@@ -7,6 +7,7 @@ import DatePicker from '../components/DatePicker'
 import { Loader2, Play } from '../components/Icons'
 import { loadMotionEvents, loadRecordingsData, type MotionEvent, type Recording } from './cameraUtils'
 import { recordingCategory, type RecordingCategory } from './eventCategory'
+import { RecordingsGateway } from '../lib/recordingsGateway'
 
 interface Camera {
   id: string
@@ -44,20 +45,59 @@ function formatClockTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-// HistoryPage — histórico de gravações da câmera (rota /history/:cameraId). Mostra as
-// gravações do dia selecionado (calendário via DatePicker, default hoje): player
-// tocando a selecionada + tira de cards ("GRAVAÇÕES · N") pra trocar de gravação.
-// Cabeçalho compartilhado com LivePage via CameraStageHeader (mesma largura).
+const gateway = new RecordingsGateway()
+
+// HistoryPage — histórico de gravações da câmera (rota /history/:cameraId ou
+// /history/:cameraId/:recordingId). Mostra as gravações do dia selecionado (calendário via
+// DatePicker, default hoje): player tocando a selecionada + tira de cards ("GRAVAÇÕES · N")
+// pra trocar de gravação. Cabeçalho compartilhado com LivePage via CameraStageHeader (mesma
+// largura).
+//
+// URL compartilhável: com :recordingId na rota, resolve o dia da gravação via
+// RecordingsGateway.getRecording (mesmo endpoint by-id que o VideoBrowserPage usa) e
+// pré-seleciona ela — só na carga inicial (initialRecordingId congela o valor da URL no 1º
+// render). Daí em diante, selectedId é a fonte de verdade e um efeito dedicado mantém a URL
+// sincronizada com ele (troca de card ou seleção automática do 1º do dia), então a barra de
+// endereço sempre reflete a gravação em reprodução.
 export default function HistoryPage() {
-  const { cameraId } = useParams<{ cameraId: string }>()
+  const { cameraId, recordingId } = useParams<{ cameraId: string; recordingId?: string }>()
+  const navigate = useNavigate()
+  const location = useLocation()
+  // Congela o :recordingId da URL só no 1º render — navegações subsequentes que a própria
+  // página disparar (URL sync abaixo) não devem re-disparar a resolução.
+  const [initialRecordingId] = useState(recordingId)
+  const pendingSelectRef = useRef<number | null>(null)
   const [camera, setCamera] = useState<Camera | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [events, setEvents] = useState<MotionEvent[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [videoLoading, setVideoLoading] = useState(true)
-  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => (initialRecordingId ? null : new Date()))
   const [availableDays, setAvailableDays] = useState<string[]>([])
+  const [readyForUrlSync, setReadyForUrlSync] = useState(!initialRecordingId)
+
+  // Resolve o :recordingId da URL (se veio um) pro dia que ele pertence — só na carga inicial.
+  useEffect(() => {
+    if (!cameraId) return
+    const targetId = initialRecordingId
+    if (!targetId) return
+    let cancelled = false
+    gateway.getRecording(cameraId, targetId).then(meta => {
+      if (cancelled) return
+      if (!meta) {
+        setError('Gravação não encontrada.')
+        setSelectedDate(new Date())
+        return
+      }
+      const [y, m, d] = meta.date.split('-').map(Number)
+      pendingSelectRef.current = Number(targetId)
+      setSelectedDate(new Date(y, m - 1, d))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [cameraId, initialRecordingId])
 
   useEffect(() => {
     if (!cameraId) return
@@ -92,13 +132,13 @@ export default function HistoryPage() {
   }, [cameraId])
 
   useEffect(() => {
-    if (!cameraId) return
+    if (!cameraId || !selectedDate) return
     let cancelled = false
 
     async function load() {
       const [recRes, evs] = await Promise.all([
-        loadRecordingsData(cameraId!, selectedDate, 1, 'asc', 0),
-        loadMotionEvents(cameraId!, selectedDate),
+        loadRecordingsData(cameraId!, selectedDate!, 1, 'asc', 0),
+        loadMotionEvents(cameraId!, selectedDate!),
       ])
       if (cancelled) return
       if (recRes === 401) {
@@ -108,8 +148,12 @@ export default function HistoryPage() {
       const recs = recRes.recordings.filter(r => !r.is_recording)
       setRecordings(recs)
       setEvents(evs)
-      setSelectedId(recs.length > 0 ? recs[0].id : null)
+      const pending = pendingSelectRef.current
+      pendingSelectRef.current = null
+      const initial = pending != null && recs.some(r => r.id === pending) ? pending : recs.length > 0 ? recs[0].id : null
+      setSelectedId(initial)
       setVideoLoading(true)
+      setReadyForUrlSync(true)
     }
 
     load()
@@ -126,6 +170,16 @@ export default function HistoryPage() {
       .then((d: { days?: string[] }) => setAvailableDays(d.days ?? []))
       .catch(() => {})
   }, [cameraId])
+
+  // Mantém a URL sincronizada com selectedId (troca manual de card ou seleção automática) —
+  // sempre que uma gravação está em reprodução, a barra de endereço reflete ela e vira
+  // compartilhável. Só entra em ação depois da resolução inicial (readyForUrlSync) pra não
+  // reescrever uma URL compartilhada antes dela ser resolvida.
+  useEffect(() => {
+    if (!cameraId || !readyForUrlSync) return
+    const target = selectedId != null ? `/history/${cameraId}/${selectedId}` : `/history/${cameraId}`
+    if (location.pathname !== target) navigate(target, { replace: true })
+  }, [cameraId, selectedId, readyForUrlSync, location.pathname, navigate])
 
   const selected = useMemo(() => recordings.find(r => r.id === selectedId) ?? null, [recordings, selectedId])
 
@@ -195,7 +249,7 @@ export default function HistoryPage() {
               </p>
               <DatePicker
                 id="history-date-picker"
-                value={selectedDate}
+                value={selectedDate ?? new Date()}
                 onChange={setSelectedDate}
                 disableFuture
                 availableDays={availableDays}
