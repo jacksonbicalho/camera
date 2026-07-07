@@ -430,18 +430,33 @@ describe('HistoryPage', () => {
     expect(document.querySelector('[data-testid="history-datepicker"]')?.getAttribute('data-value')).toBe('2026-07-04')
   })
 
-  it('recordingId inexistente na URL → erro, mas Histórico segue navegável (dia default)', async () => {
+  it('recordingId inexistente na URL → overlay centralizado no player (tela preta) some sozinho depois de um tempo, sem depender de qual carregamento (câmera/gravações) termina primeiro', async () => {
     gateway.getRecording.mockResolvedValue(null)
-    renderAt('/history/cam1/999')
-    await waitFor(() => {
-      const el = document.getElementById('history-error')
-      if (!el) throw new Error('erro não renderizou')
-      return el
-    })
-    expect(document.getElementById('history-error')?.textContent).toContain('não encontrada')
-    await waitFor(() => {
+    vi.useFakeTimers()
+    try {
+      renderAt('/history/cam1/999')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      const overlay = document.getElementById('history-recording-not-found')
+      expect(overlay).not.toBeNull()
+      expect(overlay?.textContent).toContain('não encontrada')
+      expect(overlay?.className).toContain('bg-black')
+      // Não é mais um banner no topo da página.
+      expect(document.getElementById('history-error')).toBeNull()
+      // O overlay é aditivo (por cima), não substitui o conteúdo — o dia de fallback (hoje) já
+      // carregou uma gravação válida por baixo dele, independente da ordem de resolução dos
+      // fetches (câmera vs. gravações), que num servidor real não é determinística.
       expect(document.getElementById('history-recording-2')).not.toBeNull()
-    })
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(document.getElementById('history-recording-not-found')).toBeNull()
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('selecionar gravação (padrão ou clique) mantém a URL sincronizada e compartilhável', async () => {
@@ -556,6 +571,154 @@ describe('HistoryPage', () => {
       })
       expect(document.getElementById('history-recording-22')).not.toBeNull() // nova, veio no poll
       expect(document.getElementById('history-recording-20')).not.toBeNull() // antiga sobrevive ao poll
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('contador usa o total real do dia (campo `total` da API), não a quantidade renderizada em tela', async () => {
+    // Só a página 1 (1 gravação) está carregada/renderizada no filmstrip, mas o dia tem 23
+    // gravações no total (`total` do backend, que conta o filesystem inteiro, não a página
+    // atual) — o contador precisa refletir o total real, não `recordings.length` (que mostraria
+    // "1"). Reproduz o relato: contador não pode divergir entre "o que já foi acumulado em tela
+    // via poll" e "o que uma recarga da página mostraria".
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/content-days')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ days: ['2026-07-05'] }) })
+        }
+        if (url.includes('/recordings')) {
+          return Promise.resolve({
+            status: 200,
+            json: () => Promise.resolve({
+              recordings: [{ id: 50, filename: 's1.mp4', start: '2026-07-05T09:00:00Z', end: '2026-07-05T09:05:00Z', url: '/recordings/cam1/s1.mp4', is_recording: false, has_motion: false }],
+              hasMore: true,
+              total: 23,
+            }),
+          })
+        }
+        if (url.includes('/motion')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ events: [] }) })
+        }
+        if (url.startsWith('/api/cameras')) {
+          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+        }
+        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-50')).not.toBeNull()
+    })
+    expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 23')
+    expect(document.getElementById('history-recordings')?.textContent).not.toContain('Gravações · 1')
+  })
+
+  it('gravação selecionada apagada pelo cleaner (via poll) → troca pra outra ainda existente, sem cair em "Sem gravações nesse dia"', async () => {
+    const initial = [
+      { id: 60, filename: 'sel-a.mp4', start: '2026-07-05T09:00:00Z', end: '2026-07-05T09:05:00Z', url: '/recordings/cam1/sel-a.mp4', is_recording: false, has_motion: false },
+      { id: 61, filename: 'sel-b.mp4', start: '2026-07-05T08:00:00Z', end: '2026-07-05T08:05:00Z', url: '/recordings/cam1/sel-b.mp4', is_recording: false, has_motion: false },
+    ]
+    // id 60 (a selecionada por padrão — mais recente) sumiu: o cleaner apagou o arquivo.
+    const afterCleanup = [initial[1]]
+    let polled = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/content-days')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ days: ['2026-07-05'] }) })
+        }
+        if (url.includes('/recordings')) {
+          const recs = polled ? afterCleanup : initial
+          return Promise.resolve({ status: 200, json: () => Promise.resolve({ recordings: recs, hasMore: false, total: recs.length }) })
+        }
+        if (url.includes('/motion')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ events: [] }) })
+        }
+        if (url.startsWith('/api/cameras')) {
+          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+        }
+        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+    vi.useFakeTimers()
+    try {
+      renderAt('/history/cam1')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(document.getElementById('history-recording-60')?.getAttribute('aria-current')).toBe('true')
+
+      polled = true
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(document.getElementById('history-recording-60')).toBeNull()
+      expect(document.getElementById('history-recording-61')?.getAttribute('aria-current')).toBe('true')
+      const video = document.getElementById('history-player-video') as HTMLVideoElement
+      expect(video?.getAttribute('src')).toBe('/recordings/cam1/sel-b.mp4?token=tok')
+      expect(document.querySelector('#history-player')?.textContent).not.toContain('Sem gravações nesse dia')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('poll usa a janela completa já carregada (não só a página 1) — gravação deletada pelo cleaner some da lista e do contador', async () => {
+    const page1 = [
+      { id: 40, filename: 'r1.mp4', start: '2026-07-05T09:00:00Z', end: '2026-07-05T09:05:00Z', url: '/recordings/cam1/r1.mp4', is_recording: false, has_motion: false },
+    ]
+    const page2 = [
+      { id: 41, filename: 'r2.mp4', start: '2026-07-05T08:00:00Z', end: '2026-07-05T08:05:00Z', url: '/recordings/cam1/r2.mp4', is_recording: false, has_motion: false },
+    ]
+    // Depois do cleaner apagar r2.mp4, o próximo poll (que precisa cobrir as 2 páginas já
+    // carregadas numa só chamada, não só a página 1) só devolve o que ainda existe.
+    const afterCleanup = [page1[0]]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/content-days')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ days: ['2026-07-05'] }) })
+        }
+        if (url.includes('/recordings')) {
+          const params = new URL(url, 'http://x').searchParams
+          const page = params.get('page')
+          const limit = params.get('limit')
+          if (page === '2') return Promise.resolve({ status: 200, json: () => Promise.resolve({ recordings: page2, hasMore: true, total: 2 }) })
+          // Poll depois do "Carregar mais": pede a janela inteira já carregada (page*PAGE_SIZE)
+          // numa chamada só — é aqui que a remoção do cleaner precisa aparecer. `total` (contagem
+          // real do dia, vinda do filesystem no backend) já cai pra 1 nessa resposta.
+          if (limit === '40') return Promise.resolve({ status: 200, json: () => Promise.resolve({ recordings: afterCleanup, hasMore: true, total: 1 }) })
+          return Promise.resolve({ status: 200, json: () => Promise.resolve({ recordings: page1, hasMore: true, total: 2 }) })
+        }
+        if (url.includes('/motion')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ events: [] }) })
+        }
+        if (url.startsWith('/api/cameras')) {
+          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+        }
+        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+    vi.useFakeTimers()
+    try {
+      renderAt('/history/cam1')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      document.getElementById('history-load-more')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(document.getElementById('history-recording-41')).not.toBeNull()
+      expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(document.getElementById('history-recording-41')).toBeNull() // apagada pelo cleaner, some da lista
+      expect(document.getElementById('history-recording-40')).not.toBeNull()
+      expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 1')
     } finally {
       vi.useRealTimers()
     }
