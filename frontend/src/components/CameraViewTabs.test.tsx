@@ -73,6 +73,13 @@ describe('CameraViewTabs', () => {
     expect(document.getElementById('camera-tab-history')?.className).toContain('hover:text-foreground')
   })
 
+  it('trilha com altura fixa (h-8, igual ao line-height do título) e rótulos que preenchem essa altura — evita o desalinhamento vertical com o título do cabeçalho', () => {
+    renderTabs('live')
+    expect(document.getElementById('camera-view-tabs')?.className).toContain('h-8')
+    expect(document.getElementById('camera-tab-live')?.className).toContain('h-full')
+    expect(document.getElementById('camera-tab-history')?.className).toContain('h-full')
+  })
+
   it('a pílula deslizante (glider) existe e desliza via translateX conforme a aba ativa', () => {
     renderTabs('live')
     expect(document.getElementById('camera-tab-glider')?.style.transform).toBe('translateX(0%)')

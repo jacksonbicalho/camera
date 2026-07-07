@@ -53,8 +53,8 @@ export default function LivePage() {
   }, [cameraId])
 
   return (
-    <Layout id="live-page" footerId="live-footer" contentClassName="p-4">
-      <div id="live-content" className="mx-auto w-full max-w-5xl space-y-4">
+    <Layout id="live-page" footerId="live-footer" contentClassName="p-6">
+      <div id="live-content" className="page-content space-y-4">
         {error && (
           <div
             id="live-error"

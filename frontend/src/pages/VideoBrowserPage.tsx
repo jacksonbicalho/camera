@@ -372,8 +372,8 @@ export default function VideoBrowserPage() {
   }, [cameraId, recordingId, motionId, startPlayback])
 
   return (
-    <Layout id="video-browser-page" footerId="video-browser-footer" contentClassName="p-4">
-      <div id="video-browser-content" className="mx-auto w-full max-w-5xl space-y-4">
+    <Layout id="video-browser-page" footerId="video-browser-footer" contentClassName="p-6">
+      <div id="video-browser-content" className="page-content space-y-4">
         <PageHeader
           id="video-browser-header"
           title="Reprodução"
