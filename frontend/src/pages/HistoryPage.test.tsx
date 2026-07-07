@@ -66,9 +66,12 @@ function currentPathname(): string {
 }
 
 const cameras = [{ id: 'cam1', name: 'Corredor de entrada', recording_enabled: true }]
+// Ordem DECRESCENTE (mais recente primeiro) — o stub abaixo não ordena de verdade (só filtra
+// por data), então a ordem que a API "devolveria" pra `order=desc` precisa já vir assim na
+// fixture, senão os testes não refletem o que um backend real mandaria.
 const recordings = [
-  { id: 1, filename: 'a.mp4', start: '2026-07-05T07:12:00Z', end: '2026-07-05T07:12:42Z', url: '/recordings/cam1/a.mp4', is_recording: false, has_motion: false },
   { id: 2, filename: 'b.mp4', start: '2026-07-05T08:03:00Z', end: '2026-07-05T08:04:10Z', url: '/recordings/cam1/b.mp4', is_recording: false, has_motion: false },
+  { id: 1, filename: 'a.mp4', start: '2026-07-05T07:12:00Z', end: '2026-07-05T07:12:42Z', url: '/recordings/cam1/a.mp4', is_recording: false, has_motion: false },
 ]
 const recordingsJul4 = [
   { id: 3, filename: 'c.mp4', start: '2026-07-04T10:00:00Z', end: '2026-07-04T10:01:00Z', url: '/recordings/cam1/c.mp4', is_recording: false, has_motion: false },
@@ -131,14 +134,14 @@ describe('HistoryPage', () => {
     expect(document.getElementById('history-content')?.className).not.toContain('max-w-5xl')
   })
 
-  it('toca a gravação mais antiga do dia por padrão e lista as demais no filmstrip', async () => {
+  it('toca a gravação mais recente do dia por padrão e lista as demais no filmstrip', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
-      expect(document.getElementById('history-recording-1')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
-    expect(document.getElementById('history-recording-1')?.getAttribute('aria-current')).toBe('true')
+    expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBe('true')
     const video = document.getElementById('history-player-video') as HTMLVideoElement
-    expect(video.getAttribute('src')).toBe('/recordings/cam1/a.mp4?token=tok')
+    expect(video.getAttribute('src')).toBe('/recordings/cam1/b.mp4?token=tok')
     expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
   })
 
@@ -149,13 +152,13 @@ describe('HistoryPage', () => {
     try {
       renderAt('/history/cam1')
       await waitFor(() => {
-        expect(document.getElementById('history-recording-1')).not.toBeNull()
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
       })
       expect(scrollIntoView).toHaveBeenCalledWith(
         expect.objectContaining({ inline: 'center', block: 'nearest' }),
       )
       scrollIntoView.mockClear()
-      document.getElementById('history-recording-2')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      document.getElementById('history-recording-1')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
       await waitFor(() => {
         expect(scrollIntoView).toHaveBeenCalled()
       })
@@ -192,14 +195,14 @@ describe('HistoryPage', () => {
   it('card ativo usa a cor de destaque como fundo (bg-primary/15 + border-primary) e pisca enquanto o vídeo toca', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
-      expect(document.getElementById('history-recording-1')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
-    const active = document.getElementById('history-recording-1')!
+    const active = document.getElementById('history-recording-2')!
     expect(active.className).toContain('bg-primary/15')
     expect(active.className).toContain('border-primary')
     expect(active.getAttribute('style')).toContain('filmstrip-blink')
 
-    const inactive = document.getElementById('history-recording-2')!
+    const inactive = document.getElementById('history-recording-1')!
     expect(inactive.className).toContain('bg-surface-2')
     expect(inactive.className).not.toContain('bg-primary/15')
     expect(inactive.getAttribute('style') ?? '').not.toContain('filmstrip-blink')
@@ -208,12 +211,12 @@ describe('HistoryPage', () => {
   it('pausar o vídeo para o pisca do card ativo (só pisca tocando de verdade, não só selecionado)', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
-      expect(document.getElementById('history-recording-1')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
     const video = document.getElementById('history-player-video') as HTMLVideoElement
     video.dispatchEvent(new Event('pause'))
     await waitFor(() => {
-      expect(document.getElementById('history-recording-1')?.getAttribute('style') ?? '').not.toContain('filmstrip-blink')
+      expect(document.getElementById('history-recording-2')?.getAttribute('style') ?? '').not.toContain('filmstrip-blink')
     })
   })
 
@@ -264,15 +267,15 @@ describe('HistoryPage', () => {
   it('clicar num card do filmstrip troca a gravação em reprodução', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
-      expect(document.getElementById('history-recording-2')).not.toBeNull()
+      expect(document.getElementById('history-recording-1')).not.toBeNull()
     })
-    document.getElementById('history-recording-2')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    document.getElementById('history-recording-1')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await waitFor(() => {
       const video = document.getElementById('history-player-video') as HTMLVideoElement
-      expect(video.getAttribute('src')).toBe('/recordings/cam1/b.mp4?token=tok')
+      expect(video.getAttribute('src')).toBe('/recordings/cam1/a.mp4?token=tok')
     })
-    expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBe('true')
-    expect(document.getElementById('history-recording-1')?.getAttribute('aria-current')).toBeNull()
+    expect(document.getElementById('history-recording-1')?.getAttribute('aria-current')).toBe('true')
+    expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBeNull()
   })
 
   it('sem gravações no dia → sem player nem filmstrip, mas calendário continua visível', async () => {
@@ -328,7 +331,7 @@ describe('HistoryPage', () => {
       expect(document.getElementById('history-player-loading')).toBeNull()
     })
 
-    document.getElementById('history-recording-2')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    document.getElementById('history-recording-1')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await waitFor(() => {
       expect(document.getElementById('history-player-loading')).not.toBeNull()
     })
@@ -357,7 +360,7 @@ describe('HistoryPage', () => {
     await waitFor(() => {
       expect(document.getElementById('history-player-error')).not.toBeNull()
     })
-    document.getElementById('history-recording-2')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    document.getElementById('history-recording-1')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await waitFor(() => {
       expect(document.getElementById('history-player-error')).toBeNull()
     })
@@ -374,7 +377,7 @@ describe('HistoryPage', () => {
       expect(document.getElementById('history-player-loading')).toBeNull()
     })
 
-    document.getElementById('history-recording-1')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    document.getElementById('history-recording-2')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     expect(document.getElementById('history-player-loading')).toBeNull()
   })
 
@@ -437,22 +440,161 @@ describe('HistoryPage', () => {
     })
     expect(document.getElementById('history-error')?.textContent).toContain('não encontrada')
     await waitFor(() => {
-      expect(document.getElementById('history-recording-1')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
   })
 
   it('selecionar gravação (padrão ou clique) mantém a URL sincronizada e compartilhável', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
-      expect(document.getElementById('history-recording-1')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
-    await waitFor(() => {
-      expect(currentPathname()).toBe('/history/cam1/1')
-    })
-
-    document.getElementById('history-recording-2')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await waitFor(() => {
       expect(currentPathname()).toBe('/history/cam1/2')
     })
+
+    document.getElementById('history-recording-1')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(currentPathname()).toBe('/history/cam1/1')
+    })
+  })
+
+  it('"Carregar mais" só aparece com hasMore e concatena a próxima página ao clicar', async () => {
+    const page1 = [
+      { id: 10, filename: 'p1a.mp4', start: '2026-07-05T09:00:00Z', end: '2026-07-05T09:05:00Z', url: '/recordings/cam1/p1a.mp4', is_recording: false, has_motion: false },
+    ]
+    const page2 = [
+      { id: 11, filename: 'p2a.mp4', start: '2026-07-05T08:00:00Z', end: '2026-07-05T08:05:00Z', url: '/recordings/cam1/p2a.mp4', is_recording: false, has_motion: false },
+    ]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/content-days')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ days: ['2026-07-05'] }) })
+        }
+        if (url.includes('/recordings')) {
+          const page = new URL(url, 'http://x').searchParams.get('page')
+          const recs = page === '2' ? page2 : page1
+          return Promise.resolve({ status: 200, json: () => Promise.resolve({ recordings: recs, hasMore: page !== '2', total: 2 }) })
+        }
+        if (url.includes('/motion')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ events: [] }) })
+        }
+        if (url.startsWith('/api/cameras')) {
+          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+        }
+        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-10')).not.toBeNull()
+    })
+    expect(document.getElementById('history-recording-11')).toBeNull()
+    const loadMoreBtn = document.getElementById('history-load-more')!
+    expect(loadMoreBtn).not.toBeNull()
+    loadMoreBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-11')).not.toBeNull()
+    })
+    // page 2 respondeu hasMore:false → o botão some.
+    expect(document.getElementById('history-load-more')).toBeNull()
+  })
+
+  it('poll mescla só a página recente, sem perder páginas antigas já carregadas via "Carregar mais"', async () => {
+    let pollCount = 0
+    // `mergeRecordings` (usado no poll) ordena por `filename` — nomes precisam ser
+    // cronologicamente ordenáveis (mesmo formato timestamp que o backend real usa), senão a
+    // lógica de "janela mais recente" da função não bate com o `start` dos fixtures.
+    const oldPage = [
+      { id: 20, filename: '20260705060000.mp4', start: '2026-07-05T06:00:00Z', end: '2026-07-05T06:05:00Z', url: '/recordings/cam1/old.mp4', is_recording: false, has_motion: false },
+    ]
+    function recentPage() {
+      const base = [
+        { id: 21, filename: '20260705090000.mp4', start: '2026-07-05T09:00:00Z', end: '2026-07-05T09:05:00Z', url: '/recordings/cam1/recent.mp4', is_recording: false, has_motion: false },
+      ]
+      if (pollCount > 0) {
+        base.unshift({ id: 22, filename: '20260705091000.mp4', start: '2026-07-05T09:10:00Z', end: '2026-07-05T09:15:00Z', url: '/recordings/cam1/newer.mp4', is_recording: false, has_motion: false })
+      }
+      return base
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/content-days')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ days: ['2026-07-05'] }) })
+        }
+        if (url.includes('/recordings')) {
+          const page = new URL(url, 'http://x').searchParams.get('page')
+          if (page === '2') return Promise.resolve({ status: 200, json: () => Promise.resolve({ recordings: oldPage, hasMore: false, total: 2 }) })
+          return Promise.resolve({ status: 200, json: () => Promise.resolve({ recordings: recentPage(), hasMore: true, total: 2 }) })
+        }
+        if (url.includes('/motion')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ events: [] }) })
+        }
+        if (url.startsWith('/api/cameras')) {
+          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+        }
+        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+    vi.useFakeTimers()
+    try {
+      renderAt('/history/cam1')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      document.getElementById('history-load-more')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(document.getElementById('history-recording-20')).not.toBeNull() // página antiga carregada
+
+      pollCount = 1
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(document.getElementById('history-recording-22')).not.toBeNull() // nova, veio no poll
+      expect(document.getElementById('history-recording-20')).not.toBeNull() // antiga sobrevive ao poll
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('URL compartilhável de uma gravação fora da 1ª página pagina sozinho até achar', async () => {
+    const page1 = [
+      { id: 30, filename: 'q1.mp4', start: '2026-07-05T09:00:00Z', end: '2026-07-05T09:05:00Z', url: '/recordings/cam1/q1.mp4', is_recording: false, has_motion: false },
+    ]
+    const page2 = [
+      { id: 31, filename: 'q2.mp4', start: '2026-07-05T06:00:00Z', end: '2026-07-05T06:05:00Z', url: '/recordings/cam1/q2.mp4', is_recording: false, has_motion: false },
+    ]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/content-days')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ days: ['2026-07-05'] }) })
+        }
+        if (url.includes('/recordings')) {
+          const page = new URL(url, 'http://x').searchParams.get('page')
+          const recs = page === '2' ? page2 : page1
+          return Promise.resolve({ status: 200, json: () => Promise.resolve({ recordings: recs, hasMore: page !== '2', total: 2 }) })
+        }
+        if (url.includes('/motion')) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ events: [] }) })
+        }
+        if (url.startsWith('/api/cameras')) {
+          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+        }
+        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+    gateway.getRecording.mockResolvedValue({ filename: 'q2.mp4', date: '2026-07-05' })
+    renderAt('/history/cam1/31')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-31')).not.toBeNull()
+    })
+    expect(document.getElementById('history-recording-31')?.getAttribute('aria-current')).toBe('true')
+    // A página 1 também veio junto (paginou por cima dela até achar a 31 na página 2).
+    expect(document.getElementById('history-recording-30')).not.toBeNull()
   })
 })
