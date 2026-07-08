@@ -6,15 +6,10 @@ import { useNotifications } from "../contexts/NotificationContext"
 import { useUserNotifications } from "../contexts/UserNotificationContext"
 import { useSidebarItems, type SidebarItem, type SidebarDropdownOption } from "../contexts/SidebarContext"
 import { useDisplayMode, useSetDisplayMode } from "../contexts/DisplayModeContext"
-import { formatDistanceToNow } from "date-fns"
-import { ptBR } from "date-fns/locale"
-import type { Notification } from "../contexts/NotificationContext"
-import ConfirmDialog from "./ConfirmDialog"
-import EventsPanelHeader from "./EventsPanelHeader"
 import ThemeModeNav from "./ThemeModeNav"
 import AccentSwatchNav from "./AccentSwatchNav"
 import {
-  Bell, X, Check, Settings, CircleUser, CameraLogo,
+  Check, Settings, CircleUser, CameraLogo,
   Film, ChevronLeft,
 } from "./Icons"
 import { Button, buttonVariants } from "./ui/button"
@@ -25,20 +20,12 @@ interface AppSidebarProps {
   username?: string
 }
 
-interface ConfirmState {
-  title: string
-  message: string
-  confirmLabel?: string
-  danger?: boolean
-  action: () => void
-}
-
 // Itens de rota da nav rail principal (mockup do redesign). Os destinos
 // Mapas/Dispositivos/Usuários são páginas placeholder por enquanto — preenchidas
 // nas histórias seguintes do roadmap. "Relatórios" mudou pro sidebar novo (Sidebar.tsx).
 // "Ao vivo" também mudou pro sidebar novo — "/" agora é a AllCamerasPage (fora do
-// AppLayout legado). O sino "Eventos" é renderizado antes destes (1º item do nav);
-// ver o JSX.
+// AppLayout legado). O sino "Eventos" (id "motion-notifications") também mudou pro
+// sidebar novo — ver MotionNotificationsBell.tsx.
 const NAV_LINKS: Array<{ id: string; to: string; label: string; icon: React.ReactNode }> = [
   { id: "nav-recordings", to: "/recordings", label: "Gravações", icon: <Film /> },
 ]
@@ -56,59 +43,6 @@ function useDropdown(extraRef?: React.RefObject<HTMLElement | null>) {
     return () => document.removeEventListener("mousedown", handleClick)
   }, [extraRef])
   return { open, setOpen, ref }
-}
-
-function NotificationItem({
-  n,
-  checked,
-  onToggle,
-  onClick,
-  onRemove,
-}: {
-  n: Notification
-  checked: boolean
-  onToggle: () => void
-  onClick: () => void
-  onRemove: () => void
-}) {
-  const relTime = formatDistanceToNow(new Date(n.time), {
-    addSuffix: true,
-    locale: ptBR,
-  })
-
-  return (
-    <div
-      className={`flex items-start gap-2 px-3 py-2 hover:bg-accent transition-colors ${
-        !n.read ? "border-l-2 border-primary" : "border-l-2 border-transparent"
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onToggle}
-        onClick={(e) => e.stopPropagation()}
-        className="mt-0.5 w-3 h-3 flex-shrink-0 accent-primary cursor-pointer"
-      />
-      <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
-        <div className="text-xs text-foreground font-medium truncate">
-          {n.cameraName || n.cameraId}
-        </div>
-        <div className="text-xs text-muted-foreground">
-          {n.label && <span style={{ color: n.color ?? "#f97316" }}>{n.label} · </span>}
-          {(n.score * 100).toFixed(1)}% · {relTime}
-        </div>
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={(e) => { e.stopPropagation(); onRemove() }}
-        className="h-6 w-6 shrink-0 mt-0.5 text-muted-foreground [&_svg]:size-3.5"
-        title="Excluir"
-      >
-        <X />
-      </Button>
-    </div>
-  )
 }
 
 function SidebarInjectedItem({ item, displayMode }: {
@@ -216,9 +150,7 @@ function SidebarInjectedItem({ item, displayMode }: {
 
 export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
   const location = useLocation()
-  const bellPanelRef = useRef<HTMLDivElement>(null)
   const { open: userOpen, setOpen: setUserOpen, ref: userRef } = useDropdown()
-  const { open: bellOpen, setOpen: setBellOpen, ref: bellRef } = useDropdown(bellPanelRef)
   const settingsPanelRef = useRef<HTMLDivElement>(null)
   const { open: settingsOpen, setOpen: setSettingsOpen, ref: settingsRef } = useDropdown(settingsPanelRef)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
@@ -228,63 +160,13 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
   const settingsLinks = role === "admin" ? ADMIN_SETTINGS_LINKS : VIEWER_SETTINGS_LINKS
   const settingsActive = location.pathname.startsWith("/settings") || location.pathname.startsWith("/stats")
 
-  const {
-    notifications, unreadCount,
-    markRead, markSelectedRead,
-    remove, removeAll, removeSelected,
-    browserSupported, browserPermission, browserEnabled,
-    enableBrowserNotifications, disableBrowserNotifications,
-  } = useNotifications()
+  // Só removeAll() sobrevive aqui — limpar notificações de movimento no logout
+  // continua acontecendo, mesmo com o sino agora no sidebar novo (MotionNotificationsBell).
+  const { removeAll } = useNotifications()
 
   const { unreadCount: userUnread } = useUserNotifications()
 
-  const bellBtnRef = useRef<HTMLButtonElement>(null)
-  const [bellPos, setBellPos] = useState({ top: 0, left: 0 })
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const navigate = useNavigate()
-
-  function openBell() {
-    if (bellBtnRef.current) {
-      const r = bellBtnRef.current.getBoundingClientRect()
-      setBellPos({ top: r.top, left: r.right + 8 })
-    }
-    setBellOpen(v => !v)
-  }
-
-  const allSelected = notifications.length > 0 && notifications.every((n) => selectedIds.has(n.id))
-  const someSelected = selectedIds.size > 0
-
-  function toggleAll() {
-    if (allSelected) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(notifications.map((n) => n.id)))
-    }
-  }
-
-  function toggleOne(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) { next.delete(id) } else { next.add(id) }
-      return next
-    })
-  }
-
-  function targetIds() { return [...selectedIds] }
-  function targetLabel() { return `${selectedIds.size} notificação(ões) selecionada(s)` }
-
-  const selectedNotifications = notifications.filter((n) => selectedIds.has(n.id))
-  const canMarkRead = selectedNotifications.some((n) => !n.read)
-
-  function ask(state: ConfirmState) {
-    setConfirm(state)
-  }
-
-  function handleConfirm() {
-    confirm?.action()
-    setConfirm(null)
-  }
 
   function logout() {
     removeAll()
@@ -309,8 +191,8 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
     'relative [&_svg]:size-5',
     showLabel ? 'w-full justify-start' : 'w-10 h-10',
   )
-  // Itens da nav baseados em <Button> (Eventos/sino, Configurações): mesmo tamanho
-  // e padding dos NavLinks para alinhar (o Button aplica buttonVariants via props).
+  // Item da nav baseado em <Button> (Configurações): mesmo tamanho e padding dos
+  // NavLinks para alinhar (o Button aplica buttonVariants via props).
   const navBtnSize = showLabel ? 'default' : 'icon'
   const navBtnExtra = cn('relative [&_svg]:size-5 shadow-none', showLabel ? 'w-full justify-start' : 'w-10 h-10')
 
@@ -346,107 +228,6 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
 
       {/* Nav rail principal */}
       <nav id="sidebar-nav" className={`flex flex-col ${itemsAlign} gap-1 py-2`}>
-        {/* Eventos — sino com painel de notificações ao vivo (1º item do nav) */}
-        <div ref={bellRef} className={showLabel ? 'w-full' : undefined}>
-          <Button
-            id="sidebar-notifications"
-            ref={bellBtnRef}
-            variant="ghost"
-            size={navBtnSize}
-            onClick={openBell}
-            className={cn(navBtnExtra, unreadCount > 0 && "text-primary animate-pulse")}
-            title="Eventos"
-          >
-            {showIcon && <Bell />}
-            {showLabel && <span className="text-sm truncate">Eventos</span>}
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-red-600 text-white rounded-full">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            )}
-          </Button>
-
-          {bellOpen && createPortal(
-            <div
-              id="events-panel"
-              ref={bellPanelRef}
-              style={{ position: 'fixed', top: bellPos.top, left: bellPos.left, zIndex: 9999 }}
-              className="w-72 bg-surface border border-border rounded shadow-lg flex flex-col max-h-[80vh]">
-              <EventsPanelHeader
-                allSelected={allSelected}
-                someSelected={someSelected}
-                canMarkRead={canMarkRead}
-                onToggleAll={toggleAll}
-                onMarkRead={() => ask({
-                  title: "Marcar como lidas",
-                  message: `Marcar ${targetLabel()} como lidas?`,
-                  confirmLabel: "Marcar",
-                  action: () => { markSelectedRead(targetIds()); setSelectedIds(new Set()) },
-                })}
-                onDelete={() => ask({
-                  title: "Excluir notificações",
-                  message: `Excluir ${targetLabel()}? Esta ação não pode ser desfeita.`,
-                  confirmLabel: "Excluir",
-                  danger: true,
-                  action: () => {
-                    if (someSelected) { removeSelected(targetIds()) } else { removeAll() }
-                    setSelectedIds(new Set())
-                  },
-                })}
-              />
-
-              <div className="overflow-y-auto flex-1">
-                {notifications.length === 0 ? (
-                  <p className="text-xs text-faint text-center py-6">Nenhuma notificação</p>
-                ) : (
-                  notifications.map((n) => (
-                    <NotificationItem
-                      key={n.id}
-                      n={n}
-                      checked={selectedIds.has(n.id)}
-                      onToggle={() => toggleOne(n.id)}
-                      onClick={() => {
-                        markRead(n.id)
-                        setBellOpen(false)
-                        navigate(`/cameras/${n.cameraId}`, { state: { eventTime: n.time } })
-                      }}
-                      onRemove={() => ask({
-                        title: "Excluir notificação",
-                        message: "Excluir esta notificação?",
-                        confirmLabel: "Excluir",
-                        danger: true,
-                        action: () => {
-                          remove(n.id)
-                          setSelectedIds((prev) => {
-                            const next = new Set(prev)
-                            next.delete(n.id)
-                            return next
-                          })
-                        },
-                      })}
-                    />
-                  ))
-                )}
-              </div>
-
-              {browserSupported && (
-                <div className="border-t border-border px-3 py-2 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Alertas do sistema</span>
-                  {browserPermission === "denied" ? (
-                    <button onClick={enableBrowserNotifications} className="text-xs text-red-400 hover:text-red-300 transition-colors cursor-pointer" title="Permissão negada — tentar">
-                      Permissão negada
-                    </button>
-                  ) : browserEnabled ? (
-                    <button onClick={disableBrowserNotifications} className="text-xs text-primary hover:text-primary/80 transition-colors">Desativar</button>
-                  ) : (
-                    <button onClick={enableBrowserNotifications} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Ativar</button>
-                  )}
-                </div>
-              )}
-            </div>
-          , document.body)}
-        </div>
-
         {NAV_LINKS.map(renderNavLink)}
 
         {/* Configurações — flyout com as seções de config */}
@@ -598,16 +379,6 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
           )}
         </div>
       </div>
-
-      <ConfirmDialog
-        open={confirm !== null}
-        title={confirm?.title ?? ""}
-        message={confirm?.message ?? ""}
-        confirmLabel={confirm?.confirmLabel}
-        danger={confirm?.danger}
-        onConfirm={handleConfirm}
-        onCancel={() => setConfirm(null)}
-      />
     </aside>
   )
 }

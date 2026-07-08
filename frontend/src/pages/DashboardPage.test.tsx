@@ -17,6 +17,16 @@ vi.mock('../contexts/UserNotificationContext', () => ({
   useUserNotifications: () => ({ unreadCount: 0 }),
 }))
 
+vi.mock('../contexts/NotificationContext', () => ({
+  useNotifications: () => ({
+    notifications: [], unreadCount: 0,
+    markRead: vi.fn(), markSelectedRead: vi.fn(),
+    remove: vi.fn(), removeAll: vi.fn(), removeSelected: vi.fn(),
+    browserSupported: false, browserPermission: 'default', browserEnabled: false,
+    enableBrowserNotifications: vi.fn(), disableBrowserNotifications: vi.fn(),
+  }),
+}))
+
 import DashboardPage from './DashboardPage'
 
 afterEach(() => cleanup())

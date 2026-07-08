@@ -77,24 +77,20 @@ describe('Sidebar — nav rail principal', () => {
     expect(document.getElementById('nav-reports')).toBeNull()
   })
 
-  it('Eventos (sino) é o primeiro item do nav, antes de "Gravações"', () => {
-    renderSidebar()
-    const events = document.getElementById('sidebar-notifications')!
-    const recordings = document.getElementById('nav-recordings')!
-    // recordings aparece DEPOIS de events no DOM
-    expect(events.compareDocumentPosition(recordings) & FOLLOWS).toBeTruthy()
-  })
-
   it('não renderiza mais "Ao vivo" (rota "/" agora é a AllCamerasPage, fora do sidebar legado)', () => {
     renderSidebar()
     expect(document.getElementById('nav-live')).toBeNull()
   })
 
-  it('mantém Eventos (sino) e Configurações (flyout) com seus rótulos', () => {
+  it('não renderiza mais o sino de Eventos (mudou pro sidebar novo — MotionNotificationsBell)', () => {
     renderSidebar()
-    const events = document.getElementById('sidebar-notifications')!
+    expect(document.getElementById('sidebar-notifications')).toBeNull()
+    expect(document.getElementById('motion-notifications')).toBeNull()
+  })
+
+  it('mantém Configurações (flyout) com seu rótulo', () => {
+    renderSidebar()
     const settings = document.getElementById('sidebar-settings')!
-    expect(events.textContent).toContain('Eventos')
     expect(settings.textContent).toContain('Configurações')
   })
 

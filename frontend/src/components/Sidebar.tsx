@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
@@ -9,6 +9,8 @@ import { useDisplayMode, useSetDisplayMode } from '../contexts/DisplayModeContex
 import { ADMIN_SETTINGS_LINKS, VIEWER_SETTINGS_LINKS } from './settingsNavLinks'
 import ThemeModeNav from './ThemeModeNav'
 import AccentSwatchNav from './AccentSwatchNav'
+import MotionNotificationsBell from './MotionNotificationsBell'
+import { navItemClass, useFlyout } from './sidebarFlyout'
 import { BarChart2, CameraLogo, Cctv, ChevronLeft, CircleUser, Film, Settings } from './Icons'
 
 interface NavItem {
@@ -23,47 +25,6 @@ interface NavItem {
 const items: NavItem[] = [
   { id: 'sidebar-all-cameras', to: '/', label: 'Todas as câmeras', icon: <Cctv className="h-5 w-5" />, end: true },
 ]
-
-const navItemClass = (active: boolean, showLabel: boolean) =>
-  cn(
-    'flex items-center rounded-lg transition-colors h-10',
-    showLabel ? 'w-full justify-start gap-3 px-3' : 'w-10 justify-center',
-    active ? 'bg-primary text-on-primary' : 'text-muted hover:bg-surface-2 hover:text-foreground',
-  )
-
-// useFlyout — abre/fecha um flyout posicionado (portal) à direita de um botão,
-// fechando em clique fora. `pos` traz as duas âncoras possíveis: SettingsFlyout e
-// UserMenu (rodapé do rail) usam `bottom` — o painel ancora pela BASE do botão e
-// cresce pra cima, senão nasceria abaixo do botão e sairia da viewport; itens do
-// nav principal (ex.: CameraListFlyout) usam `top` — ancora pelo TOPO do botão e
-// cresce pra baixo (mesmo padrão do flyout de dropdown do AppSidebar).
-function useFlyout<T extends HTMLElement>() {
-  const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState({ top: 0, bottom: 0, left: 0 })
-  const btnRef = useRef<T>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    function handleClick(e: MouseEvent) {
-      const t = e.target as Node
-      const inside = (panelRef.current?.contains(t) ?? false) || (btnRef.current?.contains(t) ?? false)
-      if (!inside) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open])
-
-  function toggle() {
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect()
-      setPos({ top: r.top, bottom: window.innerHeight - r.bottom, left: r.right + 8 })
-    }
-    setOpen(v => !v)
-  }
-
-  return { open, setOpen, pos, btnRef, panelRef, toggle }
-}
 
 interface CameraOption { id: string; name: string }
 
@@ -342,6 +303,7 @@ export default function Sidebar() {
         {showLabel && <span className="text-sm font-semibold text-foreground truncate">os-camera</span>}
       </Link>
       <div className={cn('flex flex-1 flex-col gap-1 py-3', showLabel ? 'items-stretch px-2' : 'items-center')}>
+        <MotionNotificationsBell showLabel={showLabel} />
         {items.map(item => (
           <NavLink
             key={item.id}
