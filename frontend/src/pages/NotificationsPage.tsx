@@ -1,7 +1,7 @@
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
-import AppLayout from '../components/AppLayout'
+import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import { Check, Trash2 } from '../components/Icons'
 import { useUserNotifications, type UserNotificationType } from '../contexts/UserNotificationContext'
@@ -26,8 +26,8 @@ export default function NotificationsPage() {
   const { notifications, unreadCount, markRead, markAllRead, remove, removeAll } = useUserNotifications()
 
   return (
-    <AppLayout>
-      <div>
+    <Layout id="notifications-page" footerId="notifications-footer" contentClassName="p-6">
+    <div id="notifications-content" className="page-content space-y-4">
         <PageHeader
           title="Notificações"
           subtitle={unreadCount > 0 ? `${unreadCount} não lida(s)` : 'Tudo lido'}
@@ -96,7 +96,7 @@ export default function NotificationsPage() {
             ))}
           </ul>
         )}
-      </div>
-    </AppLayout>
+    </div>
+    </Layout>
   )
 }

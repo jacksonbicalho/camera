@@ -1,6 +1,4 @@
-// Seções de configuração — compartilhado entre AppSidebar (flyout) e Sidebar
-// (flyout do rail enxuto). Lista única evita os dois saírem de sincronia quando
-// uma seção nova é adicionada/removida.
+// Seções de configuração — usado pelo flyout de Configurações do Sidebar (rail enxuto).
 export const ADMIN_SETTINGS_LINKS = [
   { to: "/settings/cameras",    label: "Câmeras" },
   { to: "/settings/discover",   label: "Rastrear câmeras" },

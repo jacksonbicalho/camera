@@ -12,13 +12,10 @@ import { resolve } from 'node:path'
 const GRAY_RAMP = /\b[a-z-]*(?:bg|text|border|ring|divide|from|to|via)-gray-\d{2,3}\b/g
 
 const MIGRATED_FILES = [
-  'src/components/AppLayout.tsx',
-  'src/components/AppSidebar.tsx',
   'src/components/CameraForm.tsx',
   'src/components/CameraSettingsTabs.tsx',
   'src/components/ConfirmDialog.tsx',
   'src/components/DeviceInfoPanel.tsx',
-  'src/components/FooterStates.tsx',
   'src/components/Player.tsx',
   'src/components/UserForm.tsx',
   'src/pages/ChangePasswordPage.tsx',

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getUsername, changePassword, login, clearToken, getRole, authHeaders, mustChangePassword } from '../auth'
-import AppLayout from '../components/AppLayout'
+import Layout from '../components/Layout'
 import { Loader2 } from '../components/Icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -106,10 +106,10 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <AppLayout>
-      <div className="flex justify-center pt-12">
+    <Layout id="change-password-page" footerId="change-password-footer" contentClassName="p-6">
+    <div id="change-password-content" className="page-content flex justify-center pt-12">
         {form}
-      </div>
-    </AppLayout>
+    </div>
+    </Layout>
   )
 }

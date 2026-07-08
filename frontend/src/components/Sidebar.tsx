@@ -285,11 +285,9 @@ function UserMenu({ showLabel }: { showLabel: boolean }) {
 }
 
 // Sidebar — rail de navegação enxuto para o Layout (páginas novas). Links + recolher/expandir
-// (mesmo DisplayModeContext global do AppSidebar — só 2 dos 3 modos, não faz sentido
-// "text-only" pra um rail de 3 itens; se o usuário estiver em "text-only", tratamos como
-// expandido e o botão de recolher força de volta pra "icons-only") + flyout de Configurações +
-// UserMenu: sem sino/painéis pesados — esses vivem no AppSidebar (o sidebar completo do
-// AppLayout).
+// (DisplayModeContext global — só 2 dos 3 modos, não faz sentido "text-only" pra um rail de
+// 3 itens; se o usuário estiver em "text-only", tratamos como expandido e o botão de
+// recolher força de volta pra "icons-only") + flyout de Configurações + UserMenu.
 export default function Sidebar() {
   const { sidebar: sidebarMode } = useDisplayMode()
   const setDisplayMode = useSetDisplayMode()

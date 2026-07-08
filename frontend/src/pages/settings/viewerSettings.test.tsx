@@ -22,10 +22,6 @@ vi.mock('../../hooks/useSettings', () => ({
   useSettings: () => ({ settings: null, reload: vi.fn() }),
 }))
 
-vi.mock('../../components/AppLayout', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}))
-
 // ServerSettingsPage/SystemSettingsPage/StorageSettingsPage/CamerasSettingsPage usam o
 // Layout novo — mocka esse (Layout real puxaria Sidebar -> MotionNotificationsBell ->
 // useNotifications(), sem provider aqui).
