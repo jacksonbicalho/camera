@@ -52,12 +52,12 @@ func TestSeedFromBootstrap(t *testing.T) {
 	}
 
 	// system_config deve ter server.port
-	port, err := db.GetConfig(database, "server.port")
+	all, err := db.GetAllConfig(database)
 	if err != nil {
-		t.Fatalf("GetConfig server.port: %v", err)
+		t.Fatalf("GetAllConfig: %v", err)
 	}
-	if port != "8080" {
-		t.Errorf("server.port: got %q, want %q", port, "8080")
+	if all["server.port"] != "8080" {
+		t.Errorf("server.port: got %q, want %q", all["server.port"], "8080")
 	}
 }
 

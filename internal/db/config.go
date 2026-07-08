@@ -1,25 +1,9 @@
 package db
 
 import (
-	"database/sql"
-	"errors"
 	"fmt"
 	"strconv"
 )
-
-// GetConfig returns the value for the given key from system_config.
-// Returns an error if the key does not exist.
-func GetConfig(db *DB, key string) (string, error) {
-	var val string
-	err := db.QueryRow(`SELECT value FROM system_config WHERE key=?`, key).Scan(&val)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", fmt.Errorf("config key %q not found", key)
-		}
-		return "", fmt.Errorf("get config %q: %w", key, err)
-	}
-	return val, nil
-}
 
 // SetConfig inserts or replaces the value for the given key.
 func SetConfig(db *DB, key, value string) error {

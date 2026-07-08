@@ -121,52 +121,6 @@ func TestDetections_InsertAndList(t *testing.T) {
 	}
 }
 
-func TestDetectionLabelsByPaths_ReturnsBatchLabels(t *testing.T) {
-	database := openTestDB(t)
-	ensureCamera(t, database, "cam1")
-
-	for _, path := range []string{"cam1/2024/01/01/120000.mp4", "cam1/2024/01/01/120500.mp4"} {
-		if err := db.InsertRecording(database, db.Recording{
-			CameraID:  "cam1",
-			StartedAt: time.Now().Add(-5 * time.Minute),
-			EndedAt:   time.Now(),
-			Path:      path,
-			SizeBytes: 512,
-		}); err != nil {
-			t.Fatalf("InsertRecording(%s): %v", path, err)
-		}
-	}
-	if err := db.InsertDetections(database, "cam1/2024/01/01/120000.mp4", []db.Detection{
-		{Label: "person", Confidence: 0.9, FrameCount: 3},
-		{Label: "car", Confidence: 0.7, FrameCount: 1},
-	}, false); err != nil {
-		t.Fatalf("InsertDetections: %v", err)
-	}
-	if err := db.InsertDetections(database, "cam1/2024/01/01/120500.mp4", []db.Detection{
-		{Label: "dog", Confidence: 0.8, FrameCount: 2},
-	}, false); err != nil {
-		t.Fatalf("InsertDetections: %v", err)
-	}
-
-	result, err := db.DetectionLabelsByPaths(database, []string{
-		"cam1/2024/01/01/120000.mp4",
-		"cam1/2024/01/01/120500.mp4",
-		"cam1/2024/01/01/nonexistent.mp4",
-	})
-	if err != nil {
-		t.Fatalf("DetectionLabelsByPaths: %v", err)
-	}
-	if len(result["cam1/2024/01/01/120000.mp4"]) != 2 {
-		t.Errorf("expected 2 labels for first path, got %v", result["cam1/2024/01/01/120000.mp4"])
-	}
-	if len(result["cam1/2024/01/01/120500.mp4"]) != 1 || result["cam1/2024/01/01/120500.mp4"][0] != "dog" {
-		t.Errorf("expected [dog] for second path, got %v", result["cam1/2024/01/01/120500.mp4"])
-	}
-	if result["cam1/2024/01/01/nonexistent.mp4"] != nil {
-		t.Errorf("expected nil for nonexistent path, got %v", result["cam1/2024/01/01/nonexistent.mp4"])
-	}
-}
-
 func TestDetections_DeleteCascade(t *testing.T) {
 	database := openTestDB(t)
 	ensureCamera(t, database, "cam1")

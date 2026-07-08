@@ -48,28 +48,6 @@ func MarkRecordingHasMotion(db *DB, cameraID string, start, end time.Time) error
 	return err
 }
 
-// HasMotionInRangeDB reports whether the recordings table contains a row with
-// has_motion=1 overlapping [start, end) for the given camera. Returns false
-// when the DB has no rows for this range (caller may fall back to NDJSON).
-func HasMotionInRangeDB(db *DB, cameraID string, start, end time.Time) (found bool, hasMotion bool, err error) {
-	var count int
-	var motion int
-	err = db.QueryRow(`
-		SELECT COUNT(*), COALESCE(MAX(has_motion),0)
-		FROM recordings
-		WHERE camera_id=?
-		  AND started_at >= ?
-		  AND started_at < ?`,
-		cameraID,
-		start.UTC().Format(time.RFC3339),
-		end.UTC().Format(time.RFC3339),
-	).Scan(&count, &motion)
-	if err != nil {
-		return false, false, err
-	}
-	return count > 0, motion != 0, nil
-}
-
 // IDsByPaths returns a map of path → recording ID for the given file paths.
 // Paths not found in the DB are absent from the map.
 func IDsByPaths(db *DB, paths []string) (map[string]int64, error) {
@@ -279,32 +257,6 @@ func DeleteRecordingByStartedAt(db *DB, cameraID string, startedAt time.Time) er
 	_, err := db.Exec(`DELETE FROM recordings WHERE camera_id=? AND started_at=?`,
 		cameraID, startedAt.UTC().Format(time.RFC3339))
 	return err
-}
-
-// SizeByCamera returns the total size in bytes per camera, ordered by camera_id.
-func SizeByCamera(db *DB) (map[string]int64, error) {
-	rows, err := db.Query(`SELECT camera_id, SUM(size_bytes) FROM recordings GROUP BY camera_id`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	result := make(map[string]int64)
-	for rows.Next() {
-		var cam string
-		var total sql.NullInt64
-		if err := rows.Scan(&cam, &total); err != nil {
-			return nil, err
-		}
-		result[cam] = total.Int64
-	}
-	return result, rows.Err()
-}
-
-// TotalSize returns the sum of size_bytes across all recordings.
-func TotalSize(db *DB) (int64, error) {
-	var total sql.NullInt64
-	err := db.QueryRow(`SELECT SUM(size_bytes) FROM recordings`).Scan(&total)
-	return total.Int64, err
 }
 
 // StatsRecordings returns the total count and total size in bytes of all recordings.

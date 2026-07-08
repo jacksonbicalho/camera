@@ -46,9 +46,9 @@ func TestTrackerFlipFlopDoesNotConfirm(t *testing.T) {
 	tr := stateclass.NewTracker(0.8, 3)
 	tr.Observe("aberto", 0.9)
 	tr.Observe("fechado", 0.9) // troca candidato, zera sequência
-	tr.Observe("aberto", 0.9)
-	if tr.State() != "" {
-		t.Fatalf("não deveria ter confirmado nada, estado=%q", tr.State())
+	_, st := tr.Observe("aberto", 0.9)
+	if st != "" {
+		t.Fatalf("não deveria ter confirmado nada, estado=%q", st)
 	}
 }
 

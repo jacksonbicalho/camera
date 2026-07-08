@@ -81,30 +81,6 @@ func TestListUsers(t *testing.T) {
 	}
 }
 
-func TestUpdateUser(t *testing.T) {
-	database := openTestDB(t)
-
-	id, err := db.CreateUser(database, "dave", "senha", "viewer", false)
-	if err != nil {
-		t.Fatalf("CreateUser: %v", err)
-	}
-
-	if err := db.UpdateUser(database, id, "dave2", "novasenha", "admin"); err != nil {
-		t.Fatalf("UpdateUser: %v", err)
-	}
-
-	u, err := db.GetUserByID(database, id)
-	if err != nil {
-		t.Fatalf("GetUserByID: %v", err)
-	}
-	if u.Username != "dave2" {
-		t.Errorf("username: got %q, want %q", u.Username, "dave2")
-	}
-	if u.Role != "admin" {
-		t.Errorf("role: got %q, want %q", u.Role, "admin")
-	}
-}
-
 func TestDeleteUser(t *testing.T) {
 	database := openTestDB(t)
 

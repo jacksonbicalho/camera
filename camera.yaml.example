@@ -29,7 +29,7 @@ storage:
   # retenção, tamanho máximo e intervalo de limpeza são configurados via /settings/storage na UI
   # e armazenados no banco de dados — nunca neste arquivo
 
-# smtp:                             # opcional — servidor de e-mail (config only, sem envio ainda)
+# smtp:                             # opcional — servidor de e-mail (usado pela recuperação de senha)
 #   host: smtp.example.com          # env: OS_CAMERA_SMTP_HOST
 #   port: 587                       # env: OS_CAMERA_SMTP_PORT
 #   username: no-reply@example.com  # env: OS_CAMERA_SMTP_USERNAME
