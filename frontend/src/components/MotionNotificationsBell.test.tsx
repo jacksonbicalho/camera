@@ -88,7 +88,7 @@ describe('MotionNotificationsBell', () => {
 
     vi.stubGlobal('fetch', vi.fn((url: string) => {
       if (url === `/api/cameras/cam1/motion?date=${dateStr}`) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 42, time: n.time, score: n.score }]) })
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [{ id: 42, time: n.time, score: n.score }] }) })
       }
       if (url.startsWith('/api/cameras/cam1/recordings?date=')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ recordings: [{ id: 7, start: '2026-07-07T09:00:00Z' }] }) })
@@ -111,7 +111,7 @@ describe('MotionNotificationsBell', () => {
 
     vi.stubGlobal('fetch', vi.fn((url: string) => {
       if (url.includes('/motion?date=')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [] }) })
       }
       if (url.includes('/recordings?date=')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ recordings: [{ id: 7, start: '2026-07-07T09:00:00Z' }] }) })
@@ -133,7 +133,7 @@ describe('MotionNotificationsBell', () => {
 
     vi.stubGlobal('fetch', vi.fn((url: string) => {
       if (url.includes('/motion?date=')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 42, time: n.time, score: n.score }]) })
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [{ id: 42, time: n.time, score: n.score }] }) })
       }
       if (url.includes('/recordings?date=')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ recordings: [] }) })
