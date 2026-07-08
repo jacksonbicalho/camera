@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { authHeaders } from '../../auth'
@@ -51,7 +51,8 @@ export default function CameraAnalysisSettingsPage() {
   }
 
   return (
-    <SettingsLayout>
+    <Layout id="camera-analysis-page" footerId="camera-analysis-footer" contentClassName="p-6">
+    <div id="camera-analysis-content" className="page-content space-y-4">
       <CameraSettingsTabs id={id!} active="analysis" camName={cam?.name} />
 
       <div className="space-y-6">
@@ -93,6 +94,7 @@ export default function CameraAnalysisSettingsPage() {
           </div>
         </div>
       </div>
-    </SettingsLayout>
+    </div>
+    </Layout>
   )
 }

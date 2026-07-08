@@ -13,14 +13,6 @@ import { NotificationProvider } from './contexts/NotificationContext'
 import { UserNotificationProvider } from './contexts/UserNotificationContext'
 
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
-const CamerasSettingsPage = lazy(() => import('./pages/settings/CamerasSettingsPage'))
-const CameraDetailSettingsPage = lazy(() => import('./pages/settings/CameraDetailSettingsPage'))
-const CameraMotionSettingsPage = lazy(() => import('./pages/settings/CameraMotionSettingsPage'))
-const CameraZonesSettingsPage = lazy(() => import('./pages/settings/CameraZonesSettingsPage'))
-const CameraStatesSettingsPage = lazy(() => import('./pages/settings/CameraStatesSettingsPage'))
-const DiscoverPage = lazy(() => import('./pages/settings/DiscoverPage'))
-const AnalysisSettingsPage = lazy(() => import('./pages/settings/AnalysisSettingsPage'))
-const CameraAnalysisSettingsPage = lazy(() => import('./pages/settings/CameraAnalysisSettingsPage'))
 const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const ProfileChangePasswordPage = lazy(() => import('./pages/ProfileChangePasswordPage'))
@@ -57,17 +49,6 @@ export default function App() {
       <Route path="/notifications" element={<Lazy><NotificationsPage /></Lazy>} />
       <Route path="/profile" element={<Lazy><ProfilePage /></Lazy>} />
       <Route path="/profile/change-password" element={<Lazy><ProfileChangePasswordPage /></Lazy>} />
-      <Route path="/settings/cameras" element={<Lazy><CamerasSettingsPage /></Lazy>} />
-      <Route path="/settings/cameras/new" element={<Lazy><CamerasSettingsPage /></Lazy>} />
-      <Route path="/settings/cameras/edit/:id" element={<Lazy><CameraDetailSettingsPage /></Lazy>} />
-      <Route path="/settings/cameras/motion/:id" element={<Lazy><CameraMotionSettingsPage /></Lazy>} />
-      <Route path="/settings/cameras/zones/:id" element={<Lazy><CameraZonesSettingsPage /></Lazy>} />
-      <Route path="/settings/cameras/analysis/:id" element={<Lazy><CameraAnalysisSettingsPage /></Lazy>} />
-      <Route path="/settings/cameras/states/:id" element={<Lazy><CameraStatesSettingsPage /></Lazy>} />
-      <Route path="/settings/cameras/:id/states/edit/:cid" element={<Lazy><CameraStatesSettingsPage /></Lazy>} />
-      <Route path="/settings/cameras/:id" element={<Lazy><CameraDetailSettingsPage /></Lazy>} />
-      <Route path="/settings/discover" element={<Lazy><DiscoverPage /></Lazy>} />
-      <Route path="/settings/analysis" element={<Lazy><AnalysisSettingsPage /></Lazy>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </SidebarItemsProvider>

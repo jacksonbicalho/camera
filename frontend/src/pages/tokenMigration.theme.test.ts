@@ -20,8 +20,6 @@ const MIGRATED_FILES = [
   'src/components/DeviceInfoPanel.tsx',
   'src/components/FooterStates.tsx',
   'src/components/Player.tsx',
-  'src/components/SettingsLayout.tsx',
-  'src/components/SettingsSidebar.tsx',
   'src/components/UserForm.tsx',
   'src/pages/ChangePasswordPage.tsx',
   'src/pages/DashboardPage.tsx',

@@ -236,11 +236,11 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
                 {to === '/settings/about' && <AccentSwatchNav onSelect={() => setSettingsOpen(false)} />}
                 {to === '/settings/about' && (
                   <Link
-                    to="/preferences/stats"
+                    to="/settings/stats"
                     id="settings-stats"
                     onClick={() => setSettingsOpen(false)}
                     className={`block px-3 py-2 text-sm transition-colors ${
-                      location.pathname.startsWith('/preferences/stats')
+                      location.pathname.startsWith('/settings/stats')
                         ? 'bg-accent text-accent-foreground'
                         : 'text-foreground hover:bg-accent hover:text-accent-foreground'
                     }`}

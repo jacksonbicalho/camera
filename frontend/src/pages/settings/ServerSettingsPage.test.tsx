@@ -21,7 +21,7 @@ describe('ServerSettingsPage', () => {
       ok: true, status: 200,
       json: () => Promise.resolve({ server: { port: 8080, username: 'admin' } }),
     })))
-    render(<MemoryRouter initialEntries={['/preferences/server']}><ServerSettingsPage /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/settings/server']}><ServerSettingsPage /></MemoryRouter>)
     await waitFor(() => {
       expect(document.body.textContent).toContain('Servidor')
       expect(document.body.textContent).toContain('8080')

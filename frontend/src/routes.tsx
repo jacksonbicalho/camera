@@ -18,6 +18,14 @@ const UsersSettingsPage = lazy(() => import('./pages/settings/UsersSettingsPage'
 const UserDetailSettingsPage = lazy(() => import('./pages/settings/UserDetailSettingsPage'))
 const AppearanceSettingsPage = lazy(() => import('./pages/settings/AppearanceSettingsPage'))
 const AboutPage = lazy(() => import('./pages/settings/AboutPage'))
+const CamerasSettingsPage = lazy(() => import('./pages/settings/CamerasSettingsPage'))
+const CameraDetailSettingsPage = lazy(() => import('./pages/settings/CameraDetailSettingsPage'))
+const CameraMotionSettingsPage = lazy(() => import('./pages/settings/CameraMotionSettingsPage'))
+const CameraZonesSettingsPage = lazy(() => import('./pages/settings/CameraZonesSettingsPage'))
+const CameraAnalysisSettingsPage = lazy(() => import('./pages/settings/CameraAnalysisSettingsPage'))
+const CameraStatesSettingsPage = lazy(() => import('./pages/settings/CameraStatesSettingsPage'))
+const DiscoverPage = lazy(() => import('./pages/settings/DiscoverPage'))
+const AnalysisSettingsPage = lazy(() => import('./pages/settings/AnalysisSettingsPage'))
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation()
@@ -52,28 +60,29 @@ export const routes = (
     <Route path="/recordings/:date" element={<Lazy><RecordingsPage /></Lazy>} />
     <Route path="/recordings/:date/:hour" element={<Lazy><RecordingsPage /></Lazy>} />
     <Route path="/recordings/:date/:hour/:view" element={<Lazy><RecordingsPage /></Lazy>} />
-    {/* Estatísticas/Sistema/Servidor/Usuários/Armazenamento — migradas de SettingsLayout/
-        AppLayout pro Layout novo. Rota canônica /preferences/*; os paths antigos /settings/*
-        e /stats continuam registrados como alias pro MESMO componente (bookmarks, e o
-        AppSidebar legado que ainda usa os paths novos via settingsNavLinks.ts — mas nada
-        impede visita direta ao path antigo). */}
-    <Route path="/preferences/stats" element={<Lazy><StatsPage /></Lazy>} />
+    {/* Todo o settings usa Layout novo agora (SettingsLayout/AppLayout legado
+        fechado) — um único ícone "Configurações" no Sidebar novo, tudo canonizado
+        em /settings/*. /stats (bare, histórico) segue como alias de /settings/stats. */}
+    <Route path="/settings/stats" element={<Lazy><StatsPage /></Lazy>} />
     <Route path="/stats" element={<Lazy><StatsPage /></Lazy>} />
-    <Route path="/preferences/system" element={<Lazy><SystemSettingsPage /></Lazy>} />
     <Route path="/settings/system" element={<Lazy><SystemSettingsPage /></Lazy>} />
-    <Route path="/preferences/server" element={<Lazy><ServerSettingsPage /></Lazy>} />
     <Route path="/settings/server" element={<Lazy><ServerSettingsPage /></Lazy>} />
-    <Route path="/preferences/storage" element={<Lazy><StorageSettingsPage /></Lazy>} />
     <Route path="/settings/storage" element={<Lazy><StorageSettingsPage /></Lazy>} />
-    <Route path="/preferences/users" element={<Lazy><UsersSettingsPage /></Lazy>} />
-    <Route path="/preferences/users/new" element={<Lazy><UsersSettingsPage /></Lazy>} />
-    <Route path="/preferences/users/:id" element={<Lazy><UserDetailSettingsPage /></Lazy>} />
     <Route path="/settings/users" element={<Lazy><UsersSettingsPage /></Lazy>} />
     <Route path="/settings/users/new" element={<Lazy><UsersSettingsPage /></Lazy>} />
     <Route path="/settings/users/:id" element={<Lazy><UserDetailSettingsPage /></Lazy>} />
-    <Route path="/preferences/appearance" element={<Lazy><AppearanceSettingsPage /></Lazy>} />
     <Route path="/settings/appearance" element={<Lazy><AppearanceSettingsPage /></Lazy>} />
-    <Route path="/preferences/about" element={<Lazy><AboutPage /></Lazy>} />
     <Route path="/settings/about" element={<Lazy><AboutPage /></Lazy>} />
+    <Route path="/settings/cameras" element={<Lazy><CamerasSettingsPage /></Lazy>} />
+    <Route path="/settings/cameras/new" element={<Lazy><CamerasSettingsPage /></Lazy>} />
+    <Route path="/settings/cameras/edit/:id" element={<Lazy><CameraDetailSettingsPage /></Lazy>} />
+    <Route path="/settings/cameras/motion/:id" element={<Lazy><CameraMotionSettingsPage /></Lazy>} />
+    <Route path="/settings/cameras/zones/:id" element={<Lazy><CameraZonesSettingsPage /></Lazy>} />
+    <Route path="/settings/cameras/analysis/:id" element={<Lazy><CameraAnalysisSettingsPage /></Lazy>} />
+    <Route path="/settings/cameras/states/:id" element={<Lazy><CameraStatesSettingsPage /></Lazy>} />
+    <Route path="/settings/cameras/:id/states/edit/:cid" element={<Lazy><CameraStatesSettingsPage /></Lazy>} />
+    <Route path="/settings/cameras/:id" element={<Lazy><CameraDetailSettingsPage /></Lazy>} />
+    <Route path="/settings/discover" element={<Lazy><DiscoverPage /></Lazy>} />
+    <Route path="/settings/analysis" element={<Lazy><AnalysisSettingsPage /></Lazy>} />
   </>
 )

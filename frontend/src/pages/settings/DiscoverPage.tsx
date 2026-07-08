@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
 import PageHeader from '../../components/PageHeader'
 import { authHeaders } from '../../auth'
 import { Loader2, Search } from '../../components/Icons'
@@ -145,10 +145,10 @@ export default function DiscoverPage() {
   const inputClass = "bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-ring w-36"
 
   return (
-    <SettingsLayout>
+    <Layout id="discover-page" footerId="discover-footer" contentClassName="p-6">
+    <div id="discover-content" className="page-content space-y-4">
       <div className="flex flex-col gap-6">
         <PageHeader
-          size="section"
           className="mb-0"
           title="Rastrear câmeras na rede"
           subtitle="ONVIF WS-Discovery (multicast UDP) + varredura de porta 554 na subnet local"
@@ -308,6 +308,7 @@ export default function DiscoverPage() {
           </div>
         )}
       </div>
-    </SettingsLayout>
+    </div>
+    </Layout>
   )
 }

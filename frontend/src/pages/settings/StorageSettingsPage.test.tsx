@@ -30,7 +30,7 @@ describe('StorageSettingsPage', () => {
       if (url.startsWith('/api/retention')) return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
     }))
-    render(<MemoryRouter initialEntries={['/preferences/storage']}><StorageSettingsPage /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/settings/storage']}><StorageSettingsPage /></MemoryRouter>)
     await waitFor(() => {
       expect(document.body.textContent).toContain('Armazenamento')
     })

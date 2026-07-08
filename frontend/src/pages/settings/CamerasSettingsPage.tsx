@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
 import PageHeader from '../../components/PageHeader'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import CameraForm from '../../components/CameraForm'
@@ -112,8 +112,9 @@ export default function CamerasSettingsPage() {
 
   if (!isAdmin) {
     return (
-      <SettingsLayout>
-        <PageHeader size="section" title="Câmeras" />
+      <Layout id="cameras-settings-page" footerId="cameras-settings-footer" contentClassName="p-6">
+      <div id="cameras-settings-content" className="page-content space-y-4">
+        <PageHeader title="Câmeras" />
         {loading ? (
           <p className="text-muted-foreground text-sm">Carregando...</p>
         ) : cameras.length === 0 ? (
@@ -138,14 +139,15 @@ export default function CamerasSettingsPage() {
             ))}
           </div>
         )}
-      </SettingsLayout>
+      </div>
+      </Layout>
     )
   }
 
   return (
-    <SettingsLayout>
+    <Layout id="cameras-settings-page" footerId="cameras-settings-footer" contentClassName="p-6">
+    <div id="cameras-settings-content" className="page-content space-y-4">
       <PageHeader
-        size="section"
         title="Câmeras"
         actions={!creating && !noDb && (
           <Button
@@ -261,7 +263,8 @@ export default function CamerasSettingsPage() {
           <span className="text-xs text-foreground">Apagar também as gravações do disco</span>
         </label>
       </ConfirmDialog>
-    </SettingsLayout>
+    </div>
+    </Layout>
   )
 }
 

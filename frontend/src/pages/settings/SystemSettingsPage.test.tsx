@@ -25,7 +25,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 describe('SystemSettingsPage', () => {
   it('renderiza o título e o fuso horário dentro do Layout novo (sem SettingsLayout)', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(settings) })))
-    render(<MemoryRouter initialEntries={['/preferences/system']}><SystemSettingsPage /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/settings/system']}><SystemSettingsPage /></MemoryRouter>)
     await waitFor(() => {
       expect(document.body.textContent).toContain('Sistema')
       expect(document.body.textContent).toContain('America/Sao_Paulo')
