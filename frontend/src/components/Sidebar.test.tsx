@@ -90,7 +90,7 @@ describe('Sidebar (enxuto)', () => {
     expect(document.getElementById('sidebar-all-cameras')?.getAttribute('aria-current')).toBeNull()
   })
 
-  it('Configurações é um botão (não link) que abre um flyout com as seções — admin vê todas', () => {
+  it('Configurações é um botão (não link) que abre um flyout só com config administrativa — admin vê todas', () => {
     renderAt('/')
     const btn = document.getElementById('sidebar-config')!
     expect(btn.tagName).toBe('BUTTON')
@@ -98,16 +98,18 @@ describe('Sidebar (enxuto)', () => {
     fireEvent.click(btn)
     expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/users"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
+    // Aparência/Sobre migraram pro sidebar-settings (PreferencesFlyout) — não ficam aqui.
+    expect(document.querySelector('a[href="/settings/appearance"]')).toBeNull()
+    expect(document.querySelector('a[href="/settings/about"]')).toBeNull()
   })
 
-  it('viewer só vê as seções permitidas no flyout', () => {
+  it('viewer só vê Câmeras no flyout de Configurações (Aparência/Sobre migraram pro sidebar-settings)', () => {
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
     fireEvent.click(document.getElementById('sidebar-config')!)
     expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/appearance"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/appearance"]')).toBeNull()
+    expect(document.querySelector('a[href="/settings/about"]')).toBeNull()
     expect(document.querySelector('a[href="/settings/users"]')).toBeNull()
     expect(document.querySelector('a[href="/settings/server"]')).toBeNull()
   })
@@ -120,8 +122,8 @@ describe('Sidebar (enxuto)', () => {
     expect(document.querySelector('a[href="/settings/users"]')).toBeNull()
   })
 
-  it('Configurações fica marcado ativo em qualquer rota /settings/*', () => {
-    renderAt('/settings/appearance')
+  it('Configurações fica marcado ativo em rotas administrativas /settings/* (exceto appearance/about, que ativam sidebar-settings)', () => {
+    renderAt('/settings/server')
     expect(document.getElementById('sidebar-config')?.className).toContain('bg-primary')
   })
 
@@ -144,17 +146,6 @@ describe('Sidebar (enxuto)', () => {
     const sairBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent === 'Sair')!
     fireEvent.click(sairBtn)
     expect(clearToken).toHaveBeenCalled()
-  })
-
-  it('flyout de Configurações mostra os swatches de cor de destaque (5 opções)', () => {
-    renderAt('/')
-    fireEvent.click(document.getElementById('sidebar-config')!)
-    expect(document.getElementById('accent-swatch-nav')).not.toBeNull()
-    expect(document.getElementById('accent-swatch-default')).not.toBeNull()
-    expect(document.getElementById('accent-swatch-violet')).not.toBeNull()
-    expect(document.getElementById('accent-swatch-teal')).not.toBeNull()
-    expect(document.getElementById('accent-swatch-coral')).not.toBeNull()
-    expect(document.getElementById('accent-swatch-amber')).not.toBeNull()
   })
 
   it('recolhido por padrão (w-14, sem labels de texto) e o botão de recolher expande (w-48, com labels)', () => {
@@ -232,10 +223,12 @@ describe('Sidebar — Relatórios (flyout de câmeras)', () => {
   })
 })
 
-// "Gravações" segue o mesmo estilo de submenu de "Relatórios" (pedido do navigator:
-// mesmo padrão do flyout de Configurações) — lista de câmeras, clique navega pro
-// histórico da câmera (/history/:cameraId, a página nova por câmera).
-describe('Sidebar — Gravações (mesmo estilo de submenu de câmeras)', () => {
+// "Histórico" (ex-"Gravações", id ex-sidebar-gravacoes) segue o mesmo estilo de
+// submenu de "Relatórios" — lista de câmeras, clique navega pro histórico da câmera
+// (/history/:cameraId, a página nova por câmera). Renomeado (id + label + ícone)
+// pra desambiguar da nova "Gravações" global (sidebar-recordings, sem seletor de
+// câmera — ver describe abaixo).
+describe('Sidebar — Histórico (mesmo estilo de submenu de câmeras)', () => {
   const cameras = [{ id: 'cam1', name: 'Corredor' }, { id: 'cam2', name: 'Quintal' }]
 
   beforeEach(() => {
@@ -245,40 +238,99 @@ describe('Sidebar — Gravações (mesmo estilo de submenu de câmeras)', () => 
     })))
   })
 
-  it('é um botão (não link) com id sidebar-gravacoes, sem navegar direto pra /recordings', () => {
+  it('é um botão (não link) com id sidebar-history, label "Histórico", sem navegar direto pra /history', () => {
     renderAt('/')
-    const btn = document.getElementById('sidebar-gravacoes')!
+    const btn = document.getElementById('sidebar-history')!
     expect(btn.tagName).toBe('BUTTON')
+    expect(btn.getAttribute('aria-label')).toBe('Histórico')
     expect(fetch).not.toHaveBeenCalled()
   })
 
   it('ao clicar, busca /api/cameras e lista as câmeras no flyout', async () => {
     renderAt('/')
-    fireEvent.click(document.getElementById('sidebar-gravacoes')!)
+    fireEvent.click(document.getElementById('sidebar-history')!)
     await waitFor(() => {
-      expect(document.getElementById('sidebar-gravacoes-camera-cam1')).toBeTruthy()
-      expect(document.getElementById('sidebar-gravacoes-camera-cam2')).toBeTruthy()
+      expect(document.getElementById('sidebar-history-camera-cam1')).toBeTruthy()
+      expect(document.getElementById('sidebar-history-camera-cam2')).toBeTruthy()
     })
-    expect(document.getElementById('sidebar-gravacoes-camera-cam1')!.textContent).toContain('Corredor')
+    expect(document.getElementById('sidebar-history-camera-cam1')!.textContent).toContain('Corredor')
   })
 
   it('clicar numa câmera navega para /history/{id} e fecha o flyout', async () => {
     renderAt('/')
-    fireEvent.click(document.getElementById('sidebar-gravacoes')!)
+    fireEvent.click(document.getElementById('sidebar-history')!)
     await waitFor(() => {
-      expect(document.getElementById('sidebar-gravacoes-camera-cam2')).toBeTruthy()
+      expect(document.getElementById('sidebar-history-camera-cam2')).toBeTruthy()
     })
-    fireEvent.click(document.getElementById('sidebar-gravacoes-camera-cam2')!)
+    fireEvent.click(document.getElementById('sidebar-history-camera-cam2')!)
 
     await waitFor(() => {
       expect(document.getElementById('test-location')!.textContent).toBe('/history/cam2')
     })
-    expect(document.getElementById('sidebar-gravacoes-camera-cam2')).toBeNull()
+    expect(document.getElementById('sidebar-history-camera-cam2')).toBeNull()
   })
 
-  it('marca "Gravações" como ativo em qualquer rota /history/*', () => {
+  it('marca "Histórico" como ativo em qualquer rota /history/*', () => {
     renderAt('/history/cam1')
-    expect(document.getElementById('sidebar-gravacoes')?.className).toContain('bg-primary')
+    expect(document.getElementById('sidebar-history')?.className).toContain('bg-primary')
+  })
+})
+
+// "Gravações" (sidebar-recordings) — NavLink estático (sem seletor de câmera, a
+// página é global multi-câmera) apontando pra /recordings. Migrado do sidebar
+// legado (AppSidebar.tsx, id ex-"nav-recordings").
+describe('Sidebar — Gravações (link global, sem seletor de câmera)', () => {
+  it('é um NavLink com id sidebar-recordings, href "/recordings"', () => {
+    renderAt('/')
+    const el = document.getElementById('sidebar-recordings')!
+    expect(el).toBeTruthy()
+    expect(el.tagName).toBe('A')
+    expect(el.getAttribute('href')).toBe('/recordings')
+    expect(el.getAttribute('aria-label')).toBe('Gravações')
+  })
+
+  it('fica ativo em qualquer sub-rota /recordings/*', () => {
+    renderAt('/recordings/2026-07-07/24/recordings')
+    expect(document.getElementById('sidebar-recordings')?.getAttribute('aria-current')).toBe('page')
+  })
+})
+
+// sidebar-settings (PreferencesFlyout) — Aparência + tema/accent + Estatísticas +
+// Sobre, separado da configuração administrativa (sidebar-config). Split pedido
+// pelo navigator: "eles vão para o ícone novo de configurações no novo sidebar".
+describe('Sidebar — sidebar-settings (Aparência/tema/Estatísticas/Sobre)', () => {
+  it('é um botão com id sidebar-settings que abre um flyout com Aparência, tema/accent, Estatísticas e Sobre', () => {
+    renderAt('/')
+    const btn = document.getElementById('sidebar-settings')!
+    expect(btn.tagName).toBe('BUTTON')
+    expect(document.querySelector('a[href="/settings/appearance"]')).toBeNull()
+    fireEvent.click(btn)
+    expect(document.querySelector('a[href="/settings/appearance"]')).toBeTruthy()
+    expect(document.getElementById('theme-mode-nav')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-nav')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-default')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-violet')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-teal')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-coral')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-amber')).not.toBeNull()
+    expect(document.getElementById('settings-stats')).not.toBeNull()
+    expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
+  })
+
+  it('fica ativo em /settings/appearance, /settings/about e /stats', () => {
+    renderAt('/settings/appearance')
+    expect(document.getElementById('sidebar-settings')?.className).toContain('bg-primary')
+    cleanup()
+    renderAt('/settings/about')
+    expect(document.getElementById('sidebar-settings')?.className).toContain('bg-primary')
+    cleanup()
+    renderAt('/stats')
+    expect(document.getElementById('sidebar-settings')?.className).toContain('bg-primary')
+  })
+
+  it('não fica ativo em rotas de Configurações administrativa (/settings/cameras)', () => {
+    renderAt('/settings/cameras')
+    expect(document.getElementById('sidebar-settings')?.className).not.toContain('bg-primary')
   })
 })
 

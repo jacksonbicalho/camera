@@ -10,7 +10,7 @@ import ThemeModeNav from "./ThemeModeNav"
 import AccentSwatchNav from "./AccentSwatchNav"
 import {
   Check, Settings, CircleUser, CameraLogo,
-  Film, ChevronLeft,
+  ChevronLeft,
 } from "./Icons"
 import { Button, buttonVariants } from "./ui/button"
 import { cn } from "@/lib/utils"
@@ -20,15 +20,10 @@ interface AppSidebarProps {
   username?: string
 }
 
-// Itens de rota da nav rail principal (mockup do redesign). Os destinos
-// Mapas/Dispositivos/Usuários são páginas placeholder por enquanto — preenchidas
-// nas histórias seguintes do roadmap. "Relatórios" mudou pro sidebar novo (Sidebar.tsx).
-// "Ao vivo" também mudou pro sidebar novo — "/" agora é a AllCamerasPage (fora do
-// AppLayout legado). O sino "Eventos" (id "motion-notifications") também mudou pro
-// sidebar novo — ver MotionNotificationsBell.tsx.
-const NAV_LINKS: Array<{ id: string; to: string; label: string; icon: React.ReactNode }> = [
-  { id: "nav-recordings", to: "/recordings", label: "Gravações", icon: <Film /> },
-]
+// Nav rail principal fica só com Configurações — os demais itens já migraram pro
+// sidebar novo (Sidebar.tsx): "Relatórios", "Ao vivo" (rota "/" virou a
+// AllCamerasPage, fora do AppLayout legado), o sino "Eventos"
+// (MotionNotificationsBell) e "Gravações" (nav-recordings → sidebar-recordings).
 
 function useDropdown(extraRef?: React.RefObject<HTMLElement | null>) {
   const [open, setOpen] = useState(false)
@@ -186,31 +181,10 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
     ? 'relative flex items-center gap-2 w-full px-3 h-9 rounded-lg transition-colors'
     : 'relative flex items-center justify-center w-10 h-10 rounded-lg transition-colors'
 
-  const navLinkClass = (active: boolean) => cn(
-    buttonVariants({ variant: active ? 'default' : 'ghost', size: showLabel ? 'default' : 'icon' }),
-    'relative [&_svg]:size-5',
-    showLabel ? 'w-full justify-start' : 'w-10 h-10',
-  )
   // Item da nav baseado em <Button> (Configurações): mesmo tamanho e padding dos
   // NavLinks para alinhar (o Button aplica buttonVariants via props).
   const navBtnSize = showLabel ? 'default' : 'icon'
   const navBtnExtra = cn('relative [&_svg]:size-5 shadow-none', showLabel ? 'w-full justify-start' : 'w-10 h-10')
-
-  function renderNavLink({ id, to, label, icon }: { id: string; to: string; label: string; icon: React.ReactNode }) {
-    return (
-      <NavLink
-        key={id}
-        id={id}
-        to={to}
-        end={to === '/'}
-        title={label}
-        className={({ isActive }) => navLinkClass(isActive)}
-      >
-        {showIcon && icon}
-        {showLabel && <span className="text-sm truncate">{label}</span>}
-      </NavLink>
-    )
-  }
 
   return (
     <aside className={`${sidebarWidth} flex-none flex flex-col bg-surface border-r border-border`}>
@@ -228,8 +202,6 @@ export default function AppSidebar({ username = "usuário" }: AppSidebarProps) {
 
       {/* Nav rail principal */}
       <nav id="sidebar-nav" className={`flex flex-col ${itemsAlign} gap-1 py-2`}>
-        {NAV_LINKS.map(renderNavLink)}
-
         {/* Configurações — flyout com as seções de config */}
         <div ref={settingsRef} className={showLabel ? 'w-full' : undefined}>
           <Button

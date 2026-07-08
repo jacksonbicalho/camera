@@ -11,7 +11,7 @@ import ThemeModeNav from './ThemeModeNav'
 import AccentSwatchNav from './AccentSwatchNav'
 import MotionNotificationsBell from './MotionNotificationsBell'
 import { navItemClass, useFlyout } from './sidebarFlyout'
-import { BarChart2, CameraLogo, Cctv, ChevronLeft, CircleUser, Film, Settings } from './Icons'
+import { BarChart2, CameraLogo, Cctv, ChevronLeft, CircleUser, Film, History, Palette, Settings } from './Icons'
 
 interface NavItem {
   id: string
@@ -24,6 +24,7 @@ interface NavItem {
 
 const items: NavItem[] = [
   { id: 'sidebar-all-cameras', to: '/', label: 'Todas as câmeras', icon: <Cctv className="h-5 w-5" />, end: true },
+  { id: 'sidebar-recordings', to: '/recordings', label: 'Gravações', icon: <Film className="h-5 w-5" /> },
 ]
 
 interface CameraOption { id: string; name: string }
@@ -119,16 +120,17 @@ function ReportsFlyout({ showLabel }: { showLabel: boolean }) {
   )
 }
 
-// RecordingsFlyout — "Gravações" segue o mesmo estilo de submenu de "Relatórios"
+// HistoryFlyout — "Histórico" segue o mesmo estilo de submenu de "Relatórios"
 // (pedido do navigator): lista de câmeras → histórico da câmera clicada
-// (/history/:cameraId, a página nova por câmera — ver routes.tsx/newRoutes),
-// em vez do link direto pro /recordings global.
-function RecordingsFlyout({ showLabel }: { showLabel: boolean }) {
+// (/history/:cameraId, a página nova por câmera — ver routes.tsx/newRoutes).
+// Distinto de "Gravações" (sidebar-recordings, em `items`): este é POR câmera;
+// aquele é a página global multi-câmera (/recordings).
+function HistoryFlyout({ showLabel }: { showLabel: boolean }) {
   return (
     <CameraListFlyout
-      id="sidebar-gravacoes"
-      label="Gravações"
-      icon={<Film className="h-5 w-5 shrink-0" />}
+      id="sidebar-history"
+      label="Histórico"
+      icon={<History className="h-5 w-5 shrink-0" />}
       showLabel={showLabel}
       activePrefix="/history"
       buildTarget={cameraId => `/history/${cameraId}`}
@@ -136,16 +138,39 @@ function RecordingsFlyout({ showLabel }: { showLabel: boolean }) {
   )
 }
 
-// SettingsFlyout — botão "Configurações" que abre um flyout (portal, posicionado
-// à direita do botão) com o seletor de modo (dark/light/sistema, via ThemeModeNav —
-// mesmo componente do AppSidebar) + as seções de settings. Sem os outros extras do
-// AppSidebar (/stats): o rail enxuto fica só com o que o pedido original cobre
-// (preview das seções antes de navegar).
+// Link do flyout — mesmo estilo usado por SettingsFlyout e PreferencesFlyout.
+function FlyoutNavLink({ to, id, onSelect, children }: { to: string; id?: string; onSelect: () => void; children: React.ReactNode }) {
+  return (
+    <NavLink
+      to={to}
+      id={id}
+      onClick={onSelect}
+      className={({ isActive }) =>
+        cn(
+          'block px-3 py-1.5 text-body transition-colors',
+          isActive
+            ? 'bg-surface-2 text-foreground'
+            : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
+        )
+      }
+    >
+      {children}
+    </NavLink>
+  )
+}
+
+// SettingsFlyout — botão "Configurações": só as seções administrativas (Câmeras,
+// Rastrear câmeras, Usuários, Servidor, Armazenamento, Análise de vídeo, Sistema).
+// Aparência/tema/accent/Estatísticas/Sobre viraram o ícone separado
+// PreferencesFlyout (sidebar-settings, pedido do navigator) — ADMIN_SETTINGS_LINKS/
+// VIEWER_SETTINGS_LINKS (settingsNavLinks.ts) continuam com a lista completa (o
+// AppSidebar legado usa a lista inteira num único flyout); o filtro é só aqui.
 function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
   const location = useLocation()
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
-  const active = location.pathname.startsWith('/settings')
-  const links = getRole() === 'admin' ? ADMIN_SETTINGS_LINKS : VIEWER_SETTINGS_LINKS
+  const active = location.pathname.startsWith('/settings') && !location.pathname.startsWith('/settings/appearance') && !location.pathname.startsWith('/settings/about')
+  const links = (getRole() === 'admin' ? ADMIN_SETTINGS_LINKS : VIEWER_SETTINGS_LINKS)
+    .filter(l => l.to !== '/settings/appearance' && l.to !== '/settings/about')
 
   return (
     <>
@@ -168,24 +193,51 @@ function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
           className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
         >
           {links.map(({ to, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              onClick={() => setOpen(false)}
-              className={({ isActive }) =>
-                cn(
-                  'block px-3 py-1.5 text-body transition-colors',
-                  isActive
-                    ? 'bg-surface-2 text-foreground'
-                    : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
-                )
-              }
-            >
-              {label}
-            </NavLink>
+            <FlyoutNavLink key={to} to={to} onSelect={() => setOpen(false)}>{label}</FlyoutNavLink>
           ))}
+        </div>,
+        document.body,
+      )}
+    </>
+  )
+}
+
+// PreferencesFlyout — botão "sidebar-settings": Aparência (tema/accent) + Estatísticas
+// + Sobre — o que é preferência pessoal/perfil, separado da configuração
+// administrativa (SettingsFlyout/sidebar-config). Mesma ordem do flyout único do
+// AppSidebar legado: Aparência → tema/accent → Estatísticas → Sobre.
+function PreferencesFlyout({ showLabel }: { showLabel: boolean }) {
+  const location = useLocation()
+  const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
+  const active = location.pathname.startsWith('/settings/appearance')
+    || location.pathname.startsWith('/settings/about')
+    || location.pathname.startsWith('/stats')
+
+  return (
+    <>
+      <button
+        id="sidebar-settings"
+        ref={btnRef}
+        type="button"
+        onClick={toggle}
+        title="Preferências"
+        aria-label="Preferências"
+        className={navItemClass(active || open, showLabel)}
+      >
+        <Palette className="h-5 w-5 shrink-0" />
+        {showLabel && <span className="truncate text-sm">Preferências</span>}
+      </button>
+      {open && createPortal(
+        <div
+          ref={panelRef}
+          style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
+          className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
+        >
+          <FlyoutNavLink to="/settings/appearance" onSelect={() => setOpen(false)}>Aparência</FlyoutNavLink>
           <ThemeModeNav onSelect={() => setOpen(false)} />
           <AccentSwatchNav onSelect={() => setOpen(false)} />
+          <FlyoutNavLink to="/stats" id="settings-stats" onSelect={() => setOpen(false)}>Estatísticas</FlyoutNavLink>
+          <FlyoutNavLink to="/settings/about" onSelect={() => setOpen(false)}>Sobre</FlyoutNavLink>
         </div>,
         document.body,
       )}
@@ -318,7 +370,7 @@ export default function Sidebar() {
             {showLabel && <span className="truncate text-sm">{item.label}</span>}
           </NavLink>
         ))}
-        <RecordingsFlyout showLabel={showLabel} />
+        <HistoryFlyout showLabel={showLabel} />
         <ReportsFlyout showLabel={showLabel} />
         <div className="flex-1" />
         <div
@@ -337,6 +389,7 @@ export default function Sidebar() {
             {showLabel && <span className="truncate text-sm">Recolher menu</span>}
           </button>
           <SettingsFlyout showLabel={showLabel} />
+          <PreferencesFlyout showLabel={showLabel} />
           <UserMenu showLabel={showLabel} />
         </div>
       </div>

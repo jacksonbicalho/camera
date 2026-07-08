@@ -50,21 +50,10 @@ function renderSidebar(initialPath = '/') {
   )
 }
 
-const LINK_ITEMS: Array<[string, string, string]> = [
-  ['nav-recordings', '/recordings', 'Gravações'],
-]
-
-const FOLLOWS = Node.DOCUMENT_POSITION_FOLLOWING
-
 describe('Sidebar — nav rail principal', () => {
-  it('renderiza os itens de navegação novos como links rotulados com id e rota', () => {
+  it('não renderiza mais "Gravações" (nav-recordings mudou pro sidebar novo — sidebar-recordings)', () => {
     renderSidebar()
-    for (const [id, to, label] of LINK_ITEMS) {
-      const el = document.getElementById(id)
-      expect(el, id).toBeTruthy()
-      expect(el!.getAttribute('href'), `${id} href`).toBe(to)
-      expect(el!.textContent, `${id} label`).toContain(label)
-    }
+    expect(document.getElementById('nav-recordings')).toBeNull()
   })
 
   it('não duplica "Usuários" na nav (fica só no flyout de Configurações)', () => {
@@ -94,15 +83,11 @@ describe('Sidebar — nav rail principal', () => {
     expect(settings.textContent).toContain('Configurações')
   })
 
-  it('Configurações fica na nav do topo (após Gravações), fora do grupo inferior', () => {
+  it('Configurações fica na nav do topo, fora do grupo inferior', () => {
     renderSidebar()
     const settings = document.getElementById('sidebar-settings')!
-    const recordings = document.getElementById('nav-recordings')!
     const bottom = document.getElementById('sidebar-bottom')!
-    // não está no grupo inferior
     expect(bottom.contains(settings)).toBe(false)
-    // aparece depois de Gravações no DOM
-    expect(recordings.compareDocumentPosition(settings) & FOLLOWS).toBeTruthy()
   })
 
   it('o grupo inferior contém apenas Recolher menu e o bloco de usuário', () => {
