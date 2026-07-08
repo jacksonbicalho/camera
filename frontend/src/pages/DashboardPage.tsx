@@ -1,66 +1,16 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { authHeaders, onUnauthorized, getRole } from '../auth'
-import AppLayout from '../components/AppLayout'
-import HLSPlayer from '../components/HLSPlayer'
+import Layout from '../components/Layout'
+import PageHeader from '../components/PageHeader'
 
-interface Camera {
-  id: string
-  name: string
-  live_transport?: string
-}
-
+// DashboardPage — o papel de "todas as câmeras" migrou pra AllCamerasPage (rota
+// "/"); esta página fica como stub no layout novo para o roadmap futuro de um
+// dashboard real. Rota órfã por enquanto: "/dashboard" (sem link em nenhum
+// sidebar ainda, mesmo padrão de /events e /users).
 export default function DashboardPage() {
-  const [cameras, setCameras] = useState<Camera[]>([])
-  const navigate = useNavigate()
-
-  useEffect(() => {
-    fetch('/api/cameras', { headers: authHeaders() })
-      .then(res => {
-        if (res.status === 401) { onUnauthorized(); return [] }
-        return res.json()
-      })
-      .then(data => {
-        if (!Array.isArray(data)) return
-        if (data.length === 0 && getRole() === 'admin') {
-          navigate('/settings/cameras/new', { replace: true })
-          return
-        }
-        setCameras(data)
-      })
-  }, [navigate])
-
   return (
-    <AppLayout>
-        <h2 className="text-lg font-semibold text-foreground mb-4">Câmeras ao vivo</h2>
-        {cameras.length === 0 ? (
-          <p className="text-faint text-sm">Nenhuma câmera configurada.</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cameras.map(cam => (
-              <button
-                key={cam.id}
-                onClick={() => navigate(`/camera/live/${cam.id}`)}
-                className="bg-surface border border-border rounded-lg overflow-hidden hover:border-primary transition-colors text-left group"
-              >
-                <div className="relative">
-                  <HLSPlayer
-                    src={`/stream/${cam.id}/index.m3u8`}
-                    className="w-full aspect-video object-cover bg-black pointer-events-none"
-                    cameraId={cam.id}
-                    transport={cam.live_transport}
-                  />
-                  <span className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded font-medium">
-                    AO VIVO
-                  </span>
-                </div>
-                <div className="px-3 py-2">
-                  <p className="text-sm font-medium text-foreground group-hover:text-foreground">{cam.name}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-    </AppLayout>
+    <Layout id="dashboard-page" footerId="dashboard-footer" contentClassName="p-6">
+      <div id="dashboard-content" className="page-content">
+        <PageHeader id="dashboard-header" title="Dashboard" />
+      </div>
+    </Layout>
   )
 }

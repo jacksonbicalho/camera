@@ -14,7 +14,7 @@ import EventsPanelHeader from "./EventsPanelHeader"
 import ThemeModeNav from "./ThemeModeNav"
 import AccentSwatchNav from "./AccentSwatchNav"
 import {
-  Bell, X, Check, Settings, CircleUser, CameraLogo, Cctv,
+  Bell, X, Check, Settings, CircleUser, CameraLogo,
   Film, ChevronLeft,
 } from "./Icons"
 import { Button, buttonVariants } from "./ui/button"
@@ -36,9 +36,10 @@ interface ConfirmState {
 // Itens de rota da nav rail principal (mockup do redesign). Os destinos
 // Mapas/Dispositivos/Usuários são páginas placeholder por enquanto — preenchidas
 // nas histórias seguintes do roadmap. "Relatórios" mudou pro sidebar novo (Sidebar.tsx).
-// O sino "Eventos" é renderizado antes destes (1º item do nav); ver o JSX.
+// "Ao vivo" também mudou pro sidebar novo — "/" agora é a AllCamerasPage (fora do
+// AppLayout legado). O sino "Eventos" é renderizado antes destes (1º item do nav);
+// ver o JSX.
 const NAV_LINKS: Array<{ id: string; to: string; label: string; icon: React.ReactNode }> = [
-  { id: "nav-live", to: "/", label: "Ao vivo", icon: <Cctv /> },
   { id: "nav-recordings", to: "/recordings", label: "Gravações", icon: <Film /> },
 ]
 

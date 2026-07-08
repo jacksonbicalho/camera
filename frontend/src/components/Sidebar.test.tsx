@@ -45,7 +45,7 @@ function renderAt(path: string) {
 describe('Sidebar (enxuto)', () => {
   it('renderiza os itens de navegação com ids e hrefs corretos', () => {
     renderAt('/')
-    const el = document.getElementById('sidebar-cameras')!
+    const el = document.getElementById('sidebar-all-cameras')!
     expect(el).toBeTruthy()
     expect(el.getAttribute('href')).toBe('/')
     expect(el.getAttribute('aria-label')).toBeTruthy()
@@ -66,12 +66,12 @@ describe('Sidebar (enxuto)', () => {
 
   it('"Todas as câmeras" (antigo "Início") aponta pra "/"', () => {
     renderAt('/')
-    expect(document.getElementById('sidebar-cameras')?.getAttribute('aria-label')).toBe('Todas as câmeras')
+    expect(document.getElementById('sidebar-all-cameras')?.getAttribute('aria-label')).toBe('Todas as câmeras')
   })
 
   it('"Todas as câmeras" (to="/") não fica ativo fora da rota exata', () => {
     renderAt('/history/cam1')
-    expect(document.getElementById('sidebar-cameras')?.getAttribute('aria-current')).toBeNull()
+    expect(document.getElementById('sidebar-all-cameras')?.getAttribute('aria-current')).toBeNull()
   })
 
   it('Configurações é um botão (não link) que abre um flyout com as seções — admin vê todas', () => {
