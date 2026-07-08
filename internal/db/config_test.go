@@ -13,12 +13,12 @@ func TestSetAndGetConfig(t *testing.T) {
 		t.Fatalf("SetConfig: %v", err)
 	}
 
-	val, err := db.GetConfig(database, "server.port")
+	all, err := db.GetAllConfig(database)
 	if err != nil {
-		t.Fatalf("GetConfig: %v", err)
+		t.Fatalf("GetAllConfig: %v", err)
 	}
-	if val != "9090" {
-		t.Errorf("got %q, want %q", val, "9090")
+	if all["server.port"] != "9090" {
+		t.Errorf("got %q, want %q", all["server.port"], "9090")
 	}
 }
 
@@ -32,18 +32,9 @@ func TestSetConfig_Upsert(t *testing.T) {
 		t.Fatalf("SetConfig v2: %v", err)
 	}
 
-	val, _ := db.GetConfig(database, "key")
-	if val != "v2" {
-		t.Errorf("esperava v2, got %q", val)
-	}
-}
-
-func TestGetConfig_Missing(t *testing.T) {
-	database := openTestDB(t)
-
-	_, err := db.GetConfig(database, "chave-inexistente")
-	if err == nil {
-		t.Error("esperava erro para chave inexistente")
+	all, _ := db.GetAllConfig(database)
+	if all["key"] != "v2" {
+		t.Errorf("esperava v2, got %q", all["key"])
 	}
 }
 

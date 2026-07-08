@@ -37,7 +37,7 @@ type Config struct {
 }
 
 // SMTPConfig holds outbound e-mail server settings (connection config only;
-// no e-mail-sending client lives here yet).
+// the client that sends the mail lives in internal/email, e.g. SMTPSender).
 type SMTPConfig struct {
 	Host     string `yaml:"host"`
 	Port     int    `yaml:"port"`

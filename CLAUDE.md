@@ -180,7 +180,7 @@ Todas seguem o prefixo `OS_CAMERA_`.
 | `OS_CAMERA_SMTP_PASSWORD` | `smtp.password` |
 | `OS_CAMERA_STORAGE_PATH` | `storage.path` (diretório raiz das gravações) |
 
-`smtp.*` é só configuração de conexão (`internal/config.SMTPConfig`) — ainda não há cliente SMTP nem envio de e-mail implementado.
+`smtp.*` é configuração de conexão (`internal/config.SMTPConfig`); o envio em si é feito por `internal/email` (ver tabela de pacotes internos acima).
 
 ## Diretório `amostras/`
 

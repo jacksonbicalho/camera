@@ -146,45 +146,6 @@ func DetectionsByPaths(d *DB, paths []string) (map[string][]Detection, error) {
 	return result, rows.Err()
 }
 
-func DetectionLabelsByPaths(d *DB, paths []string) (map[string][]string, error) {
-	if len(paths) == 0 {
-		return nil, nil
-	}
-	placeholders := make([]string, len(paths))
-	args := make([]any, len(paths))
-	for i, p := range paths {
-		placeholders[i] = "?"
-		args[i] = p
-	}
-	rows, err := d.Query(`
-		SELECT rec.path, det.label
-		FROM detections det
-		JOIN recordings rec ON rec.id = det.recording_id
-		WHERE rec.path IN (`+strings.Join(placeholders, ",")+`)
-		AND det.label != ''
-		ORDER BY det.confidence DESC`, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	result := map[string][]string{}
-	seen := map[string]map[string]bool{}
-	for rows.Next() {
-		var path, label string
-		if err := rows.Scan(&path, &label); err != nil {
-			return nil, err
-		}
-		if seen[path] == nil {
-			seen[path] = map[string]bool{}
-		}
-		if !seen[path][label] {
-			seen[path][label] = true
-			result[path] = append(result[path], label)
-		}
-	}
-	return result, rows.Err()
-}
-
 func ListDetectionsByPath(d *DB, path string) ([]Detection, error) {
 	rows, err := d.Query(`
 		SELECT det.id, det.label, det.confidence, det.frame_count, det.created_at

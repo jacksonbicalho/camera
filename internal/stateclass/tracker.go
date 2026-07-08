@@ -40,6 +40,3 @@ func (t *Tracker) Observe(label string, prob float64) (changed bool, state strin
 	}
 	return false, t.confirmed
 }
-
-// State retorna o estado confirmado atual ("" se nenhum ainda).
-func (t *Tracker) State() string { return t.confirmed }
