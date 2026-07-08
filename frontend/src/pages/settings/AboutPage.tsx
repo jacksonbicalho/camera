@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
 import PageHeader from '../../components/PageHeader'
 import SettingsSection from '../../components/SettingsSection'
 import { useAbout } from '../../hooks/useSettings'
@@ -93,8 +93,9 @@ export default function AboutPage() {
   const about = useAbout()
 
   return (
-    <SettingsLayout>
-      <PageHeader size="section" title="Sobre" subtitle="Versão instalada, commit e tempo de atividade." />
+    <Layout id="about-page" footerId="about-footer" contentClassName="p-6">
+    <div id="about-content" className="page-content space-y-4">
+      <PageHeader title="Sobre" subtitle="Versão instalada, commit e tempo de atividade." />
       {!about ? (
         <p className="text-muted-foreground text-sm">Carregando...</p>
       ) : (
@@ -110,6 +111,7 @@ export default function AboutPage() {
         />
       )}
       <UpdatesSection />
-    </SettingsLayout>
+    </div>
+    </Layout>
   )
 }

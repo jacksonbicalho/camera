@@ -9,7 +9,6 @@ vi.mock('./auth', () => ({
   mustChangePassword: () => false,
 }))
 
-vi.mock('./pages/CameraPage', () => ({ default: () => <div id="marker-camera-page" /> }))
 vi.mock('./pages/LivePage', () => ({ default: () => <div id="marker-live-page" /> }))
 vi.mock('./pages/HistoryPage', () => ({ default: () => <div id="marker-history-page" /> }))
 vi.mock('./pages/VideoBrowserPage', () => ({ default: () => <div id="marker-video-browser-page" /> }))
@@ -17,30 +16,29 @@ vi.mock('./pages/ReportsPage', () => ({ default: () => <div id="marker-reports-p
 vi.mock('./pages/AllCamerasPage', () => ({ default: () => <div id="marker-all-cameras-page" /> }))
 vi.mock('./pages/DashboardPage', () => ({ default: () => <div id="marker-dashboard-page" /> }))
 
-import { newRoutes, legacyRoutes } from './routes'
+import { routes } from './routes'
 
 afterEach(() => {
   cleanup()
   mockToken = 'tok'
 })
 
-// routes.tsx separa as rotas "novas" (LivePage/HistoryPage/VideoBrowserPage — refatoração de
-// simplificação em andamento) das "legadas" (CameraPage, candidatas a remoção futura). Este
+// routes.tsx registra as páginas que usam o Layout enxuto (LivePage/HistoryPage/
+// VideoBrowserPage — o CameraPage legado e `legacyRoutes` foram removidos). Este
 // teste garante que a extração não mudou nenhum path nem comportamento de auth.
 function renderPath(path: string) {
   render(
     <MemoryRouter initialEntries={[path]}>
       <Suspense>
         <Routes>
-          {newRoutes}
-          {legacyRoutes}
+          {routes}
         </Routes>
       </Suspense>
     </MemoryRouter>,
   )
 }
 
-describe('routes: newRoutes', () => {
+describe('routes', () => {
   it.each([
     ['/', 'marker-all-cameras-page'],
     ['/live/cam1', 'marker-live-page'],
@@ -50,20 +48,7 @@ describe('routes: newRoutes', () => {
     ['/recording/cam1/42/7', 'marker-video-browser-page'],
     ['/reports/cam1/2026-07-07/1', 'marker-reports-page'],
     ['/dashboard', 'marker-dashboard-page'],
-  ])('%s renderiza a página nova correspondente', async (path, markerId) => {
-    renderPath(path)
-    await waitFor(() => {
-      expect(document.getElementById(markerId)).not.toBeNull()
-    })
-  })
-})
-
-describe('routes: legacyRoutes', () => {
-  it.each([
-    ['/cameras/cam1', 'marker-camera-page'],
-    ['/camera/live/cam1', 'marker-camera-page'],
-    ['/camera/recording/cam1/42', 'marker-camera-page'],
-  ])('%s renderiza o CameraPage legado', async (path, markerId) => {
+  ])('%s renderiza a página correspondente', async (path, markerId) => {
     renderPath(path)
     await waitFor(() => {
       expect(document.getElementById(markerId)).not.toBeNull()

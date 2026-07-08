@@ -5,6 +5,7 @@ import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import DatePicker from '../components/DatePicker'
 import { authHeaders, onUnauthorized, getToken } from '../auth'
+import { resolveEventRecordingUrl } from '../lib/eventNavigation'
 
 const CAT_LABEL: Record<string, string> = { movimento: 'Movimento', pessoa: 'Pessoa', ia: 'IA', estados: 'Estados' }
 const CAT_COLOR: Record<string, string> = { movimento: 'bg-amber-400', pessoa: 'bg-red-500', ia: 'bg-violet-500', estados: 'bg-green-500' }
@@ -154,8 +155,17 @@ export default function RecordingsPage() {
     return () => { cancelled = true }
   }, [view, date, hour, motionOnly, selectedCams])
 
-  const openAt = (cameraId: string, time: string) =>
-    navigate(`/cameras/${cameraId}`, { state: { eventTime: time, showRecordings: true } })
+  // Clique num item da aba Gravações: já se sabe o :recordingId exato (o próprio
+  // RecordingItem.id) — não precisa resolver nada via resolveEventRecordingUrl.
+  const openRecording = (cameraId: string, recordingId: number) =>
+    navigate(`/recording/${cameraId}/${recordingId}`)
+
+  // Clique num "momento" (aba Momentos): só se tem câmera+instante (a API de
+  // momentos não expõe o id do evento) — precisa resolver recordingId/motionId.
+  const openMoment = async (cameraId: string, time: string) => {
+    const url = await resolveEventRecordingUrl(cameraId, time)
+    if (url) navigate(url)
+  }
 
   const toggleCam = (id: string) => {
     setSelectedCams(prev => {
@@ -286,7 +296,7 @@ export default function RecordingsPage() {
               <button
                 key={rec.id}
                 id={`recording-${rec.id}`}
-                onClick={() => openAt(rec.camera_id, rec.start)}
+                onClick={() => openRecording(rec.camera_id, rec.id)}
                 className="bg-surface border border-border rounded-lg overflow-hidden text-left hover:border-primary/50 transition-colors"
               >
                 <div className="w-full aspect-video bg-surface-2 flex items-center justify-center text-faint">
@@ -318,7 +328,7 @@ export default function RecordingsPage() {
               <button
                 key={`${m.camera_id}-${m.time}-${i}`}
                 id={`moment-${i}`}
-                onClick={() => navigate(`/cameras/${m.camera_id}`, { state: { eventTime: m.time, showRecordings: true } })}
+                onClick={() => openMoment(m.camera_id, m.time)}
                 className="bg-surface border border-border rounded-lg overflow-hidden text-left hover:border-primary/50 transition-colors"
               >
                 {thumb ? (

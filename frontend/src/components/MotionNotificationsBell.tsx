@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { format, formatDistanceToNow } from 'date-fns'
+import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { authHeaders } from '../auth'
 import { useNotifications, type Notification } from '../contexts/NotificationContext'
 import { navItemClass, useFlyout } from './sidebarFlyout'
+import { resolveEventRecordingUrl } from '../lib/eventNavigation'
 import ConfirmDialog from './ConfirmDialog'
 import EventsPanelHeader from './EventsPanelHeader'
 import { Bell, X } from './Icons'
@@ -17,33 +17,6 @@ interface ConfirmState {
   confirmLabel?: string
   danger?: boolean
   action: () => void
-}
-
-interface MotionEventEntry {
-  id: number
-  time: string
-  kind?: string
-}
-
-interface RecordingEntry {
-  id: number
-  start: string
-}
-
-// anchorRecording escolhe a gravação-âncora do dia pro clip: a última que começou
-// antes (ou no exato instante) do evento, ou a primeira do dia se o evento for
-// anterior a todas. `VideoBrowserPage` só usa o :recordingId da URL pra resolver o
-// DIA (recomputa os segmentos a partir do :motionId) — não precisa ser exatamente a
-// gravação que contém o evento.
-function anchorRecording(recordings: RecordingEntry[], iso: string): number | null {
-  const t = Date.parse(iso)
-  const asc = [...recordings].sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
-  let candidate: RecordingEntry | null = null
-  for (const r of asc) {
-    if (Date.parse(r.start) <= t) candidate = r
-    else break
-  }
-  return (candidate ?? asc[0])?.id ?? null
 }
 
 function NotificationItem({
@@ -159,25 +132,8 @@ export default function MotionNotificationsBell({ showLabel }: { showLabel: bool
   async function goToEvent(n: Notification) {
     markRead(n.id)
     setOpen(false)
-    const dateStr = format(new Date(n.time), 'yyyy-MM-dd')
-    try {
-      const [evRes, recRes] = await Promise.all([
-        fetch(`/api/cameras/${n.cameraId}/motion?date=${dateStr}`, { headers: authHeaders() }),
-        fetch(`/api/cameras/${n.cameraId}/recordings?date=${dateStr}&page=1&limit=0&order=asc`, { headers: authHeaders() }),
-      ])
-      const evData = evRes.ok ? await evRes.json() : {}
-      const events: MotionEventEntry[] = evData.events ?? []
-      const recData = recRes.ok ? await recRes.json() : {}
-      const recordings: RecordingEntry[] = recData.recordings ?? []
-
-      const recordingId = anchorRecording(recordings, n.time)
-      if (recordingId == null) return
-
-      const match = events.find((e) => !e.kind && e.time === n.time)
-      navigate(match ? `/recording/${n.cameraId}/${recordingId}/${match.id}` : `/recording/${n.cameraId}/${recordingId}`)
-    } catch {
-      // rede indisponível — permanece na página atual.
-    }
+    const url = await resolveEventRecordingUrl(n.cameraId, n.time)
+    if (url) navigate(url)
   }
 
   return (

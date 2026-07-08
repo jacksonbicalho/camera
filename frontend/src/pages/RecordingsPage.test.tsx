@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { cleanup, render, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import RecordingsPage from './RecordingsPage'
 
@@ -20,9 +20,22 @@ const recordings = [
   { id: 1, camera_id: 'cam1', camera_name: 'Corredor', start: '2026-06-23T23:50:00Z', has_motion: true, url: '/recordings/cam1/2026/06/23/c.mp4' },
   { id: 2, camera_id: 'cam2', camera_name: 'Quintal', start: '2026-06-23T10:00:00Z', has_motion: false, url: '/recordings/cam2/2026/06/23/a.mp4' },
 ]
+// Gravações por câmera (endpoint usado por resolveEventRecordingUrl no clique de
+// momento) — distinto de /api/recordings (global, usado pela própria aba Gravações).
+const camRecordings: Record<string, Array<{ id: number; start: string }>> = {
+  cam1: [{ id: 1, start: '2026-06-23T23:50:00Z' }],
+  cam2: [{ id: 2, start: '2026-06-23T10:00:00Z' }],
+}
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.startsWith('/api/cameras/cam1/motion') || url.startsWith('/api/cameras/cam2/motion')) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ events: [] }) })
+    }
+    const camMatch = url.match(/^\/api\/cameras\/(cam\d)\/recordings\?/)
+    if (camMatch) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ recordings: camRecordings[camMatch[1]] }) })
+    }
     if (url.startsWith('/api/cameras')) return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
     if (url.startsWith('/api/recordings')) return Promise.resolve({ status: 200, json: () => Promise.resolve({ recordings, total: 2 }) })
     if (url.startsWith('/api/moments')) return Promise.resolve({ status: 200, json: () => Promise.resolve({ moments, total: 2, hasMore: false }) })
@@ -30,11 +43,6 @@ beforeEach(() => {
   }))
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
-
-function LocationProbe() {
-  const l = useLocation()
-  return <div data-testid="loc">{l.pathname}|{JSON.stringify(l.state)}</div>
-}
 
 // Sonda sempre montada (fora do <Routes>, mesmo padrão de ReportsPage.test.tsx) —
 // acompanha a URL corrente independente de qual <Route> casou.
@@ -55,7 +63,6 @@ function renderRecordings(initialPath = '/recordings') {
         <Route path="/recordings/:date" element={<RecordingsPage />} />
         <Route path="/recordings/:date/:hour" element={<RecordingsPage />} />
         <Route path="/recordings/:date/:hour/:view" element={<RecordingsPage />} />
-        <Route path="/cameras/:id" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -71,7 +78,7 @@ async function switchToRecordings() {
 }
 
 describe('RecordingsPage', () => {
-  it('por padrão lista os momentos do dia (view ausente na URL) e clique abre a câmera no instante', async () => {
+  it('por padrão lista os momentos do dia (view ausente na URL) e clique resolve e navega pro VideoBrowserPage', async () => {
     renderRecordings()
     const card0 = await waitFor(() => {
       const el = document.getElementById('moment-0')
@@ -82,9 +89,11 @@ describe('RecordingsPage', () => {
     expect(document.getElementById('moment-1')?.textContent).toContain('Quintal')
 
     fireEvent.click(card0)
-    const loc = await screen.findByTestId('loc')
-    expect(loc.textContent).toContain('/cameras/cam1')
-    expect(loc.textContent).toContain('2026-06-23T08:08:05Z')
+    // moments[0] é cam1 — âncora resolve pra recording id 1 (única gravação de cam1),
+    // sem evento casado (mock de /motion devolve events: []) → sem :motionId.
+    await waitFor(() => {
+      expect(document.getElementById('test-location')!.textContent).toBe('/recording/cam1/1')
+    })
   })
 
   it('URL reflete /recordings/:date/:hour sem sufixo de view (default moments)', async () => {
@@ -98,7 +107,8 @@ describe('RecordingsPage', () => {
     })
   })
 
-  it('no modo Gravações (aba explícita) lista as gravações do dia, adiciona /recordings à URL e clique abre a câmera no instante', async () => {
+  it('no modo Gravações (aba explícita) lista as gravações do dia, adiciona /recordings à URL e clique navega direto (sem resolver) pro VideoBrowserPage', async () => {
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
     renderRecordings()
     await switchToRecordings()
     const rec0 = await waitFor(() => {
@@ -110,10 +120,14 @@ describe('RecordingsPage', () => {
     expect(document.getElementById('recording-2')?.textContent).toContain('Quintal')
     expect(document.getElementById('test-location')!.textContent).toMatch(/\/recordings\/\d{4}-\d{2}-\d{2}\/24\/recordings$/)
 
+    fetchMock.mockClear()
     fireEvent.click(rec0)
-    const loc = await screen.findByTestId('loc')
-    expect(loc.textContent).toContain('/cameras/cam1')
-    expect(loc.textContent).toContain('2026-06-23T23:50:00Z')
+    // rec.id (1) já é conhecido — navega direto, sem chamar resolveEventRecordingUrl
+    // (sem fetch extra de /motion ou /cameras/:id/recordings).
+    await waitFor(() => {
+      expect(document.getElementById('test-location')!.textContent).toBe('/recording/cam1/1')
+    })
+    expect(fetchMock.mock.calls.some(([u]: [string]) => String(u).includes('/motion?date='))).toBe(false)
   })
 
   it('a janela dispara fetch de /api/recordings com window e motion_only (aba Gravações)', async () => {

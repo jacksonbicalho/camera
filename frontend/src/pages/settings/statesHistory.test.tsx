@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, fireEvent } from '@testing-library/react'
+import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import CameraStatesSettingsPage from './CameraStatesSettingsPage'
 
@@ -27,6 +27,10 @@ const history = [
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (url: unknown) => {
     const u = String(url)
+    if (u.includes('/motion?date=')) return new Response(JSON.stringify({ events: [] }), { status: 200 })
+    if (u.includes('/recordings?date=')) {
+      return new Response(JSON.stringify({ recordings: [{ id: 99, start: '2026-06-18T09:00:00Z' }] }), { status: 200 })
+    }
     if (u.includes('/history')) return new Response(JSON.stringify(history), { status: 200 })
     if (u.endsWith('/classifiers')) return new Response(JSON.stringify(classifiers), { status: 200 })
     if (u.includes('/state')) return new Response(JSON.stringify({ state: 'aberto' }), { status: 200 })
@@ -36,10 +40,11 @@ beforeEach(() => {
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
-// Mostra o eventTime recebido por navegação, para verificar o "Ver na gravação".
-function CameraProbe() {
-  const loc = useLocation() as { state?: { eventTime?: string } }
-  return <div data-testid="camera-probe">{loc.state?.eventTime ?? ''}</div>
+// Mostra o :recordingId recebido por navegação, para verificar o "Ver na gravação"
+// (resolveEventRecordingUrl resolve pro VideoBrowserPage, não mais /cameras/:id).
+function RecordingProbe() {
+  const loc = useLocation()
+  return <div data-testid="camera-probe">{loc.pathname}</div>
 }
 
 function renderPage(initial = '/settings/cameras/states/cam1') {
@@ -47,14 +52,14 @@ function renderPage(initial = '/settings/cameras/states/cam1') {
     <MemoryRouter initialEntries={[initial]}>
       <Routes>
         <Route path="/settings/cameras/states/:id" element={<CameraStatesSettingsPage />} />
-        <Route path="/cameras/:id" element={<CameraProbe />} />
+        <Route path="/recording/:cameraId/:recordingId" element={<RecordingProbe />} />
       </Routes>
     </MemoryRouter>,
   )
 }
 
 describe('CameraStatesSettingsPage — histórico', () => {
-  it('botão Histórico abre o grid; thumb abre lightbox; "Ver na gravação" navega no changed_at', async () => {
+  it('botão Histórico abre o grid; thumb abre lightbox; "Ver na gravação" resolve e navega pro VideoBrowserPage', async () => {
     renderPage()
     await screen.findByText('Portão')
 
@@ -68,7 +73,10 @@ describe('CameraStatesSettingsPage — histórico', () => {
     expect(watch.disabled).toBe(false)
 
     fireEvent.click(watch)
-    expect(screen.getByTestId('camera-probe').textContent).toBe('2026-06-18T10:00:00Z')
+    // sem evento de movimento casado (mock de /motion devolve events: []) — só :recordingId.
+    await waitFor(() => {
+      expect(screen.getByTestId('camera-probe').textContent).toBe('/recording/cam1/99')
+    })
   })
 
   it('thumb com gravação expirada desabilita "Ver na gravação"', async () => {
