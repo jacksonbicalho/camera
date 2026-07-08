@@ -5,7 +5,6 @@ import LoginPage from './pages/LoginPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
-import { SidebarItemsProvider } from './contexts/SidebarContext'
 import { DisplayModeProvider } from './contexts/DisplayModeContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { NotificationProvider } from './contexts/NotificationContext'
@@ -32,7 +31,6 @@ export default function App() {
     <NotificationProvider>
     <UserNotificationProvider>
     <DisplayModeProvider>
-    <SidebarItemsProvider>
     <UnauthorizedHandler />
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -44,7 +42,6 @@ export default function App() {
       <Route path="/profile/change-password" element={<Lazy><ProfileChangePasswordPage /></Lazy>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-    </SidebarItemsProvider>
     </DisplayModeProvider>
     </UserNotificationProvider>
     </NotificationProvider>
