@@ -1,8 +1,7 @@
 import { lazy, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { newRoutes, legacyRoutes, Lazy, RequireAuth } from './routes'
+import { newRoutes, legacyRoutes, Lazy } from './routes'
 import LoginPage from './pages/LoginPage'
-import DashboardPage from './pages/DashboardPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
@@ -61,7 +60,6 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/change-password" element={<ChangePasswordPage />} />
-      <Route path="/" element={<RequireAuth><DashboardPage /></RequireAuth>} />
       {newRoutes}
       {legacyRoutes}
       <Route path="/stats" element={<Lazy><StatsPage /></Lazy>} />

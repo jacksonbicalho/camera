@@ -21,7 +21,7 @@ interface NavItem {
 }
 
 const items: NavItem[] = [
-  { id: 'sidebar-cameras', to: '/', label: 'Todas as câmeras', icon: <Cctv className="h-5 w-5" />, end: true },
+  { id: 'sidebar-all-cameras', to: '/', label: 'Todas as câmeras', icon: <Cctv className="h-5 w-5" />, end: true },
 ]
 
 const navItemClass = (active: boolean, showLabel: boolean) =>

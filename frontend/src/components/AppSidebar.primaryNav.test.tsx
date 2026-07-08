@@ -51,7 +51,6 @@ function renderSidebar(initialPath = '/') {
 }
 
 const LINK_ITEMS: Array<[string, string, string]> = [
-  ['nav-live', '/', 'Ao vivo'],
   ['nav-recordings', '/recordings', 'Gravações'],
 ]
 
@@ -78,12 +77,17 @@ describe('Sidebar — nav rail principal', () => {
     expect(document.getElementById('nav-reports')).toBeNull()
   })
 
-  it('Eventos (sino) é o primeiro item do nav, antes de "Ao vivo"', () => {
+  it('Eventos (sino) é o primeiro item do nav, antes de "Gravações"', () => {
     renderSidebar()
     const events = document.getElementById('sidebar-notifications')!
-    const live = document.getElementById('nav-live')!
-    // live aparece DEPOIS de events no DOM
-    expect(events.compareDocumentPosition(live) & FOLLOWS).toBeTruthy()
+    const recordings = document.getElementById('nav-recordings')!
+    // recordings aparece DEPOIS de events no DOM
+    expect(events.compareDocumentPosition(recordings) & FOLLOWS).toBeTruthy()
+  })
+
+  it('não renderiza mais "Ao vivo" (rota "/" agora é a AllCamerasPage, fora do sidebar legado)', () => {
+    renderSidebar()
+    expect(document.getElementById('nav-live')).toBeNull()
   })
 
   it('mantém Eventos (sino) e Configurações (flyout) com seus rótulos', () => {

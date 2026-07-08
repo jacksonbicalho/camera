@@ -8,6 +8,8 @@ const LivePage = lazy(() => import('./pages/LivePage'))
 const HistoryPage = lazy(() => import('./pages/HistoryPage'))
 const VideoBrowserPage = lazy(() => import('./pages/VideoBrowserPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const AllCamerasPage = lazy(() => import('./pages/AllCamerasPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation()
@@ -29,12 +31,14 @@ export function Lazy({ children }: { children: React.ReactNode }) {
 // (método estrangulamento — ver comentário no topo de VideoBrowserPage.tsx).
 export const newRoutes = (
   <>
+    <Route path="/" element={<Lazy><AllCamerasPage /></Lazy>} />
     <Route path="/live/:cameraId" element={<Lazy><LivePage /></Lazy>} />
     <Route path="/history/:cameraId" element={<Lazy><HistoryPage /></Lazy>} />
     <Route path="/history/:cameraId/:recordingId" element={<Lazy><HistoryPage /></Lazy>} />
     <Route path="/recording/:cameraId/:recordingId" element={<Lazy><VideoBrowserPage /></Lazy>} />
     <Route path="/recording/:cameraId/:recordingId/:motionId" element={<Lazy><VideoBrowserPage /></Lazy>} />
     <Route path="/reports/:cameraId/:date/:days" element={<Lazy><ReportsPage /></Lazy>} />
+    <Route path="/dashboard" element={<Lazy><DashboardPage /></Lazy>} />
   </>
 )
 
