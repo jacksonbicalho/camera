@@ -50,15 +50,17 @@ O sistema consegue localizar câmeras na rede local sem que você precise saber 
 | **Duração do chunk** | `5m` | Tamanho de cada arquivo MP4 (ex: `30s`, `5m`, `1h`) |
 | **Modo de gravação** | `auto` | `auto` transcodifica HEVC→H.264 automaticamente; `copy` preserva codec original sem custo de CPU; `h264` força H.264 sempre |
 
-### Streaming HLS
+### Streaming ao vivo
 
 | Campo | Padrão | Descrição |
 |---|---|---|
-| **Modo de vídeo HLS** | `auto` | Igual ao modo de gravação, aplicado ao stream ao vivo |
+| **Transporte do ao-vivo** | `auto` | `auto` = WebRTC (baixa latência) com fallback automático pra HLS; `webrtc` = só WebRTC (câmeras não-H.264 caem pra HLS mesmo assim); `hls` = só HLS. Ver `docs/live.md` |
+| **Modo de vídeo HLS** | `auto` | Igual ao modo de gravação, aplicado ao stream HLS |
 | **Duração do segmento HLS** | `2 s` | Menor = menor latência; maior = menos overhead |
 | **Tamanho da janela HLS** | `5 seg.` | Número de segmentos mantidos na playlist ao vivo |
+| **Retenção DVR (s)** | `0` (desativado) | `> 0` mantém uma janela maior de segmentos HLS com timestamp, permitindo seek — ver "Modo DVR" em `docs/live.md` |
 
-> **Menor latência:** segmento de 1 s + janela de 2 segmentos ≈ 2–3 s de atraso.
+> **Menor latência:** WebRTC entrega o ao-vivo abaixo de 1s; no HLS, segmento de 1 s + janela de 2 segmentos ≈ 2–3 s de atraso.
 
 ### Vídeo
 

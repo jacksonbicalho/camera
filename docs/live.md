@@ -1,70 +1,64 @@
 # Transmissão ao vivo
 
-Cada câmera habilitada tem uma transmissão ao vivo de baixa latência, exibida na
-página da câmera. O servidor gera continuamente um stream **HLS** a partir do
-RTSP da câmera; o navegador reproduz esse stream com `hls.js`.
+Cada câmera habilitada tem uma transmissão ao vivo, exibida na página `/live/:cameraId`
+(acessada pelo grid de "Todas as câmeras" ou pelas abas Ao vivo/Histórico no topo da
+página da câmera).
 
 ---
 
 ## Como funciona
 
-Para cada câmera, um processo `ffmpeg` lê o RTSP e escreve segmentos HLS em
-`{segments_path}/{camera_id}/`:
+O ao-vivo é **WebRTC-first com fallback automático para HLS**:
 
-- **Playlist** `index.m3u8` — lista os segmentos mais recentes.
-- **Segmentos** `NNNNNN.ts` — trechos de vídeo (padrão: 2 s cada).
+- **WebRTC** — o servidor repacota o RTP do stream RTSP (H.264, sem transcode) e entrega
+  direto pro navegador via `PeerConnection`, com latência sub-segundo. Exige codec H.264
+  no stream principal.
+- **HLS** — quando o WebRTC não está disponível (codec não-H.264, negociação falha, ou a
+  conexão não fecha em alguns segundos), o player cai automaticamente pro streaming HLS
+  tradicional: um processo `ffmpeg` lê o RTSP e escreve segmentos (`{segments_path}/{camera_id}/`,
+  playlist `index.m3u8` + segmentos `NNNNNN.ts`, padrão 2 s cada) que o navegador reproduz
+  com `hls.js`. Tem um piso de latência maior (alguns segundos) que o WebRTC.
 
-O player baixa a playlist, busca os últimos segmentos e os reproduz na borda ao
-vivo. Quando o codec do stream não é compatível com o navegador, o servidor
-transcodifica para H.264 (configurável por câmera em `hls_video_mode`).
+O campo **Transporte do ao-vivo** (`auto`/`webrtc`/`hls`, no formulário da câmera — ver
+`docs/cameras.md`) controla essa escolha por câmera: `auto` tenta WebRTC com fallback pro
+HLS (padrão); `webrtc` força só WebRTC (câmeras não-H.264 caem pro HLS mesmo assim, já que
+o navegador não decodifica H.265 via WebRTC); `hls` força só HLS, sem tentar WebRTC.
 
-A playlist é servida com `Cache-Control: no-cache` — assim o navegador sempre
-revalida e nunca fica preso replayando uma playlist antiga (por exemplo, depois
-de a câmera ficar um tempo offline).
+Quando o codec do stream HLS não é compatível com o navegador, o servidor transcodifica
+para H.264 (configurável por câmera em **Modo de vídeo HLS**).
 
 ### Modo DVR
 
-Com `hls_dvr_seconds > 0`, a janela HLS mantém vários minutos/horas de segmentos
-e adiciona `EXT-X-PROGRAM-DATE-TIME`, permitindo retroceder na própria régua ao
-vivo. Os parâmetros `hls_dvr_seconds`, `hls_segment_seconds` e `hls_list_size`
-são configurados por câmera na UI.
+Com **Retenção DVR** `> 0`, a janela HLS mantém vários minutos/horas de segmentos e
+adiciona `EXT-X-PROGRAM-DATE-TIME` (permitindo seek por timestamp). Esse modo é sobre o
+pipeline HLS — não se aplica ao transporte WebRTC.
 
 ---
 
 ## Controles do player
 
-Abaixo do vídeo há uma barra de controles:
+Ao vivo (`/live/:cameraId`): zoom digital (arrastar para deslocar a imagem ampliada,
+scroll/pinch pra ampliar) e tela cheia. Sem controle de mudo nem seletor de velocidade
+nessa tela — o vídeo ao vivo é sempre mudo (necessário pro autoplay do navegador sem
+interação do usuário).
 
-- **Mudo** — sincronizado com os controles nativos do vídeo.
-- **Velocidade** — 1× a 32× (o limite real do navegador é detectado de forma
-  progressiva, com aviso quando excedido).
-- **Reprodução contínua** — ao terminar um clipe, avança automaticamente para a
-  próxima gravação ou próximo evento.
-- **Tela cheia** e **zoom digital** (arrastar para deslocar a imagem ampliada).
-
-Quando a câmera está sem sinal, a live não fica "fingindo" transmissão antiga: o
-processo de streaming tenta reconectar automaticamente assim que a câmera volta.
+Quando a câmera está sem sinal, a live não fica "fingindo" transmissão antiga: o player
+detecta a falha (WebRTC ou HLS) e tenta reconectar automaticamente com backoff.
 
 ---
 
-## Reprodução de gravações e atalhos de teclado
+## Reprodução de gravações
 
-Ao clicar em **Gravações** (ou em um **Evento**), a página sai do modo ao vivo e
-reproduz o trecho correspondente. A régua vertical à direita mostra a posição na
-linha do tempo.
+**Histórico** (`/history/:cameraId`) — gravações do dia selecionado (calendário), com o
+player tocando a selecionada e uma tira de cards pra trocar de gravação. Usa os controles
+nativos do `<video>` do navegador (play/pause, barra de progresso, volume, tela cheia) +
+zoom digital.
 
-Durante a reprodução de uma gravação, com o foco fora de campos de texto:
+**Reprodução de um clipe** (`/recording/:cameraId/:recordingId`, chegada a partir de um
+card do Histórico ou de um evento) — barra de controles própria (não-nativa): progresso,
+play/pause, tempo, mudo e tela cheia. Ao clicar num evento de movimento, o clipe é montado
+automaticamente em torno do momento do evento (alguns segundos antes/depois).
 
-| Atalho | Ação |
-|---|---|
-| `Ctrl` + `↑` / `↓` | Navega entre gravações (chunk anterior / próximo) |
-| `Ctrl` + `Shift` + `↑` / `↓` | Avança / retrocede **1 segundo** |
-| `Ctrl` + `←` / `→` | Avança / retrocede **um frame** (vídeo pausado) |
-
-O passo frame a frame usa a duração real do frame, estimada via
-`requestVideoFrameCallback` (com fallback de 1/30 s). A precisão visível é
-limitada pela taxa de quadros da gravação — passos menores que `1/fps` caem no
-mesmo frame.
-
-> Os atalhos só agem durante a reprodução de gravação (não no modo ao vivo) e são
-> ignorados enquanto se digita em um campo de texto.
+A transição entre gravações consecutivas usa dois `<video>` empilhados (double-buffering):
+enquanto um toca, o outro pré-carrega o próximo trecho — sem tela preta piscando na
+fronteira entre chunks.
