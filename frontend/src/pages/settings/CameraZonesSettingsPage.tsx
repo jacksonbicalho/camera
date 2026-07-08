@@ -5,6 +5,7 @@ import Layout from '../../components/Layout'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { authHeaders, getRole, getToken } from '../../auth'
+import { negotiateWebRTC } from '../../lib/webrtc'
 import { useSettings } from '../../hooks/useSettings'
 import { useEventSource } from '../../hooks/useEventSource'
 import { zoneThresholdLabel } from './zoneThreshold'
@@ -351,6 +352,7 @@ export default function CameraZonesSettingsPage() {
   const isAdmin = getRole() === 'admin'
   const { settings } = useSettings()
   const cam = settings?.cameras.find(c => c.id === id)
+  const transport = cam?.live_transport
 
   const capW = cam
     ? ((cam.motion?.capture_width ?? 0) > 0 ? cam.motion!.capture_width! : Math.max(1, Math.round((cam.width ?? 0) / 4)))
@@ -419,7 +421,11 @@ export default function CameraZonesSettingsPage() {
     return () => { active = false }
   }, [id])
 
-  // HLS live stream
+  // Live video source — WebRTC-first com fallback pro HLS (mesmo padrão do
+  // Player.tsx, sem os estados de UI que não fazem sentido aqui: este <video> é
+  // solto, nunca anexado ao DOM, só serve de fonte de frames pro paintCanvas).
+  // Sem isso, câmeras com live_transport=webrtc — que não sobem o pipeline HLS
+  // (ver ShouldRunHLS) — nunca tinham stream nenhum pra pintar no canvas.
   useEffect(() => {
     if (!id) return
     const video = document.createElement('video')
@@ -427,31 +433,96 @@ export default function CameraZonesSettingsPage() {
     video.playsInline = true
     videoRef.current = video
 
-    import('hls.js').then(({ default: Hls }) => {
-      const src = `/stream/${id}/index.m3u8`
-      if (!Hls.isSupported()) {
-        video.src = `${src}?token=${encodeURIComponent(getToken() ?? '')}`
-        video.play().catch(() => {})
+    let cancelled = false
+    let pc: RTCPeerConnection | null = null
+    let watchdog: ReturnType<typeof setTimeout> | undefined
+
+    function setupHLS() {
+      import('hls.js').then(({ default: Hls }) => {
+        if (cancelled) return
+        const src = `/stream/${id}/index.m3u8`
+        if (!Hls.isSupported()) {
+          video.src = `${src}?token=${encodeURIComponent(getToken() ?? '')}`
+          video.play().catch(() => {})
+          return
+        }
+        const hls = new Hls({
+          manifestLoadingMaxRetry: 20,
+          manifestLoadingRetryDelay: 2000,
+          xhrSetup(xhr) { xhr.setRequestHeader('Authorization', `Bearer ${getToken()}`) },
+        })
+        hls.loadSource(src)
+        hls.attachMedia(video)
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}))
+        hlsRef.current = hls
+      })
+    }
+
+    async function setup() {
+      if (transport !== 'hls' && id && typeof RTCPeerConnection !== 'undefined') {
+        const conn = new RTCPeerConnection()
+        pc = conn
+        let fellBack = false
+        const fallback = () => {
+          if (fellBack || cancelled) return
+          fellBack = true
+          if (watchdog) clearTimeout(watchdog)
+          try { conn.close() } catch { /* noop */ }
+          if (pc === conn) pc = null
+          video.srcObject = null
+          setupHLS()
+        }
+
+        conn.ontrack = ev => {
+          const [stream] = ev.streams
+          if (stream) video.srcObject = stream
+        }
+        conn.addTransceiver('video', { direction: 'recvonly' })
+
+        try {
+          await negotiateWebRTC(id, conn, { token: getToken() ?? undefined })
+        } catch {
+          fallback()
+          return
+        }
+        if (cancelled) { conn.close(); return }
+
+        conn.onconnectionstatechange = () => {
+          if (conn.connectionState === 'connected') {
+            if (watchdog) clearTimeout(watchdog)
+            video.play().catch(() => {})
+          } else if (conn.connectionState === 'failed') {
+            fallback()
+          }
+        }
+        watchdog = setTimeout(() => {
+          if (conn.connectionState !== 'connected') fallback()
+        }, 5000)
+        if (conn.connectionState === 'connected') {
+          if (watchdog) clearTimeout(watchdog)
+          video.play().catch(() => {})
+        }
         return
       }
-      const hls = new Hls({
-        manifestLoadingMaxRetry: 20,
-        manifestLoadingRetryDelay: 2000,
-        xhrSetup(xhr) { xhr.setRequestHeader('Authorization', `Bearer ${getToken()}`) },
-      })
-      hls.loadSource(src)
-      hls.attachMedia(video)
-      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}))
-      hlsRef.current = hls
-    })
+      setupHLS()
+    }
+
+    setup()
 
     return () => {
+      cancelled = true
+      if (watchdog) clearTimeout(watchdog)
       hlsRef.current?.destroy()
       hlsRef.current = null
+      if (pc) {
+        try { pc.close() } catch { /* noop */ }
+        pc = null
+      }
+      video.srcObject = null
       video.src = ''
       videoRef.current = null
     }
-  }, [id])
+  }, [id, transport])
 
   // RAF paint loop
   useEffect(() => {
