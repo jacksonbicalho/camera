@@ -26,6 +26,8 @@ const CameraAnalysisSettingsPage = lazy(() => import('./pages/settings/CameraAna
 const CameraStatesSettingsPage = lazy(() => import('./pages/settings/CameraStatesSettingsPage'))
 const DiscoverPage = lazy(() => import('./pages/settings/DiscoverPage'))
 const AnalysisSettingsPage = lazy(() => import('./pages/settings/AnalysisSettingsPage'))
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
+const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'))
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation()
@@ -84,5 +86,11 @@ export const routes = (
     <Route path="/settings/cameras/:id" element={<Lazy><CameraDetailSettingsPage /></Lazy>} />
     <Route path="/settings/discover" element={<Lazy><DiscoverPage /></Lazy>} />
     <Route path="/settings/analysis" element={<Lazy><AnalysisSettingsPage /></Lazy>} />
+    {/* AppLayout/AppSidebar legado fechado — /change-password fica em App.tsx, fora
+        do <Lazy>, porque RequireAuth redireciona pra lá quando mustChangePassword()
+        (envolvê-la em Lazy causaria loop de redirect). */}
+    <Route path="/notifications" element={<Lazy><NotificationsPage /></Lazy>} />
+    <Route path="/events" element={<Lazy><PlaceholderPage title="Eventos" description="Visão global de eventos em construção." /></Lazy>} />
+    <Route path="/users" element={<Lazy><PlaceholderPage title="Usuários" description="Gestão de usuários em construção." /></Lazy>} />
   </>
 )

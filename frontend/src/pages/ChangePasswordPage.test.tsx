@@ -18,7 +18,7 @@ vi.mock('../auth', () => ({
   mustChangePassword: () => false,
 }))
 
-vi.mock('../components/AppLayout', () => ({
+vi.mock('../components/Layout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
