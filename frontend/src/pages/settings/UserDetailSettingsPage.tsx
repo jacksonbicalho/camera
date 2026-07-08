@@ -104,7 +104,6 @@ export default function UserDetailSettingsPage() {
           onSave={handleUpdate}
           onCancel={() => { setEditing(false); setError(null) }}
           saving={saving}
-          onChangePassword={() => navigate('/change-password', { state: { from: location.pathname } })}
         />
       ) : (
         <div className="flex flex-col gap-4">
