@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type HlsType from 'hls.js'
 import { useParams } from 'react-router-dom'
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { authHeaders, getRole, getToken } from '../../auth'
@@ -629,7 +629,8 @@ export default function CameraZonesSettingsPage() {
   const selectedZone = selectedIdx !== null ? zones[selectedIdx] : null
 
   return (
-    <SettingsLayout>
+    <Layout id="camera-zones-page" footerId="camera-zones-footer" contentClassName="p-6">
+    <div id="camera-zones-content" className="page-content space-y-4">
       <CameraSettingsTabs id={id!} active="zones" camName={cam?.name} />
 
       {isAdmin && (
@@ -846,6 +847,7 @@ export default function CameraZonesSettingsPage() {
         onConfirm={() => { setZones([]); setSelectedIdx(null); setConfirmClear(false) }}
         onCancel={() => setConfirmClear(false)}
       />
-    </SettingsLayout>
+    </div>
+    </Layout>
   )
 }

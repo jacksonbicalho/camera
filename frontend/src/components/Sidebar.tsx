@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
@@ -11,7 +11,7 @@ import ThemeModeNav from './ThemeModeNav'
 import AccentSwatchNav from './AccentSwatchNav'
 import MotionNotificationsBell from './MotionNotificationsBell'
 import { navItemClass, useFlyout } from './sidebarFlyout'
-import { BarChart2, CameraLogo, Cctv, ChevronLeft, CircleUser, Film, History, Palette, Settings } from './Icons'
+import { BarChart2, CameraLogo, Cctv, ChevronLeft, CircleUser, Film, History, Settings } from './Icons'
 
 interface NavItem {
   id: string
@@ -138,7 +138,7 @@ function HistoryFlyout({ showLabel }: { showLabel: boolean }) {
   )
 }
 
-// Link do flyout — mesmo estilo usado por SettingsFlyout e PreferencesFlyout.
+// Link do flyout — mesmo estilo usado pelo SettingsFlyout.
 function FlyoutNavLink({ to, id, onSelect, children }: { to: string; id?: string; onSelect: () => void; children: React.ReactNode }) {
   return (
     <NavLink
@@ -159,22 +159,18 @@ function FlyoutNavLink({ to, id, onSelect, children }: { to: string; id?: string
   )
 }
 
-// SettingsFlyout — botão "Configurações": só o que sobra depois de Usuários/
-// Servidor/Armazenamento/Sistema/Aparência/Estatísticas/Sobre migrarem pro
-// PreferencesFlyout (sidebar-settings) — fica só Câmeras, Rastrear câmeras e
-// Análise de vídeo. ADMIN_SETTINGS_LINKS/VIEWER_SETTINGS_LINKS (settingsNavLinks.ts)
-// continuam com a lista completa (o AppSidebar legado usa a lista inteira num único
-// flyout); o filtro é só aqui.
-const ADMIN_ONLY_PREFERENCE_PATHS = ['/preferences/users', '/preferences/server', '/preferences/storage', '/preferences/system']
-
+// SettingsFlyout — botão único "Configurações" (id sidebar-config): itera
+// ADMIN_SETTINGS_LINKS/VIEWER_SETTINGS_LINKS (settingsNavLinks.ts, compartilhada
+// com o AppSidebar legado, que faz o mesmo num único flyout) e intercala
+// ThemeModeNav/AccentSwatchNav/Estatísticas logo antes do link Sobre — espelha
+// exatamente o flyout único do AppSidebar.tsx. Unificado com o antigo
+// PreferencesFlyout (sidebar-settings) — não há mais split entre "configuração
+// administrativa" e "preferências pessoais".
 function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
   const location = useLocation()
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
-  const active = location.pathname.startsWith('/settings')
-    && !location.pathname.startsWith('/settings/appearance')
-    && !location.pathname.startsWith('/settings/about')
-  const links = (getRole() === 'admin' ? ADMIN_SETTINGS_LINKS : VIEWER_SETTINGS_LINKS)
-    .filter(l => l.to !== '/settings/appearance' && l.to !== '/settings/about' && !ADMIN_ONLY_PREFERENCE_PATHS.includes(l.to))
+  const active = location.pathname.startsWith('/settings') || location.pathname.startsWith('/stats')
+  const links = getRole() === 'admin' ? ADMIN_SETTINGS_LINKS : VIEWER_SETTINGS_LINKS
 
   return (
     <>
@@ -197,65 +193,15 @@ function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
           className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
         >
           {links.map(({ to, label }) => (
-            <FlyoutNavLink key={to} to={to} onSelect={() => setOpen(false)}>{label}</FlyoutNavLink>
+            <Fragment key={to}>
+              {to === '/settings/about' && <ThemeModeNav onSelect={() => setOpen(false)} />}
+              {to === '/settings/about' && <AccentSwatchNav onSelect={() => setOpen(false)} />}
+              {to === '/settings/about' && (
+                <FlyoutNavLink to="/settings/stats" id="settings-stats" onSelect={() => setOpen(false)}>Estatísticas</FlyoutNavLink>
+              )}
+              <FlyoutNavLink to={to} onSelect={() => setOpen(false)}>{label}</FlyoutNavLink>
+            </Fragment>
           ))}
-        </div>,
-        document.body,
-      )}
-    </>
-  )
-}
-
-// PreferencesFlyout — botão "sidebar-settings": Aparência (tema/accent) + (admin)
-// Sistema/Servidor/Usuários/Armazenamento + Estatísticas + Sobre — separado da
-// configuração administrativa "dura" (SettingsFlyout/sidebar-config, que fica só
-// com Câmeras/Rastrear câmeras/Análise de vídeo). Os 4 itens administrativos ficam
-// atrás de `isAdmin` (mesmo gate que as próprias páginas já aplicam internamente —
-// pra viewer não ver um link que só leva a "Acesso restrito").
-function PreferencesFlyout({ showLabel }: { showLabel: boolean }) {
-  const location = useLocation()
-  const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
-  const isAdmin = getRole() === 'admin'
-  const active = location.pathname.startsWith('/preferences/appearance')
-    || location.pathname.startsWith('/settings/appearance')
-    || location.pathname.startsWith('/preferences/about')
-    || location.pathname.startsWith('/settings/about')
-    || location.pathname.startsWith('/preferences/stats')
-    || ADMIN_ONLY_PREFERENCE_PATHS.some(p => location.pathname.startsWith(p))
-
-  return (
-    <>
-      <button
-        id="sidebar-settings"
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        title="Preferências"
-        aria-label="Preferências"
-        className={navItemClass(active || open, showLabel)}
-      >
-        <Palette className="h-5 w-5 shrink-0" />
-        {showLabel && <span className="truncate text-sm">Preferências</span>}
-      </button>
-      {open && createPortal(
-        <div
-          ref={panelRef}
-          style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
-          className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
-        >
-          <FlyoutNavLink to="/preferences/appearance" onSelect={() => setOpen(false)}>Aparência</FlyoutNavLink>
-          <ThemeModeNav onSelect={() => setOpen(false)} />
-          <AccentSwatchNav onSelect={() => setOpen(false)} />
-          {isAdmin && (
-            <>
-              <FlyoutNavLink to="/preferences/users" onSelect={() => setOpen(false)}>Usuários</FlyoutNavLink>
-              <FlyoutNavLink to="/preferences/server" onSelect={() => setOpen(false)}>Servidor</FlyoutNavLink>
-              <FlyoutNavLink to="/preferences/storage" onSelect={() => setOpen(false)}>Armazenamento</FlyoutNavLink>
-              <FlyoutNavLink to="/preferences/system" onSelect={() => setOpen(false)}>Sistema</FlyoutNavLink>
-            </>
-          )}
-          <FlyoutNavLink to="/preferences/stats" id="settings-stats" onSelect={() => setOpen(false)}>Estatísticas</FlyoutNavLink>
-          <FlyoutNavLink to="/preferences/about" onSelect={() => setOpen(false)}>Sobre</FlyoutNavLink>
         </div>,
         document.body,
       )}
@@ -407,7 +353,6 @@ export default function Sidebar() {
             {showLabel && <span className="truncate text-sm">Recolher menu</span>}
           </button>
           <SettingsFlyout showLabel={showLabel} />
-          <PreferencesFlyout showLabel={showLabel} />
           <UserMenu showLabel={showLabel} />
         </div>
       </div>

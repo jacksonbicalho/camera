@@ -9,7 +9,7 @@ vi.mock('../../auth', () => ({
   getToken: () => 'fake',
   onUnauthorized: vi.fn(),
 }))
-vi.mock('../../components/SettingsLayout', () => ({
+vi.mock('../../components/Layout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 vi.mock('../../components/CameraSettingsTabs', () => ({ default: () => <div /> }))

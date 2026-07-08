@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
+import PageHeader from '../../components/PageHeader'
 import BboxCanvas, { type BboxRect } from '../../components/BboxCanvas'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
@@ -507,14 +508,13 @@ export default function AnalysisSettingsPage() {
   }
 
   return (
-    <SettingsLayout>
+    <Layout id="analysis-settings-page" footerId="analysis-settings-footer" contentClassName="p-6">
+    <div id="analysis-settings-content" className="page-content space-y-4">
       <div className="space-y-6">
-        <div>
-          <h3 className="text-lg font-semibold text-white mb-1">Análise de vídeo</h3>
-          <p className="text-sm text-muted-foreground">
-            Serviço YOLO para detecção de objetos em gravações. Cada chunk MP4 é analisado após ser fechado.
-          </p>
-        </div>
+        <PageHeader
+          title="Análise de vídeo"
+          subtitle="Serviço YOLO para detecção de objetos em gravações. Cada chunk MP4 é analisado após ser fechado."
+        />
 
         <form onSubmit={handleSave} className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
           <div className="p-4 flex items-center justify-between">
@@ -1054,6 +1054,7 @@ export default function AnalysisSettingsPage() {
         onConfirm={executeBulkLabel}
         onCancel={() => { if (!bulkBusy) setBulkConfirm(null) }}
       />
-    </SettingsLayout>
+    </div>
+    </Layout>
   )
 }

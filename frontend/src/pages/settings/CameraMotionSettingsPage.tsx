@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
 import SettingsSection from '../../components/SettingsSection'
 import MotionScoreChart from '../../components/MotionScoreChart'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
@@ -339,7 +339,8 @@ export default function CameraMotionSettingsPage() {
   }, [isAdmin, id])
 
   return (
-    <SettingsLayout>
+    <Layout id="camera-motion-page" footerId="camera-motion-footer" contentClassName="p-6">
+    <div id="camera-motion-content" className="page-content space-y-4">
       <CameraSettingsTabs id={id!} active="motion" camName={isAdmin ? cam?.name : viewerCam?.name} />
       {!isAdmin ? (
         viewerLoading ? (
@@ -354,6 +355,7 @@ export default function CameraMotionSettingsPage() {
       ) : (
         <MotionFormContent cam={cam} id={id!} peak={peak} reload={reload} />
       )}
-    </SettingsLayout>
+    </div>
+    </Layout>
   )
 }

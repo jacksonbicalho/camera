@@ -24,8 +24,8 @@ function renderAt(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <LocationProbe />
       <Routes>
-        <Route path="/preferences/users" element={<UsersSettingsPage />} />
-        <Route path="/preferences/users/new" element={<UsersSettingsPage />} />
+        <Route path="/settings/users" element={<UsersSettingsPage />} />
+        <Route path="/settings/users/new" element={<UsersSettingsPage />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -42,33 +42,33 @@ function stubFetch() {
 }
 
 describe('UsersSettingsPage', () => {
-  it('lista usuários dentro do Layout novo, com link do usuário apontando pra /preferences/users/:id', async () => {
+  it('lista usuários dentro do Layout novo, com link do usuário apontando pra /settings/users/:id', async () => {
     stubFetch()
-    renderAt('/preferences/users')
+    renderAt('/settings/users')
     await waitFor(() => {
       expect(document.body.textContent).toContain('jackson')
     })
-    const link = document.querySelector('a[href="/preferences/users/1"]')
+    const link = document.querySelector('a[href="/settings/users/1"]')
     expect(link).toBeTruthy()
   })
 
-  it('/preferences/users/new abre o formulário de criação automaticamente', async () => {
+  it('/settings/users/new abre o formulário de criação automaticamente', async () => {
     stubFetch()
-    renderAt('/preferences/users/new')
+    renderAt('/settings/users/new')
     await waitFor(() => {
       expect(document.getElementById('user-form-username')).toBeTruthy()
     })
   })
 
-  it('cancelar a criação vinda de /preferences/users/new navega de volta pra /preferences/users', async () => {
+  it('cancelar a criação vinda de /settings/users/new navega de volta pra /settings/users', async () => {
     stubFetch()
-    renderAt('/preferences/users/new')
+    renderAt('/settings/users/new')
     await waitFor(() => {
       expect(document.getElementById('user-form-cancel')).toBeTruthy()
     })
     fireEvent.click(document.getElementById('user-form-cancel')!)
     await waitFor(() => {
-      expect(document.getElementById('test-location')!.textContent).toBe('/preferences/users')
+      expect(document.getElementById('test-location')!.textContent).toBe('/settings/users')
     })
   })
 })

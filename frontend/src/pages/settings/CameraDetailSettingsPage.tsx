@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
 import SettingsSection from '../../components/SettingsSection'
 import CameraForm from '../../components/CameraForm'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
@@ -96,7 +96,8 @@ export default function CameraDetailSettingsPage() {
 
   if (!isAdmin) {
     return (
-      <SettingsLayout>
+      <Layout id="camera-detail-page" footerId="camera-detail-footer" contentClassName="p-6">
+      <div id="camera-detail-content" className="page-content space-y-4">
         <CameraSettingsTabs id={id!} active="detail" camName={viewerCam?.name} />
         {viewerLoading ? (
           <p className="text-muted-foreground text-sm">Carregando...</p>
@@ -141,12 +142,14 @@ export default function CameraDetailSettingsPage() {
             <DeviceInfoPanel cameraId={id!} isAdmin={false} />
           </div>
         )}
-      </SettingsLayout>
+      </div>
+      </Layout>
     )
   }
 
   return (
-    <SettingsLayout>
+    <Layout id="camera-detail-page" footerId="camera-detail-footer" contentClassName="p-6">
+    <div id="camera-detail-content" className="page-content space-y-4">
       <CameraSettingsTabs id={id!} active="detail" camName={cam?.name} />
 
       {error && (
@@ -225,6 +228,7 @@ export default function CameraDetailSettingsPage() {
           <DeviceInfoPanel cameraId={id!} isAdmin={isAdmin} />
         </div>
       )}
-    </SettingsLayout>
+    </div>
+    </Layout>
   )
 }

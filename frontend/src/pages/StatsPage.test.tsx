@@ -29,7 +29,7 @@ describe('StatsPage', () => {
       if (url.startsWith('/api/cameras')) return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
     }))
-    render(<MemoryRouter initialEntries={['/preferences/stats']}><StatsPage /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/settings/stats']}><StatsPage /></MemoryRouter>)
     await waitFor(() => {
       expect(document.body.textContent).toContain('Estatísticas')
     })

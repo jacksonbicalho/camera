@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
 import DatePicker from '../../components/DatePicker'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
 import ConfirmDialog from '../../components/ConfirmDialog'
@@ -256,15 +256,18 @@ export default function CameraStatesSettingsPage() {
 
   if (!isAdmin) {
     return (
-      <SettingsLayout>
+      <Layout id="camera-states-page" footerId="camera-states-footer" contentClassName="p-6">
+      <div id="camera-states-content" className="page-content space-y-4">
         <CameraSettingsTabs id={id!} active="states" camName={camName} />
         <p className="text-muted-foreground text-sm">Apenas administradores.</p>
-      </SettingsLayout>
+      </div>
+      </Layout>
     )
   }
 
   return (
-    <SettingsLayout>
+    <Layout id="camera-states-page" footerId="camera-states-footer" contentClassName="p-6">
+    <div id="camera-states-content" className="page-content space-y-4">
       <CameraSettingsTabs id={id!} active="states" camName={camName} />
 
       {error && (
@@ -368,7 +371,8 @@ export default function CameraStatesSettingsPage() {
         onConfirm={remove}
         onCancel={() => setDeleteId(null)}
       />
-    </SettingsLayout>
+    </div>
+    </Layout>
   )
 }
 

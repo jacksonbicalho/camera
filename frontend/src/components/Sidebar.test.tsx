@@ -90,7 +90,7 @@ describe('Sidebar (enxuto)', () => {
     expect(document.getElementById('sidebar-all-cameras')?.getAttribute('aria-current')).toBeNull()
   })
 
-  it('Configurações é um botão (não link) que abre um flyout só com Câmeras/Rastrear câmeras/Análise de vídeo — admin', () => {
+  it('Configurações é um botão (não link) que abre um flyout único com todas as seções — admin', () => {
     renderAt('/')
     const btn = document.getElementById('sidebar-config')!
     expect(btn.tagName).toBe('BUTTON')
@@ -99,24 +99,36 @@ describe('Sidebar (enxuto)', () => {
     expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/discover"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/analysis"]')).toBeTruthy()
-    // Usuários/Servidor/Armazenamento/Sistema/Aparência/Sobre migraram pro sidebar-settings.
-    expect(document.querySelector('a[href="/preferences/users"]')).toBeNull()
-    expect(document.querySelector('a[href="/preferences/server"]')).toBeNull()
-    expect(document.querySelector('a[href="/preferences/storage"]')).toBeNull()
-    expect(document.querySelector('a[href="/preferences/system"]')).toBeNull()
-    expect(document.querySelector('a[href="/settings/appearance"]')).toBeNull()
-    expect(document.querySelector('a[href="/settings/about"]')).toBeNull()
+    expect(document.querySelector('a[href="/settings/users"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/server"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/storage"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/system"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/appearance"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
+    expect(document.getElementById('theme-mode-nav')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-nav')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-default')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-violet')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-teal')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-coral')).not.toBeNull()
+    expect(document.getElementById('accent-swatch-amber')).not.toBeNull()
+    expect(document.getElementById('settings-stats')?.getAttribute('href')).toBe('/settings/stats')
   })
 
-  it('viewer só vê Câmeras no flyout de Configurações', () => {
+  it('viewer não vê os itens administrativos, mas continua vendo Câmeras/Aparência/tema/Estatísticas/Sobre', () => {
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
     fireEvent.click(document.getElementById('sidebar-config')!)
     expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/appearance"]')).toBeNull()
-    expect(document.querySelector('a[href="/settings/about"]')).toBeNull()
-    expect(document.querySelector('a[href="/preferences/users"]')).toBeNull()
-    expect(document.querySelector('a[href="/preferences/server"]')).toBeNull()
+    expect(document.querySelector('a[href="/settings/appearance"]')).toBeTruthy()
+    expect(document.getElementById('settings-stats')).not.toBeNull()
+    expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/users"]')).toBeNull()
+    expect(document.querySelector('a[href="/settings/server"]')).toBeNull()
+    expect(document.querySelector('a[href="/settings/storage"]')).toBeNull()
+    expect(document.querySelector('a[href="/settings/system"]')).toBeNull()
+    expect(document.querySelector('a[href="/settings/discover"]')).toBeNull()
+    expect(document.querySelector('a[href="/settings/analysis"]')).toBeNull()
   })
 
   it('flyout fecha ao selecionar uma seção', () => {
@@ -127,9 +139,12 @@ describe('Sidebar (enxuto)', () => {
     expect(document.querySelector('a[href="/settings/discover"]')).toBeNull()
   })
 
-  it('Configurações fica marcado ativo em rotas administrativas /settings/* que ainda são dele (Rastrear câmeras)', () => {
-    renderAt('/settings/discover')
-    expect(document.getElementById('sidebar-config')?.className).toContain('bg-primary')
+  it('Configurações fica marcado ativo em qualquer rota /settings/* ou /stats', () => {
+    for (const path of ['/settings/discover', '/settings/appearance', '/settings/about', '/settings/stats', '/settings/users', '/settings/server', '/settings/storage', '/settings/system', '/settings/cameras']) {
+      renderAt(path)
+      expect(document.getElementById('sidebar-config')?.className, path).toContain('bg-primary')
+      cleanup()
+    }
   })
 
   it('usuário aparece no rodapé (sidebar-bottom) e abre menu com Notificações/Perfil/Sair', () => {
@@ -297,62 +312,6 @@ describe('Sidebar — Gravações (link global, sem seletor de câmera)', () => 
   it('fica ativo em qualquer sub-rota /recordings/*', () => {
     renderAt('/recordings/2026-07-07/24/recordings')
     expect(document.getElementById('sidebar-recordings')?.getAttribute('aria-current')).toBe('page')
-  })
-})
-
-// sidebar-settings (PreferencesFlyout) — Aparência + tema/accent + (admin) Sistema/
-// Servidor/Usuários/Armazenamento + Estatísticas + Sobre, separado da configuração
-// administrativa "dura" (sidebar-config, só Câmeras/Rastrear câmeras/Análise de
-// vídeo). Os 4 itens administrativos (Usuários/Servidor/Armazenamento/Sistema)
-// migraram do sidebar-config nesta história — mesmo gate `isAdmin` das próprias
-// páginas.
-describe('Sidebar — sidebar-settings (Aparência/tema/admin/Estatísticas/Sobre)', () => {
-  it('admin: abre um flyout com Aparência, tema/accent, Usuários/Servidor/Armazenamento/Sistema, Estatísticas e Sobre', () => {
-    renderAt('/')
-    const btn = document.getElementById('sidebar-settings')!
-    expect(btn.tagName).toBe('BUTTON')
-    expect(document.querySelector('a[href="/preferences/appearance"]')).toBeNull()
-    fireEvent.click(btn)
-    expect(document.querySelector('a[href="/preferences/appearance"]')).toBeTruthy()
-    expect(document.getElementById('theme-mode-nav')).not.toBeNull()
-    expect(document.getElementById('accent-swatch-nav')).not.toBeNull()
-    expect(document.getElementById('accent-swatch-default')).not.toBeNull()
-    expect(document.getElementById('accent-swatch-violet')).not.toBeNull()
-    expect(document.getElementById('accent-swatch-teal')).not.toBeNull()
-    expect(document.getElementById('accent-swatch-coral')).not.toBeNull()
-    expect(document.getElementById('accent-swatch-amber')).not.toBeNull()
-    expect(document.querySelector('a[href="/preferences/users"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/preferences/server"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/preferences/storage"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/preferences/system"]')).toBeTruthy()
-    expect(document.getElementById('settings-stats')?.getAttribute('href')).toBe('/preferences/stats')
-    expect(document.querySelector('a[href="/preferences/about"]')).toBeTruthy()
-  })
-
-  it('viewer: não vê os 4 itens administrativos, mas continua vendo Aparência/tema/Estatísticas/Sobre', () => {
-    vi.mocked(getRole).mockReturnValue('viewer')
-    renderAt('/')
-    fireEvent.click(document.getElementById('sidebar-settings')!)
-    expect(document.querySelector('a[href="/preferences/appearance"]')).toBeTruthy()
-    expect(document.getElementById('settings-stats')).not.toBeNull()
-    expect(document.querySelector('a[href="/preferences/about"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/preferences/users"]')).toBeNull()
-    expect(document.querySelector('a[href="/preferences/server"]')).toBeNull()
-    expect(document.querySelector('a[href="/preferences/storage"]')).toBeNull()
-    expect(document.querySelector('a[href="/preferences/system"]')).toBeNull()
-  })
-
-  it('fica ativo em /preferences/appearance, /preferences/about, /preferences/stats e nas 4 rotas administrativas novas', () => {
-    for (const path of ['/preferences/appearance', '/preferences/about', '/preferences/stats', '/preferences/users', '/preferences/server', '/preferences/storage', '/preferences/system']) {
-      renderAt(path)
-      expect(document.getElementById('sidebar-settings')?.className, path).toContain('bg-primary')
-      cleanup()
-    }
-  })
-
-  it('não fica ativo em rotas de Configurações administrativa (/settings/cameras)', () => {
-    renderAt('/settings/cameras')
-    expect(document.getElementById('sidebar-settings')?.className).not.toContain('bg-primary')
   })
 })
 

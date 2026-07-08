@@ -26,7 +26,7 @@ interface User {
 export default function UsersSettingsPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const isNewRoute = location.pathname === '/preferences/users/new'
+  const isNewRoute = location.pathname === '/settings/users/new'
 
   const [users, setUsers] = useState<User[]>([])
   const [cameras, setCameras] = useState<Camera[]>([])
@@ -65,7 +65,7 @@ export default function UsersSettingsPage() {
         body: JSON.stringify(data),
       })
       if (!res.ok) { setError((await res.text()).trim() || 'Erro ao criar usuário'); return }
-      if (isNewRoute) { navigate('/preferences/users', { replace: true }); return }
+      if (isNewRoute) { navigate('/settings/users', { replace: true }); return }
       await loadUsers()
       setCreating(false)
     } finally {
@@ -116,7 +116,7 @@ export default function UsersSettingsPage() {
             cameras={cameras}
             onSave={handleCreate}
             onCancel={() => {
-              if (isNewRoute) { navigate('/preferences/users', { replace: true }); return }
+              if (isNewRoute) { navigate('/settings/users', { replace: true }); return }
               setCreating(false); setError(null)
             }}
             saving={saving}
@@ -134,7 +134,7 @@ export default function UsersSettingsPage() {
             <div key={user.id} className="bg-surface border border-border rounded-lg px-4 py-3">
               <div className="flex items-center gap-3 min-w-0">
                 <Link
-                  to={`/preferences/users/${user.id}`}
+                  to={`/settings/users/${user.id}`}
                   className="text-sm font-mono text-foreground hover:text-primary transition-colors truncate min-w-0"
                 >
                   {user.username}
@@ -150,7 +150,7 @@ export default function UsersSettingsPage() {
                 )}
                 <div className="ml-auto flex items-center gap-1 pl-3 shrink-0">
                   <Button asChild variant="outline" size="sm">
-                    <Link to={`/preferences/users/${user.id}`} state={{ editing: true }}>
+                    <Link to={`/settings/users/${user.id}`} state={{ editing: true }}>
                       Editar
                     </Link>
                   </Button>

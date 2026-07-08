@@ -59,7 +59,7 @@ describe('Sidebar — reorganização da navegação', () => {
     // abre o flyout de configurações
     fireEvent.click(document.getElementById('sidebar-settings')!)
 
-    const statsLink = document.querySelector('a[href="/preferences/stats"]')!
+    const statsLink = document.querySelector('a[href="/settings/stats"]')!
     const themeNav = document.getElementById('theme-mode-nav')!
     const about = document.querySelector('a[href="/settings/about"]')!
     expect(statsLink).toBeTruthy()

@@ -16,23 +16,23 @@ const users = [
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('UserDetailSettingsPage', () => {
-  it('renderiza o breadcrumb e o botão "Novo usuário" apontando pra /preferences/users*, dentro do Layout novo', async () => {
+  it('renderiza o breadcrumb e o botão "Novo usuário" apontando pra /settings/users*, dentro do Layout novo', async () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => {
       if (url.startsWith('/api/users')) return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(users) })
       if (url.startsWith('/api/cameras')) return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
     }))
     render(
-      <MemoryRouter initialEntries={['/preferences/users/1']}>
+      <MemoryRouter initialEntries={['/settings/users/1']}>
         <Routes>
-          <Route path="/preferences/users/:id" element={<UserDetailSettingsPage />} />
+          <Route path="/settings/users/:id" element={<UserDetailSettingsPage />} />
         </Routes>
       </MemoryRouter>,
     )
     await waitFor(() => {
       expect(document.body.textContent).toContain('jackson')
     })
-    expect(document.querySelector('a[href="/preferences/users"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/preferences/users/new"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/users"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/users/new"]')).toBeTruthy()
   })
 })
