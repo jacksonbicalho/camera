@@ -51,17 +51,6 @@ function renderSidebar() {
 const FOLLOWS = Node.DOCUMENT_POSITION_FOLLOWING
 
 describe('Sidebar — reorganização da navegação', () => {
-  it('Eventos (sino) fica na nav rail principal, fora da seção inferior', () => {
-    renderSidebar()
-    const bell = document.getElementById('sidebar-notifications')!
-    const bottom = document.getElementById('sidebar-bottom')!
-    expect(bell).toBeTruthy()
-    // não está dentro da seção inferior (Configurações/Recolher/Usuário)
-    expect(bottom.contains(bell)).toBe(false)
-    // aparece antes da seção inferior no DOM
-    expect(bell.compareDocumentPosition(bottom) & FOLLOWS).toBeTruthy()
-  })
-
   it('Estatísticas saiu da base e virou link /stats no flyout, entre color mode e Sobre', () => {
     renderSidebar()
     // o antigo item da base não existe mais

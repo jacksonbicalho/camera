@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import Sidebar from './Sidebar'
 import { DisplayModeProvider } from '../contexts/DisplayModeContext'
 import { clearToken, getRole } from '../auth'
+import type { Notification } from '../contexts/NotificationContext'
 
 vi.mock('../auth', () => ({
   getRole: vi.fn(() => 'admin'),
@@ -17,8 +18,23 @@ vi.mock('../contexts/UserNotificationContext', () => ({
   useUserNotifications: () => ({ unreadCount: 0 }),
 }))
 
+let motionNotifications: Notification[] = []
+let motionUnreadCount = 0
+
+vi.mock('../contexts/NotificationContext', () => ({
+  useNotifications: () => ({
+    notifications: motionNotifications, unreadCount: motionUnreadCount,
+    markRead: vi.fn(), markSelectedRead: vi.fn(),
+    remove: vi.fn(), removeAll: vi.fn(), removeSelected: vi.fn(),
+    browserSupported: false, browserPermission: 'default', browserEnabled: false,
+    enableBrowserNotifications: vi.fn(), disableBrowserNotifications: vi.fn(),
+  }),
+}))
+
 beforeEach(() => {
   localStorage.clear()
+  motionNotifications = []
+  motionUnreadCount = 0
 })
 afterEach(() => {
   cleanup()
@@ -263,5 +279,25 @@ describe('Sidebar — Gravações (mesmo estilo de submenu de câmeras)', () => 
   it('marca "Gravações" como ativo em qualquer rota /history/*', () => {
     renderAt('/history/cam1')
     expect(document.getElementById('sidebar-gravacoes')?.className).toContain('bg-primary')
+  })
+})
+
+// MotionNotificationsBell — extraído do sidebar legado (AppSidebar.tsx, id antigo
+// "sidebar-notifications") pra dentro do sidebar novo, como 1º item do nav
+// (mesma posição que tinha no legado). Cobertura própria de comportamento (clique,
+// resolução de link) vive em MotionNotificationsBell.test.tsx; aqui só a posição.
+describe('Sidebar — Eventos (notificações de movimento)', () => {
+  it('#motion-notifications é o primeiro item do nav, antes de "Todas as câmeras"', () => {
+    renderAt('/')
+    const bell = document.getElementById('motion-notifications')!
+    const allCameras = document.getElementById('sidebar-all-cameras')!
+    expect(bell).toBeTruthy()
+    expect(bell.compareDocumentPosition(allCameras) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('mostra badge de não lidas quando unreadCount > 0', () => {
+    motionUnreadCount = 5
+    renderAt('/')
+    expect(document.getElementById('motion-notifications')!.textContent).toContain('5')
   })
 })
