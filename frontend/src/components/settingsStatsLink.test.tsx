@@ -11,13 +11,12 @@ vi.mock('../auth', () => ({ getRole: () => 'admin' }))
 afterEach(() => cleanup())
 
 describe('SettingsLayout — link Estatísticas', () => {
-  it('exibe um link "Estatísticas" apontando para /stats', () => {
+  it('não exibe mais o link "Estatísticas" (migrou pro sidebar novo/Preferências, StatsPage saiu do SettingsLayout)', () => {
     render(
       <MemoryRouter>
         <SettingsLayout><div /></SettingsLayout>
       </MemoryRouter>,
     )
-    const link = screen.getByRole('link', { name: 'Estatísticas' })
-    expect(link.getAttribute('href')).toBe('/stats')
+    expect(screen.queryByRole('link', { name: 'Estatísticas' })).toBeNull()
   })
 })

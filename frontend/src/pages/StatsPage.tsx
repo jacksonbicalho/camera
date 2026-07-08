@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { authHeaders, onUnauthorized } from '../auth'
-import SettingsLayout from '../components/SettingsLayout'
+import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import MotionScoreChart from '../components/MotionScoreChart'
 import { useStats } from '../hooks/useStats'
@@ -68,8 +68,9 @@ export default function StatsPage() {
   const sysMemUsed = (stats?.sys_mem_total_bytes ?? 0) - (stats?.sys_mem_free_bytes ?? 0)
 
   return (
-    <SettingsLayout>
-      <PageHeader size="section" title="Estatísticas" subtitle="Uso de disco, sistema e saúde das câmeras." />
+    <Layout id="stats-page" footerId="stats-footer" contentClassName="p-6">
+      <div id="stats-content" className="page-content space-y-4">
+      <PageHeader title="Estatísticas" subtitle="Uso de disco, sistema e saúde das câmeras." />
 
       {!stats ? (
         <p className="text-faint text-sm">Carregando...</p>
@@ -249,6 +250,7 @@ export default function StatsPage() {
 
         </div>
       )}
-    </SettingsLayout>
+      </div>
+    </Layout>
   )
 }

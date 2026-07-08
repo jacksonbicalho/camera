@@ -57,11 +57,15 @@ describe('padding de cards — convergência para p-4 (dense) / p-5 (form)', () 
     expect(changePassword).not.toMatch(/\bp-8\b/)
   })
 
-  it('StatsPage/StorageSettingsPage não usam mais o outlier p-6', () => {
+  // StatsPage/StorageSettingsPage migraram de SettingsLayout pro Layout novo — o
+  // `p-6` que sobra é `contentClassName="p-6"` do Layout (convenção do container de
+  // página, igual a toda página nova: ReportsPage/RecordingsPage/VideoBrowserPage),
+  // não mais o outlier de padding de card que este teste originalmente guardava.
+  it('StatsPage/StorageSettingsPage não têm padding de card outlier (só o container do Layout novo)', () => {
     const stats = readFileSync(resolve(process.cwd(), 'src/pages/StatsPage.tsx'), 'utf8')
     const storage = readFileSync(resolve(process.cwd(), 'src/pages/settings/StorageSettingsPage.tsx'), 'utf8')
-    expect(stats).not.toMatch(/\bp-6\b/)
-    expect(storage).not.toMatch(/\bp-6\b/)
+    expect(stats.match(/\bp-6\b/g) ?? []).toEqual(['p-6'])
+    expect(storage.match(/\bp-6\b/g) ?? []).toEqual(['p-6', 'p-6'])
   })
 
   it('documenta a convenção de padding (p-4 denso / p-5 formulário) em primitives.css', () => {

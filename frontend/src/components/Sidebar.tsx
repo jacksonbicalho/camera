@@ -159,18 +159,22 @@ function FlyoutNavLink({ to, id, onSelect, children }: { to: string; id?: string
   )
 }
 
-// SettingsFlyout — botão "Configurações": só as seções administrativas (Câmeras,
-// Rastrear câmeras, Usuários, Servidor, Armazenamento, Análise de vídeo, Sistema).
-// Aparência/tema/accent/Estatísticas/Sobre viraram o ícone separado
-// PreferencesFlyout (sidebar-settings, pedido do navigator) — ADMIN_SETTINGS_LINKS/
-// VIEWER_SETTINGS_LINKS (settingsNavLinks.ts) continuam com a lista completa (o
-// AppSidebar legado usa a lista inteira num único flyout); o filtro é só aqui.
+// SettingsFlyout — botão "Configurações": só o que sobra depois de Usuários/
+// Servidor/Armazenamento/Sistema/Aparência/Estatísticas/Sobre migrarem pro
+// PreferencesFlyout (sidebar-settings) — fica só Câmeras, Rastrear câmeras e
+// Análise de vídeo. ADMIN_SETTINGS_LINKS/VIEWER_SETTINGS_LINKS (settingsNavLinks.ts)
+// continuam com a lista completa (o AppSidebar legado usa a lista inteira num único
+// flyout); o filtro é só aqui.
+const ADMIN_ONLY_PREFERENCE_PATHS = ['/preferences/users', '/preferences/server', '/preferences/storage', '/preferences/system']
+
 function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
   const location = useLocation()
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
-  const active = location.pathname.startsWith('/settings') && !location.pathname.startsWith('/settings/appearance') && !location.pathname.startsWith('/settings/about')
+  const active = location.pathname.startsWith('/settings')
+    && !location.pathname.startsWith('/settings/appearance')
+    && !location.pathname.startsWith('/settings/about')
   const links = (getRole() === 'admin' ? ADMIN_SETTINGS_LINKS : VIEWER_SETTINGS_LINKS)
-    .filter(l => l.to !== '/settings/appearance' && l.to !== '/settings/about')
+    .filter(l => l.to !== '/settings/appearance' && l.to !== '/settings/about' && !ADMIN_ONLY_PREFERENCE_PATHS.includes(l.to))
 
   return (
     <>
@@ -202,16 +206,20 @@ function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
   )
 }
 
-// PreferencesFlyout — botão "sidebar-settings": Aparência (tema/accent) + Estatísticas
-// + Sobre — o que é preferência pessoal/perfil, separado da configuração
-// administrativa (SettingsFlyout/sidebar-config). Mesma ordem do flyout único do
-// AppSidebar legado: Aparência → tema/accent → Estatísticas → Sobre.
+// PreferencesFlyout — botão "sidebar-settings": Aparência (tema/accent) + (admin)
+// Sistema/Servidor/Usuários/Armazenamento + Estatísticas + Sobre — separado da
+// configuração administrativa "dura" (SettingsFlyout/sidebar-config, que fica só
+// com Câmeras/Rastrear câmeras/Análise de vídeo). Os 4 itens administrativos ficam
+// atrás de `isAdmin` (mesmo gate que as próprias páginas já aplicam internamente —
+// pra viewer não ver um link que só leva a "Acesso restrito").
 function PreferencesFlyout({ showLabel }: { showLabel: boolean }) {
   const location = useLocation()
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
+  const isAdmin = getRole() === 'admin'
   const active = location.pathname.startsWith('/settings/appearance')
     || location.pathname.startsWith('/settings/about')
-    || location.pathname.startsWith('/stats')
+    || location.pathname.startsWith('/preferences/stats')
+    || ADMIN_ONLY_PREFERENCE_PATHS.some(p => location.pathname.startsWith(p))
 
   return (
     <>
@@ -236,7 +244,15 @@ function PreferencesFlyout({ showLabel }: { showLabel: boolean }) {
           <FlyoutNavLink to="/settings/appearance" onSelect={() => setOpen(false)}>Aparência</FlyoutNavLink>
           <ThemeModeNav onSelect={() => setOpen(false)} />
           <AccentSwatchNav onSelect={() => setOpen(false)} />
-          <FlyoutNavLink to="/stats" id="settings-stats" onSelect={() => setOpen(false)}>Estatísticas</FlyoutNavLink>
+          {isAdmin && (
+            <>
+              <FlyoutNavLink to="/preferences/users" onSelect={() => setOpen(false)}>Usuários</FlyoutNavLink>
+              <FlyoutNavLink to="/preferences/server" onSelect={() => setOpen(false)}>Servidor</FlyoutNavLink>
+              <FlyoutNavLink to="/preferences/storage" onSelect={() => setOpen(false)}>Armazenamento</FlyoutNavLink>
+              <FlyoutNavLink to="/preferences/system" onSelect={() => setOpen(false)}>Sistema</FlyoutNavLink>
+            </>
+          )}
+          <FlyoutNavLink to="/preferences/stats" id="settings-stats" onSelect={() => setOpen(false)}>Estatísticas</FlyoutNavLink>
           <FlyoutNavLink to="/settings/about" onSelect={() => setOpen(false)}>Sobre</FlyoutNavLink>
         </div>,
         document.body,
