@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { format } from 'date-fns'
-import AppLayout from '../components/AppLayout'
+import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import DatePicker from '../components/DatePicker'
 import { authHeaders, onUnauthorized, getToken } from '../auth'
@@ -9,6 +9,25 @@ import { authHeaders, onUnauthorized, getToken } from '../auth'
 const CAT_LABEL: Record<string, string> = { movimento: 'Movimento', pessoa: 'Pessoa', ia: 'IA', estados: 'Estados' }
 const CAT_COLOR: Record<string, string> = { movimento: 'bg-amber-400', pessoa: 'bg-red-500', ia: 'bg-violet-500', estados: 'bg-green-500' }
 const CAT_FILTERS = ['todos', 'movimento', 'pessoa', 'ia', 'estados'] as const
+const WINDOWS = [1, 2, 4, 6, 12, 24] as const
+
+// parseLocalDate — parseia "yyyy-MM-dd" como data LOCAL (sem o deslocamento de fuso
+// de `new Date(string)`, que interpreta como UTC). Sem :date válido, cai em hoje.
+// Mesma forma do helper (não-exportado) de ReportsPage.tsx.
+function parseLocalDate(s: string | undefined): Date {
+  const [y, m, d] = (s ?? '').split('-').map(Number)
+  if (!y || !m || !d) return new Date()
+  return new Date(y, m - 1, d)
+}
+
+// nearestWindow — resolve um valor de :hour da URL pra janela válida mais próxima
+// (mesma forma de nearestRange() em ReportsPage.tsx). Sem :hour válido, cai em 24
+// (dia inteiro — default atual).
+function nearestWindow(n: number): number {
+  if (!Number.isFinite(n)) return 24
+  if ((WINDOWS as readonly number[]).includes(n)) return n
+  return WINDOWS.reduce((best, opt) => (Math.abs(opt - n) < Math.abs(best - n) ? opt : best), WINDOWS[0])
+}
 
 interface CameraOption { id: string; name: string }
 interface Moment {
@@ -31,8 +50,6 @@ interface RecordingItem {
   url: string
 }
 
-const WINDOWS = [1, 2, 4, 6, 12, 24] as const
-
 const pad = (n: number) => String(n).padStart(2, '0')
 
 // momentThumb resolve a URL do thumbnail: estado já vem como caminho absoluto
@@ -47,23 +64,39 @@ function momentThumb(m: Moment): string | null {
 }
 
 export default function RecordingsPage() {
+  const { date: dateParam, hour: hourParam, view: viewParam } = useParams<{ date?: string; hour?: string; view?: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [cameras, setCameras] = useState<CameraOption[]>([])
   const [selectedCams, setSelectedCams] = useState<Set<string>>(new Set())
   const [category, setCategory] = useState<string>('todos')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const [date, setDate] = useState<Date>(new Date())
+  const [date, setDate] = useState<Date>(() => parseLocalDate(dateParam))
   const [moments, setMoments] = useState<Moment[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [page, setPage] = useState(1)
   const [loaded, setLoaded] = useState(false)
-  const [view, setView] = useState<'recordings' | 'moments'>('recordings')
-  const [win, setWin] = useState(24)
+  // Default 'moments' quando o segmento :view vem ausente/inválido na URL (troca do
+  // default anterior, que era 'recordings' — pedido do navigator).
+  const [view, setView] = useState<'recordings' | 'moments'>(() => viewParam === 'recordings' ? 'recordings' : 'moments')
+  const [hour, setHour] = useState(() => nearestWindow(Number(hourParam)))
   const [motionOnly, setMotionOnly] = useState(false)
   const [recordings, setRecordings] = useState<RecordingItem[]>([])
   const [recLoaded, setRecLoaded] = useState(false)
   const [contentDays, setContentDays] = useState<string[]>([])
+
+  // Mantém a URL sincronizada com data/janela/modo (fonte compartilhável) — mesmo
+  // padrão de ReportsPage.tsx/HistoryPage.tsx: só navega quando o alvo difere da
+  // rota atual, senão entraria em loop com a navegação disparada por esta troca.
+  // O segmento :view só aparece na URL quando não é o default ('moments').
+  useEffect(() => {
+    const dateStr = format(date, 'yyyy-MM-dd')
+    const target = view === 'recordings'
+      ? `/recordings/${dateStr}/${hour}/recordings`
+      : `/recordings/${dateStr}/${hour}`
+    if (location.pathname !== target) navigate(target, { replace: true })
+  }, [date, hour, view, location.pathname, navigate])
 
   useEffect(() => {
     fetch('/api/cameras', { headers: authHeaders() })
@@ -111,7 +144,7 @@ export default function RecordingsPage() {
   useEffect(() => {
     if (view !== 'recordings') return
     let cancelled = false
-    const params = new URLSearchParams({ date: format(date, 'yyyy-MM-dd'), window: String(win) })
+    const params = new URLSearchParams({ date: format(date, 'yyyy-MM-dd'), window: String(hour) })
     if (selectedCams.size > 0) params.set('cameras', [...selectedCams].join(','))
     if (motionOnly) params.set('motion_only', 'true')
     fetch(`/api/recordings?${params}`, { headers: authHeaders() })
@@ -119,7 +152,7 @@ export default function RecordingsPage() {
       .then(d => { if (cancelled || !d) return; setRecordings(d.recordings); setRecLoaded(true) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [view, date, win, motionOnly, selectedCams])
+  }, [view, date, hour, motionOnly, selectedCams])
 
   const openAt = (cameraId: string, time: string) =>
     navigate(`/cameras/${cameraId}`, { state: { eventTime: time, showRecordings: true } })
@@ -135,7 +168,8 @@ export default function RecordingsPage() {
   }
 
   return (
-    <AppLayout>
+    <Layout id="recordings-page" footerId="recordings-footer" contentClassName="p-6">
+    <div id="recordings-content" className="page-content space-y-4">
       <PageHeader
         className="flex-wrap"
         title="Gravações"
@@ -201,9 +235,9 @@ export default function RecordingsPage() {
               <button
                 key={n}
                 id={`recordings-window-${n}`}
-                onClick={() => setWin(n)}
+                onClick={() => setHour(n)}
                 className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
-                  win === n ? 'bg-primary text-primary-foreground' : 'bg-surface-2 text-muted hover:text-foreground'
+                  hour === n ? 'bg-primary text-primary-foreground' : 'bg-surface-2 text-muted hover:text-foreground'
                 }`}
               >
                 {n === 24 ? 'Dia inteiro' : `${n}h`}
@@ -316,6 +350,7 @@ export default function RecordingsPage() {
           </button>
         </div>
       )}
-    </AppLayout>
+    </div>
+    </Layout>
   )
 }

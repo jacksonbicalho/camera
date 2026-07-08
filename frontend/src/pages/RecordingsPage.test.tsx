@@ -8,7 +8,7 @@ vi.mock('../auth', () => ({
   getToken: () => 'fake',
   onUnauthorized: vi.fn(),
 }))
-vi.mock('../components/AppLayout', () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
+vi.mock('../components/Layout', () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
 vi.mock('../components/DatePicker', () => ({ default: () => <div data-testid="datepicker" /> }))
 
 const cameras = [{ id: 'cam1', name: 'Corredor' }, { id: 'cam2', name: 'Quintal' }]
@@ -36,25 +36,71 @@ function LocationProbe() {
   return <div data-testid="loc">{l.pathname}|{JSON.stringify(l.state)}</div>
 }
 
-async function switchToMoments() {
+// Sonda sempre montada (fora do <Routes>, mesmo padrão de ReportsPage.test.tsx) —
+// acompanha a URL corrente independente de qual <Route> casou.
+function LocationProbeGlobal() {
+  const l = useLocation()
+  return <div id="test-location">{l.pathname}</div>
+}
+
+// A página se auto-redireciona (replace) de /recordings pra /recordings/:date/:hour(/:view)?
+// assim que monta (mesmo padrão de ReportsPage/HistoryPage) — as 4 variantes de rota
+// precisam existir no MemoryRouter de teste, senão o redirect derruba o match.
+function renderRecordings(initialPath = '/recordings') {
+  return render(
+    <MemoryRouter initialEntries={[initialPath]}>
+      <LocationProbeGlobal />
+      <Routes>
+        <Route path="/recordings" element={<RecordingsPage />} />
+        <Route path="/recordings/:date" element={<RecordingsPage />} />
+        <Route path="/recordings/:date/:hour" element={<RecordingsPage />} />
+        <Route path="/recordings/:date/:hour/:view" element={<RecordingsPage />} />
+        <Route path="/cameras/:id" element={<LocationProbe />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+async function switchToRecordings() {
   const toggle = await waitFor(() => {
-    const el = document.getElementById('recordings-view-moments')
-    if (!el) throw new Error('toggle Momentos não renderizou')
+    const el = document.getElementById('recordings-view-recordings')
+    if (!el) throw new Error('toggle Gravações não renderizou')
     return el
   })
   fireEvent.click(toggle)
 }
 
 describe('RecordingsPage', () => {
-  it('por padrão lista as gravações do dia e clique abre a câmera no instante', async () => {
-    render(
-      <MemoryRouter initialEntries={['/recordings']}>
-        <Routes>
-          <Route path="/recordings" element={<RecordingsPage />} />
-          <Route path="/cameras/:id" element={<LocationProbe />} />
-        </Routes>
-      </MemoryRouter>,
-    )
+  it('por padrão lista os momentos do dia (view ausente na URL) e clique abre a câmera no instante', async () => {
+    renderRecordings()
+    const card0 = await waitFor(() => {
+      const el = document.getElementById('moment-0')
+      if (!el) throw new Error('card não renderizou')
+      return el
+    })
+    expect(card0.textContent).toContain('Corredor')
+    expect(document.getElementById('moment-1')?.textContent).toContain('Quintal')
+
+    fireEvent.click(card0)
+    const loc = await screen.findByTestId('loc')
+    expect(loc.textContent).toContain('/cameras/cam1')
+    expect(loc.textContent).toContain('2026-06-23T08:08:05Z')
+  })
+
+  it('URL reflete /recordings/:date/:hour sem sufixo de view (default moments)', async () => {
+    const today = new Date()
+    const y = today.getFullYear()
+    const m = String(today.getMonth() + 1).padStart(2, '0')
+    const d = String(today.getDate()).padStart(2, '0')
+    renderRecordings()
+    await waitFor(() => {
+      expect(document.getElementById('test-location')!.textContent).toBe(`/recordings/${y}-${m}-${d}/24`)
+    })
+  })
+
+  it('no modo Gravações (aba explícita) lista as gravações do dia, adiciona /recordings à URL e clique abre a câmera no instante', async () => {
+    renderRecordings()
+    await switchToRecordings()
     const rec0 = await waitFor(() => {
       const el = document.getElementById('recording-1')
       if (!el) throw new Error('gravação não renderizou')
@@ -62,6 +108,7 @@ describe('RecordingsPage', () => {
     })
     expect(rec0.textContent).toContain('Corredor')
     expect(document.getElementById('recording-2')?.textContent).toContain('Quintal')
+    expect(document.getElementById('test-location')!.textContent).toMatch(/\/recordings\/\d{4}-\d{2}-\d{2}\/24\/recordings$/)
 
     fireEvent.click(rec0)
     const loc = await screen.findByTestId('loc')
@@ -69,13 +116,10 @@ describe('RecordingsPage', () => {
     expect(loc.textContent).toContain('2026-06-23T23:50:00Z')
   })
 
-  it('a janela dispara fetch de /api/recordings com window e motion_only', async () => {
+  it('a janela dispara fetch de /api/recordings com window e motion_only (aba Gravações)', async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
-    render(
-      <MemoryRouter initialEntries={['/recordings']}>
-        <Routes><Route path="/recordings" element={<RecordingsPage />} /></Routes>
-      </MemoryRouter>,
-    )
+    renderRecordings()
+    await switchToRecordings()
     const win6 = await waitFor(() => {
       const el = document.getElementById('recordings-window-6')
       if (!el) throw new Error('chip de janela não renderizou')
@@ -92,38 +136,9 @@ describe('RecordingsPage', () => {
     })
   })
 
-  it('no modo Momentos lista momentos e clique abre a câmera no instante', async () => {
-    render(
-      <MemoryRouter initialEntries={['/recordings']}>
-        <Routes>
-          <Route path="/recordings" element={<RecordingsPage />} />
-          <Route path="/cameras/:id" element={<LocationProbe />} />
-        </Routes>
-      </MemoryRouter>,
-    )
-    await switchToMoments()
-    const card0 = await waitFor(() => {
-      const el = document.getElementById('moment-0')
-      if (!el) throw new Error('card não renderizou')
-      return el
-    })
-    expect(card0.textContent).toContain('Corredor')
-    expect(document.getElementById('moment-1')?.textContent).toContain('Quintal')
-
-    fireEvent.click(card0)
-    const loc = await screen.findByTestId('loc')
-    expect(loc.textContent).toContain('/cameras/cam1')
-    expect(loc.textContent).toContain('2026-06-23T08:08:05Z')
-  })
-
-  it('digitar na busca (modo Momentos) dispara fetch com q (debounced) e reseta a página', async () => {
+  it('digitar na busca (modo Momentos, default) dispara fetch com q (debounced) e reseta a página', async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
-    render(
-      <MemoryRouter initialEntries={['/recordings']}>
-        <Routes><Route path="/recordings" element={<RecordingsPage />} /></Routes>
-      </MemoryRouter>,
-    )
-    await switchToMoments()
+    renderRecordings()
     const input = await waitFor(() => {
       const el = document.getElementById('recordings-search') as HTMLInputElement | null
       if (!el) throw new Error('campo de busca não renderizou')
@@ -138,5 +153,18 @@ describe('RecordingsPage', () => {
       )
       if (!called) throw new Error('fetch com q=portao não disparou')
     }, { timeout: 1500 })
+  })
+
+  it('abrir /recordings/2026-06-23/6/recordings carrega direto na aba Gravações com a data e janela da URL', async () => {
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
+    renderRecordings('/recordings/2026-06-23/6/recordings')
+    await waitFor(() => {
+      expect(document.getElementById('recording-1')).toBeTruthy()
+    })
+    expect(document.getElementById('recordings-view-recordings')?.className).toContain('bg-primary')
+    const called = fetchMock.mock.calls.some(([u]: [string]) =>
+      u.startsWith('/api/recordings') && u.includes('date=2026-06-23') && u.includes('window=6'),
+    )
+    expect(called).toBe(true)
   })
 })
