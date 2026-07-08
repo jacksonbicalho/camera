@@ -165,7 +165,8 @@ export default function MotionNotificationsBell({ showLabel }: { showLabel: bool
         fetch(`/api/cameras/${n.cameraId}/motion?date=${dateStr}`, { headers: authHeaders() }),
         fetch(`/api/cameras/${n.cameraId}/recordings?date=${dateStr}&page=1&limit=0&order=asc`, { headers: authHeaders() }),
       ])
-      const events: MotionEventEntry[] = evRes.ok ? await evRes.json() : []
+      const evData = evRes.ok ? await evRes.json() : {}
+      const events: MotionEventEntry[] = evData.events ?? []
       const recData = recRes.ok ? await recRes.json() : {}
       const recordings: RecordingEntry[] = recData.recordings ?? []
 
