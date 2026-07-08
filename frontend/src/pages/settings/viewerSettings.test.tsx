@@ -34,6 +34,13 @@ vi.mock('../../components/AppLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
+// ServerSettingsPage/SystemSettingsPage/StorageSettingsPage migraram de SettingsLayout
+// pro Layout novo — mocka esse em vez daquele (Layout real puxaria Sidebar ->
+// MotionNotificationsBell -> useNotifications(), sem provider aqui).
+vi.mock('../../components/Layout', () => ({
+  default: ({ children }: { children: React.ReactNode }) => <div data-testid="layout">{children}</div>,
+}))
+
 describe('viewer — restricted pages', () => {
   beforeEach(() => {
     mockFetch.mockResolvedValue({ ok: false, status: 403 })

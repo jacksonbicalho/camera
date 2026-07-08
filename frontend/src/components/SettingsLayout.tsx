@@ -2,22 +2,21 @@ import AppLayout from "./AppLayout";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { getRole } from "../auth";
 
+// Usuários/Servidor/Armazenamento/Sistema/Estatísticas saíram daqui — migraram pro
+// Layout novo (Sidebar/Preferências, /preferences/*). Deixar esses links aqui
+// levaria pra um Layout/chrome diferente no meio da navegação lateral do settings
+// legado, então saem da lista — só o que continua de fato dentro do SettingsLayout.
 const BASE_NAV_LINKS = [
   { to: "/settings/cameras", label: "Câmeras" },
   { to: "/settings/discover", label: "Rastrear câmeras" },
-  { to: "/settings/users", label: "Usuários" },
-  { to: "/settings/server", label: "Servidor" },
-  { to: "/settings/storage", label: "Armazenamento" },
   { to: "/settings/analysis", label: "Análise de vídeo" },
-  { to: "/settings/system", label: "Sistema" },
   { to: "/settings/appearance", label: "Aparência" },
-  { to: "/stats", label: "Estatísticas" },
   { to: "/settings/about", label: "Sobre" },
 ];
 
 const VIEWER_NAV_LINKS = BASE_NAV_LINKS.filter(l =>
   l.to === "/settings/cameras" || l.to === "/settings/appearance" ||
-  l.to === "/stats" || l.to === "/settings/about"
+  l.to === "/settings/about"
 );
 
 interface SettingsLayoutProps {

@@ -12,19 +12,13 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { NotificationProvider } from './contexts/NotificationContext'
 import { UserNotificationProvider } from './contexts/UserNotificationContext'
 
-const StatsPage = lazy(() => import('./pages/StatsPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
 const CamerasSettingsPage = lazy(() => import('./pages/settings/CamerasSettingsPage'))
 const CameraDetailSettingsPage = lazy(() => import('./pages/settings/CameraDetailSettingsPage'))
 const CameraMotionSettingsPage = lazy(() => import('./pages/settings/CameraMotionSettingsPage'))
 const CameraZonesSettingsPage = lazy(() => import('./pages/settings/CameraZonesSettingsPage'))
 const CameraStatesSettingsPage = lazy(() => import('./pages/settings/CameraStatesSettingsPage'))
-const ServerSettingsPage = lazy(() => import('./pages/settings/ServerSettingsPage'))
-const StorageSettingsPage = lazy(() => import('./pages/settings/StorageSettingsPage'))
-const SystemSettingsPage = lazy(() => import('./pages/settings/SystemSettingsPage'))
 const AboutPage = lazy(() => import('./pages/settings/AboutPage'))
-const UsersSettingsPage = lazy(() => import('./pages/settings/UsersSettingsPage'))
-const UserDetailSettingsPage = lazy(() => import('./pages/settings/UserDetailSettingsPage'))
 const DiscoverPage = lazy(() => import('./pages/settings/DiscoverPage'))
 const AnalysisSettingsPage = lazy(() => import('./pages/settings/AnalysisSettingsPage'))
 const CameraAnalysisSettingsPage = lazy(() => import('./pages/settings/CameraAnalysisSettingsPage'))
@@ -61,7 +55,6 @@ export default function App() {
       <Route path="/change-password" element={<ChangePasswordPage />} />
       {newRoutes}
       {legacyRoutes}
-      <Route path="/stats" element={<Lazy><StatsPage /></Lazy>} />
       <Route path="/events" element={<Lazy><PlaceholderPage title="Eventos" description="Visão global de eventos em construção." /></Lazy>} />
       <Route path="/users" element={<Lazy><PlaceholderPage title="Usuários" description="Gestão de usuários em construção." /></Lazy>} />
       <Route path="/notifications" element={<Lazy><NotificationsPage /></Lazy>} />
@@ -76,13 +69,7 @@ export default function App() {
       <Route path="/settings/cameras/states/:id" element={<Lazy><CameraStatesSettingsPage /></Lazy>} />
       <Route path="/settings/cameras/:id/states/edit/:cid" element={<Lazy><CameraStatesSettingsPage /></Lazy>} />
       <Route path="/settings/cameras/:id" element={<Lazy><CameraDetailSettingsPage /></Lazy>} />
-      <Route path="/settings/server" element={<Lazy><ServerSettingsPage /></Lazy>} />
-      <Route path="/settings/storage" element={<Lazy><StorageSettingsPage /></Lazy>} />
-      <Route path="/settings/system" element={<Lazy><SystemSettingsPage /></Lazy>} />
       <Route path="/settings/about" element={<Lazy><AboutPage /></Lazy>} />
-      <Route path="/settings/users" element={<Lazy><UsersSettingsPage /></Lazy>} />
-      <Route path="/settings/users/new" element={<Lazy><UsersSettingsPage /></Lazy>} />
-      <Route path="/settings/users/:id" element={<Lazy><UserDetailSettingsPage /></Lazy>} />
       <Route path="/settings/discover" element={<Lazy><DiscoverPage /></Lazy>} />
       <Route path="/settings/analysis" element={<Lazy><AnalysisSettingsPage /></Lazy>} />
       <Route path="/settings/appearance" element={<Lazy><AppearanceSettingsPage /></Lazy>} />

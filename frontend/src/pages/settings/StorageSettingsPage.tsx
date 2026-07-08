@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
 import PageHeader from '../../components/PageHeader'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { useSettings } from '../../hooks/useSettings'
@@ -202,16 +202,19 @@ export default function StorageSettingsPage() {
 
   if (!isAdmin) {
     return (
-      <SettingsLayout>
-        <PageHeader size="section" title="Armazenamento" subtitle="Retenção, limpeza automática e espaço em disco." />
-        <p className="text-muted-foreground text-sm">Acesso restrito.</p>
-      </SettingsLayout>
+      <Layout id="storage-settings-page" footerId="storage-settings-footer" contentClassName="p-6">
+        <div id="storage-settings-content" className="page-content space-y-4">
+          <PageHeader title="Armazenamento" subtitle="Retenção, limpeza automática e espaço em disco." />
+          <p className="text-muted-foreground text-sm">Acesso restrito.</p>
+        </div>
+      </Layout>
     )
   }
 
   return (
-    <SettingsLayout>
-      <PageHeader size="section" title="Armazenamento" subtitle="Retenção, limpeza automática e espaço em disco." />
+    <Layout id="storage-settings-page" footerId="storage-settings-footer" contentClassName="p-6">
+      <div id="storage-settings-content" className="page-content space-y-4">
+      <PageHeader title="Armazenamento" subtitle="Retenção, limpeza automática e espaço em disco." />
 
       {form ? (
         <div className="space-y-2 mb-4">
@@ -388,6 +391,7 @@ export default function StorageSettingsPage() {
         onCancel={() => setConfirmDelete(null)}
         danger
       />
-    </SettingsLayout>
+      </div>
+    </Layout>
   )
 }

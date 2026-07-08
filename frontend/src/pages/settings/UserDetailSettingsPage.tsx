@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useLocation, useNavigate } from 'react-router-dom'
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
 import SettingsSection from '../../components/SettingsSection'
 import UserForm, { type UserFormData } from '../../components/UserForm'
 import RoleBadge from '../../components/RoleBadge'
@@ -45,7 +45,7 @@ export default function UserDetailSettingsPage() {
       if (ur.status === 403) { navigate('/', { replace: true }); return }
       const users: User[] = await ur.json()
       const found = users.find(u => String(u.id) === id)
-      if (!found) { navigate('/settings/users', { replace: true }); return }
+      if (!found) { navigate('/preferences/users', { replace: true }); return }
       setUser(found)
       setCameras(await cr.json())
     }).catch(() => {}).finally(() => setLoading(false))
@@ -72,16 +72,17 @@ export default function UserDetailSettingsPage() {
   }
 
   return (
-    <SettingsLayout>
+    <Layout id="user-detail-page" footerId="user-detail-footer" contentClassName="p-6">
+    <div id="user-detail-content" className="page-content space-y-4">
       <div className="mb-6">
         <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
-          <Link to="/settings/users" className="hover:text-foreground transition-colors">Usuários</Link>
+          <Link to="/preferences/users" className="hover:text-foreground transition-colors">Usuários</Link>
           <span>/</span>
           <span className="text-foreground">{user?.username ?? '...'}</span>
         </nav>
         <div className="flex items-center justify-end border-b border-border pb-2">
           <Button asChild size="sm" className="mb-1">
-            <Link to="/settings/users/new">
+            <Link to="/preferences/users/new">
               <Plus className="w-3.5 h-3.5" /> Novo usuário
             </Link>
           </Button>
@@ -135,6 +136,7 @@ export default function UserDetailSettingsPage() {
           />
         </div>
       )}
-    </SettingsLayout>
+    </div>
+    </Layout>
   )
 }
