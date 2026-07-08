@@ -32,11 +32,9 @@ interface UserFormProps {
   onSave: (data: UserFormData) => Promise<void>
   onCancel: () => void
   saving: boolean
-  // Na edição, a senha não é um campo do form — é um fluxo dedicado (ChangePasswordPage).
-  onChangePassword?: () => void
 }
 
-export default function UserForm({ cameras, initial, onSave, onCancel, saving, onChangePassword }: UserFormProps) {
+export default function UserForm({ cameras, initial, onSave, onCancel, saving }: UserFormProps) {
   const [username, setUsername] = useState(initial?.username ?? '')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<'admin' | 'viewer'>(initial?.role ?? 'viewer')
@@ -67,19 +65,18 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving, o
             required
           />
         </div>
-        {!initial && (
-          <div>
-            <Label htmlFor="user-form-password" className="block text-xs text-muted-foreground mb-1">Senha</Label>
-            <Input
-              id="user-form-password"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              autoComplete="new-password"
-            />
-          </div>
-        )}
+        <div>
+          <Label htmlFor="user-form-password" className="block text-xs text-muted-foreground mb-1">Senha</Label>
+          <Input
+            id="user-form-password"
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            required={!initial}
+            autoComplete="new-password"
+            placeholder={initial ? 'Deixe em branco para manter a atual' : undefined}
+          />
+        </div>
         <div>
           <Label htmlFor="user-form-email" className="block text-xs text-muted-foreground mb-1">E-mail</Label>
           <Input
@@ -140,11 +137,6 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving, o
         <Button id="user-form-cancel" type="button" size="sm" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        {initial && onChangePassword && (
-          <Button id="user-form-change-password" type="button" size="sm" variant="outline" className="ml-auto" onClick={onChangePassword}>
-            Alterar senha
-          </Button>
-        )}
       </div>
     </form>
   )

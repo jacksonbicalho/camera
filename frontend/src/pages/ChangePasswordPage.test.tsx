@@ -15,14 +15,10 @@ vi.mock('../auth', () => ({
   clearToken: vi.fn(),
   getRole: () => 'admin',
   authHeaders: () => ({}),
-  mustChangePassword: () => false,
+  mustChangePassword: vi.fn(() => true),
 }))
 
-vi.mock('../components/Layout', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}))
-
-import { changePassword, login } from '../auth'
+import { changePassword, login, mustChangePassword } from '../auth'
 
 function renderChangePassword() {
   return render(
@@ -37,6 +33,7 @@ function renderChangePassword() {
 
 describe('ChangePasswordPage', () => {
   beforeEach(() => {
+    vi.mocked(mustChangePassword).mockReturnValue(true)
     vi.mocked(changePassword).mockResolvedValue(undefined)
     vi.mocked(login).mockResolvedValue(undefined)
     global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => [] })
@@ -81,5 +78,12 @@ describe('ChangePasswordPage', () => {
     expect(document.querySelector('.animate-spin')).not.toBeNull()
     resolveChange()
     await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull())
+  })
+
+  it('sem mustChangePassword, redireciona pra "/" em vez de mostrar o form', () => {
+    vi.mocked(mustChangePassword).mockReturnValue(false)
+    renderChangePassword()
+    expect(screen.getByText('HOME')).toBeTruthy()
+    expect(screen.queryByLabelText('Nova senha')).toBeNull()
   })
 })
