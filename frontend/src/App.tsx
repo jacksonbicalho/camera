@@ -1,6 +1,6 @@
 import { lazy, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { newRoutes, legacyRoutes, Lazy } from './routes'
+import { routes, Lazy } from './routes'
 import LoginPage from './pages/LoginPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
@@ -18,11 +18,9 @@ const CameraDetailSettingsPage = lazy(() => import('./pages/settings/CameraDetai
 const CameraMotionSettingsPage = lazy(() => import('./pages/settings/CameraMotionSettingsPage'))
 const CameraZonesSettingsPage = lazy(() => import('./pages/settings/CameraZonesSettingsPage'))
 const CameraStatesSettingsPage = lazy(() => import('./pages/settings/CameraStatesSettingsPage'))
-const AboutPage = lazy(() => import('./pages/settings/AboutPage'))
 const DiscoverPage = lazy(() => import('./pages/settings/DiscoverPage'))
 const AnalysisSettingsPage = lazy(() => import('./pages/settings/AnalysisSettingsPage'))
 const CameraAnalysisSettingsPage = lazy(() => import('./pages/settings/CameraAnalysisSettingsPage'))
-const AppearanceSettingsPage = lazy(() => import('./pages/settings/AppearanceSettingsPage'))
 const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const ProfileChangePasswordPage = lazy(() => import('./pages/ProfileChangePasswordPage'))
@@ -53,8 +51,7 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/change-password" element={<ChangePasswordPage />} />
-      {newRoutes}
-      {legacyRoutes}
+      {routes}
       <Route path="/events" element={<Lazy><PlaceholderPage title="Eventos" description="Visão global de eventos em construção." /></Lazy>} />
       <Route path="/users" element={<Lazy><PlaceholderPage title="Usuários" description="Gestão de usuários em construção." /></Lazy>} />
       <Route path="/notifications" element={<Lazy><NotificationsPage /></Lazy>} />
@@ -69,10 +66,8 @@ export default function App() {
       <Route path="/settings/cameras/states/:id" element={<Lazy><CameraStatesSettingsPage /></Lazy>} />
       <Route path="/settings/cameras/:id/states/edit/:cid" element={<Lazy><CameraStatesSettingsPage /></Lazy>} />
       <Route path="/settings/cameras/:id" element={<Lazy><CameraDetailSettingsPage /></Lazy>} />
-      <Route path="/settings/about" element={<Lazy><AboutPage /></Lazy>} />
       <Route path="/settings/discover" element={<Lazy><DiscoverPage /></Lazy>} />
       <Route path="/settings/analysis" element={<Lazy><AnalysisSettingsPage /></Lazy>} />
-      <Route path="/settings/appearance" element={<Lazy><AppearanceSettingsPage /></Lazy>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </SidebarItemsProvider>

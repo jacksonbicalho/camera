@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getToken } from '../auth'
 import { useBrowserNotifications } from '../hooks/useBrowserNotifications'
+import { resolveEventRecordingUrl } from '../lib/eventNavigation'
 
 const STORAGE_KEY = 'camera_notifications'
 const MAX_NOTIFICATIONS = 100
@@ -115,8 +116,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             save(next)
             return next
           })
-          browserNotifyRef.current(id, score, label, () => {
-            navigate(`/cameras/${id}`, { state: { eventTime: time } })
+          browserNotifyRef.current(id, score, label, async () => {
+            const url = await resolveEventRecordingUrl(id, time)
+            if (url) navigate(url)
           }, payload.camera_name || undefined)
         } catch {
           // ignore malformed events

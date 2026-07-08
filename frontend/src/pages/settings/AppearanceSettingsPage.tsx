@@ -1,4 +1,4 @@
-import SettingsLayout from '../../components/SettingsLayout'
+import Layout from '../../components/Layout'
 import PageHeader from '../../components/PageHeader'
 import { Check } from '../../components/Icons'
 import { useDisplayMode, useSetDisplayMode, type DisplayMode } from '../../contexts/DisplayModeContext'
@@ -81,8 +81,9 @@ export default function AppearanceSettingsPage() {
   const { mode: colorMode, setMode, accent, setAccent } = useTheme()
 
   return (
-    <SettingsLayout>
-      <PageHeader size="section" title="Aparência" subtitle="Controla como botões e rótulos são exibidos na interface." />
+    <Layout id="appearance-settings-page" footerId="appearance-settings-footer" contentClassName="p-6">
+    <div id="appearance-settings-content" className="page-content space-y-4">
+      <PageHeader title="Aparência" subtitle="Controla como botões e rótulos são exibidos na interface." />
 
       <div className="flex flex-col gap-6">
         <div className="bg-surface border border-border rounded-lg p-5 flex flex-col gap-3">
@@ -131,6 +132,7 @@ export default function AppearanceSettingsPage() {
           <ModeRadioGroup value={mode.player} onChange={v => set('player', v)} />
         </div>
       </div>
-    </SettingsLayout>
+    </div>
+    </Layout>
   )
 }

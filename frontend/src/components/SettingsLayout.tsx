@@ -2,22 +2,18 @@ import AppLayout from "./AppLayout";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { getRole } from "../auth";
 
-// Usuários/Servidor/Armazenamento/Sistema/Estatísticas saíram daqui — migraram pro
-// Layout novo (Sidebar/Preferências, /preferences/*). Deixar esses links aqui
-// levaria pra um Layout/chrome diferente no meio da navegação lateral do settings
-// legado, então saem da lista — só o que continua de fato dentro do SettingsLayout.
+// Usuários/Servidor/Armazenamento/Sistema/Estatísticas/Aparência/Sobre saíram
+// daqui — migraram pro Layout novo (Sidebar/Preferências, /preferences/*). Deixar
+// esses links aqui levaria pra um Layout/chrome diferente no meio da navegação
+// lateral do settings legado, então saem da lista — só o que continua de fato
+// dentro do SettingsLayout.
 const BASE_NAV_LINKS = [
   { to: "/settings/cameras", label: "Câmeras" },
   { to: "/settings/discover", label: "Rastrear câmeras" },
   { to: "/settings/analysis", label: "Análise de vídeo" },
-  { to: "/settings/appearance", label: "Aparência" },
-  { to: "/settings/about", label: "Sobre" },
 ];
 
-const VIEWER_NAV_LINKS = BASE_NAV_LINKS.filter(l =>
-  l.to === "/settings/cameras" || l.to === "/settings/appearance" ||
-  l.to === "/settings/about"
-);
+const VIEWER_NAV_LINKS = BASE_NAV_LINKS.filter(l => l.to === "/settings/cameras");
 
 interface SettingsLayoutProps {
   children: React.ReactNode;

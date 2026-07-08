@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import AppearanceSettingsPage from './AppearanceSettingsPage'
 
-vi.mock('../../components/SettingsLayout', () => ({
+vi.mock('../../components/Layout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 vi.mock('../../contexts/ThemeContext', () => ({

@@ -3,7 +3,6 @@ import { lazy, Suspense } from 'react'
 import { Route, useLocation, Navigate } from 'react-router-dom'
 import { getToken, mustChangePassword } from './auth'
 
-const CameraPage = lazy(() => import('./pages/CameraPage'))
 const LivePage = lazy(() => import('./pages/LivePage'))
 const HistoryPage = lazy(() => import('./pages/HistoryPage'))
 const VideoBrowserPage = lazy(() => import('./pages/VideoBrowserPage'))
@@ -17,6 +16,8 @@ const ServerSettingsPage = lazy(() => import('./pages/settings/ServerSettingsPag
 const StorageSettingsPage = lazy(() => import('./pages/settings/StorageSettingsPage'))
 const UsersSettingsPage = lazy(() => import('./pages/settings/UsersSettingsPage'))
 const UserDetailSettingsPage = lazy(() => import('./pages/settings/UserDetailSettingsPage'))
+const AppearanceSettingsPage = lazy(() => import('./pages/settings/AppearanceSettingsPage'))
+const AboutPage = lazy(() => import('./pages/settings/AboutPage'))
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation()
@@ -33,10 +34,11 @@ export function Lazy({ children }: { children: React.ReactNode }) {
   )
 }
 
-// newRoutes — páginas da refatoração de simplificação em andamento (usam o `Layout` enxuto,
-// ver CLAUDE.md): LivePage/HistoryPage/VideoBrowserPage vêm substituindo o CameraPage legado
-// (método estrangulamento — ver comentário no topo de VideoBrowserPage.tsx).
-export const newRoutes = (
+// routes — páginas que usam o `Layout` enxuto (ver CLAUDE.md): LivePage/
+// HistoryPage/VideoBrowserPage substituíram o CameraPage legado (método
+// estrangulamento — ver comentário no topo de VideoBrowserPage.tsx; CameraPage.tsx
+// e suas dependências exclusivas foram removidos, assim como `legacyRoutes`).
+export const routes = (
   <>
     <Route path="/" element={<Lazy><AllCamerasPage /></Lazy>} />
     <Route path="/live/:cameraId" element={<Lazy><LivePage /></Lazy>} />
@@ -69,15 +71,9 @@ export const newRoutes = (
     <Route path="/settings/users" element={<Lazy><UsersSettingsPage /></Lazy>} />
     <Route path="/settings/users/new" element={<Lazy><UsersSettingsPage /></Lazy>} />
     <Route path="/settings/users/:id" element={<Lazy><UserDetailSettingsPage /></Lazy>} />
-  </>
-)
-
-// legacyRoutes — CameraPage (AppLayout pesado) e suas rotas antigas. Candidatas a remoção
-// quando LivePage/HistoryPage/VideoBrowserPage cobrirem tudo que o CameraPage ainda faz.
-export const legacyRoutes = (
-  <>
-    <Route path="/cameras/:id" element={<Lazy><CameraPage /></Lazy>} />
-    <Route path="/camera/live/:id" element={<Lazy><CameraPage /></Lazy>} />
-    <Route path="/camera/recording/:id/:recording_id" element={<Lazy><CameraPage /></Lazy>} />
+    <Route path="/preferences/appearance" element={<Lazy><AppearanceSettingsPage /></Lazy>} />
+    <Route path="/settings/appearance" element={<Lazy><AppearanceSettingsPage /></Lazy>} />
+    <Route path="/preferences/about" element={<Lazy><AboutPage /></Lazy>} />
+    <Route path="/settings/about" element={<Lazy><AboutPage /></Lazy>} />
   </>
 )

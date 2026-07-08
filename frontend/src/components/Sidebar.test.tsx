@@ -311,9 +311,9 @@ describe('Sidebar — sidebar-settings (Aparência/tema/admin/Estatísticas/Sobr
     renderAt('/')
     const btn = document.getElementById('sidebar-settings')!
     expect(btn.tagName).toBe('BUTTON')
-    expect(document.querySelector('a[href="/settings/appearance"]')).toBeNull()
+    expect(document.querySelector('a[href="/preferences/appearance"]')).toBeNull()
     fireEvent.click(btn)
-    expect(document.querySelector('a[href="/settings/appearance"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/preferences/appearance"]')).toBeTruthy()
     expect(document.getElementById('theme-mode-nav')).not.toBeNull()
     expect(document.getElementById('accent-swatch-nav')).not.toBeNull()
     expect(document.getElementById('accent-swatch-default')).not.toBeNull()
@@ -326,24 +326,24 @@ describe('Sidebar — sidebar-settings (Aparência/tema/admin/Estatísticas/Sobr
     expect(document.querySelector('a[href="/preferences/storage"]')).toBeTruthy()
     expect(document.querySelector('a[href="/preferences/system"]')).toBeTruthy()
     expect(document.getElementById('settings-stats')?.getAttribute('href')).toBe('/preferences/stats')
-    expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/preferences/about"]')).toBeTruthy()
   })
 
   it('viewer: não vê os 4 itens administrativos, mas continua vendo Aparência/tema/Estatísticas/Sobre', () => {
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
     fireEvent.click(document.getElementById('sidebar-settings')!)
-    expect(document.querySelector('a[href="/settings/appearance"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/preferences/appearance"]')).toBeTruthy()
     expect(document.getElementById('settings-stats')).not.toBeNull()
-    expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/preferences/about"]')).toBeTruthy()
     expect(document.querySelector('a[href="/preferences/users"]')).toBeNull()
     expect(document.querySelector('a[href="/preferences/server"]')).toBeNull()
     expect(document.querySelector('a[href="/preferences/storage"]')).toBeNull()
     expect(document.querySelector('a[href="/preferences/system"]')).toBeNull()
   })
 
-  it('fica ativo em /settings/appearance, /settings/about, /preferences/stats e nas 4 rotas administrativas novas', () => {
-    for (const path of ['/settings/appearance', '/settings/about', '/preferences/stats', '/preferences/users', '/preferences/server', '/preferences/storage', '/preferences/system']) {
+  it('fica ativo em /preferences/appearance, /preferences/about, /preferences/stats e nas 4 rotas administrativas novas', () => {
+    for (const path of ['/preferences/appearance', '/preferences/about', '/preferences/stats', '/preferences/users', '/preferences/server', '/preferences/storage', '/preferences/system']) {
       renderAt(path)
       expect(document.getElementById('sidebar-settings')?.className, path).toContain('bg-primary')
       cleanup()

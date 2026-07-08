@@ -8,6 +8,7 @@ import ConfirmDialog from '../../components/ConfirmDialog'
 import BboxCanvas, { type BboxRect } from '../../components/BboxCanvas'
 import { authHeaders, onUnauthorized, getRole, getToken } from '../../auth'
 import { useSettings } from '../../hooks/useSettings'
+import { resolveEventRecordingUrl } from '../../lib/eventNavigation'
 import { stateTitle, formatHistoryTime } from './statesHistory'
 import { Button } from '@/components/ui/button'
 import { Plus, Pencil, Trash2, Zap, Loader2, Camera as CameraIcon, CalendarDays, Film, X } from '../../components/Icons'
@@ -460,7 +461,10 @@ function ClassifierHistory({ cameraId, classifier, onBack }: {
                 id="state-history-watch"
                 disabled={!lightbox.recording_available}
                 title={lightbox.recording_available ? 'Abrir a gravação neste instante' : 'Gravação expirada'}
-                onClick={() => navigate(`/cameras/${cameraId}`, { state: { eventTime: lightbox.changed_at, showRecordings: true } })}
+                onClick={async () => {
+                  const url = await resolveEventRecordingUrl(cameraId, lightbox.changed_at)
+                  if (url) navigate(url)
+                }}
               >
                 <Film className="w-3.5 h-3.5" /> {lightbox.recording_available ? 'Ver na gravação' : 'Gravação expirada'}
               </Button>

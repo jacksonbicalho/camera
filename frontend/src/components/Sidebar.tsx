@@ -122,7 +122,7 @@ function ReportsFlyout({ showLabel }: { showLabel: boolean }) {
 
 // HistoryFlyout — "Histórico" segue o mesmo estilo de submenu de "Relatórios"
 // (pedido do navigator): lista de câmeras → histórico da câmera clicada
-// (/history/:cameraId, a página nova por câmera — ver routes.tsx/newRoutes).
+// (/history/:cameraId, a página nova por câmera — ver routes.tsx).
 // Distinto de "Gravações" (sidebar-recordings, em `items`): este é POR câmera;
 // aquele é a página global multi-câmera (/recordings).
 function HistoryFlyout({ showLabel }: { showLabel: boolean }) {
@@ -216,7 +216,9 @@ function PreferencesFlyout({ showLabel }: { showLabel: boolean }) {
   const location = useLocation()
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
   const isAdmin = getRole() === 'admin'
-  const active = location.pathname.startsWith('/settings/appearance')
+  const active = location.pathname.startsWith('/preferences/appearance')
+    || location.pathname.startsWith('/settings/appearance')
+    || location.pathname.startsWith('/preferences/about')
     || location.pathname.startsWith('/settings/about')
     || location.pathname.startsWith('/preferences/stats')
     || ADMIN_ONLY_PREFERENCE_PATHS.some(p => location.pathname.startsWith(p))
@@ -241,7 +243,7 @@ function PreferencesFlyout({ showLabel }: { showLabel: boolean }) {
           style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
           className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
         >
-          <FlyoutNavLink to="/settings/appearance" onSelect={() => setOpen(false)}>Aparência</FlyoutNavLink>
+          <FlyoutNavLink to="/preferences/appearance" onSelect={() => setOpen(false)}>Aparência</FlyoutNavLink>
           <ThemeModeNav onSelect={() => setOpen(false)} />
           <AccentSwatchNav onSelect={() => setOpen(false)} />
           {isAdmin && (
@@ -253,7 +255,7 @@ function PreferencesFlyout({ showLabel }: { showLabel: boolean }) {
             </>
           )}
           <FlyoutNavLink to="/preferences/stats" id="settings-stats" onSelect={() => setOpen(false)}>Estatísticas</FlyoutNavLink>
-          <FlyoutNavLink to="/settings/about" onSelect={() => setOpen(false)}>Sobre</FlyoutNavLink>
+          <FlyoutNavLink to="/preferences/about" onSelect={() => setOpen(false)}>Sobre</FlyoutNavLink>
         </div>,
         document.body,
       )}
