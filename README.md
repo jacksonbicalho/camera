@@ -29,6 +29,8 @@ Sistema de monitoramento residencial via RTSP. Um único binário estático grav
 | [Instalação](docs/installation.md) | Docker, script (systemd/usuário/offline), Termux, Raspberry Pi, download manual |
 | [Configuração](docs/configuration.md) | Referência completa do `camera.yaml` |
 | [Câmeras](docs/cameras.md) | Adicionar, descobrir e configurar câmeras |
+| [Ao vivo](docs/live.md) | WebRTC/HLS, transporte por câmera, reprodução de gravações |
+| [Histórico](docs/history.md) | Calendário, tira de gravações, reprodução contínua |
 | [Detecção de movimento](docs/motion.md) | Threshold, zonas, buffer pré/pós-evento |
 | [Armazenamento](docs/storage.md) | Retenção, limpeza e limites de disco |
 | [Usuários](docs/users.md) | Papéis, permissões e autenticação |

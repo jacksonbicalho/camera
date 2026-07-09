@@ -49,10 +49,8 @@ detecta a falha (WebRTC ou HLS) e tenta reconectar automaticamente com backoff.
 
 ## Reprodução de gravações
 
-**Histórico** (`/history/:cameraId`) — gravações do dia selecionado (calendário), com o
-player tocando a selecionada e uma tira de cards pra trocar de gravação. Usa os controles
-nativos do `<video>` do navegador (play/pause, barra de progresso, volume, tela cheia) +
-zoom digital.
+O histórico de gravações da câmera (calendário, tira de cards, reprodução contínua) tem
+página própria — ver **[docs/history.md](history.md)**.
 
 **Reprodução de um clipe** (`/recording/:cameraId/:recordingId`, chegada a partir de um
 card do Histórico ou de um evento) — barra de controles própria (não-nativa): progresso,
