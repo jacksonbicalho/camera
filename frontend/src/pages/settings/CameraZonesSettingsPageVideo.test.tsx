@@ -3,17 +3,25 @@ import { act, cleanup, render } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import CameraZonesSettingsPage from './CameraZonesSettingsPage'
 
-const { hlsInstances } = vi.hoisted(() => ({ hlsInstances: [] as { handlers: Record<string, (...args: unknown[]) => void> }[] }))
+const { hlsInstances } = vi.hoisted(() => ({
+  hlsInstances: [] as { handlers: Record<string, (...args: unknown[]) => void> }[],
+}))
 
 vi.mock('hls.js', () => ({
   default: class {
-    static isSupported() { return true }
+    static isSupported() {
+      return true
+    }
     static Events = { MANIFEST_PARSED: 'manifestParsed', ERROR: 'error' }
     handlers: Record<string, (...args: unknown[]) => void> = {}
-    constructor() { hlsInstances.push(this) }
+    constructor() {
+      hlsInstances.push(this)
+    }
     loadSource() {}
     attachMedia() {}
-    on(event: string, cb: (...args: unknown[]) => void) { this.handlers[event] = cb }
+    on(event: string, cb: (...args: unknown[]) => void) {
+      this.handlers[event] = cb
+    }
     destroy() {}
   },
 }))
@@ -24,7 +32,7 @@ vi.mock('../../auth', () => ({
   getToken: () => 'fake-token',
 }))
 
-vi.mock('../../lib/webrtc', async importOriginal => {
+vi.mock('../../lib/webrtc', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../lib/webrtc')>()
   return { ...actual, negotiateWebRTC: vi.fn() }
 })
@@ -40,7 +48,9 @@ let mockLiveTransport = 'webrtc'
 vi.mock('../../hooks/useSettings', () => ({
   useSettings: () => ({
     settings: {
-      cameras: [{ id: 'cam1', live_transport: mockLiveTransport, motion: null, width: 640, height: 480 }],
+      cameras: [
+        { id: 'cam1', live_transport: mockLiveTransport, motion: null, width: 640, height: 480 },
+      ],
     },
   }),
 }))
@@ -63,7 +73,7 @@ function stubRTC() {
 
 async function flush() {
   await act(async () => {
-    await new Promise(r => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
   })
 }
 

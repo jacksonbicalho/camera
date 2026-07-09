@@ -14,11 +14,14 @@ interface PlaceholderPageProps {
 export default function PlaceholderPage({ title, description }: PlaceholderPageProps) {
   return (
     <Layout id="placeholder-page" footerId="placeholder-footer" contentClassName="p-6">
-    <div id="placeholder-content" className="page-content space-y-4">
-      <div id={`placeholder-${title.toLowerCase()}`} className="max-w-2xl">
-        <PageHeader title={title} subtitle={description ?? 'Esta seção ainda está em construção.'} />
+      <div id="placeholder-content" className="page-content space-y-4">
+        <div id={`placeholder-${title.toLowerCase()}`} className="max-w-2xl">
+          <PageHeader
+            title={title}
+            subtitle={description ?? 'Esta seção ainda está em construção.'}
+          />
+        </div>
       </div>
-    </div>
     </Layout>
   )
 }

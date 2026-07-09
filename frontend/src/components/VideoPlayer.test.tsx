@@ -122,7 +122,11 @@ describe('VideoPlayer', () => {
     onSegmentChange.mockClear()
 
     rerender(
-      <VideoPlayer idPrefix="p" segments={[seg('c.mp4', 0, Infinity)]} onSegmentChange={onSegmentChange} />,
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('c.mp4', 0, Infinity)]}
+        onSegmentChange={onSegmentChange}
+      />,
     )
     await waitFor(() => {
       expect(onSegmentChange).toHaveBeenCalledWith(0)
@@ -131,7 +135,13 @@ describe('VideoPlayer', () => {
 
   it('autoPlay=true (padrão): a intenção de tocar nasce ligada', async () => {
     const onPlayingChange = vi.fn()
-    render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} onPlayingChange={onPlayingChange} />)
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('a.mp4', 0, Infinity)]}
+        onPlayingChange={onPlayingChange}
+      />,
+    )
     await waitFor(() => {
       expect(onPlayingChange).toHaveBeenCalledWith(true)
     })
@@ -156,11 +166,19 @@ describe('VideoPlayer', () => {
 
   it('botão play/pause alterna a intenção de reprodução', async () => {
     const onPlayingChange = vi.fn()
-    render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} onPlayingChange={onPlayingChange} />)
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('a.mp4', 0, Infinity)]}
+        onPlayingChange={onPlayingChange}
+      />,
+    )
     await waitFor(() => {
       expect(document.getElementById('p-playpause')).not.toBeNull()
     })
-    document.getElementById('p-playpause')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    document
+      .getElementById('p-playpause')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await waitFor(() => {
       expect(onPlayingChange).toHaveBeenLastCalledWith(false)
     })
@@ -168,7 +186,13 @@ describe('VideoPlayer', () => {
 
   it('pause disparado pelo próprio elemento (fora de um clique no botão) também atualiza a intenção', async () => {
     const onPlayingChange = vi.fn()
-    render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} onPlayingChange={onPlayingChange} />)
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('a.mp4', 0, Infinity)]}
+        onPlayingChange={onPlayingChange}
+      />,
+    )
     await waitFor(() => {
       expect(document.getElementById('p-video')).not.toBeNull()
     })
@@ -181,7 +205,13 @@ describe('VideoPlayer', () => {
 
   it('repeat ligado: ao terminar o clipe, reinicia em vez de parar', async () => {
     const onPlayingChange = vi.fn()
-    render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} onPlayingChange={onPlayingChange} />)
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('a.mp4', 0, Infinity)]}
+        onPlayingChange={onPlayingChange}
+      />,
+    )
     await waitFor(() => {
       expect(document.getElementById('p-repeat')).not.toBeNull()
     })
@@ -200,7 +230,13 @@ describe('VideoPlayer', () => {
 
   it('repeat desligado (padrão): ao terminar o clipe, para a reprodução', async () => {
     const onPlayingChange = vi.fn()
-    render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} onPlayingChange={onPlayingChange} />)
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('a.mp4', 0, Infinity)]}
+        onPlayingChange={onPlayingChange}
+      />,
+    )
     await waitFor(() => {
       expect(document.getElementById('p-video')).not.toBeNull()
     })
@@ -227,7 +263,9 @@ describe('VideoPlayer', () => {
     expect(document.getElementById('p-controls')?.textContent).toContain('0:00 / 0:10')
 
     const playSpy = vi.spyOn(a, 'play')
-    document.getElementById('p-playpause')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    document
+      .getElementById('p-playpause')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
     expect(playSpy).toHaveBeenCalled()
   })
 
@@ -291,8 +329,15 @@ describe('VideoPlayer', () => {
     await waitFor(() => {
       expect(document.getElementById('p-speed-menu')).not.toBeNull()
     })
-    const ids = Array.from(document.querySelectorAll('#p-speed-menu button')).map(el => el.id)
-    expect(ids).toEqual(['p-speed-32', 'p-speed-16', 'p-speed-8', 'p-speed-4', 'p-speed-2', 'p-speed-1'])
+    const ids = Array.from(document.querySelectorAll('#p-speed-menu button')).map((el) => el.id)
+    expect(ids).toEqual([
+      'p-speed-32',
+      'p-speed-16',
+      'p-speed-8',
+      'p-speed-4',
+      'p-speed-2',
+      'p-speed-1',
+    ])
   })
 
   it('velocidade: quando o elemento não aplica 32x de verdade (browser sem suporte), cai pra 16x em vez de ficar mostrando "32x" tocando em outra velocidade', async () => {
@@ -364,9 +409,13 @@ describe('VideoPlayer', () => {
       expect(document.getElementById('p-fullscreen')).not.toBeNull()
     })
     const requestFullscreen = vi.fn().mockResolvedValue(undefined)
-    const container = document.getElementById('p') as unknown as { requestFullscreen: () => Promise<void> }
+    const container = document.getElementById('p') as unknown as {
+      requestFullscreen: () => Promise<void>
+    }
     container.requestFullscreen = requestFullscreen
-    document.getElementById('p-fullscreen')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    document
+      .getElementById('p-fullscreen')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
     expect(requestFullscreen).toHaveBeenCalled()
   })
 
@@ -374,7 +423,12 @@ describe('VideoPlayer', () => {
     const onLoadedData = vi.fn()
     const onError = vi.fn()
     render(
-      <VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} onLoadedData={onLoadedData} onError={onError} />,
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('a.mp4', 0, Infinity)]}
+        onLoadedData={onLoadedData}
+        onError={onError}
+      />,
     )
     await waitFor(() => {
       expect(document.getElementById('p-video')).not.toBeNull()
@@ -388,11 +442,15 @@ describe('VideoPlayer', () => {
   it('troca de playlist (nova referência de segments) recarrega o player', async () => {
     const { rerender } = render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
     await waitFor(() => {
-      expect((document.getElementById('p-video') as HTMLVideoElement).getAttribute('src')).toBe('a.mp4')
+      expect((document.getElementById('p-video') as HTMLVideoElement).getAttribute('src')).toBe(
+        'a.mp4',
+      )
     })
     rerender(<VideoPlayer idPrefix="p" segments={[seg('c.mp4', 0, Infinity)]} />)
     await waitFor(() => {
-      expect((document.getElementById('p-video') as HTMLVideoElement).getAttribute('src')).toBe('c.mp4')
+      expect((document.getElementById('p-video') as HTMLVideoElement).getAttribute('src')).toBe(
+        'c.mp4',
+      )
     })
   })
 
@@ -405,7 +463,14 @@ describe('VideoPlayer', () => {
   })
 
   it('overlay: conteúdo extra da página aparece por cima, inclusive sem segmentos (aditivo)', () => {
-    render(<VideoPlayer idPrefix="p" segments={[]} emptyMessage="vazio" overlay={<div id="p-extra">extra</div>} />)
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[]}
+        emptyMessage="vazio"
+        overlay={<div id="p-extra">extra</div>}
+      />,
+    )
     expect(document.getElementById('p-extra')).not.toBeNull()
   })
 })

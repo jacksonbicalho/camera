@@ -45,12 +45,17 @@ function anchorRecording(recordings: RecordingEntry[], iso: string): number | nu
   return (candidate ?? asc[0])?.id ?? null
 }
 
-export async function resolveEventRecordingUrl(cameraId: string, isoTime: string): Promise<string | null> {
+export async function resolveEventRecordingUrl(
+  cameraId: string,
+  isoTime: string,
+): Promise<string | null> {
   const dateStr = format(new Date(isoTime), 'yyyy-MM-dd')
   try {
     const [evRes, recRes] = await Promise.all([
       fetch(`/api/cameras/${cameraId}/motion?date=${dateStr}`, { headers: authHeaders() }),
-      fetch(`/api/cameras/${cameraId}/recordings?date=${dateStr}&page=1&limit=0&order=asc`, { headers: authHeaders() }),
+      fetch(`/api/cameras/${cameraId}/recordings?date=${dateStr}&page=1&limit=0&order=asc`, {
+        headers: authHeaders(),
+      }),
     ])
     const evData = evRes.ok ? await evRes.json() : {}
     const events: MotionEventEntry[] = evData.events ?? []
@@ -61,7 +66,9 @@ export async function resolveEventRecordingUrl(cameraId: string, isoTime: string
     if (recordingId == null) return null
 
     const match = events.find((e) => !e.kind && e.time === isoTime)
-    return match ? `/recording/${cameraId}/${recordingId}/${match.id}` : `/recording/${cameraId}/${recordingId}`
+    return match
+      ? `/recording/${cameraId}/${recordingId}/${match.id}`
+      : `/recording/${cameraId}/${recordingId}`
   } catch {
     return null
   }

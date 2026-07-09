@@ -101,7 +101,9 @@ describe('RecordingsGateway', () => {
   })
 
   it('getRecording devolve {filename, date}', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(okResp({ filename: '20260503100000.mp4', date: '2026-05-03' }))
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(okResp({ filename: '20260503100000.mp4', date: '2026-05-03' }))
     const gw = new RecordingsGateway({ fetchFn })
     const out = await gw.getRecording('cam1', 42)
     expect(fetchFn).toHaveBeenCalledWith('/api/cameras/cam1/recordings/by-id/42', expect.anything())
@@ -115,7 +117,12 @@ describe('RecordingsGateway', () => {
   })
 
   it('getEvent busca o evento pelo id', async () => {
-    const ev = { id: 7, time: '2026-05-03T10:05:30Z', score: 0.5, bbox: { x: 0.1, y: 0.2, w: 0.3, h: 0.4 } }
+    const ev = {
+      id: 7,
+      time: '2026-05-03T10:05:30Z',
+      score: 0.5,
+      bbox: { x: 0.1, y: 0.2, w: 0.3, h: 0.4 },
+    }
     const fetchFn = vi.fn().mockResolvedValue(okResp(ev))
     const gw = new RecordingsGateway({ fetchFn })
     const out = await gw.getEvent(7)
@@ -160,7 +167,9 @@ describe('RecordingsGateway', () => {
 
   it('playbackURL anexa o token à url servível', () => {
     const gw = new RecordingsGateway({ fetchFn: vi.fn() })
-    const url = gw.playbackURL(rec({ start: '2026-05-03T10:00:00Z', url: '/recordings/cam1/a.mp4' }))
+    const url = gw.playbackURL(
+      rec({ start: '2026-05-03T10:00:00Z', url: '/recordings/cam1/a.mp4' }),
+    )
     expect(url.startsWith('/recordings/cam1/a.mp4?token=')).toBe(true)
   })
 })

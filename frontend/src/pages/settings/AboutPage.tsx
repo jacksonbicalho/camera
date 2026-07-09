@@ -44,7 +44,9 @@ function UpdatesSection() {
       <h4 className="text-h4 font-semibold text-foreground mb-3">Atualizações</h4>
 
       {applyMsg ? (
-        <p id="update-applying" className="text-sm text-foreground">{applyMsg}</p>
+        <p id="update-applying" className="text-sm text-foreground">
+          {applyMsg}
+        </p>
       ) : (
         <div className="rounded-lg border border-border bg-surface p-4">
           <p className="text-sm font-medium text-foreground">
@@ -52,7 +54,10 @@ function UpdatesSection() {
           </p>
 
           {status.notes_md && (
-            <pre id="update-notes" className="mt-3 whitespace-pre-wrap text-xs text-muted-foreground font-sans">
+            <pre
+              id="update-notes"
+              className="mt-3 whitespace-pre-wrap text-xs text-muted-foreground font-sans"
+            >
               {status.notes_md}
             </pre>
           )}
@@ -71,8 +76,12 @@ function UpdatesSection() {
           {status.apply_mode === 'docker' && (
             <div id="update-docker" className="mt-4 text-xs text-muted-foreground">
               <p>Atualize a imagem Docker e recrie o container:</p>
-              <pre className="mt-1 rounded bg-surface-2 p-2 font-mono text-foreground">docker compose pull && docker compose up -d</pre>
-              <p className="mt-1">Imagem: <span className="font-mono">{status.image}</span></p>
+              <pre className="mt-1 rounded bg-surface-2 p-2 font-mono text-foreground">
+                docker compose pull && docker compose up -d
+              </pre>
+              <p className="mt-1">
+                Imagem: <span className="font-mono">{status.image}</span>
+              </p>
             </div>
           )}
 
@@ -82,7 +91,11 @@ function UpdatesSection() {
             </p>
           )}
 
-          {applyErr && <p id="update-apply-error" className="mt-3 text-sm text-danger">{applyErr}</p>}
+          {applyErr && (
+            <p id="update-apply-error" className="mt-3 text-sm text-danger">
+              {applyErr}
+            </p>
+          )}
         </div>
       )}
     </section>
@@ -94,24 +107,24 @@ export default function AboutPage() {
 
   return (
     <Layout id="about-page" footerId="about-footer" contentClassName="p-6">
-    <div id="about-content" className="page-content space-y-4">
-      <PageHeader title="Sobre" subtitle="Versão instalada, commit e tempo de atividade." />
-      {!about ? (
-        <p className="text-muted-foreground text-sm">Carregando...</p>
-      ) : (
-        <SettingsSection
-          title="Informações do servidor"
-          fields={[
-            { label: 'Versão', value: about.version || 'dev' },
-            { label: 'Commit', value: about.commit || '—' },
-            { label: 'Build', value: about.built_at || '—' },
-            { label: 'Ativo há', value: fmtUptime(about.uptime_seconds) },
-            { label: 'Go', value: about.go_version },
-          ]}
-        />
-      )}
-      <UpdatesSection />
-    </div>
+      <div id="about-content" className="page-content space-y-4">
+        <PageHeader title="Sobre" subtitle="Versão instalada, commit e tempo de atividade." />
+        {!about ? (
+          <p className="text-muted-foreground text-sm">Carregando...</p>
+        ) : (
+          <SettingsSection
+            title="Informações do servidor"
+            fields={[
+              { label: 'Versão', value: about.version || 'dev' },
+              { label: 'Commit', value: about.commit || '—' },
+              { label: 'Build', value: about.built_at || '—' },
+              { label: 'Ativo há', value: fmtUptime(about.uptime_seconds) },
+              { label: 'Go', value: about.go_version },
+            ]}
+          />
+        )}
+        <UpdatesSection />
+      </div>
     </Layout>
   )
 }

@@ -40,15 +40,27 @@ export default function UserDetailSettingsPage() {
     Promise.all([
       fetch('/api/users', { headers: authHeaders() }),
       fetch('/api/cameras', { headers: authHeaders() }),
-    ]).then(async ([ur, cr]) => {
-      if (ur.status === 401 || cr.status === 401) { onUnauthorized(); return }
-      if (ur.status === 403) { navigate('/', { replace: true }); return }
-      const users: User[] = await ur.json()
-      const found = users.find(u => String(u.id) === id)
-      if (!found) { navigate('/settings/users', { replace: true }); return }
-      setUser(found)
-      setCameras(await cr.json())
-    }).catch(() => {}).finally(() => setLoading(false))
+    ])
+      .then(async ([ur, cr]) => {
+        if (ur.status === 401 || cr.status === 401) {
+          onUnauthorized()
+          return
+        }
+        if (ur.status === 403) {
+          navigate('/', { replace: true })
+          return
+        }
+        const users: User[] = await ur.json()
+        const found = users.find((u) => String(u.id) === id)
+        if (!found) {
+          navigate('/settings/users', { replace: true })
+          return
+        }
+        setUser(found)
+        setCameras(await cr.json())
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [id, navigate])
 
   const handleUpdate = async (data: UserFormData) => {
@@ -61,9 +73,12 @@ export default function UserDetailSettingsPage() {
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      if (!res.ok) { setError((await res.text()).trim() || 'Erro ao atualizar usuário'); return }
+      if (!res.ok) {
+        setError((await res.text()).trim() || 'Erro ao atualizar usuário')
+        return
+      }
       const updated: User[] = await (await fetch('/api/users', { headers: authHeaders() })).json()
-      const refreshed = updated.find(u => u.id === user.id)
+      const refreshed = updated.find((u) => u.id === user.id)
       if (refreshed) setUser(refreshed)
       setEditing(false)
     } finally {
@@ -73,69 +88,80 @@ export default function UserDetailSettingsPage() {
 
   return (
     <Layout id="user-detail-page" footerId="user-detail-footer" contentClassName="p-6">
-    <div id="user-detail-content" className="page-content space-y-4">
-      <div className="mb-6">
-        <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
-          <Link to="/settings/users" className="hover:text-foreground transition-colors">Usuários</Link>
-          <span>/</span>
-          <span className="text-foreground">{user?.username ?? '...'}</span>
-        </nav>
-        <div className="flex items-center justify-end border-b border-border pb-2">
-          <Button asChild size="sm" className="mb-1">
-            <Link to="/settings/users/new">
-              <Plus className="w-3.5 h-3.5" /> Novo usuário
+      <div id="user-detail-content" className="page-content space-y-4">
+        <div className="mb-6">
+          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
+            <Link to="/settings/users" className="hover:text-foreground transition-colors">
+              Usuários
             </Link>
-          </Button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <p className="text-muted-foreground text-sm">Carregando...</p>
-      ) : !user ? null : editing ? (
-        <UserForm
-          cameras={cameras}
-          initial={user}
-          onSave={handleUpdate}
-          onCancel={() => { setEditing(false); setError(null) }}
-          saving={saving}
-        />
-      ) : (
-        <div className="flex flex-col gap-4">
-          <div className="flex justify-end">
-            <Button
-              id="user-edit"
-              variant="outline"
-              size="sm"
-              onClick={() => { setEditing(true); setError(null) }}
-            >
-              Editar
+            <span>/</span>
+            <span className="text-foreground">{user?.username ?? '...'}</span>
+          </nav>
+          <div className="flex items-center justify-end border-b border-border pb-2">
+            <Button asChild size="sm" className="mb-1">
+              <Link to="/settings/users/new">
+                <Plus className="w-3.5 h-3.5" /> Novo usuário
+              </Link>
             </Button>
           </div>
-          <SettingsSection
-            title="Conta"
-            fields={[
-              { label: 'Username', value: user.username },
-              ...(user.name ? [{ label: 'Nome', value: user.name }] : []),
-              ...(user.email ? [{ label: 'E-mail', value: user.email }] : []),
-              { label: 'Role', value: <RoleBadge role={user.role} /> },
-              {
-                label: 'Câmeras',
-                value: user.role === 'admin'
-                  ? 'todas'
-                  : user.cameras.length === 0 ? 'nenhuma' : user.cameras.join(', '),
-              },
-              { label: 'Criado em', value: new Date(user.created_at).toLocaleString('pt-BR') },
-            ]}
-          />
         </div>
-      )}
-    </div>
+
+        {error && (
+          <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <p className="text-muted-foreground text-sm">Carregando...</p>
+        ) : !user ? null : editing ? (
+          <UserForm
+            cameras={cameras}
+            initial={user}
+            onSave={handleUpdate}
+            onCancel={() => {
+              setEditing(false)
+              setError(null)
+            }}
+            saving={saving}
+          />
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-end">
+              <Button
+                id="user-edit"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditing(true)
+                  setError(null)
+                }}
+              >
+                Editar
+              </Button>
+            </div>
+            <SettingsSection
+              title="Conta"
+              fields={[
+                { label: 'Username', value: user.username },
+                ...(user.name ? [{ label: 'Nome', value: user.name }] : []),
+                ...(user.email ? [{ label: 'E-mail', value: user.email }] : []),
+                { label: 'Role', value: <RoleBadge role={user.role} /> },
+                {
+                  label: 'Câmeras',
+                  value:
+                    user.role === 'admin'
+                      ? 'todas'
+                      : user.cameras.length === 0
+                        ? 'nenhuma'
+                        : user.cameras.join(', '),
+                },
+                { label: 'Criado em', value: new Date(user.created_at).toLocaleString('pt-BR') },
+              ]}
+            />
+          </div>
+        )}
+      </div>
     </Layout>
   )
 }

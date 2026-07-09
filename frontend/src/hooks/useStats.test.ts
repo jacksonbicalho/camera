@@ -16,14 +16,25 @@ function errResponse() {
   return Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) })
 }
 
-beforeEach(() => { vi.useFakeTimers() })
-afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
+beforeEach(() => {
+  vi.useFakeTimers()
+})
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.useRealTimers()
+})
 
 // flushMicro: resolve as promises pendentes (fetch → json → setState) sem mexer no
 // relógio — usado após o fetch do mount. Promise.resolve não depende de timers.
-const flushMicro = () => act(async () => { for (let i = 0; i < 5; i++) await Promise.resolve() })
+const flushMicro = () =>
+  act(async () => {
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+  })
 // tick: avança o relógio (dispara o setInterval) e dá flush nos microtasks.
-const tick = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
+const tick = (ms: number) =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
 
 describe('useStats — estado de conexão', () => {
   it('sucesso → connected=true e stats preenchido', async () => {
@@ -35,10 +46,11 @@ describe('useStats — estado de conexão', () => {
   })
 
   it('2 falhas consecutivas após sucesso → connected=false (mantém o último stats)', async () => {
-    const fetchMock = vi.fn()
-      .mockImplementationOnce(okResponse)   // poll inicial: sucesso
-      .mockImplementationOnce(errResponse)  // 1ª falha
-      .mockImplementationOnce(errResponse)  // 2ª falha → desconecta
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(okResponse) // poll inicial: sucesso
+      .mockImplementationOnce(errResponse) // 1ª falha
+      .mockImplementationOnce(errResponse) // 2ª falha → desconecta
     vi.stubGlobal('fetch', fetchMock)
 
     const { result } = renderHook(() => useStats())
@@ -55,10 +67,11 @@ describe('useStats — estado de conexão', () => {
   })
 
   it('1 falha isolada não derruba a conexão (recupera no próximo poll)', async () => {
-    const fetchMock = vi.fn()
-      .mockImplementationOnce(okResponse)   // sucesso
-      .mockImplementationOnce(errResponse)  // 1 falha isolada
-      .mockImplementation(okResponse)       // recupera
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(okResponse) // sucesso
+      .mockImplementationOnce(errResponse) // 1 falha isolada
+      .mockImplementation(okResponse) // recupera
     vi.stubGlobal('fetch', fetchMock)
 
     const { result } = renderHook(() => useStats())

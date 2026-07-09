@@ -36,7 +36,7 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <AboutPage />
-    </MemoryRouter>
+    </MemoryRouter>,
   )
 }
 

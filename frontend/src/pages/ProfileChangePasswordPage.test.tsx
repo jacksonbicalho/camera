@@ -37,7 +37,9 @@ describe('ProfileChangePasswordPage', () => {
   it('rejeita senhas que não coincidem', async () => {
     render(<ProfileChangePasswordPage />)
     fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'password123' } })
-    fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'different123' } })
+    fireEvent.change(screen.getByLabelText('Confirmar senha'), {
+      target: { value: 'different123' },
+    })
     fireEvent.click(screen.getByRole('button', { name: /definir nova senha/i }))
 
     const alert = await screen.findByRole('alert')
@@ -61,7 +63,9 @@ describe('ProfileChangePasswordPage', () => {
   it('mostra spinner enquanto salva', async () => {
     let resolveChange: () => void = () => {}
     vi.mocked(changePassword).mockReturnValueOnce(
-      new Promise<void>(resolve => { resolveChange = resolve }),
+      new Promise<void>((resolve) => {
+        resolveChange = resolve
+      }),
     )
     render(<ProfileChangePasswordPage />)
     fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'password123' } })

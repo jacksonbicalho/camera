@@ -55,7 +55,7 @@ export function usePlayerZoom(getVideoEl: () => HTMLVideoElement | null): Player
       const cx = e.clientX - rect.left
       const cy = e.clientY - rect.top
       const factor = e.deltaY < 0 ? WHEEL_FACTOR : 1 / WHEEL_FACTOR
-      setZoom(z => zoomAtPoint(z, factor, cx, cy, rect.width, rect.height))
+      setZoom((z) => zoomAtPoint(z, factor, cx, cy, rect.width, rect.height))
     }
     node.addEventListener('wheel', onWheel, { passive: false })
     cleanupRef.current = () => node.removeEventListener('wheel', onWheel)
@@ -63,13 +63,16 @@ export function usePlayerZoom(getVideoEl: () => HTMLVideoElement | null): Player
 
   useEffect(() => () => cleanupRef.current?.(), [])
 
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    if (!isZoomedState(zoom)) return
-    // Não inicia pan sobre botões (reset, play/pause) — deixa o clique passar.
-    if ((e.target as HTMLElement).closest('button')) return
-    drag.current = { x: e.clientX, y: e.clientY, moved: false }
-    e.currentTarget.setPointerCapture?.(e.pointerId)
-  }, [zoom])
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isZoomedState(zoom)) return
+      // Não inicia pan sobre botões (reset, play/pause) — deixa o clique passar.
+      if ((e.target as HTMLElement).closest('button')) return
+      drag.current = { x: e.clientX, y: e.clientY, moved: false }
+      e.currentTarget.setPointerCapture?.(e.pointerId)
+    },
+    [zoom],
+  )
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     const d = drag.current
@@ -81,7 +84,7 @@ export function usePlayerZoom(getVideoEl: () => HTMLVideoElement | null): Player
     d.y = e.clientY
     const rect = nodeRef.current?.getBoundingClientRect()
     if (!rect) return
-    setZoom(z => panBy(z, dx, dy, rect.width, rect.height))
+    setZoom((z) => panBy(z, dx, dy, rect.width, rect.height))
   }, [])
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {

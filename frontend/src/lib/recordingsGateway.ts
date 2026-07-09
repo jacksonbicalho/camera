@@ -64,7 +64,7 @@ export function clipSegments(
   const w1 = ev + trailSec * 1000
 
   const asc = recordings
-    .filter(r => !Number.isNaN(Date.parse(r.start)))
+    .filter((r) => !Number.isNaN(Date.parse(r.start)))
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
 
   const segments: ClipSegment[] = []
@@ -147,7 +147,10 @@ export class RecordingsGateway {
   // getPlaybackWindow devolve o lead/trail (segundos) da câmera — as bordas da janela do
   // clip. Vive no gateway para a página não fazer fetch cru: o intermediário é o único
   // ponto de verdade de tudo que é preciso para reproduzir uma gravação. Default 10/10.
-  async getPlaybackWindow(cameraId: string, signal?: AbortSignal): Promise<{ lead: number; trail: number }> {
+  async getPlaybackWindow(
+    cameraId: string,
+    signal?: AbortSignal,
+  ): Promise<{ lead: number; trail: number }> {
     const res = await this.fetchFn('/api/cameras', { headers: authHeaders(), signal })
     if (!res.ok) return { lead: 10, trail: 10 }
     const list = (await res.json()) as Array<{
@@ -155,7 +158,7 @@ export class RecordingsGateway {
       playback_lead_seconds?: number
       playback_trail_seconds?: number
     }>
-    const cam = list.find(c => c.id === cameraId)
+    const cam = list.find((c) => c.id === cameraId)
     return { lead: cam?.playback_lead_seconds ?? 10, trail: cam?.playback_trail_seconds ?? 10 }
   }
 

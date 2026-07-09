@@ -31,7 +31,7 @@ const MIGRATED_FILES = [
 ]
 
 describe('migração para tokens de tema — arquivos fora de CameraPage', () => {
-  it.each(MIGRATED_FILES)('%s não usa nenhuma classe da rampa de cinza crua (*-gray-*)', file => {
+  it.each(MIGRATED_FILES)('%s não usa nenhuma classe da rampa de cinza crua (*-gray-*)', (file) => {
     const source = readFileSync(resolve(process.cwd(), file), 'utf8')
     const matches = source.match(GRAY_RAMP) ?? []
     expect(matches).toEqual([])
@@ -41,7 +41,10 @@ describe('migração para tokens de tema — arquivos fora de CameraPage', () =>
 describe('padding de cards — convergência para p-4 (dense) / p-5 (form)', () => {
   it('LoginPage/ChangePasswordPage não usam mais o outlier p-8', () => {
     const login = readFileSync(resolve(process.cwd(), 'src/pages/LoginPage.tsx'), 'utf8')
-    const changePassword = readFileSync(resolve(process.cwd(), 'src/pages/ChangePasswordPage.tsx'), 'utf8')
+    const changePassword = readFileSync(
+      resolve(process.cwd(), 'src/pages/ChangePasswordPage.tsx'),
+      'utf8',
+    )
     expect(login).not.toMatch(/\bp-8\b/)
     expect(changePassword).not.toMatch(/\bp-8\b/)
   })
@@ -52,7 +55,10 @@ describe('padding de cards — convergência para p-4 (dense) / p-5 (form)', () 
   // não mais o outlier de padding de card que este teste originalmente guardava.
   it('StatsPage/StorageSettingsPage não têm padding de card outlier (só o container do Layout novo)', () => {
     const stats = readFileSync(resolve(process.cwd(), 'src/pages/StatsPage.tsx'), 'utf8')
-    const storage = readFileSync(resolve(process.cwd(), 'src/pages/settings/StorageSettingsPage.tsx'), 'utf8')
+    const storage = readFileSync(
+      resolve(process.cwd(), 'src/pages/settings/StorageSettingsPage.tsx'),
+      'utf8',
+    )
     expect(stats.match(/\bp-6\b/g) ?? []).toEqual(['p-6'])
     expect(storage.match(/\bp-6\b/g) ?? []).toEqual(['p-6', 'p-6'])
   })

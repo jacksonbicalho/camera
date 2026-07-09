@@ -40,12 +40,20 @@ function Cell({ field }: { field: DeviceInfoField }) {
   return (
     <div className="px-5 py-3 min-w-0">
       <dt className="mb-1 text-xs text-faint">{field.label}</dt>
-      <dd className="break-all font-mono text-sm text-foreground">{fmtValue(field.key, field.value)}</dd>
+      <dd className="break-all font-mono text-sm text-foreground">
+        {fmtValue(field.key, field.value)}
+      </dd>
     </div>
   )
 }
 
-export default function DeviceInfoPanel({ cameraId, isAdmin }: { cameraId: string; isAdmin: boolean }) {
+export default function DeviceInfoPanel({
+  cameraId,
+  isAdmin,
+}: {
+  cameraId: string
+  isAdmin: boolean
+}) {
   const [state, setState] = useState<State>({ kind: 'loading' })
   const [refreshing, setRefreshing] = useState(false)
 
@@ -55,15 +63,24 @@ export default function DeviceInfoPanel({ cameraId, isAdmin }: { cameraId: strin
       try {
         const res = await fetch(`/api/cameras/${cameraId}/device-info`, { headers: authHeaders() })
         if (cancelled) return
-        if (res.status === 404) { setState({ kind: 'empty' }); return }
-        if (!res.ok) { setState({ kind: 'error', msg: 'Erro ao carregar informações do dispositivo' }); return }
+        if (res.status === 404) {
+          setState({ kind: 'empty' })
+          return
+        }
+        if (!res.ok) {
+          setState({ kind: 'error', msg: 'Erro ao carregar informações do dispositivo' })
+          return
+        }
         const data = await res.json()
         if (!cancelled) setState({ kind: 'data', data })
       } catch {
-        if (!cancelled) setState({ kind: 'error', msg: 'Erro ao carregar informações do dispositivo' })
+        if (!cancelled)
+          setState({ kind: 'error', msg: 'Erro ao carregar informações do dispositivo' })
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [cameraId])
 
   const refresh = async () => {
@@ -96,7 +113,9 @@ export default function DeviceInfoPanel({ cameraId, isAdmin }: { cameraId: strin
         <div className="divide-y divide-border">
           {grouped.sections.map((sec) => (
             <div key={sec.title}>
-              <p className="px-5 pt-3 pb-1 text-[11px] text-faint uppercase tracking-wider">{sec.title}</p>
+              <p className="px-5 pt-3 pb-1 text-[11px] text-faint uppercase tracking-wider">
+                {sec.title}
+              </p>
               <div className="divide-y divide-border">
                 {chunk(sec.fields, 3).map((row, i) => (
                   <div key={i} className={rowClass(row.length)}>
@@ -120,8 +139,12 @@ export default function DeviceInfoPanel({ cameraId, isAdmin }: { cameraId: strin
             <div className="max-h-80 overflow-auto divide-y divide-border border-t border-border">
               {grouped.raw.map((f) => (
                 <div key={f.key} className="grid grid-cols-2 divide-x divide-border">
-                  <span className="px-5 py-1.5 text-xs text-faint break-all font-mono">{f.key}</span>
-                  <span className="px-5 py-1.5 text-xs text-foreground break-all font-mono">{f.value}</span>
+                  <span className="px-5 py-1.5 text-xs text-faint break-all font-mono">
+                    {f.key}
+                  </span>
+                  <span className="px-5 py-1.5 text-xs text-foreground break-all font-mono">
+                    {f.value}
+                  </span>
                 </div>
               ))}
             </div>
@@ -132,12 +155,19 @@ export default function DeviceInfoPanel({ cameraId, isAdmin }: { cameraId: strin
   }
 
   return (
-    <div id="device-info-section" className="bg-surface border border-border rounded-lg overflow-hidden">
+    <div
+      id="device-info-section"
+      className="bg-surface border border-border rounded-lg overflow-hidden"
+    >
       <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3 border-b border-border">
         <div className="min-w-0">
-          <h2 className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Informações do dispositivo</h2>
+          <h2 className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+            Informações do dispositivo
+          </h2>
           {state.kind === 'data' && (
-            <p className="text-[11px] text-faint mt-0.5">Última coleta: {fmtCollectedAt(state.data.collected_at)}</p>
+            <p className="text-[11px] text-faint mt-0.5">
+              Última coleta: {fmtCollectedAt(state.data.collected_at)}
+            </p>
           )}
         </div>
         {isAdmin && (
@@ -149,7 +179,11 @@ export default function DeviceInfoPanel({ cameraId, isAdmin }: { cameraId: strin
             onClick={refresh}
             disabled={refreshing}
           >
-            {refreshing ? 'Reanalisando…' : state.kind === 'empty' ? 'Capturar agora' : 'Reanalisar'}
+            {refreshing
+              ? 'Reanalisando…'
+              : state.kind === 'empty'
+                ? 'Capturar agora'
+                : 'Reanalisar'}
           </Button>
         )}
       </div>

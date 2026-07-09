@@ -7,7 +7,7 @@ import { resolve } from 'node:path'
 // navigator. Os tokens vivem em styles/ (primitives + tema default) — concatena os
 // arquivos para validar independente de em qual partial cada token mora.
 const css = ['src/styles/primitives.css', 'src/styles/themes/default.css', 'src/styles/base.css']
-  .map(f => readFileSync(resolve(process.cwd(), f), 'utf8'))
+  .map((f) => readFileSync(resolve(process.cwd(), f), 'utf8'))
   .join('\n')
 
 const has = (re: RegExp) => expect(css).toMatch(re)
@@ -34,6 +34,6 @@ describe('index.css — paleta Material UI', () => {
   it('controles sobre vídeo (data-on-video) seguem brancos no modo claro', () => {
     // Sem esta regra o remap da rampa (--color-white: #212121) escureceria os
     // controles do player, sumindo sobre o vídeo/gradiente escuro.
-    has(/\[data-mode="light"\]\s*\[data-on-video\]/)
+    has(/\[data-mode=['"]light['"]\]\s*\[data-on-video\]/)
   })
 })

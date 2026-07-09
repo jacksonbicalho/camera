@@ -16,10 +16,18 @@ let unreadCount = 0
 
 vi.mock('../contexts/NotificationContext', () => ({
   useNotifications: () => ({
-    notifications, unreadCount,
-    markRead, markSelectedRead: vi.fn(), remove: vi.fn(), removeAll: vi.fn(), removeSelected: vi.fn(),
-    browserSupported: false, browserPermission: 'default', browserEnabled: false,
-    enableBrowserNotifications: vi.fn(), disableBrowserNotifications: vi.fn(),
+    notifications,
+    unreadCount,
+    markRead,
+    markSelectedRead: vi.fn(),
+    remove: vi.fn(),
+    removeAll: vi.fn(),
+    removeSelected: vi.fn(),
+    browserSupported: false,
+    browserPermission: 'default',
+    browserEnabled: false,
+    enableBrowserNotifications: vi.fn(),
+    disableBrowserNotifications: vi.fn(),
   }),
 }))
 
@@ -86,15 +94,24 @@ describe('MotionNotificationsBell', () => {
     notifications = [n]
     const dateStr = format(new Date(n.time), 'yyyy-MM-dd')
 
-    vi.stubGlobal('fetch', vi.fn((url: string) => {
-      if (url === `/api/cameras/cam1/motion?date=${dateStr}`) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [{ id: 42, time: n.time, score: n.score }] }) })
-      }
-      if (url.startsWith('/api/cameras/cam1/recordings?date=')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ recordings: [{ id: 7, start: '2026-07-07T09:00:00Z' }] }) })
-      }
-      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url === `/api/cameras/cam1/motion?date=${dateStr}`) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ events: [{ id: 42, time: n.time, score: n.score }] }),
+          })
+        }
+        if (url.startsWith('/api/cameras/cam1/recordings?date=')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ recordings: [{ id: 7, start: '2026-07-07T09:00:00Z' }] }),
+          })
+        }
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
+      }),
+    )
 
     renderBell()
     fireEvent.click(document.getElementById('motion-notifications')!)
@@ -109,15 +126,21 @@ describe('MotionNotificationsBell', () => {
   it('sem evento casado, navega só com recordingId (sem motionId)', async () => {
     notifications = [n]
 
-    vi.stubGlobal('fetch', vi.fn((url: string) => {
-      if (url.includes('/motion?date=')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [] }) })
-      }
-      if (url.includes('/recordings?date=')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ recordings: [{ id: 7, start: '2026-07-07T09:00:00Z' }] }) })
-      }
-      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/motion?date=')) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [] }) })
+        }
+        if (url.includes('/recordings?date=')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ recordings: [{ id: 7, start: '2026-07-07T09:00:00Z' }] }),
+          })
+        }
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
+      }),
+    )
 
     renderBell()
     fireEvent.click(document.getElementById('motion-notifications')!)
@@ -131,15 +154,21 @@ describe('MotionNotificationsBell', () => {
   it('sem nenhuma gravação no dia, não navega', async () => {
     notifications = [n]
 
-    vi.stubGlobal('fetch', vi.fn((url: string) => {
-      if (url.includes('/motion?date=')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [{ id: 42, time: n.time, score: n.score }] }) })
-      }
-      if (url.includes('/recordings?date=')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ recordings: [] }) })
-      }
-      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/motion?date=')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ events: [{ id: 42, time: n.time, score: n.score }] }),
+          })
+        }
+        if (url.includes('/recordings?date=')) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({ recordings: [] }) })
+        }
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
+      }),
+    )
 
     renderBell()
     fireEvent.click(document.getElementById('motion-notifications')!)
@@ -149,5 +178,29 @@ describe('MotionNotificationsBell', () => {
       expect(markRead).toHaveBeenCalledWith(n.id)
     })
     expect(document.getElementById('test-location')!.textContent).toBe('/')
+  })
+
+  it('selecionar tudo e excluir mostra o ConfirmDialog acima do painel de eventos (z-index)', () => {
+    notifications = [n]
+    renderBell()
+    fireEvent.click(document.getElementById('motion-notifications')!)
+    fireEvent.click(document.getElementById('events-select-all')!)
+    fireEvent.click(document.getElementById('events-action-delete')!)
+
+    const dialogConfirm = document.getElementById('confirm-dialog-confirm')
+    expect(dialogConfirm).toBeTruthy()
+
+    const overlay = dialogConfirm!.closest('.fixed.inset-0')
+    expect(overlay).toBeTruthy()
+    expect(overlay!.className).toContain('z-10000')
+
+    // Precisa ser portalado direto em document.body — senão fica preso no
+    // stacking context de qualquer ancestral (ex.: o wrapper `sticky z-10` da
+    // Sidebar em produção), e o z-index alto não adianta nada nesse caso.
+    expect(overlay!.parentElement).toBe(document.body)
+
+    // O painel do flyout continua montado (zIndex 9999) — o diálogo precisa
+    // desenhar por cima dele, não atrás.
+    expect(document.getElementById('events-panel')).toBeTruthy()
   })
 })

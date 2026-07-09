@@ -15,15 +15,12 @@ export function findRegisteredCamera(
   cameras: RegisteredCamera[],
 ): RegisteredCamera | null {
   if (!ip) return null
-  return cameras.find(c => typeof c.rtsp_url === 'string' && c.rtsp_url.includes(ip)) ?? null
+  return cameras.find((c) => typeof c.rtsp_url === 'string' && c.rtsp_url.includes(ip)) ?? null
 }
 
 // findRegisteredCameraName retorna o nome (ou id) da câmera já cadastrada com
 // aquele IP — usado no badge "Já cadastrada como …". null quando não cadastrada.
-export function findRegisteredCameraName(
-  ip: string,
-  cameras: RegisteredCamera[],
-): string | null {
+export function findRegisteredCameraName(ip: string, cameras: RegisteredCamera[]): string | null {
   const cam = findRegisteredCamera(ip, cameras)
   if (!cam) return null
   return cam.name || cam.id || ip
@@ -46,9 +43,10 @@ const IDENTITY_FIELDS: [key: string, label: string][] = [
 // identityLines extrai os pares Identidade (label/valor) do device-info,
 // preservando a ordem e omitindo os campos ausentes/vazios.
 export function identityLines(values: Record<string, string>): IdentityLine[] {
-  return IDENTITY_FIELDS
-    .filter(([key]) => values[key])
-    .map(([key, label]) => ({ label, value: values[key] }))
+  return IDENTITY_FIELDS.filter(([key]) => values[key]).map(([key, label]) => ({
+    label,
+    value: values[key],
+  }))
 }
 
 // discoveredDisplayName é o fallback de nome quando não há device-info: nome do

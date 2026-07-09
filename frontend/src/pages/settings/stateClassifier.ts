@@ -37,10 +37,16 @@ export function cropToBbox(c: Crop): BboxRect {
 // (pt-BR) ou null quando válido.
 export function validateClassifier(c: StateClassifier): string | null {
   if (!c.name.trim()) return 'Nome é obrigatório'
-  if (c.classes.filter(x => x.trim()).length < 2) return 'São necessárias ao menos 2 classes'
+  if (c.classes.filter((x) => x.trim()).length < 2) return 'São necessárias ao menos 2 classes'
   if (
-    c.crop_x < 0 || c.crop_y < 0 || c.crop_w <= 0 || c.crop_h <= 0 ||
-    c.crop_x > 1 || c.crop_y > 1 || c.crop_x + c.crop_w > 1 || c.crop_y + c.crop_h > 1
+    c.crop_x < 0 ||
+    c.crop_y < 0 ||
+    c.crop_w <= 0 ||
+    c.crop_h <= 0 ||
+    c.crop_x > 1 ||
+    c.crop_y > 1 ||
+    c.crop_x + c.crop_w > 1 ||
+    c.crop_y + c.crop_h > 1
   ) {
     return 'Recorte inválido: coordenadas fora de [0,1]'
   }

@@ -7,7 +7,11 @@ import { Loader2, Search } from '../../components/Icons'
 import { Button } from '@/components/ui/button'
 import { findRegisteredCamera, identityLines, discoveredDisplayName } from './discoverDedupe'
 
-interface RegisteredCamera { id: string; name?: string; rtsp_url?: string }
+interface RegisteredCamera {
+  id: string
+  name?: string
+  rtsp_url?: string
+}
 
 interface DiscoveryResult {
   ip: string
@@ -37,7 +41,10 @@ interface AddState {
 
 function injectCredentials(url: string, user: string, pass: string): string {
   const noAuth = url.replace(/^(rtsp:\/\/)([^@]+@)?/, '$1')
-  return noAuth.replace('rtsp://', `rtsp://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@`)
+  return noAuth.replace(
+    'rtsp://',
+    `rtsp://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@`,
+  )
 }
 
 export default function DiscoverPage() {
@@ -55,7 +62,11 @@ export default function DiscoverPage() {
   const runScan = useCallback(async () => {
     try {
       const res = await fetch('/api/discover', { headers: authHeaders() })
-      if (!res.ok) { setError(await res.text()); setStatus('error'); return }
+      if (!res.ok) {
+        setError(await res.text())
+        setStatus('error')
+        return
+      }
       setResults(await res.json())
       setStatus('done')
     } catch (e) {
@@ -79,28 +90,35 @@ export default function DiscoverPage() {
   // disparar setState síncrono dentro do effect.
   useEffect(() => {
     fetch('/api/settings/cameras', { headers: authHeaders() })
-      .then(r => r.ok ? r.json() : [])
+      .then((r) => (r.ok ? r.json() : []))
       .then((cams: RegisteredCamera[]) => {
         setRegistered(cams)
         // Identidade (modelo/serial/…) por câmera cadastrada → coluna Nome/Modelo.
-        cams.forEach(cam => {
+        cams.forEach((cam) => {
           if (!cam.id) return
           fetch(`/api/cameras/${cam.id}/device-info`, { headers: authHeaders() })
-            .then(r => r.ok ? r.json() : null)
+            .then((r) => (r.ok ? r.json() : null))
             .then((d: { values?: Record<string, string> } | null) => {
-              if (d?.values) setDeviceInfo(prev => ({ ...prev, [cam.id]: d.values! }))
+              if (d?.values) setDeviceInfo((prev) => ({ ...prev, [cam.id]: d.values! }))
             })
             .catch(() => {})
         })
       })
       .catch(() => {})
     fetch('/api/discover', { headers: authHeaders() })
-      .then(async res => {
-        if (!res.ok) { setError(await res.text()); setStatus('error'); return }
+      .then(async (res) => {
+        if (!res.ok) {
+          setError(await res.text())
+          setStatus('error')
+          return
+        }
         setResults(await res.json())
         setStatus('done')
       })
-      .catch(e => { setError(String(e)); setStatus('error') })
+      .catch((e) => {
+        setError(String(e))
+        setStatus('error')
+      })
   }, [])
 
   function startAdding(idx: number) {
@@ -112,7 +130,7 @@ export default function DiscoverPage() {
     const { user, pass } = adding
 
     if (r.onvif && r.onvif_xaddr) {
-      setAdding(a => a ? { ...a, step: 'loading' } : a)
+      setAdding((a) => (a ? { ...a, step: 'loading' } : a))
       try {
         const res = await fetch('/api/discover/streams', {
           method: 'POST',
@@ -121,10 +139,12 @@ export default function DiscoverPage() {
         })
         const data: { streams: StreamURI[] } = await res.json()
         if (data.streams.length > 0) {
-          setAdding(a => a ? { ...a, step: 'streams', streams: data.streams } : a)
+          setAdding((a) => (a ? { ...a, step: 'streams', streams: data.streams } : a))
           return
         }
-      } catch { /* fallback */ }
+      } catch {
+        /* fallback */
+      }
     }
 
     navigateWithURL(r, user, pass, r.rtsp_urls?.[0] ?? `rtsp://${r.ip}:${r.port}/`)
@@ -142,173 +162,198 @@ export default function DiscoverPage() {
     navigateWithURL(r, adding.user, adding.pass, url)
   }
 
-  const inputClass = "bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-ring w-36"
+  const inputClass =
+    'bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-ring w-36'
 
   return (
     <Layout id="discover-page" footerId="discover-footer" contentClassName="p-6">
-    <div id="discover-content" className="page-content space-y-4">
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          className="mb-0"
-          title="Rastrear câmeras na rede"
-          subtitle="ONVIF WS-Discovery (multicast UDP) + varredura de porta 554 na subnet local"
-          actions={
-            <Button id="discover-scan" onClick={handleScan} disabled={status === 'scanning'}>
-              {status === 'scanning' ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Rastreando…
-                </>
-              ) : (
-                <>
-                  <Search className="w-4 h-4" />
-                  Rastrear
-                </>
-              )}
-            </Button>
-          }
-        />
-
-        {status === 'scanning' && (
-          <p className="text-xs text-muted-foreground animate-pulse">
-            Aguardando respostas ONVIF (3 s) e varrendo porta 554 na subnet…
-          </p>
-        )}
-
-        {status === 'error' && (
-          <p className="text-xs text-red-400">{error}</p>
-        )}
-
-        {status === 'done' && results.length === 0 && (
-          <p className="text-sm text-muted-foreground">Nenhuma câmera encontrada na rede.</p>
-        )}
-
-        {results.length > 0 && (
-          <div className="bg-surface border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground uppercase tracking-wider">
-                  <th className="text-left px-4 py-2.5">IP</th>
-                  <th className="text-left px-4 py-2.5">Porta</th>
-                  <th className="text-left px-4 py-2.5">Método</th>
-                  <th className="text-left px-4 py-2.5">Nome / Modelo</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r, i) => {
-                  const cam = findRegisteredCamera(r.ip, registered)
-                  const regName = cam ? (cam.name || cam.id || r.ip) : null
-                  const lines = cam?.id ? identityLines(deviceInfo[cam.id] ?? {}) : []
-                  const fallbackName = discoveredDisplayName(r, registered)
-                  return (
+      <div id="discover-content" className="page-content space-y-4">
+        <div className="flex flex-col gap-6">
+          <PageHeader
+            className="mb-0"
+            title="Rastrear câmeras na rede"
+            subtitle="ONVIF WS-Discovery (multicast UDP) + varredura de porta 554 na subnet local"
+            actions={
+              <Button id="discover-scan" onClick={handleScan} disabled={status === 'scanning'}>
+                {status === 'scanning' ? (
                   <>
-                    <tr
-                      key={i}
-                      className={`border-b border-border ${adding?.idx === i ? '' : 'last:border-0'} hover:bg-accent/40 transition-colors`}
-                    >
-                      <td className="px-4 py-2.5 font-mono text-foreground">{r.ip}</td>
-                      <td className="px-4 py-2.5 font-mono text-muted-foreground">{r.port}</td>
-                      <td className="px-4 py-2.5">
-                        {r.onvif ? (
-                          <span className="px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 text-xs font-mono">ONVIF</span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded bg-surface-2 text-muted-foreground text-xs font-mono">Scan</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-foreground">
-                        {lines.length > 0 ? (
-                          <div className="space-y-0.5">
-                            {lines.map(l => (
-                              <div key={l.label}>
-                                <span className="text-muted-foreground">{l.label}:</span> {l.value}
-                              </div>
-                            ))}
-                          </div>
-                        ) : fallbackName || <span className="text-muted-foreground">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        {regName ? (
-                          <span className="text-xs font-mono text-muted-foreground">
-                            Já cadastrada como “{regName}”
-                          </span>
-                        ) : adding?.idx === i ? (
-                          <Button variant="outline" size="sm" onClick={() => setAdding(null)}>
-                            Cancelar
-                          </Button>
-                        ) : (
-                          <Button size="sm" onClick={() => startAdding(i)}>
-                            Adicionar
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-
-                    {adding?.idx === i && adding.step === 'creds' && (
-                      <tr key={`${i}-creds`} className="border-b border-border last:border-0 bg-surface-2/50">
-                        <td colSpan={5} className="px-4 py-3">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <input
-                              placeholder="Usuário"
-                              value={adding.user}
-                              onChange={e => setAdding(a => a ? { ...a, user: e.target.value } : a)}
-                              className={inputClass}
-                              autoFocus
-                            />
-                            <input
-                              type="password"
-                              placeholder="Senha"
-                              value={adding.pass}
-                              onChange={e => setAdding(a => a ? { ...a, pass: e.target.value } : a)}
-                              onKeyDown={e => e.key === 'Enter' && confirmCreds(r)}
-                              className={inputClass}
-                            />
-                            <Button size="sm" onClick={() => confirmCreds(r)}>
-                              Confirmar
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-
-                    {adding?.idx === i && adding.step === 'loading' && (
-                      <tr key={`${i}-loading`} className="border-b border-border last:border-0 bg-surface-2/50">
-                        <td colSpan={5} className="px-4 py-3">
-                          <p className="text-xs text-muted-foreground animate-pulse">Buscando streams disponíveis…</p>
-                        </td>
-                      </tr>
-                    )}
-
-                    {adding?.idx === i && adding.step === 'streams' && (
-                      <tr key={`${i}-streams`} className="border-b border-border last:border-0 bg-surface-2/50">
-                        <td colSpan={5} className="px-4 py-3">
-                          <p className="text-xs text-muted-foreground mb-2">Escolha o stream:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {adding.streams.map(s => (
-                              <Button
-                                key={s.url}
-                                variant="outline"
-                                size="sm"
-                                className="h-auto py-1.5"
-                                onClick={() => selectStream(r, s.url)}
-                              >
-                                <span className="font-medium">{s.name}</span>
-                                <span className="text-muted-foreground ml-1.5 font-mono">{s.url.replace(/^rtsp:\/\/[^@]+@/, 'rtsp://…@')}</span>
-                              </Button>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Rastreando…
                   </>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ) : (
+                  <>
+                    <Search className="w-4 h-4" />
+                    Rastrear
+                  </>
+                )}
+              </Button>
+            }
+          />
+
+          {status === 'scanning' && (
+            <p className="text-xs text-muted-foreground animate-pulse">
+              Aguardando respostas ONVIF (3 s) e varrendo porta 554 na subnet…
+            </p>
+          )}
+
+          {status === 'error' && <p className="text-xs text-red-400">{error}</p>}
+
+          {status === 'done' && results.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhuma câmera encontrada na rede.</p>
+          )}
+
+          {results.length > 0 && (
+            <div className="bg-surface border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground uppercase tracking-wider">
+                    <th className="text-left px-4 py-2.5">IP</th>
+                    <th className="text-left px-4 py-2.5">Porta</th>
+                    <th className="text-left px-4 py-2.5">Método</th>
+                    <th className="text-left px-4 py-2.5">Nome / Modelo</th>
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.map((r, i) => {
+                    const cam = findRegisteredCamera(r.ip, registered)
+                    const regName = cam ? cam.name || cam.id || r.ip : null
+                    const lines = cam?.id ? identityLines(deviceInfo[cam.id] ?? {}) : []
+                    const fallbackName = discoveredDisplayName(r, registered)
+                    return (
+                      <>
+                        <tr
+                          key={i}
+                          className={`border-b border-border ${adding?.idx === i ? '' : 'last:border-0'} hover:bg-accent/40 transition-colors`}
+                        >
+                          <td className="px-4 py-2.5 font-mono text-foreground">{r.ip}</td>
+                          <td className="px-4 py-2.5 font-mono text-muted-foreground">{r.port}</td>
+                          <td className="px-4 py-2.5">
+                            {r.onvif ? (
+                              <span className="px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 text-xs font-mono">
+                                ONVIF
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded bg-surface-2 text-muted-foreground text-xs font-mono">
+                                Scan
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 font-mono text-foreground">
+                            {lines.length > 0 ? (
+                              <div className="space-y-0.5">
+                                {lines.map((l) => (
+                                  <div key={l.label}>
+                                    <span className="text-muted-foreground">{l.label}:</span>{' '}
+                                    {l.value}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              fallbackName || <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            {regName ? (
+                              <span className="text-xs font-mono text-muted-foreground">
+                                Já cadastrada como “{regName}”
+                              </span>
+                            ) : adding?.idx === i ? (
+                              <Button variant="outline" size="sm" onClick={() => setAdding(null)}>
+                                Cancelar
+                              </Button>
+                            ) : (
+                              <Button size="sm" onClick={() => startAdding(i)}>
+                                Adicionar
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+
+                        {adding?.idx === i && adding.step === 'creds' && (
+                          <tr
+                            key={`${i}-creds`}
+                            className="border-b border-border last:border-0 bg-surface-2/50"
+                          >
+                            <td colSpan={5} className="px-4 py-3">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <input
+                                  placeholder="Usuário"
+                                  value={adding.user}
+                                  onChange={(e) =>
+                                    setAdding((a) => (a ? { ...a, user: e.target.value } : a))
+                                  }
+                                  className={inputClass}
+                                  autoFocus
+                                />
+                                <input
+                                  type="password"
+                                  placeholder="Senha"
+                                  value={adding.pass}
+                                  onChange={(e) =>
+                                    setAdding((a) => (a ? { ...a, pass: e.target.value } : a))
+                                  }
+                                  onKeyDown={(e) => e.key === 'Enter' && confirmCreds(r)}
+                                  className={inputClass}
+                                />
+                                <Button size="sm" onClick={() => confirmCreds(r)}>
+                                  Confirmar
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+
+                        {adding?.idx === i && adding.step === 'loading' && (
+                          <tr
+                            key={`${i}-loading`}
+                            className="border-b border-border last:border-0 bg-surface-2/50"
+                          >
+                            <td colSpan={5} className="px-4 py-3">
+                              <p className="text-xs text-muted-foreground animate-pulse">
+                                Buscando streams disponíveis…
+                              </p>
+                            </td>
+                          </tr>
+                        )}
+
+                        {adding?.idx === i && adding.step === 'streams' && (
+                          <tr
+                            key={`${i}-streams`}
+                            className="border-b border-border last:border-0 bg-surface-2/50"
+                          >
+                            <td colSpan={5} className="px-4 py-3">
+                              <p className="text-xs text-muted-foreground mb-2">
+                                Escolha o stream:
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {adding.streams.map((s) => (
+                                  <Button
+                                    key={s.url}
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-auto py-1.5"
+                                    onClick={() => selectStream(r, s.url)}
+                                  >
+                                    <span className="font-medium">{s.name}</span>
+                                    <span className="text-muted-foreground ml-1.5 font-mono">
+                                      {s.url.replace(/^rtsp:\/\/[^@]+@/, 'rtsp://…@')}
+                                    </span>
+                                  </Button>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
     </Layout>
   )
 }

@@ -7,7 +7,10 @@ function valid(): StateClassifier {
     threshold: 0.8,
     trigger_motion: true,
     trigger_interval_seconds: 0,
-    crop_x: 0.1, crop_y: 0.1, crop_w: 0.3, crop_h: 0.3,
+    crop_x: 0.1,
+    crop_y: 0.1,
+    crop_w: 0.3,
+    crop_h: 0.3,
     min_consecutive: 3,
     enabled: true,
     classes: ['aberto', 'fechado'],
@@ -37,6 +40,8 @@ describe('validateClassifier', () => {
     expect(validateClassifier({ ...valid(), crop_w: 0 })).toBeTruthy()
   })
   it('exige um gatilho', () => {
-    expect(validateClassifier({ ...valid(), trigger_motion: false, trigger_interval_seconds: 0 })).toBeTruthy()
+    expect(
+      validateClassifier({ ...valid(), trigger_motion: false, trigger_interval_seconds: 0 }),
+    ).toBeTruthy()
   })
 })

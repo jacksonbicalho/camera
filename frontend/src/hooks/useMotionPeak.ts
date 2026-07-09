@@ -16,12 +16,17 @@ export function useMotionPeak(cameraId: string | undefined) {
 
     const load = () => {
       fetch(`/api/cameras/${cameraId}/motion/daily-peak`, { headers: authHeaders() })
-        .then(res => {
-          if (res.status === 401) { onUnauthorized(); return null }
+        .then((res) => {
+          if (res.status === 401) {
+            onUnauthorized()
+            return null
+          }
           if (!res.ok) return null
           return res.json()
         })
-        .then(data => { if (data) setPeak(data) })
+        .then((data) => {
+          if (data) setPeak(data)
+        })
         .catch(() => {})
     }
 
@@ -34,7 +39,7 @@ export function useMotionPeak(cameraId: string | undefined) {
   const handleScore = useCallback((data: string) => {
     const ev = JSON.parse(data) as { score: number }
     const today = new Date().toISOString().slice(0, 10)
-    setPeak(prev => {
+    setPeak((prev) => {
       if (!prev || prev.date !== today) return prev
       if (ev.score <= prev.peak_raw_score) return prev
       return { ...prev, peak_raw_score: ev.score }

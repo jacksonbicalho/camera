@@ -38,13 +38,22 @@ export default function SystemSettingsPage() {
                       [
                         {
                           label: 'Retenção',
-                          value: settings.log.max_age_days > 0 ? `${settings.log.max_age_days} dias` : 'ilimitada',
+                          value:
+                            settings.log.max_age_days > 0
+                              ? `${settings.log.max_age_days} dias`
+                              : 'ilimitada',
                         },
                         {
                           label: 'Máx. de arquivos',
-                          value: settings.log.max_backups > 0 ? String(settings.log.max_backups) : 'ilimitado',
+                          value:
+                            settings.log.max_backups > 0
+                              ? String(settings.log.max_backups)
+                              : 'ilimitado',
                         },
-                        { label: 'Compressão', value: settings.log.compress ? 'gzip' : 'desativada' },
+                        {
+                          label: 'Compressão',
+                          value: settings.log.compress ? 'gzip' : 'desativada',
+                        },
                       ],
                     ]
                   : [

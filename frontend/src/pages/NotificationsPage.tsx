@@ -4,7 +4,10 @@ import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import { Check, Trash2 } from '../components/Icons'
-import { useUserNotifications, type UserNotificationType } from '../contexts/UserNotificationContext'
+import {
+  useUserNotifications,
+  type UserNotificationType,
+} from '../contexts/UserNotificationContext'
 import { Button } from '@/components/ui/button'
 
 const variantDot: Record<UserNotificationType, string> = {
@@ -23,36 +26,52 @@ function fmt(iso: string): string {
 }
 
 export default function NotificationsPage() {
-  const { notifications, unreadCount, markRead, markAllRead, remove, removeAll } = useUserNotifications()
+  const { notifications, unreadCount, markRead, markAllRead, remove, removeAll } =
+    useUserNotifications()
 
   return (
     <Layout id="notifications-page" footerId="notifications-footer" contentClassName="p-6">
-    <div id="notifications-content" className="page-content space-y-4">
+      <div id="notifications-content" className="page-content space-y-4">
         <PageHeader
           title="Notificações"
           subtitle={unreadCount > 0 ? `${unreadCount} não lida(s)` : 'Tudo lido'}
-          actions={notifications.length > 0 && (
-            <>
-              <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
-                Marcar todas como lidas
-              </Button>
-              <Button variant="outline" size="sm" onClick={removeAll} className="text-destructive hover:text-destructive">
-                Limpar tudo
-              </Button>
-            </>
-          )}
+          actions={
+            notifications.length > 0 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={markAllRead}
+                  disabled={unreadCount === 0}
+                >
+                  Marcar todas como lidas
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={removeAll}
+                  className="text-destructive hover:text-destructive"
+                >
+                  Limpar tudo
+                </Button>
+              </>
+            )
+          }
         />
 
         {notifications.length === 0 ? (
           <p className="text-faint text-sm">Nenhuma notificação.</p>
         ) : (
           <ul className="space-y-2">
-            {notifications.map(n => (
+            {notifications.map((n) => (
               <li
                 key={n.id}
                 className={`flex items-start gap-3 rounded-lg border border-border px-4 py-3 ${n.read ? 'bg-surface/40' : 'bg-surface'}`}
               >
-                <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${variantDot[n.type]}`} aria-hidden="true" />
+                <span
+                  className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${variantDot[n.type]}`}
+                  aria-hidden="true"
+                />
                 <div className="flex-1 min-w-0">
                   {n.title && <p className="text-sm font-medium text-foreground">{n.title}</p>}
                   {n.link ? (
@@ -96,7 +115,7 @@ export default function NotificationsPage() {
             ))}
           </ul>
         )}
-    </div>
+      </div>
     </Layout>
   )
 }

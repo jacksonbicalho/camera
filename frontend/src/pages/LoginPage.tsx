@@ -54,12 +54,14 @@ export default function LoginPage() {
         </p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <Label htmlFor="login-username" className="block text-muted-foreground mb-1">Usuário ou e-mail</Label>
+            <Label htmlFor="login-username" className="block text-muted-foreground mb-1">
+              Usuário ou e-mail
+            </Label>
             <Input
               id="login-username"
               type="text"
               value={identifier}
-              onChange={e => setIdentifier(e.target.value)}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
               autoFocus
               autoComplete="username"
@@ -73,10 +75,12 @@ export default function LoginPage() {
           </div>
           <div>
             <div className="flex items-center justify-between mb-1">
-              <Label htmlFor="login-password" className="text-muted-foreground">Senha</Label>
+              <Label htmlFor="login-password" className="text-muted-foreground">
+                Senha
+              </Label>
               <button
                 type="button"
-                onClick={() => setShowPassword(v => !v)}
+                onClick={() => setShowPassword((v) => !v)}
                 className="text-xs text-primary hover:underline"
               >
                 {showPassword ? 'Ocultar' : 'Mostrar'}
@@ -86,20 +90,27 @@ export default function LoginPage() {
               id="login-password"
               type={showPassword ? 'text' : 'password'}
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
               aria-invalid={error ? 'true' : undefined}
             />
           </div>
-          {error && <p role="alert" className="text-danger text-sm">{error}</p>}
+          {error && (
+            <p role="alert" className="text-danger text-sm">
+              {error}
+            </p>
+          )}
           <div className="flex items-center justify-between">
-            <label htmlFor="login-remember" className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+            <label
+              htmlFor="login-remember"
+              className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none"
+            >
               <input
                 id="login-remember"
                 type="checkbox"
                 checked={remember}
-                onChange={e => setRemember(e.target.checked)}
+                onChange={(e) => setRemember(e.target.checked)}
                 className="accent-primary cursor-pointer"
               />
               Lembrar de mim

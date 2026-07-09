@@ -70,11 +70,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   } = useBrowserNotifications()
 
   const browserNotifyRef = useRef(browserNotify)
-  useEffect(() => { browserNotifyRef.current = browserNotify }, [browserNotify])
+  useEffect(() => {
+    browserNotifyRef.current = browserNotify
+  }, [browserNotify])
   const closeBrowserRef = useRef(closeBrowserNotification)
-  useEffect(() => { closeBrowserRef.current = closeBrowserNotification }, [closeBrowserNotification])
+  useEffect(() => {
+    closeBrowserRef.current = closeBrowserNotification
+  }, [closeBrowserNotification])
   const closeAllBrowserRef = useRef(closeAllBrowserNotifications)
-  useEffect(() => { closeAllBrowserRef.current = closeAllBrowserNotifications }, [closeAllBrowserNotifications])
+  useEffect(() => {
+    closeAllBrowserRef.current = closeAllBrowserNotifications
+  }, [closeAllBrowserNotifications])
 
   function update(next: Notification[]) {
     setNotifications(next)
@@ -87,7 +93,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     let es: EventSource | null = null
 
     function connect() {
-      if (es) { es.close(); es = null }
+      if (es) {
+        es.close()
+        es = null
+      }
       const token = getToken()
       if (!token) return
       const url = `/api/motion/live?token=${encodeURIComponent(token)}`
@@ -116,10 +125,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             save(next)
             return next
           })
-          browserNotifyRef.current(id, score, label, async () => {
-            const url = await resolveEventRecordingUrl(id, time)
-            if (url) navigate(url)
-          }, payload.camera_name || undefined)
+          browserNotifyRef.current(
+            id,
+            score,
+            label,
+            async () => {
+              const url = await resolveEventRecordingUrl(id, time)
+              if (url) navigate(url)
+            },
+            payload.camera_name || undefined,
+          )
         } catch {
           // ignore malformed events
         }
@@ -135,7 +150,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, [navigate])
 
   function markRead(id: string) {
-    const n = notifications.find(n => n.id === id)
+    const n = notifications.find((n) => n.id === id)
     if (n && !n.read) closeBrowserRef.current(n.cameraId)
     update(notifications.map((n) => (n.id === id ? { ...n, read: true } : n)))
   }
@@ -147,17 +162,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   function markSelectedRead(ids: string[]) {
     const idSet = new Set(ids)
-    notifications.filter(n => idSet.has(n.id) && !n.read).forEach(n => closeBrowserRef.current(n.cameraId))
-    update(notifications.map((n) => idSet.has(n.id) ? { ...n, read: true } : n))
+    notifications
+      .filter((n) => idSet.has(n.id) && !n.read)
+      .forEach((n) => closeBrowserRef.current(n.cameraId))
+    update(notifications.map((n) => (idSet.has(n.id) ? { ...n, read: true } : n)))
   }
 
   function markAllUnread(ids: string[]) {
     const idSet = new Set(ids)
-    update(notifications.map((n) => idSet.has(n.id) ? { ...n, read: false } : n))
+    update(notifications.map((n) => (idSet.has(n.id) ? { ...n, read: false } : n)))
   }
 
   function remove(id: string) {
-    const n = notifications.find(n => n.id === id)
+    const n = notifications.find((n) => n.id === id)
     if (n) closeBrowserRef.current(n.cameraId)
     update(notifications.filter((n) => n.id !== id))
   }
@@ -169,7 +186,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   function removeSelected(ids: string[]) {
     const idSet = new Set(ids)
-    notifications.filter(n => idSet.has(n.id)).forEach(n => closeBrowserRef.current(n.cameraId))
+    notifications.filter((n) => idSet.has(n.id)).forEach((n) => closeBrowserRef.current(n.cameraId))
     update(notifications.filter((n) => !idSet.has(n.id)))
   }
 
@@ -178,11 +195,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   return (
     <NotificationContext.Provider
       value={{
-        notifications, unreadCount,
-        markRead, markAllRead, markSelectedRead, markAllUnread,
-        remove, removeAll, removeSelected,
-        browserSupported, browserPermission, browserEnabled,
-        enableBrowserNotifications, disableBrowserNotifications,
+        notifications,
+        unreadCount,
+        markRead,
+        markAllRead,
+        markSelectedRead,
+        markAllUnread,
+        remove,
+        removeAll,
+        removeSelected,
+        browserSupported,
+        browserPermission,
+        browserEnabled,
+        enableBrowserNotifications,
+        disableBrowserNotifications,
       }}
     >
       {children}

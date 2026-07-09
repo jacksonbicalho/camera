@@ -20,7 +20,9 @@ export function loadPickerScroll(cameraId: string): number {
 export function savePickerScroll(cameraId: string, scrollLeft: number): void {
   try {
     localStorage.setItem(key(cameraId), String(Math.max(0, Math.round(scrollLeft))))
-  } catch { /* ignora storage indisponível */ }
+  } catch {
+    /* ignora storage indisponível */
+  }
 }
 
 // Último evento escolhido no carrossel (frame + a data em que foi escolhido), por
@@ -44,12 +46,16 @@ export function loadPicked(cameraId: string): PickedEvent | null {
         return { frame: p.frame, date: p.date }
       }
     }
-  } catch { /* ignora parse/storage */ }
+  } catch {
+    /* ignora parse/storage */
+  }
   return null
 }
 
 export function savePicked(cameraId: string, picked: PickedEvent): void {
   try {
     localStorage.setItem(pickedKey(cameraId), JSON.stringify(picked))
-  } catch { /* ignora storage indisponível */ }
+  } catch {
+    /* ignora storage indisponível */
+  }
 }

@@ -27,7 +27,10 @@ export default function EventsPanelHeader({
 }: EventsPanelHeaderProps) {
   return (
     <div className="border-b border-border">
-      <h2 id="events-panel-title" className="px-3 pt-2.5 pb-1 text-lg font-semibold text-foreground">
+      <h2
+        id="events-panel-title"
+        className="px-3 pt-2.5 pb-1 text-lg font-semibold text-foreground"
+      >
         Eventos
       </h2>
 
@@ -39,7 +42,9 @@ export default function EventsPanelHeader({
           id="events-select-all"
           type="checkbox"
           checked={allSelected}
-          ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
+          ref={(el) => {
+            if (el) el.indeterminate = someSelected && !allSelected
+          }}
           onChange={onToggleAll}
           className="w-3 h-3 accent-primary cursor-pointer"
         />
@@ -47,7 +52,10 @@ export default function EventsPanelHeader({
       </label>
 
       {someSelected && (
-        <div id="events-actions-row" className="flex items-center gap-2 px-3 py-1.5 border-t border-border">
+        <div
+          id="events-actions-row"
+          className="flex items-center gap-2 px-3 py-1.5 border-t border-border"
+        >
           {canMarkRead && (
             <Button
               id="events-action-mark-read"

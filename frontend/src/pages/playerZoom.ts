@@ -55,7 +55,13 @@ export function zoomAtPoint(
 }
 
 // panBy shifts the offset by (dx, dy), clamped to the edges.
-export function panBy(state: ZoomState, dx: number, dy: number, width: number, height: number): ZoomState {
+export function panBy(
+  state: ZoomState,
+  dx: number,
+  dy: number,
+  width: number,
+  height: number,
+): ZoomState {
   return clampState(
     { scale: state.scale, offsetX: state.offsetX + dx, offsetY: state.offsetY + dy },
     width,

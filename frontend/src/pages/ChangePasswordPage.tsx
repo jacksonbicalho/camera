@@ -1,6 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { getUsername, changePassword, login, clearToken, getRole, authHeaders, mustChangePassword } from '../auth'
+import {
+  getUsername,
+  changePassword,
+  login,
+  clearToken,
+  getRole,
+  authHeaders,
+  mustChangePassword,
+} from '../auth'
 import { Loader2 } from '../components/Icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,7 +48,9 @@ export default function ChangePasswordPage() {
         const res = await fetch('/api/cameras', { headers: authHeaders() })
         const data = res.ok ? await res.json() : []
         adminWithNoCameras = Array.isArray(data) && data.length === 0 && getRole() === 'admin'
-      } catch { /* ignore, segue para o fallback */ }
+      } catch {
+        /* ignore, segue para o fallback */
+      }
       navigate(postChangeRedirect({ adminWithNoCameras }), { replace: true })
     } catch {
       setError('Falha ao alterar senha. Tente novamente.')
@@ -60,12 +70,14 @@ export default function ChangePasswordPage() {
         <h2 className="text-lg font-semibold text-foreground mb-6">Alterar senha</h2>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <Label htmlFor="change-password-new" className="block text-muted-foreground mb-1">Nova senha</Label>
+            <Label htmlFor="change-password-new" className="block text-muted-foreground mb-1">
+              Nova senha
+            </Label>
             <Input
               id="change-password-new"
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               required
               autoFocus
               minLength={8}
@@ -74,18 +86,24 @@ export default function ChangePasswordPage() {
             />
           </div>
           <div>
-            <Label htmlFor="change-password-confirm" className="block text-muted-foreground mb-1">Confirmar senha</Label>
+            <Label htmlFor="change-password-confirm" className="block text-muted-foreground mb-1">
+              Confirmar senha
+            </Label>
             <Input
               id="change-password-confirm"
               type="password"
               value={confirm}
-              onChange={e => setConfirm(e.target.value)}
+              onChange={(e) => setConfirm(e.target.value)}
               required
               autoComplete="new-password"
               aria-invalid={error ? 'true' : undefined}
             />
           </div>
-          {error && <p role="alert" className="text-danger text-sm">{error}</p>}
+          {error && (
+            <p role="alert" className="text-danger text-sm">
+              {error}
+            </p>
+          )}
           <Button id="change-password-submit" type="submit" disabled={loading}>
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {loading ? 'Salvando...' : 'Definir nova senha'}

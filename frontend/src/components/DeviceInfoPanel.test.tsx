@@ -17,7 +17,10 @@ function okGet(values: Record<string, string>) {
 
 describe('DeviceInfoPanel', () => {
   it('renders captured device info with friendly labels', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okGet({ model: 'iM5-SC', 'stream.main.gop': '40', 'raw.x': 'y' })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(okGet({ model: 'iM5-SC', 'stream.main.gop': '40', 'raw.x': 'y' })),
+    )
     render(<DeviceInfoPanel cameraId="cam1" isAdmin={false} />)
 
     expect(await screen.findByText('iM5-SC')).toBeTruthy()
@@ -26,7 +29,12 @@ describe('DeviceInfoPanel', () => {
   })
 
   it('shows a not-captured message on 404', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404, text: async () => 'no device info captured' }))
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 404, text: async () => 'no device info captured' }),
+    )
     render(<DeviceInfoPanel cameraId="cam1" isAdmin={true} />)
 
     expect(await screen.findByText(/ainda não capturado/i)).toBeTruthy()

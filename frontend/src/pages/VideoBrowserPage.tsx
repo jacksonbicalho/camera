@@ -42,7 +42,10 @@ export default function VideoBrowserPage() {
   const [timezone, setTimezone] = useState('UTC')
 
   useEffect(() => {
-    gateway.getTimezone().then(setTimezone).catch(() => {})
+    gateway
+      .getTimezone()
+      .then(setTimezone)
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -70,7 +73,7 @@ export default function VideoBrowserPage() {
           setError('Sessão expirada.')
           return
         }
-        const anchorRec = dayRecs.find(r => r.filename === meta.filename) ?? null
+        const anchorRec = dayRecs.find((r) => r.filename === meta.filename) ?? null
         setAnchor(anchorRec)
         if (!anchorRec) {
           setError('Gravação não encontrada no dia.')
@@ -80,7 +83,9 @@ export default function VideoBrowserPage() {
         // 2. Sem motionId → reproduz o chunk-âncora inteiro.
         if (!motionId) {
           setEvent(null)
-          setSegments([{ src: gateway.playbackURL(anchorRec), fromSeconds: 0, toSeconds: Infinity }])
+          setSegments([
+            { src: gateway.playbackURL(anchorRec), fromSeconds: 0, toSeconds: Infinity },
+          ])
           return
         }
 
@@ -101,7 +106,11 @@ export default function VideoBrowserPage() {
           return
         }
         setSegments(
-          segs.map(s => ({ src: gateway.playbackURL(s.recording), fromSeconds: s.fromSeconds, toSeconds: s.toSeconds })),
+          segs.map((s) => ({
+            src: gateway.playbackURL(s.recording),
+            fromSeconds: s.fromSeconds,
+            toSeconds: s.toSeconds,
+          })),
         )
       } catch (err) {
         if ((err as Error).name === 'AbortError') return
@@ -144,7 +153,11 @@ export default function VideoBrowserPage() {
             {error}
           </div>
         )}
-        <VideoPlayer idPrefix="video-browser" segments={segments} emptyMessage="Sem gravação cobrindo o evento." />
+        <VideoPlayer
+          idPrefix="video-browser"
+          segments={segments}
+          emptyMessage="Sem gravação cobrindo o evento."
+        />
       </div>
     </Layout>
   )

@@ -12,7 +12,8 @@ interface CameraViewTabsProps {
 // maior que a do título, e o `items-center` do PageHeader centralizava as duas caixas com
 // alturas bem diferentes, dando a impressão de desalinhamento (o texto do título, com seu
 // próprio leading interno, ficava visualmente mais baixo que a pílula).
-const label = 'relative z-10 flex-1 flex h-full items-center justify-center gap-1.5 whitespace-nowrap px-4 text-body font-medium transition-colors'
+const label =
+  'relative z-10 flex-1 flex h-full items-center justify-center gap-1.5 whitespace-nowrap px-4 text-body font-medium transition-colors'
 const activeLabelCls = 'text-foreground'
 const idleLabelCls = 'text-muted-foreground hover:text-foreground'
 
@@ -55,9 +56,12 @@ export default function CameraViewTabs({ cameraId, active }: CameraViewTabsProps
   }
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => () => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    },
+    [],
+  )
 
   function handleClick(to: string, target: 'live' | 'history') {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -70,7 +74,9 @@ export default function CameraViewTabs({ cameraId, active }: CameraViewTabsProps
       id="camera-tab-live-dot"
       className={cn(
         'rounded-full',
-        active === 'live' ? 'h-2.5 w-2.5 animate-pulse bg-success' : 'h-1.5 w-1.5 bg-muted-foreground',
+        active === 'live'
+          ? 'h-2.5 w-2.5 animate-pulse bg-success'
+          : 'h-1.5 w-1.5 bg-muted-foreground',
       )}
     />
   )
@@ -85,10 +91,18 @@ export default function CameraViewTabs({ cameraId, active }: CameraViewTabsProps
         id="camera-tab-glider"
         aria-hidden="true"
         className="absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-full bg-surface ring-1 ring-border shadow-sm transition-transform ease-out"
-        style={{ transitionDuration: `${SLIDE_MS}ms`, transform: displayActive === 'history' ? 'translateX(100%)' : 'translateX(0%)' }}
+        style={{
+          transitionDuration: `${SLIDE_MS}ms`,
+          transform: displayActive === 'history' ? 'translateX(100%)' : 'translateX(0%)',
+        }}
       />
       {active === 'live' ? (
-        <span id="camera-tab-live" aria-label="Ao vivo" aria-current="page" className={cn(label, activeLabelCls)}>
+        <span
+          id="camera-tab-live"
+          aria-label="Ao vivo"
+          aria-current="page"
+          className={cn(label, activeLabelCls)}
+        >
           {liveDot} Ao vivo
         </span>
       ) : (
@@ -97,7 +111,7 @@ export default function CameraViewTabs({ cameraId, active }: CameraViewTabsProps
           to={`/live/${cameraId}`}
           aria-label="Ao vivo"
           className={cn(label, idleLabelCls)}
-          onClick={e => {
+          onClick={(e) => {
             e.preventDefault()
             handleClick(`/live/${cameraId}`, 'live')
           }}
@@ -106,7 +120,12 @@ export default function CameraViewTabs({ cameraId, active }: CameraViewTabsProps
         </Link>
       )}
       {active === 'history' ? (
-        <span id="camera-tab-history" aria-label="Histórico" aria-current="page" className={cn(label, activeLabelCls)}>
+        <span
+          id="camera-tab-history"
+          aria-label="Histórico"
+          aria-current="page"
+          className={cn(label, activeLabelCls)}
+        >
           Histórico
         </span>
       ) : (
@@ -115,7 +134,7 @@ export default function CameraViewTabs({ cameraId, active }: CameraViewTabsProps
           to={`/history/${cameraId}`}
           aria-label="Histórico"
           className={cn(label, idleLabelCls)}
-          onClick={e => {
+          onClick={(e) => {
             e.preventDefault()
             handleClick(`/history/${cameraId}`, 'history')
           }}

@@ -50,11 +50,7 @@ export function groupDeviceInfo(values: Record<string, string>): GroupedDeviceIn
     if (fields.length > 0) sections.push({ title, fields })
   }
 
-  const orderedSection = (
-    title: string,
-    keys: string[],
-    labelFor: (key: string) => string,
-  ) => {
+  const orderedSection = (title: string, keys: string[], labelFor: (key: string) => string) => {
     const fields: DeviceInfoField[] = []
     for (const key of keys) {
       if (key in values) {

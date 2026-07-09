@@ -29,7 +29,8 @@ export function useFlyout<T extends HTMLElement>() {
     if (!open) return
     function handleClick(e: MouseEvent) {
       const t = e.target as Node
-      const inside = (panelRef.current?.contains(t) ?? false) || (btnRef.current?.contains(t) ?? false)
+      const inside =
+        (panelRef.current?.contains(t) ?? false) || (btnRef.current?.contains(t) ?? false)
       if (!inside) setOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
@@ -41,7 +42,7 @@ export function useFlyout<T extends HTMLElement>() {
       const r = btnRef.current.getBoundingClientRect()
       setPos({ top: r.top, bottom: window.innerHeight - r.bottom, left: r.right + 8 })
     }
-    setOpen(v => !v)
+    setOpen((v) => !v)
   }
 
   return { open, setOpen, pos, btnRef, panelRef, toggle }

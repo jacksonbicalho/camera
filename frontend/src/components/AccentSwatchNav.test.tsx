@@ -33,14 +33,20 @@ describe('AccentSwatchNav', () => {
     currentAccent = 'teal'
     render(<AccentSwatchNav />)
     expect(document.getElementById('accent-swatch-teal')?.getAttribute('aria-checked')).toBe('true')
-    expect(document.getElementById('accent-swatch-default')?.getAttribute('aria-checked')).toBe('false')
+    expect(document.getElementById('accent-swatch-default')?.getAttribute('aria-checked')).toBe(
+      'false',
+    )
     expect(document.getElementById('accent-swatch-teal')?.querySelector('svg')).toBeTruthy()
   })
 
-  it('cada swatch escopa a própria cor via data-accent (exceto "default")', () => {
+  it('cada swatch escopa a própria cor via data-accent, incluindo "default"', () => {
     render(<AccentSwatchNav />)
-    expect(document.getElementById('accent-swatch-violet')?.getAttribute('data-accent')).toBe('violet')
-    expect(document.getElementById('accent-swatch-default')?.hasAttribute('data-accent')).toBe(false)
+    expect(document.getElementById('accent-swatch-violet')?.getAttribute('data-accent')).toBe(
+      'violet',
+    )
+    expect(document.getElementById('accent-swatch-default')?.getAttribute('data-accent')).toBe(
+      'default',
+    )
   })
 
   it('selecionar dispara onSelect (fecha o menu pai)', () => {

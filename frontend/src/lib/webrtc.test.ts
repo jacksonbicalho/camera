@@ -34,7 +34,9 @@ describe('negotiateWebRTC', () => {
 
   it('throws WebRTCUnavailableError on 409 (fallback signal)', async () => {
     const pc = fakePC()
-    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({}) } as unknown as Response)
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 409, json: async () => ({}) } as unknown as Response)
 
     await expect(negotiateWebRTC('cam1', pc, { token: 't', fetchFn })).rejects.toBeInstanceOf(
       WebRTCUnavailableError,
@@ -44,7 +46,9 @@ describe('negotiateWebRTC', () => {
 
   it('throws on other non-ok responses', async () => {
     const pc = fakePC()
-    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) } as unknown as Response)
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 500, json: async () => ({}) } as unknown as Response)
 
     await expect(negotiateWebRTC('cam1', pc, { token: 't', fetchFn })).rejects.toThrow()
     expect(pc.setRemoteDescription).not.toHaveBeenCalled()
@@ -54,7 +58,9 @@ describe('negotiateWebRTC', () => {
     const pc = fakePC()
     const fetchFn = vi.fn().mockRejectedValue(new Error('network down'))
 
-    await expect(negotiateWebRTC('cam1', pc, { token: 't', fetchFn })).rejects.toThrow('network down')
+    await expect(negotiateWebRTC('cam1', pc, { token: 't', fetchFn })).rejects.toThrow(
+      'network down',
+    )
   })
 
   it('sends the auth token in the Authorization header', async () => {

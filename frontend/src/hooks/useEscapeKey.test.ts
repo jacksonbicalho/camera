@@ -49,7 +49,7 @@ describe('useEscapeKey', () => {
     const onEscape = vi.fn()
     const { rerender } = renderHook(
       ({ enabled }: { enabled: boolean }) => useEscapeKey(onEscape, enabled),
-      { initialProps: { enabled: true } }
+      { initialProps: { enabled: true } },
     )
 
     rerender({ enabled: false })
@@ -62,7 +62,7 @@ describe('useEscapeKey', () => {
     const onEscape = vi.fn()
     const { rerender } = renderHook(
       ({ enabled }: { enabled: boolean }) => useEscapeKey(onEscape, enabled),
-      { initialProps: { enabled: false } }
+      { initialProps: { enabled: false } },
     )
 
     rerender({ enabled: true })

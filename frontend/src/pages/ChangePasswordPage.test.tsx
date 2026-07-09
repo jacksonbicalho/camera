@@ -48,14 +48,18 @@ describe('ChangePasswordPage', () => {
   it('keeps autoComplete="new-password" on both fields', () => {
     renderChangePassword()
     expect(screen.getByLabelText('Nova senha').getAttribute('autocomplete')).toBe('new-password')
-    expect(screen.getByLabelText('Confirmar senha').getAttribute('autocomplete')).toBe('new-password')
+    expect(screen.getByLabelText('Confirmar senha').getAttribute('autocomplete')).toBe(
+      'new-password',
+    )
   })
 
   it('shows the mismatch error with role="alert" and marks fields aria-invalid', async () => {
     renderChangePassword()
 
     fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'password123' } })
-    fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'different123' } })
+    fireEvent.change(screen.getByLabelText('Confirmar senha'), {
+      target: { value: 'different123' },
+    })
     fireEvent.click(screen.getByRole('button', { name: /definir nova senha/i }))
 
     const alert = await screen.findByRole('alert')
@@ -67,7 +71,9 @@ describe('ChangePasswordPage', () => {
   it('shows a Loader2 spinner while saving', async () => {
     let resolveChange: () => void = () => {}
     vi.mocked(changePassword).mockReturnValueOnce(
-      new Promise<void>(resolve => { resolveChange = resolve }),
+      new Promise<void>((resolve) => {
+        resolveChange = resolve
+      }),
     )
     renderChangePassword()
 

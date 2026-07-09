@@ -97,7 +97,9 @@ describe('LoginPage', () => {
   it('shows a Loader2 spinner while logging in', async () => {
     let resolveLogin: () => void = () => {}
     vi.mocked(login).mockReturnValueOnce(
-      new Promise<void>(resolve => { resolveLogin = resolve }),
+      new Promise<void>((resolve) => {
+        resolveLogin = resolve
+      }),
     )
     renderLogin()
 

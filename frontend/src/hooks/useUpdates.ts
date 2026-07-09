@@ -33,31 +33,46 @@ export function useUpdates() {
     const load = () => {
       setLoading(true)
       fetch('/api/updates', { headers: authHeaders() })
-        .then(res => {
-          if (res.status === 401) { onUnauthorized(); return null }
+        .then((res) => {
+          if (res.status === 401) {
+            onUnauthorized()
+            return null
+          }
           return res.json()
         })
-        .then(data => { if (active && data) setStatus(data) })
+        .then((data) => {
+          if (active && data) setStatus(data)
+        })
         .catch(() => {})
-        .finally(() => { if (active) setLoading(false) })
+        .finally(() => {
+          if (active) setLoading(false)
+        })
     }
 
     load()
     const id = setInterval(load, POLL_MS)
-    return () => { active = false; clearInterval(id) }
+    return () => {
+      active = false
+      clearInterval(id)
+    }
   }, [isAdmin, key])
 
-  const reload = () => setKey(k => k + 1)
+  const reload = () => setKey((k) => k + 1)
 
   const applyUpdate = async (): Promise<ApplyResult> => {
     const res = await fetch('/api/updates/apply', { method: 'POST', headers: authHeaders() })
-    if (res.status === 401) { onUnauthorized(); return { ok: false, error: 'não autorizado' } }
+    if (res.status === 401) {
+      onUnauthorized()
+      return { ok: false, error: 'não autorizado' }
+    }
     if (res.status === 202) return { ok: true }
     let error = 'falha ao iniciar a atualização'
     try {
       const data = await res.json()
       if (data && typeof data.error === 'string') error = data.error
-    } catch { /* corpo vazio */ }
+    } catch {
+      /* corpo vazio */
+    }
     return { ok: false, error }
   }
 

@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Play, Pause, Repeat, Maximize, VolumeX, Volume2, Gauge } from './Icons'
 import PlayerControlsOverlay from './PlayerControlsOverlay'
 import { usePlayerZoom } from '../hooks/usePlayerZoom'
-import { segmentDuration, clipTotal, globalTime, locate, formatClock, shouldAdvance } from '../lib/clipTimeline'
+import {
+  segmentDuration,
+  clipTotal,
+  globalTime,
+  locate,
+  formatClock,
+  shouldAdvance,
+} from '../lib/clipTimeline'
 
 export interface VideoPlayerSegment {
   src: string
@@ -23,7 +30,7 @@ const PLAYBACK_RATES = [32, 16, 8, 4, 2, 1]
 function detectSupportedRates(candidates: number[]): number[] {
   if (typeof document === 'undefined') return candidates
   const probe = document.createElement('video')
-  return candidates.filter(rate => {
+  return candidates.filter((rate) => {
     try {
       probe.playbackRate = rate
       return probe.playbackRate === rate
@@ -279,16 +286,16 @@ export default function VideoPlayer({
   }, [setPlayingIntent])
 
   const toggleRepeat = useCallback(() => {
-    setRepeatOn(r => {
+    setRepeatOn((r) => {
       repeatRef.current = !r
       return !r
     })
   }, [])
 
   const toggleMute = useCallback(() => {
-    setMuted(m => {
+    setMuted((m) => {
       const next = !m
-      elsRef.current.forEach(el => {
+      elsRef.current.forEach((el) => {
         if (el) el.muted = next
       })
       return next
@@ -304,13 +311,13 @@ export default function VideoPlayer({
   // numa velocidade diferente.
   const selectPlaybackRate = useCallback((rate: number) => {
     let applied = rate
-    elsRef.current.forEach(el => {
+    elsRef.current.forEach((el) => {
       if (!el) return
       el.playbackRate = rate
       if (rate === 32 && el.playbackRate !== 32) applied = 16
     })
     if (applied !== rate) {
-      elsRef.current.forEach(el => {
+      elsRef.current.forEach((el) => {
         if (el) el.playbackRate = applied
       })
     }
@@ -462,11 +469,11 @@ export default function VideoPlayer({
     >
       {hasSegments ? (
         <>
-          {[0, 1].map(i => (
+          {[0, 1].map((i) => (
             <video
               key={i}
               id={i === 0 ? `${idPrefix}-video` : `${idPrefix}-video-b`}
-              ref={el => {
+              ref={(el) => {
                 elsRef.current[i] = el
               }}
               muted={muted}
@@ -566,7 +573,7 @@ export default function VideoPlayer({
                 <button
                   id={`${idPrefix}-speed`}
                   type="button"
-                  onClick={() => setSpeedMenuOpen(v => !v)}
+                  onClick={() => setSpeedMenuOpen((v) => !v)}
                   className={`flex h-8 min-w-8 items-center justify-center gap-0.5 rounded-full px-1.5 hover:bg-white/15 ${
                     playbackRate !== 1 ? 'text-primary' : ''
                   }`}
@@ -584,7 +591,7 @@ export default function VideoPlayer({
                     aria-label="Velocidade de reprodução"
                     className="absolute bottom-full left-1/2 z-30 mb-2 flex -translate-x-1/2 flex-col overflow-hidden rounded-lg border border-white/15 bg-black/90 py-1 shadow-lg"
                   >
-                    {SUPPORTED_PLAYBACK_RATES.map(rate => (
+                    {SUPPORTED_PLAYBACK_RATES.map((rate) => (
                       <button
                         key={rate}
                         id={`${idPrefix}-speed-${rate}`}
@@ -628,7 +635,9 @@ export default function VideoPlayer({
         </>
       ) : (
         emptyMessage && (
-          <div className="flex h-full items-center justify-center text-body text-muted">{emptyMessage}</div>
+          <div className="flex h-full items-center justify-center text-body text-muted">
+            {emptyMessage}
+          </div>
         )
       )}
       {overlay}

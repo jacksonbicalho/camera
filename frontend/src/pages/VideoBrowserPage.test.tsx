@@ -20,15 +20,22 @@ vi.mock('../contexts/UserNotificationContext', () => ({
 
 vi.mock('../contexts/NotificationContext', () => ({
   useNotifications: () => ({
-    notifications: [], unreadCount: 0,
-    markRead: vi.fn(), markSelectedRead: vi.fn(),
-    remove: vi.fn(), removeAll: vi.fn(), removeSelected: vi.fn(),
-    browserSupported: false, browserPermission: 'default', browserEnabled: false,
-    enableBrowserNotifications: vi.fn(), disableBrowserNotifications: vi.fn(),
+    notifications: [],
+    unreadCount: 0,
+    markRead: vi.fn(),
+    markSelectedRead: vi.fn(),
+    remove: vi.fn(),
+    removeAll: vi.fn(),
+    removeSelected: vi.fn(),
+    browserSupported: false,
+    browserPermission: 'default',
+    browserEnabled: false,
+    enableBrowserNotifications: vi.fn(),
+    disableBrowserNotifications: vi.fn(),
   }),
 }))
 
-vi.mock('../lib/recordingsGateway', async importOriginal => {
+vi.mock('../lib/recordingsGateway', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/recordingsGateway')>()
   return {
     ...actual,
@@ -113,9 +120,32 @@ describe('VideoBrowserPage — estrutura visual', () => {
 describe('VideoBrowserPage — StrictMode (efeito de carga duplicado no mount em dev)', () => {
   it('a chamada fantasma do StrictMode é abortada de verdade (signal.aborted), e o contador de segmento só reflete os dados da chamada real', async () => {
     const realDayRecs = [
-      { id: 1, filename: '20260101120000.mp4', start: '2026-01-01T12:00:00Z', end: '2026-01-01T12:00:20Z', url: '/r/1.mp4', is_recording: false, has_motion: true },
-      { id: 2, filename: '20260101120020.mp4', start: '2026-01-01T12:00:20Z', end: '2026-01-01T12:00:40Z', url: '/r/2.mp4', is_recording: false, has_motion: false },
-      { id: 3, filename: '20260101120040.mp4', start: '2026-01-01T12:00:40Z', url: '/r/3.mp4', is_recording: false, has_motion: false },
+      {
+        id: 1,
+        filename: '20260101120000.mp4',
+        start: '2026-01-01T12:00:00Z',
+        end: '2026-01-01T12:00:20Z',
+        url: '/r/1.mp4',
+        is_recording: false,
+        has_motion: true,
+      },
+      {
+        id: 2,
+        filename: '20260101120020.mp4',
+        start: '2026-01-01T12:00:20Z',
+        end: '2026-01-01T12:00:40Z',
+        url: '/r/2.mp4',
+        is_recording: false,
+        has_motion: false,
+      },
+      {
+        id: 3,
+        filename: '20260101120040.mp4',
+        start: '2026-01-01T12:00:40Z',
+        url: '/r/3.mp4',
+        is_recording: false,
+        has_motion: false,
+      },
     ]
     const signals: (AbortSignal | undefined)[] = []
     g.getEvent.mockResolvedValue({ id: 1, time: '2026-01-01T12:00:30Z', score: 1 })
@@ -138,7 +168,10 @@ describe('VideoBrowserPage — StrictMode (efeito de carga duplicado no mount em
       <StrictMode>
         <MemoryRouter initialEntries={['/recording/cam1/1/1']}>
           <Routes>
-            <Route path="/recording/:cameraId/:recordingId/:motionId" element={<VideoBrowserPage />} />
+            <Route
+              path="/recording/:cameraId/:recordingId/:motionId"
+              element={<VideoBrowserPage />}
+            />
           </Routes>
         </MemoryRouter>
       </StrictMode>,

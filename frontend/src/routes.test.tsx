@@ -11,7 +11,9 @@ vi.mock('./auth', () => ({
 
 vi.mock('./pages/LivePage', () => ({ default: () => <div id="marker-live-page" /> }))
 vi.mock('./pages/HistoryPage', () => ({ default: () => <div id="marker-history-page" /> }))
-vi.mock('./pages/VideoBrowserPage', () => ({ default: () => <div id="marker-video-browser-page" /> }))
+vi.mock('./pages/VideoBrowserPage', () => ({
+  default: () => <div id="marker-video-browser-page" />,
+}))
 vi.mock('./pages/ReportsPage', () => ({ default: () => <div id="marker-reports-page" /> }))
 vi.mock('./pages/AllCamerasPage', () => ({ default: () => <div id="marker-all-cameras-page" /> }))
 vi.mock('./pages/DashboardPage', () => ({ default: () => <div id="marker-dashboard-page" /> }))
@@ -30,9 +32,7 @@ function renderPath(path: string) {
   render(
     <MemoryRouter initialEntries={[path]}>
       <Suspense>
-        <Routes>
-          {routes}
-        </Routes>
+        <Routes>{routes}</Routes>
       </Suspense>
     </MemoryRouter>,
   )

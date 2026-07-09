@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { segmentDuration, clipTotal, globalTime, locate, formatClock, shouldAdvance } from './clipTimeline'
+import {
+  segmentDuration,
+  clipTotal,
+  globalTime,
+  locate,
+  formatClock,
+  shouldAdvance,
+} from './clipTimeline'
 import type { ClipSegment } from './recordingsGateway'
 
 function seg(fromSeconds: number, toSeconds: number): ClipSegment {

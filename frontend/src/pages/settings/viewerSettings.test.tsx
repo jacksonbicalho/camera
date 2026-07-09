@@ -26,7 +26,9 @@ vi.mock('../../hooks/useSettings', () => ({
 // Layout novo — mocka esse (Layout real puxaria Sidebar -> MotionNotificationsBell ->
 // useNotifications(), sem provider aqui).
 vi.mock('../../components/Layout', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div data-testid="layout">{children}</div>,
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="layout">{children}</div>
+  ),
 }))
 
 describe('viewer — restricted pages', () => {
@@ -38,7 +40,7 @@ describe('viewer — restricted pages', () => {
     render(
       <MemoryRouter>
         <ServerSettingsPage />
-      </MemoryRouter>
+      </MemoryRouter>,
     )
     expect(screen.getAllByText('Acesso restrito.').length).toBeGreaterThan(0)
     expect(screen.queryByText('Carregando...')).toBeNull()
@@ -48,7 +50,7 @@ describe('viewer — restricted pages', () => {
     render(
       <MemoryRouter>
         <SystemSettingsPage />
-      </MemoryRouter>
+      </MemoryRouter>,
     )
     expect(screen.getAllByText('Acesso restrito.').length).toBeGreaterThan(0)
     expect(screen.queryByText('Carregando...')).toBeNull()
@@ -58,7 +60,7 @@ describe('viewer — restricted pages', () => {
     render(
       <MemoryRouter>
         <StorageSettingsPage />
-      </MemoryRouter>
+      </MemoryRouter>,
     )
     expect(screen.getAllByText('Acesso restrito.').length).toBeGreaterThan(0)
     expect(screen.queryByText('Carregando...')).toBeNull()
@@ -81,7 +83,7 @@ describe('viewer — CamerasSettingsPage', () => {
         <Routes>
           <Route path="/settings/cameras" element={<CamerasSettingsPage />} />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     await waitFor(() => expect(screen.getByText('Hall')).toBeTruthy())
@@ -91,7 +93,7 @@ describe('viewer — CamerasSettingsPage', () => {
     expect(screen.queryByText(/nova câmera/i)).toBeNull()
 
     const calls = mockFetch.mock.calls.map((c: unknown[]) => c[0] as string)
-    expect(calls.some(u => u === '/api/cameras')).toBe(true)
+    expect(calls.some((u) => u === '/api/cameras')).toBe(true)
     expect(calls.every((u: string) => u !== '/api/settings/cameras')).toBe(true)
   })
 
@@ -107,7 +109,7 @@ describe('viewer — CamerasSettingsPage', () => {
         <Routes>
           <Route path="/settings/cameras" element={<CamerasSettingsPage />} />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     )
 
     await waitFor(() => {

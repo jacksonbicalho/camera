@@ -71,7 +71,7 @@ export const RESOLUTIONS = [
 
 export function encodeResolution(w: number, h: number): string {
   if (w === 0 || h === 0) return '0x0'
-  const match = RESOLUTIONS.find(r => r.value === `${w}x${h}`)
+  const match = RESOLUTIONS.find((r) => r.value === `${w}x${h}`)
   return match ? match.value : `${w}x${h}`
 }
 
@@ -81,7 +81,7 @@ export function decodeResolution(value: string): { width: number; height: number
 }
 
 function capturePct(capW: number, streamW: number): number {
-  if (capW > 0 && streamW > 0) return Math.round(capW / streamW * 100)
+  if (capW > 0 && streamW > 0) return Math.round((capW / streamW) * 100)
   return 25
 }
 
@@ -89,17 +89,30 @@ export function emptyForm(cam?: Camera): CameraFormData {
   if (!cam) {
     return {
       name: '',
-      rtsp_url: '', motion_rtsp_url: '', chunk_duration: '5m', reconnect_interval: '30s',
-      video_codec: '', has_audio: '', resolution: '0x0',
+      rtsp_url: '',
+      motion_rtsp_url: '',
+      chunk_duration: '5m',
+      reconnect_interval: '30s',
+      video_codec: '',
+      has_audio: '',
+      resolution: '0x0',
       hls_video_mode: 'auto',
       record_video_mode: 'auto',
       live_transport: 'auto',
-      hls_segment_seconds_default: true, hls_segment_seconds: '2',
-      hls_list_size_default: true, hls_list_size: '5',
+      hls_segment_seconds_default: true,
+      hls_segment_seconds: '2',
+      hls_list_size_default: true,
+      hls_list_size: '5',
       hls_dvr_seconds: '0',
       recording_enabled: true,
-      motion_enabled: false, motion_threshold: '0.02', motion_fps: '2', motion_cooldown: '30',
-      motion_capture_auto: true, motion_capture_pct: 25, motion_playback_lead: '10', motion_playback_trail: '10',
+      motion_enabled: false,
+      motion_threshold: '0.02',
+      motion_fps: '2',
+      motion_cooldown: '30',
+      motion_capture_auto: true,
+      motion_capture_pct: 25,
+      motion_playback_lead: '10',
+      motion_playback_trail: '10',
     }
   }
   const capW = cam.motion?.capture_width ?? 0
@@ -148,8 +161,10 @@ export function formToPayload(f: CameraFormData) {
     hls_video_mode: f.hls_video_mode || 'auto',
     record_video_mode: f.record_video_mode || 'auto',
     live_transport: f.live_transport || 'auto',
-    hls_segment_seconds: f.hls_segment_seconds_default ? null : (parseInt(f.hls_segment_seconds) || 2),
-    hls_list_size: f.hls_list_size_default ? null : (parseInt(f.hls_list_size) || 5),
+    hls_segment_seconds: f.hls_segment_seconds_default
+      ? null
+      : parseInt(f.hls_segment_seconds) || 2,
+    hls_list_size: f.hls_list_size_default ? null : parseInt(f.hls_list_size) || 5,
     hls_dvr_seconds: parseInt(f.hls_dvr_seconds) || null,
     recording_enabled: f.recording_enabled,
     motion: {
@@ -157,8 +172,8 @@ export function formToPayload(f: CameraFormData) {
       threshold: parseFloat(f.motion_threshold) || 0.02,
       fps: parseInt(f.motion_fps) || 2,
       cooldown_seconds: parseInt(f.motion_cooldown) || 30,
-      capture_width: f.motion_capture_auto ? 0 : Math.round(width * f.motion_capture_pct / 100),
-      capture_height: f.motion_capture_auto ? 0 : Math.round(height * f.motion_capture_pct / 100),
+      capture_width: f.motion_capture_auto ? 0 : Math.round((width * f.motion_capture_pct) / 100),
+      capture_height: f.motion_capture_auto ? 0 : Math.round((height * f.motion_capture_pct) / 100),
       playback_lead_seconds: parseInt(f.motion_playback_lead) || 10,
       playback_trail_seconds: parseInt(f.motion_playback_trail) || 10,
     },

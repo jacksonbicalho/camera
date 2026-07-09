@@ -35,7 +35,9 @@ export default function LivePage() {
         }
         const data = await res.json()
         if (cancelled) return
-        const cam = Array.isArray(data) ? (data as Camera[]).find(c => c.id === cameraId) : undefined
+        const cam = Array.isArray(data)
+          ? (data as Camera[]).find((c) => c.id === cameraId)
+          : undefined
         if (!cam) {
           setError('Câmera não encontrada.')
           return

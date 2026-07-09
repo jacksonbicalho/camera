@@ -22,7 +22,12 @@ describe('PageHeader', () => {
     render(
       <PageHeader
         id="ph-node"
-        title={<><span>Entrada</span><span data-testid="badge">AO VIVO</span></>}
+        title={
+          <>
+            <span>Entrada</span>
+            <span data-testid="badge">AO VIVO</span>
+          </>
+        }
       />,
     )
     expect(document.getElementById('ph-node')?.textContent).toContain('Entrada')

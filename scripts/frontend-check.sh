@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Roda os checks do frontend (lint + test + tsc + build) via Docker com a
+# Roda os checks do frontend (lint + format:check + test + tsc + build) via Docker com a
 # invocação CORRETA, encapsulando as armadilhas que costumam dar errado:
 #   - usa caminho ABSOLUTO do repo (derivado do próprio script) — nunca $(pwd),
 #     que deriva quando a cwd muda;
@@ -12,7 +12,7 @@
 # do comando invocado).
 #
 # Uso:
-#   scripts/frontend-check.sh                 # check completo (lint+test+tsc+build)
+#   scripts/frontend-check.sh                 # check completo (lint+format:check+test+tsc+build)
 #   scripts/frontend-check.sh <arquivo_teste> # roda só esse teste (yarn test --run <arquivo>)
 set -euo pipefail
 
@@ -34,5 +34,5 @@ dock() {
 if [ "$#" -gt 0 ]; then
   dock "yarn install --frozen-lockfile >/dev/null 2>&1 && yarn test --run $*"
 else
-  dock "yarn install --frozen-lockfile >/dev/null 2>&1 && yarn lint && yarn test --run && node_modules/.bin/tsc -b && node_modules/.bin/vite build --outDir /tmp/distc --emptyOutDir"
+  dock "yarn install --frozen-lockfile >/dev/null 2>&1 && yarn lint && yarn format:check && yarn test --run && node_modules/.bin/tsc -b && node_modules/.bin/vite build --outDir /tmp/distc --emptyOutDir"
 fi

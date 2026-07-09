@@ -3,7 +3,9 @@ import { render, act, cleanup } from '@testing-library/react'
 import Player from './Player'
 import { retryPlan, RETRY_MAX_ATTEMPTS } from './playerRetry'
 
-const { hlsInstances } = vi.hoisted(() => ({ hlsInstances: [] as { handlers: Record<string, (...args: unknown[]) => void> }[] }))
+const { hlsInstances } = vi.hoisted(() => ({
+  hlsInstances: [] as { handlers: Record<string, (...args: unknown[]) => void> }[],
+}))
 
 vi.mock('hls.js', () => ({
   default: class {
@@ -24,7 +26,7 @@ vi.mock('hls.js', () => ({
   },
 }))
 vi.mock('../auth', () => ({ getToken: () => 'fake-token' }))
-vi.mock('../lib/webrtc', async importOriginal => {
+vi.mock('../lib/webrtc', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/webrtc')>()
   return { ...actual, negotiateWebRTC: vi.fn() }
 })
@@ -50,7 +52,7 @@ function stubRTC() {
 }
 async function flush() {
   await act(async () => {
-    await new Promise(r => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
   })
 }
 
@@ -75,7 +77,9 @@ describe('Player', () => {
 
   it('botão de tela cheia chama requestFullscreen no container', async () => {
     const rfs = vi.fn().mockResolvedValue(undefined)
-    ;(HTMLElement.prototype as unknown as { requestFullscreen: () => Promise<void> }).requestFullscreen = rfs
+    ;(
+      HTMLElement.prototype as unknown as { requestFullscreen: () => Promise<void> }
+    ).requestFullscreen = rfs
     render(<Player id="p1" src="/stream/cam1/index.m3u8" />)
     await flush()
     const btn = document.getElementById('p1-fullscreen')
@@ -85,7 +89,6 @@ describe('Player', () => {
     })
     expect(rfs).toHaveBeenCalled()
   })
-
 
   it('mostra loading até o <video> ter um frame pra mostrar — conectar sozinho não basta', async () => {
     render(<Player id="p3" src="/stream/cam1/index.m3u8" cameraId="cam1" />)

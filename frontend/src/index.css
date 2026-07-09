@@ -10,8 +10,8 @@
 
    Imports vêm antes de qualquer regra (exigência do CSS).
    ============================================================================ */
-@import "tailwindcss";
-@import "./styles/primitives.css";
-@import "./styles/themes/default.css";
-@import "./styles/themes/accents.css";
-@import "./styles/base.css";
+@import 'tailwindcss';
+@import './styles/primitives.css';
+@import './styles/themes/default.css';
+@import './styles/themes/accents.css';
+@import './styles/base.css';

@@ -43,9 +43,7 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving }:
   const [name, setName] = useState(initial?.name ?? '')
 
   const toggleCamera = (id: string) => {
-    setSelectedCameras(prev =>
-      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
-    )
+    setSelectedCameras((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]))
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -57,49 +55,55 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving }:
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <Label htmlFor="user-form-username" className="block text-xs text-muted-foreground mb-1">Username</Label>
+          <Label htmlFor="user-form-username" className="block text-xs text-muted-foreground mb-1">
+            Username
+          </Label>
           <Input
             id="user-form-username"
             value={username}
-            onChange={e => setUsername(e.target.value)}
+            onChange={(e) => setUsername(e.target.value)}
             required
           />
         </div>
         <div>
-          <Label htmlFor="user-form-password" className="block text-xs text-muted-foreground mb-1">Senha</Label>
+          <Label htmlFor="user-form-password" className="block text-xs text-muted-foreground mb-1">
+            Senha
+          </Label>
           <Input
             id="user-form-password"
             type="password"
             value={password}
-            onChange={e => setPassword(e.target.value)}
+            onChange={(e) => setPassword(e.target.value)}
             required={!initial}
             autoComplete="new-password"
             placeholder={initial ? 'Deixe em branco para manter a atual' : undefined}
           />
         </div>
         <div>
-          <Label htmlFor="user-form-email" className="block text-xs text-muted-foreground mb-1">E-mail</Label>
+          <Label htmlFor="user-form-email" className="block text-xs text-muted-foreground mb-1">
+            E-mail
+          </Label>
           <Input
             id="user-form-email"
             type="email"
             value={email}
-            onChange={e => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
           />
         </div>
         <div>
-          <Label htmlFor="user-form-name" className="block text-xs text-muted-foreground mb-1">Nome</Label>
-          <Input
-            id="user-form-name"
-            value={name}
-            onChange={e => setName(e.target.value)}
-          />
+          <Label htmlFor="user-form-name" className="block text-xs text-muted-foreground mb-1">
+            Nome
+          </Label>
+          <Input id="user-form-name" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
-          <Label htmlFor="user-form-role" className="block text-xs text-muted-foreground mb-1">Role</Label>
+          <Label htmlFor="user-form-role" className="block text-xs text-muted-foreground mb-1">
+            Role
+          </Label>
           <select
             id="user-form-role"
             value={role}
-            onChange={e => setRole(e.target.value as 'admin' | 'viewer')}
+            onChange={(e) => setRole(e.target.value as 'admin' | 'viewer')}
             className="w-full bg-background border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-primary"
           >
             <option value="viewer">viewer</option>
@@ -112,7 +116,7 @@ export default function UserForm({ cameras, initial, onSave, onCancel, saving }:
         <div>
           <Label className="block text-xs text-muted-foreground mb-2">Câmeras com acesso</Label>
           <div className="flex flex-wrap gap-2">
-            {cameras.map(cam => (
+            {cameras.map((cam) => (
               <button
                 key={cam.id}
                 type="button"

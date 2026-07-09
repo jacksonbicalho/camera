@@ -35,9 +35,10 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 )
 
 // Aguarda efeitos assíncronos
-const flush = () => act(async () => {
-  await new Promise((r) => setTimeout(r, 0))
-})
+const flush = () =>
+  act(async () => {
+    await new Promise((r) => setTimeout(r, 0))
+  })
 
 beforeEach(() => {
   cleanup()
@@ -61,7 +62,14 @@ describe('NotificationContext — estado inicial', () => {
 
   it('restaura notificações salvas no localStorage', () => {
     const saved = [
-      { id: 'cam1-1000', type: 'motion', cameraId: 'cam1', time: '2026-01-01T00:00:00Z', score: 0.5, read: false },
+      {
+        id: 'cam1-1000',
+        type: 'motion',
+        cameraId: 'cam1',
+        time: '2026-01-01T00:00:00Z',
+        score: 0.5,
+        read: false,
+      },
     ]
     localStorage.setItem(STORAGE_KEY, JSON.stringify(saved))
 
@@ -150,7 +158,9 @@ describe('NotificationContext — operações', () => {
     const result = await setupWithNotification()
     const id = result.current.notifications[0].id
 
-    act(() => { result.current.markRead(id) })
+    act(() => {
+      result.current.markRead(id)
+    })
 
     expect(result.current.notifications[0].read).toBe(true)
     expect(result.current.unreadCount).toBe(0)
@@ -159,7 +169,9 @@ describe('NotificationContext — operações', () => {
   it('markAllRead marca todas as notificações como lidas', async () => {
     const result = await setupWithNotification()
 
-    act(() => { result.current.markAllRead() })
+    act(() => {
+      result.current.markAllRead()
+    })
 
     expect(result.current.notifications.every((n) => n.read)).toBe(true)
     expect(result.current.unreadCount).toBe(0)
@@ -169,7 +181,9 @@ describe('NotificationContext — operações', () => {
     const result = await setupWithNotification()
     const id = result.current.notifications[0].id
 
-    act(() => { result.current.remove(id) })
+    act(() => {
+      result.current.remove(id)
+    })
 
     expect(result.current.notifications).toHaveLength(0)
   })
@@ -178,10 +192,14 @@ describe('NotificationContext — operações', () => {
     const result = await setupWithNotification()
     const id = result.current.notifications[0].id
 
-    act(() => { result.current.markRead(id) })
+    act(() => {
+      result.current.markRead(id)
+    })
     expect(result.current.notifications[0].read).toBe(true)
 
-    act(() => { result.current.markAllUnread([id]) })
+    act(() => {
+      result.current.markAllUnread([id])
+    })
     expect(result.current.notifications[0].read).toBe(false)
     expect(result.current.unreadCount).toBe(1)
   })
@@ -189,7 +207,9 @@ describe('NotificationContext — operações', () => {
   it('removeAll limpa todas as notificações', async () => {
     const result = await setupWithNotification()
 
-    act(() => { result.current.removeAll() })
+    act(() => {
+      result.current.removeAll()
+    })
 
     expect(result.current.notifications).toHaveLength(0)
     expect(result.current.unreadCount).toBe(0)

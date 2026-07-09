@@ -34,7 +34,7 @@ export function DisplayModeProvider({ children }: { children: React.ReactNode })
   const [state, setState] = useState<DisplayModeState>(load)
 
   function set(section: keyof DisplayModeState, mode: DisplayMode) {
-    setState(prev => {
+    setState((prev) => {
       const next = { ...prev, [section]: mode }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       return next
@@ -43,9 +43,7 @@ export function DisplayModeProvider({ children }: { children: React.ReactNode })
 
   return (
     <SetDisplayModeContext.Provider value={set}>
-      <DisplayModeContext.Provider value={state}>
-        {children}
-      </DisplayModeContext.Provider>
+      <DisplayModeContext.Provider value={state}>{children}</DisplayModeContext.Provider>
     </SetDisplayModeContext.Provider>
   )
 }
