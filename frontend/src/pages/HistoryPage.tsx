@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import CameraStageHeader from '../components/CameraStageHeader'
 import DatePicker from '../components/DatePicker'
 import { Loader2, Play } from '../components/Icons'
-import PlayerControlsOverlay from '../components/PlayerControlsOverlay'
-import { usePlayerZoom } from '../hooks/usePlayerZoom'
+import VideoPlayer, { type VideoPlayerSegment } from '../components/VideoPlayer'
 import { loadMotionEvents, loadRecordingsData, mergeRecordings, type MotionEvent, type Recording } from './cameraUtils'
 import { recordingCategory, type RecordingCategory } from './eventCategory'
 import { RecordingsGateway } from '../lib/recordingsGateway'
@@ -114,11 +113,6 @@ export default function HistoryPage() {
   // mais" foi acumulando em tela, sem nunca refletir uma exclusão pelo `storage.Cleaner` fora da
   // janela carregada — dava pra "a contagem chega a 22/23, recarrega a página e mostra 19".
   const [dayTotal, setDayTotal] = useState<number | null>(null)
-
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const zoom = usePlayerZoom(() => videoRef.current)
-  const bindZoom = zoom.setContainer
-  const setPlayerContainer = useCallback((node: HTMLDivElement | null) => bindZoom(node), [bindZoom])
 
   // Resolve o :recordingId da URL (se veio um) pro dia que ele pertence — só na carga inicial.
   useEffect(() => {
@@ -325,20 +319,22 @@ export default function HistoryPage() {
     activeCardRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   }, [selectedId])
 
-  // O <video> remonta a cada troca de gravação (key={selected.id}) — sem isso o zoom
-  // acumulado ficaria "preso" no estado antigo (transform não reaplicado ao elemento novo).
-  const resetZoom = zoom.reset
-  useEffect(() => {
-    resetZoom()
-  }, [selectedId, resetZoom])
+  // segments é a playlist (1 gravação = 1 segmento) que o VideoPlayer toca — referência
+  // estável (useMemo) enquanto `selected` não muda, pra não re-disparar o efeito de carga
+  // do VideoPlayer a cada render (ele reage à identidade do array, não ao conteúdo).
+  const segments = useMemo<VideoPlayerSegment[]>(
+    () => (selected ? [{ src: `${selected.url}?token=${getToken()}`, fromSeconds: 0, toSeconds: Infinity }] : []),
+    [selected],
+  )
 
-  // <video> tem autoPlay — assume tocando até "onPause" provar o contrário. Ajuste durante o
-  // render (não useEffect+setState — dispararia um render extra e o eslint
-  // react-hooks/set-state-in-effect barra esse padrão), mesmo truque do CameraViewTabs.
-  const [playingForId, setPlayingForId] = useState(selectedId)
-  if (selectedId !== playingForId) {
-    setPlayingForId(selectedId)
-    setPlaying(true)
+  // videoError não pode grudar na gravação seguinte — reseta ao trocar. `playing` já é
+  // resolvido pelo próprio VideoPlayer (onPlayingChange dispara true de cara, assumindo
+  // autoplay, até "onPause" provar o contrário). Ajuste durante o render (não
+  // useEffect+setState — dispararia um render extra e o eslint react-hooks/set-state-in-effect
+  // barra esse padrão), mesmo truque do CameraViewTabs.
+  const [errorForId, setErrorForId] = useState(selectedId)
+  if (selectedId !== errorForId) {
+    setErrorForId(selectedId)
     setVideoError(false)
   }
 
@@ -406,35 +402,18 @@ export default function HistoryPage() {
             active="history"
             recordingEnabled={camera.recording_enabled}
           >
-            <div
-              id="history-player"
-              ref={setPlayerContainer}
-              onPointerDown={zoom.onPointerDown}
-              onPointerMove={zoom.onPointerMove}
-              onPointerUp={zoom.onPointerUp}
-              data-on-video
-              className={`group relative w-full overflow-hidden rounded-lg border border-border bg-black shadow-sm aspect-video${zoom.isZoomed ? ' cursor-grab' : ''}`}
-            >
-              {selected ? (
+            <VideoPlayer
+              idPrefix="history-player"
+              segments={segments}
+              emptyMessage="Sem gravações nesse dia."
+              onLoadedData={() => setVideoLoading(false)}
+              onError={() => {
+                setVideoLoading(false)
+                setVideoError(true)
+              }}
+              onPlayingChange={setPlaying}
+              overlay={
                 <>
-                  <video
-                    id="history-player-video"
-                    ref={videoRef}
-                    key={selected.id}
-                    src={`${selected.url}?token=${getToken()}`}
-                    className="h-full w-full"
-                    controls
-                    autoPlay
-                    muted
-                    onLoadedData={() => setVideoLoading(false)}
-                    onPlay={() => setPlaying(true)}
-                    onPause={() => setPlaying(false)}
-                    onError={() => {
-                      setVideoLoading(false)
-                      setVideoError(true)
-                    }}
-                  />
-                  <PlayerControlsOverlay id="history-player-video" zoom={zoom} />
                   {videoError ? (
                     <div
                       id="history-player-error"
@@ -452,25 +431,22 @@ export default function HistoryPage() {
                       </div>
                     )
                   )}
+                  {recordingNotFound && (
+                    // Overlay (não um branch exclusivo do ternário acima): assim, uma vez
+                    // montado, é exibido garantidamente por cima do que já estiver no player
+                    // (vídeo ou "Sem gravações"), independente de qual carregamento
+                    // (câmera/gravações) terminou primeiro — ver comentário no useEffect do
+                    // timer de dismiss.
+                    <div
+                      id="history-recording-not-found"
+                      className="absolute inset-0 flex items-center justify-center bg-black text-body text-danger"
+                    >
+                      Gravação não encontrada.
+                    </div>
+                  )}
                 </>
-              ) : (
-                <div className="flex h-full items-center justify-center text-body text-muted">
-                  Sem gravações nesse dia.
-                </div>
-              )}
-              {recordingNotFound && (
-                // Overlay (não um branch exclusivo do ternário acima): assim, uma vez montado,
-                // é exibido garantidamente por cima do que já estiver no player (vídeo ou "Sem
-                // gravações"), independente de qual carregamento (câmera/gravações) terminou
-                // primeiro — ver comentário no useEffect do timer de dismiss.
-                <div
-                  id="history-recording-not-found"
-                  className="absolute inset-0 flex items-center justify-center bg-black text-body text-danger"
-                >
-                  Gravação não encontrada.
-                </div>
-              )}
-            </div>
+              }
+            />
           </CameraStageHeader>
         )}
         {camera && (

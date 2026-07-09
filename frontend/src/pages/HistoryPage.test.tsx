@@ -264,14 +264,16 @@ describe('HistoryPage', () => {
     expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
   })
 
-  it('player de histórico ganha zoom (PlayerControlsOverlay) mas sem botão de tela cheia próprio — só o nativo do <video controls>', async () => {
+  it('player de histórico usa a barra de controles própria do VideoPlayer (com fullscreen), não o <video controls> nativo', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
       expect(document.getElementById('history-player-video')).not.toBeNull()
     })
-    expect(document.getElementById('history-player-video')?.hasAttribute('controls')).toBe(true)
-    expect(document.getElementById('history-player-video-fullscreen')).toBeNull()
-    expect(document.getElementById('history-player-video-zoom-reset')).toBeNull()
+    expect(document.getElementById('history-player-video')?.hasAttribute('controls')).toBe(false)
+    expect(document.getElementById('history-player-controls')).not.toBeNull()
+    expect(document.getElementById('history-player-fullscreen')).not.toBeNull()
+    // Chip de reset de zoom só aparece com zoom ativo — ausente por padrão.
+    expect(document.getElementById('history-player-zoom-reset')).toBeNull()
   })
 
   it('clicar num card do filmstrip troca a gravação em reprodução', async () => {
@@ -324,8 +326,13 @@ describe('HistoryPage', () => {
     })
     expect(document.getElementById('history-recording-1')).toBeNull()
     expect(document.getElementById('history-recording-3')?.getAttribute('aria-current')).toBe('true')
-    const video = document.getElementById('history-player-video') as HTMLVideoElement
-    expect(video.getAttribute('src')).toBe('/recordings/cam1/c.mp4?token=tok')
+    // O <video> é carregado imperativamente pelo efeito do VideoPlayer (troca de segments)
+    // — roda depois do commit que já deixou o card com aria-current, então precisa do seu
+    // próprio waitFor (não é mais um atributo declarativo do JSX, como no <video> antigo).
+    await waitFor(() => {
+      const video = document.getElementById('history-player-video') as HTMLVideoElement
+      expect(video.getAttribute('src')).toBe('/recordings/cam1/c.mp4?token=tok')
+    })
   })
 
   it('mostra loading até o vídeo carregar e volta a mostrar ao trocar de gravação', async () => {
