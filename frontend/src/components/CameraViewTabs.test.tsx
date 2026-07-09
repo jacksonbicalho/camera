@@ -24,7 +24,10 @@ function renderTabsWithRouting(active: 'live' | 'history') {
       <LocationProbe />
       <Routes>
         <Route path="/live/:cameraId" element={<CameraViewTabs cameraId="cam1" active="live" />} />
-        <Route path="/history/:cameraId" element={<CameraViewTabs cameraId="cam1" active="history" />} />
+        <Route
+          path="/history/:cameraId"
+          element={<CameraViewTabs cameraId="cam1" active="history" />}
+        />
       </Routes>
     </MemoryRouter>,
   )
@@ -33,7 +36,9 @@ function renderTabsWithRouting(active: 'live' | 'history') {
 describe('CameraViewTabs', () => {
   it('a aba INATIVA é um link pra rota correspondente', () => {
     renderTabs('live')
-    expect(document.getElementById('camera-tab-history')?.getAttribute('href')).toBe('/history/cam1')
+    expect(document.getElementById('camera-tab-history')?.getAttribute('href')).toBe(
+      '/history/cam1',
+    )
     cleanup()
     renderTabs('history')
     expect(document.getElementById('camera-tab-live')?.getAttribute('href')).toBe('/live/cam1')
@@ -58,7 +63,9 @@ describe('CameraViewTabs', () => {
   it('a aba ativa fica com texto em destaque (foreground), a inativa não', () => {
     renderTabs('live')
     expect(document.getElementById('camera-tab-live')?.className).toContain('text-foreground')
-    expect(document.getElementById('camera-tab-history')?.className).toContain('text-muted-foreground')
+    expect(document.getElementById('camera-tab-history')?.className).toContain(
+      'text-muted-foreground',
+    )
     cleanup()
     renderTabs('history')
     expect(document.getElementById('camera-tab-history')?.className).toContain('text-foreground')
@@ -70,7 +77,9 @@ describe('CameraViewTabs', () => {
     expect(document.getElementById('camera-view-tabs')?.className).toContain('rounded-full')
     expect(document.getElementById('camera-view-tabs')?.className).toContain('bg-foreground/8')
     expect(document.getElementById('camera-view-tabs')?.className).toContain('border-border')
-    expect(document.getElementById('camera-tab-history')?.className).toContain('hover:text-foreground')
+    expect(document.getElementById('camera-tab-history')?.className).toContain(
+      'hover:text-foreground',
+    )
   })
 
   it('trilha com altura fixa (h-8, igual ao line-height do título) e rótulos que preenchem essa altura — evita o desalinhamento vertical com o título do cabeçalho', () => {
@@ -95,7 +104,9 @@ describe('CameraViewTabs', () => {
     cleanup()
     renderTabs('history')
     expect(document.getElementById('camera-tab-live-dot')?.className).not.toContain('animate-pulse')
-    expect(document.getElementById('camera-tab-live-dot')?.className).toContain('bg-muted-foreground')
+    expect(document.getElementById('camera-tab-live-dot')?.className).toContain(
+      'bg-muted-foreground',
+    )
   })
 
   it('clicar na aba inativa desliza o glider de imediato e só navega depois (dá tempo da animação aparecer)', () => {
@@ -105,11 +116,15 @@ describe('CameraViewTabs', () => {
       fireEvent.click(document.getElementById('camera-tab-history')!)
       // Glider já deslizou no clique, antes de qualquer navegação.
       expect(document.getElementById('camera-tab-glider')?.style.transform).toBe('translateX(100%)')
-      expect(document.querySelector('[data-testid="location-probe"]')?.getAttribute('data-pathname')).toBe('/live/cam1')
+      expect(
+        document.querySelector('[data-testid="location-probe"]')?.getAttribute('data-pathname'),
+      ).toBe('/live/cam1')
       act(() => {
         vi.runAllTimers()
       })
-      expect(document.querySelector('[data-testid="location-probe"]')?.getAttribute('data-pathname')).toBe('/history/cam1')
+      expect(
+        document.querySelector('[data-testid="location-probe"]')?.getAttribute('data-pathname'),
+      ).toBe('/history/cam1')
     } finally {
       vi.useRealTimers()
     }
@@ -119,7 +134,9 @@ describe('CameraViewTabs', () => {
     renderTabsWithRouting('live')
     fireEvent.click(document.getElementById('camera-tab-history')!)
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="location-probe"]')?.getAttribute('data-pathname')).toBe('/history/cam1')
+      expect(
+        document.querySelector('[data-testid="location-probe"]')?.getAttribute('data-pathname'),
+      ).toBe('/history/cam1')
     })
   })
 })

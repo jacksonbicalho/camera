@@ -16,15 +16,21 @@ export interface BrowserNotificationsHook {
   enabled: boolean
   requestAndEnable(): Promise<void>
   disable(): void
-  notify(cameraId: string, score: number, label?: string, onClick?: () => void, cameraName?: string): void
+  notify(
+    cameraId: string,
+    score: number,
+    label?: string,
+    onClick?: () => void,
+    cameraName?: string,
+  ): void
   closeBrowserNotification(cameraId: string): void
   closeAllBrowserNotifications(): void
 }
 
 export function useBrowserNotifications(): BrowserNotificationsHook {
   const supported = isSupported()
-  const [permission, setPermission] = useState<NotificationPermission | 'unavailable'>(
-    () => (supported ? Notification.permission : 'unavailable'),
+  const [permission, setPermission] = useState<NotificationPermission | 'unavailable'>(() =>
+    supported ? Notification.permission : 'unavailable',
   )
   const [enabled, setEnabled] = useState<boolean>(() => supported && loadPref())
   const activeRef = useRef<Map<string, Notification>>(new Map())
@@ -45,7 +51,13 @@ export function useBrowserNotifications(): BrowserNotificationsHook {
   }, [])
 
   const notify = useCallback(
-    (cameraId: string, score: number, label?: string, onClick?: () => void, cameraName?: string) => {
+    (
+      cameraId: string,
+      score: number,
+      label?: string,
+      onClick?: () => void,
+      cameraName?: string,
+    ) => {
       if (!supported || !enabled || permission !== 'granted') return
       const body = label
         ? `Zona: ${label} · ${(score * 100).toFixed(1)}%`
@@ -68,13 +80,25 @@ export function useBrowserNotifications(): BrowserNotificationsHook {
 
   const closeBrowserNotification = useCallback((cameraId: string) => {
     const n = activeRef.current.get(cameraId)
-    if (n) { n.close(); activeRef.current.delete(cameraId) }
+    if (n) {
+      n.close()
+      activeRef.current.delete(cameraId)
+    }
   }, [])
 
   const closeAllBrowserNotifications = useCallback(() => {
-    activeRef.current.forEach(n => n.close())
+    activeRef.current.forEach((n) => n.close())
     activeRef.current.clear()
   }, [])
 
-  return { supported, permission, enabled, requestAndEnable, disable, notify, closeBrowserNotification, closeAllBrowserNotifications }
+  return {
+    supported,
+    permission,
+    enabled,
+    requestAndEnable,
+    disable,
+    notify,
+    closeBrowserNotification,
+    closeAllBrowserNotifications,
+  }
 }

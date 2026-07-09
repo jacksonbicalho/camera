@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { findRegisteredCamera, findRegisteredCameraName, identityLines, discoveredDisplayName } from './discoverDedupe'
+import {
+  findRegisteredCamera,
+  findRegisteredCameraName,
+  identityLines,
+  discoveredDisplayName,
+} from './discoverDedupe'
 
 const cameras = [
   { id: 'a', name: 'Corredor', rtsp_url: 'rtsp://user:pass@192.168.1.10:554/stream' },
@@ -37,7 +42,14 @@ describe('findRegisteredCamera', () => {
 
 describe('identityLines', () => {
   it('monta Modelo/Serial/Fabricante/Firmware na ordem, omitindo vazios', () => {
-    const lines = identityLines({ model: 'iM5-SC', serial: 'DVB123', vendor: 'Intelbras', firmware: '2.8', hardware: 'x', collector: 'dahua' })
+    const lines = identityLines({
+      model: 'iM5-SC',
+      serial: 'DVB123',
+      vendor: 'Intelbras',
+      firmware: '2.8',
+      hardware: 'x',
+      collector: 'dahua',
+    })
     expect(lines).toEqual([
       { label: 'Modelo', value: 'iM5-SC' },
       { label: 'Serial', value: 'DVB123' },

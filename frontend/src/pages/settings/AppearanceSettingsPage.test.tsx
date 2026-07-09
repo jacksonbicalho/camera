@@ -53,4 +53,10 @@ describe('AppearanceSettingsPage — Cor de destaque', () => {
     fireEvent.click(screen.getByRole('radio', { name: /azul/i }))
     expect(setAccent).toHaveBeenCalledWith('default')
   })
+
+  it('escopa a cor do swatch "azul" (default) via data-accent, mesmo com outro accent ativo', () => {
+    render(<AppearanceSettingsPage />)
+    const azul = screen.getByRole('radio', { name: /azul/i })
+    expect(azul.getAttribute('data-accent')).toBe('default')
+  })
 })

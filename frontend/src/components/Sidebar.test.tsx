@@ -23,11 +23,18 @@ let motionUnreadCount = 0
 
 vi.mock('../contexts/NotificationContext', () => ({
   useNotifications: () => ({
-    notifications: motionNotifications, unreadCount: motionUnreadCount,
-    markRead: vi.fn(), markSelectedRead: vi.fn(),
-    remove: vi.fn(), removeAll: vi.fn(), removeSelected: vi.fn(),
-    browserSupported: false, browserPermission: 'default', browserEnabled: false,
-    enableBrowserNotifications: vi.fn(), disableBrowserNotifications: vi.fn(),
+    notifications: motionNotifications,
+    unreadCount: motionUnreadCount,
+    markRead: vi.fn(),
+    markSelectedRead: vi.fn(),
+    remove: vi.fn(),
+    removeAll: vi.fn(),
+    removeSelected: vi.fn(),
+    browserSupported: false,
+    browserPermission: 'default',
+    browserEnabled: false,
+    enableBrowserNotifications: vi.fn(),
+    disableBrowserNotifications: vi.fn(),
   }),
 }))
 
@@ -82,7 +89,9 @@ describe('Sidebar (enxuto)', () => {
 
   it('"Todas as câmeras" (antigo "Início") aponta pra "/"', () => {
     renderAt('/')
-    expect(document.getElementById('sidebar-all-cameras')?.getAttribute('aria-label')).toBe('Todas as câmeras')
+    expect(document.getElementById('sidebar-all-cameras')?.getAttribute('aria-label')).toBe(
+      'Todas as câmeras',
+    )
   })
 
   it('"Todas as câmeras" (to="/") não fica ativo fora da rota exata', () => {
@@ -140,7 +149,17 @@ describe('Sidebar (enxuto)', () => {
   })
 
   it('Configurações fica marcado ativo em qualquer rota /settings/* ou /stats', () => {
-    for (const path of ['/settings/discover', '/settings/appearance', '/settings/about', '/settings/stats', '/settings/users', '/settings/server', '/settings/storage', '/settings/system', '/settings/cameras']) {
+    for (const path of [
+      '/settings/discover',
+      '/settings/appearance',
+      '/settings/about',
+      '/settings/stats',
+      '/settings/users',
+      '/settings/server',
+      '/settings/storage',
+      '/settings/system',
+      '/settings/cameras',
+    ]) {
       renderAt(path)
       expect(document.getElementById('sidebar-config')?.className, path).toContain('bg-primary')
       cleanup()
@@ -163,7 +182,9 @@ describe('Sidebar (enxuto)', () => {
   it('"Sair" limpa o token', () => {
     renderAt('/')
     fireEvent.click(document.getElementById('sidebar-user')!)
-    const sairBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent === 'Sair')!
+    const sairBtn = Array.from(document.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Sair',
+    )!
     fireEvent.click(sairBtn)
     expect(clearToken).toHaveBeenCalled()
   })
@@ -195,13 +216,21 @@ describe('Sidebar (enxuto)', () => {
 })
 
 describe('Sidebar — Relatórios (flyout de câmeras)', () => {
-  const cameras = [{ id: 'cam1', name: 'Corredor' }, { id: 'cam2', name: 'Quintal' }]
+  const cameras = [
+    { id: 'cam1', name: 'Corredor' },
+    { id: 'cam2', name: 'Quintal' },
+  ]
 
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve(cameras),
-    })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(cameras),
+        }),
+      ),
+    )
   })
 
   it('é um botão (não link) com id sidebar-relatorios, sem navegar direto pra /reports', () => {
@@ -218,7 +247,9 @@ describe('Sidebar — Relatórios (flyout de câmeras)', () => {
       expect(document.getElementById('sidebar-relatorios-camera-cam1')).toBeTruthy()
       expect(document.getElementById('sidebar-relatorios-camera-cam2')).toBeTruthy()
     })
-    expect(document.getElementById('sidebar-relatorios-camera-cam1')!.textContent).toContain('Corredor')
+    expect(document.getElementById('sidebar-relatorios-camera-cam1')!.textContent).toContain(
+      'Corredor',
+    )
     expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe('/api/cameras')
   })
 
@@ -249,13 +280,21 @@ describe('Sidebar — Relatórios (flyout de câmeras)', () => {
 // pra desambiguar da nova "Gravações" global (sidebar-recordings, sem seletor de
 // câmera — ver describe abaixo).
 describe('Sidebar — Histórico (mesmo estilo de submenu de câmeras)', () => {
-  const cameras = [{ id: 'cam1', name: 'Corredor' }, { id: 'cam2', name: 'Quintal' }]
+  const cameras = [
+    { id: 'cam1', name: 'Corredor' },
+    { id: 'cam2', name: 'Quintal' },
+  ]
 
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve(cameras),
-    })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(cameras),
+        }),
+      ),
+    )
   })
 
   it('é um botão (não link) com id sidebar-history, label "Histórico", sem navegar direto pra /history', () => {
@@ -273,7 +312,9 @@ describe('Sidebar — Histórico (mesmo estilo de submenu de câmeras)', () => {
       expect(document.getElementById('sidebar-history-camera-cam1')).toBeTruthy()
       expect(document.getElementById('sidebar-history-camera-cam2')).toBeTruthy()
     })
-    expect(document.getElementById('sidebar-history-camera-cam1')!.textContent).toContain('Corredor')
+    expect(document.getElementById('sidebar-history-camera-cam1')!.textContent).toContain(
+      'Corredor',
+    )
   })
 
   it('clicar numa câmera navega para /history/{id} e fecha o flyout', async () => {

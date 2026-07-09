@@ -23,7 +23,7 @@ export default function ThemeModeNav({ onSelect }: { onSelect?: () => void }) {
   // Após selecionar, suprime o reabrir-por-hover enquanto o cursor segue sobre o
   // menu — só volta a abrir quando o mouse sai e entra de novo (ou clica no gatilho).
   const [dismissed, setDismissed] = useState(false)
-  const current = MODE_OPTIONS.find(o => o.value === mode) ?? MODE_OPTIONS[1]
+  const current = MODE_OPTIONS.find((o) => o.value === mode) ?? MODE_OPTIONS[1]
 
   const select = (value: Mode) => {
     setMode(value)
@@ -36,13 +36,21 @@ export default function ThemeModeNav({ onSelect }: { onSelect?: () => void }) {
     <div
       id="theme-mode-nav"
       className="border-t border-border relative"
-      onMouseEnter={() => { if (!dismissed) setOpen(true) }}
-      onMouseLeave={() => { setOpen(false); setDismissed(false) }}
+      onMouseEnter={() => {
+        if (!dismissed) setOpen(true)
+      }}
+      onMouseLeave={() => {
+        setOpen(false)
+        setDismissed(false)
+      }}
     >
       <button
         id="theme-nav-current"
         type="button"
-        onClick={() => { setDismissed(false); setOpen(v => !v) }}
+        onClick={() => {
+          setDismissed(false)
+          setOpen((v) => !v)
+        }}
         className="flex items-center justify-between w-full px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
       >
         <span>Estilo ({current.label})</span>

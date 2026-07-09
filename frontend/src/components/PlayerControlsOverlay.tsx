@@ -12,7 +12,11 @@ interface PlayerControlsOverlayProps {
 // PlayerControlsOverlay — controles sobre o vídeo (reset de zoom quando ativo + tela
 // cheia opcional), extraído do Player.tsx (ao vivo) para ser reaproveitado também pelo
 // player de Histórico. Só aparece no hover do container (`group`) ou com foco dentro dele.
-export default function PlayerControlsOverlay({ id, zoom, onToggleFullscreen }: PlayerControlsOverlayProps) {
+export default function PlayerControlsOverlay({
+  id,
+  zoom,
+  onToggleFullscreen,
+}: PlayerControlsOverlayProps) {
   return (
     <div className="absolute bottom-2 right-2 z-20 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
       {zoom.isZoomed && (

@@ -32,7 +32,12 @@ describe('DatePicker', () => {
   it('com availableDays: dia sem conteúdo fica desabilitado, dia com conteúdo habilitado', () => {
     const onChange = vi.fn()
     render(
-      <DatePicker id="dp" value={new Date(2026, 5, 15)} onChange={onChange} availableDays={['2026-06-20']} />,
+      <DatePicker
+        id="dp"
+        value={new Date(2026, 5, 15)}
+        onChange={onChange}
+        availableDays={['2026-06-20']}
+      />,
     )
     fireEvent.click(document.getElementById('dp')!)
 

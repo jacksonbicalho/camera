@@ -18,7 +18,11 @@ describe('Button (shadcn/ui)', () => {
   })
 
   it('asChild renderiza o elemento filho (Slot)', () => {
-    const { getByRole } = render(<Button asChild><a href="/x">Link</a></Button>)
+    const { getByRole } = render(
+      <Button asChild>
+        <a href="/x">Link</a>
+      </Button>,
+    )
     expect(getByRole('link', { name: 'Link' })).toBeTruthy()
   })
 })

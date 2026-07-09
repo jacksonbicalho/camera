@@ -27,13 +27,19 @@ interface Zone {
 }
 
 const ZONE_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e',
-  '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
+  '#ef4444',
+  '#f97316',
+  '#eab308',
+  '#22c55e',
+  '#06b6d4',
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899',
 ]
 
 function pickZoneColor(existing: Zone[]): string {
-  const used = new Set(existing.map(z => z.color).filter(Boolean))
-  return ZONE_COLORS.find(c => !used.has(c)) ?? ZONE_COLORS[existing.length % ZONE_COLORS.length]
+  const used = new Set(existing.map((z) => z.color).filter(Boolean))
+  return ZONE_COLORS.find((c) => !used.has(c)) ?? ZONE_COLORS[existing.length % ZONE_COLORS.length]
 }
 
 function parseHex(hex: string): { r: number; g: number; b: number } {
@@ -47,22 +53,26 @@ function parseHex(hex: string): { r: number; g: number; b: number } {
 
 // ── geometry ──────────────────────────────────────────────────────────────────
 
-function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)) }
+function clamp(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v))
+}
 const SNAP = 0.025
-function snapEdge(v: number) { return v < SNAP ? 0 : v > 1 - SNAP ? 1 : v }
-function deg2rad(d: number) { return (((d ?? 0) % 360 + 360) % 360) * Math.PI / 180 }
+function snapEdge(v: number) {
+  return v < SNAP ? 0 : v > 1 - SNAP ? 1 : v
+}
+function deg2rad(d: number) {
+  return (((((d ?? 0) % 360) + 360) % 360) * Math.PI) / 180
+}
 
 // Rotate local vector (lx, ly) by angle a and offset by world center (cx, cy)
 function toWorld(cx: number, cy: number, lx: number, ly: number, a: number): [number, number] {
-  return [
-    cx + lx * Math.cos(a) - ly * Math.sin(a),
-    cy + lx * Math.sin(a) + ly * Math.cos(a),
-  ]
+  return [cx + lx * Math.cos(a) - ly * Math.sin(a), cy + lx * Math.sin(a) + ly * Math.cos(a)]
 }
 
 // Map world point (wx, wy) into local frame of zone (center cx/cy, angle a)
 function toLocal(cx: number, cy: number, wx: number, wy: number, a: number): [number, number] {
-  const dx = wx - cx, dy = wy - cy
+  const dx = wx - cx,
+    dy = wy - cy
   return [dx * Math.cos(a) + dy * Math.sin(a), -dx * Math.sin(a) + dy * Math.cos(a)]
 }
 
@@ -71,16 +81,22 @@ function zoneCenter(z: Zone, cw: number, ch: number): [number, number] {
 }
 
 // Corners: 0=TL 1=TR 2=BR 3=BL (local signs)
-const CORNER_SIGNS: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]]
+const CORNER_SIGNS: [number, number][] = [
+  [-1, -1],
+  [1, -1],
+  [1, 1],
+  [-1, 1],
+]
 const OPP_CORNER = [2, 3, 0, 1]
 const CORNER_CURSORS = ['nw-resize', 'ne-resize', 'se-resize', 'sw-resize']
-const HANDLE_R = 6   // resize handle hit radius
-const ROT_R = 8      // rotation handle hit radius
+const HANDLE_R = 6 // resize handle hit radius
+const ROT_R = 8 // rotation handle hit radius
 const ROT_OFFSET = 26 // px above top edge
 
 function cornerWorld(z: Zone, c: number, cw: number, ch: number): [number, number] {
   const [cx, cy] = zoneCenter(z, cw, ch)
-  const hw = (z.w * cw) / 2, hh = (z.h * ch) / 2
+  const hw = (z.w * cw) / 2,
+    hh = (z.h * ch) / 2
   const a = deg2rad(z.rotation_deg ?? 0)
   const [sx, sy] = CORNER_SIGNS[c]
   return toWorld(cx, cy, sx * hw, sy * hh, a)
@@ -100,7 +116,8 @@ const DEL_OFFSET = DEL_R + 2
 
 function delBtnWorld(z: Zone, cw: number, ch: number): [number, number] {
   const [cx, cy] = zoneCenter(z, cw, ch)
-  const hw = (z.w * cw) / 2, hh = (z.h * ch) / 2
+  const hw = (z.w * cw) / 2,
+    hh = (z.h * ch) / 2
   const a = deg2rad(z.rotation_deg ?? 0)
   const off = DEL_OFFSET / Math.SQRT2
   return toWorld(cx, cy, hw + off, -hh - off, a)
@@ -108,7 +125,8 @@ function delBtnWorld(z: Zone, cw: number, ch: number): [number, number] {
 
 function hitZone(z: Zone, px: number, py: number, cw: number, ch: number): boolean {
   const [cx, cy] = zoneCenter(z, cw, ch)
-  const hw = (z.w * cw) / 2, hh = (z.h * ch) / 2
+  const hw = (z.w * cw) / 2,
+    hh = (z.h * ch) / 2
   const a = deg2rad(z.rotation_deg ?? 0)
   const [lx, ly] = toLocal(cx, cy, px, py, a)
   return Math.abs(lx) < hw && Math.abs(ly) < hh
@@ -141,7 +159,8 @@ function hitDelBtn(z: Zone, px: number, py: number, cw: number, ch: number): boo
 // Move zone by (dx, dy) canvas pixels, keeping center on canvas
 function moveZone(z: Zone, dx: number, dy: number, cw: number, ch: number): Zone {
   const [cx, cy] = zoneCenter(z, cw, ch)
-  const hw = (z.w * cw) / 2, hh = (z.h * ch) / 2
+  const hw = (z.w * cw) / 2,
+    hh = (z.h * ch) / 2
   const ncx = clamp(cx + dx, hw, cw - hw)
   const ncy = clamp(cy + dy, hh, ch - hh)
   return { ...z, x: (ncx - hw) / cw, y: (ncy - hh) / ch }
@@ -150,7 +169,8 @@ function moveZone(z: Zone, dx: number, dy: number, cw: number, ch: number): Zone
 // Resize by dragging corner c to (mx, my). Opposite corner stays fixed.
 function resizeZone(z: Zone, c: number, mx: number, my: number, cw: number, ch: number): Zone {
   const [fx, fy] = cornerWorld(z, OPP_CORNER[c], cw, ch)
-  const ncx = (fx + mx) / 2, ncy = (fy + my) / 2
+  const ncx = (fx + mx) / 2,
+    ncy = (fy + my) / 2
   const a = deg2rad(z.rotation_deg ?? 0)
   const [lx, ly] = toLocal(ncx, ncy, fx, fy, a)
   const hw = Math.max(0.015 * cw, Math.abs(lx))
@@ -165,14 +185,19 @@ function resizeZone(z: Zone, c: number, mx: number, my: number, cw: number, ch: 
 // Rotate zone so its up-axis points towards (mx, my)
 function rotateZone(z: Zone, mx: number, my: number, cw: number, ch: number): Zone {
   const [cx, cy] = zoneCenter(z, cw, ch)
-  let deg = Math.atan2(mx - cx, -(my - cy)) * 180 / Math.PI
+  let deg = (Math.atan2(mx - cx, -(my - cy)) * 180) / Math.PI
   if (deg < 0) deg += 360
   return { ...z, rotation_deg: deg }
 }
 
 // ── canvas painting ───────────────────────────────────────────────────────────
 
-function drawDeleteButton(ctx: CanvasRenderingContext2D, bx: number, by: number, strokeColor: string) {
+function drawDeleteButton(
+  ctx: CanvasRenderingContext2D,
+  bx: number,
+  by: number,
+  strokeColor: string,
+) {
   ctx.beginPath()
   ctx.arc(bx, by, DEL_R, 0, Math.PI * 2)
   ctx.fillStyle = 'rgba(30,30,30,0.85)'
@@ -182,8 +207,10 @@ function drawDeleteButton(ctx: CanvasRenderingContext2D, bx: number, by: number,
   ctx.stroke()
   const d = 3.5
   ctx.beginPath()
-  ctx.moveTo(bx - d, by - d); ctx.lineTo(bx + d, by + d)
-  ctx.moveTo(bx + d, by - d); ctx.lineTo(bx - d, by + d)
+  ctx.moveTo(bx - d, by - d)
+  ctx.lineTo(bx + d, by + d)
+  ctx.moveTo(bx + d, by - d)
+  ctx.lineTo(bx - d, by + d)
   ctx.strokeStyle = strokeColor
   ctx.lineWidth = 1.8
   ctx.stroke()
@@ -225,18 +252,24 @@ function paintCanvas(
   // Build display list (active interaction applied)
   const display: Zone[] = zones.map((z, i) => {
     if (!ia) return z
-    if (ia.mode === 'moving' && ia.idx === i) return moveZone(ia.orig, ia.x1 - ia.x0, ia.y1 - ia.y0, cw, ch)
-    if (ia.mode === 'resizing' && ia.idx === i) return resizeZone(z, ia.corner, ia.x1, ia.y1, cw, ch)
+    if (ia.mode === 'moving' && ia.idx === i)
+      return moveZone(ia.orig, ia.x1 - ia.x0, ia.y1 - ia.y0, cw, ch)
+    if (ia.mode === 'resizing' && ia.idx === i)
+      return resizeZone(z, ia.corner, ia.x1, ia.y1, cw, ch)
     if (ia.mode === 'rotating' && ia.idx === i) return rotateZone(z, ia.x1, ia.y1, cw, ch)
     return z
   })
 
   let drawingPreview = false
   if (ia?.mode === 'drawing') {
-    const lx = Math.min(ia.x0, ia.x1), rx = Math.max(ia.x0, ia.x1)
-    const ly = Math.min(ia.y0, ia.y1), ry = Math.max(ia.y0, ia.y1)
-    const nx = snapEdge(lx / cw), nx1 = snapEdge(rx / cw)
-    const ny = snapEdge(ly / ch), ny1 = snapEdge(ry / ch)
+    const lx = Math.min(ia.x0, ia.x1),
+      rx = Math.max(ia.x0, ia.x1)
+    const ly = Math.min(ia.y0, ia.y1),
+      ry = Math.max(ia.y0, ia.y1)
+    const nx = snapEdge(lx / cw),
+      nx1 = snapEdge(rx / cw)
+    const ny = snapEdge(ly / ch),
+      ny1 = snapEdge(ry / ch)
     if (nx1 - nx > 0.01 && ny1 - ny > 0.01) {
       display.push({ x: nx, y: ny, w: nx1 - nx, h: ny1 - ny, type: 'exclude' })
       drawingPreview = true
@@ -248,11 +281,12 @@ function paintCanvas(
     const isPreview = drawingPreview && i === display.length - 1
     const isSel = !isPreview && selIdx === i
     const [cx, cy] = zoneCenter(z, cw, ch)
-    const hw = (z.w * cw) / 2, hh = (z.h * ch) / 2
+    const hw = (z.w * cw) / 2,
+      hh = (z.h * ch) / 2
     const a = deg2rad(z.rotation_deg ?? 0)
     const hex = z.color ?? (z.type === 'detect' ? '#f97316' : '#ef4444')
     const { r, g, b } = parseHex(hex)
-    const fill = `rgba(${r},${g},${b},${isSel ? 0.30 : 0.18})`
+    const fill = `rgba(${r},${g},${b},${isSel ? 0.3 : 0.18})`
     const stroke = `rgba(${r},${g},${b},${isSel ? 1.0 : 0.85})`
     const handle = `rgba(${r},${g},${b},0.95)`
 
@@ -284,7 +318,7 @@ function paintCanvas(
       // Rotation handle (only for selected zone) — clamped so it's always on-screen
       if (isSel) {
         const [hx, hy] = rotHandleVisible(z, cw, ch)
-        const [tx, ty] = toWorld(cx, cy, 0, -hh, a)  // rotated top-center
+        const [tx, ty] = toWorld(cx, cy, 0, -hh, a) // rotated top-center
         ctx.beginPath()
         ctx.moveTo(tx, ty)
         ctx.lineTo(hx, hy)
@@ -342,8 +376,8 @@ function relPos(e: React.MouseEvent<HTMLCanvasElement>): [number, number] {
   const c = e.currentTarget
   const r = c.getBoundingClientRect()
   return [
-    clamp((e.clientX - r.left) * c.width / r.width, 0, c.width),
-    clamp((e.clientY - r.top) * c.height / r.height, 0, c.height),
+    clamp(((e.clientX - r.left) * c.width) / r.width, 0, c.width),
+    clamp(((e.clientY - r.top) * c.height) / r.height, 0, c.height),
   ]
 }
 
@@ -351,14 +385,18 @@ export default function CameraZonesSettingsPage() {
   const { id } = useParams<{ id: string }>()
   const isAdmin = getRole() === 'admin'
   const { settings } = useSettings()
-  const cam = settings?.cameras.find(c => c.id === id)
+  const cam = settings?.cameras.find((c) => c.id === id)
   const transport = cam?.live_transport
 
   const capW = cam
-    ? ((cam.motion?.capture_width ?? 0) > 0 ? cam.motion!.capture_width! : Math.max(1, Math.round((cam.width ?? 0) / 4)))
+    ? (cam.motion?.capture_width ?? 0) > 0
+      ? cam.motion!.capture_width!
+      : Math.max(1, Math.round((cam.width ?? 0) / 4))
     : 0
   const capH = cam
-    ? ((cam.motion?.capture_height ?? 0) > 0 ? cam.motion!.capture_height! : Math.max(1, Math.round((cam.height ?? 0) / 4)))
+    ? (cam.motion?.capture_height ?? 0) > 0
+      ? cam.motion!.capture_height!
+      : Math.max(1, Math.round((cam.height ?? 0) / 4))
     : 0
 
   const [zones, setZones] = useState<Zone[]>([])
@@ -403,9 +441,11 @@ export default function CameraZonesSettingsPage() {
       const p = JSON.parse(data)
       if (typeof p.score === 'number') {
         setRegionScore(p.score)
-        setPeakScore(prev => prev === null ? p.score : Math.max(prev, p.score))
+        setPeakScore((prev) => (prev === null ? p.score : Math.max(prev, p.score)))
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   useEventSource(sseURL, handleScoreMessage)
@@ -415,10 +455,18 @@ export default function CameraZonesSettingsPage() {
     if (!id) return
     let active = true
     fetch(`/api/cameras/${id}/motion/zones`, { headers: authHeaders() })
-      .then(r => r.json())
-      .then((data: Zone[]) => { if (!active) return; setZones(data ?? []); setLoading(false) })
-      .catch(() => { if (active) setLoading(false) })
-    return () => { active = false }
+      .then((r) => r.json())
+      .then((data: Zone[]) => {
+        if (!active) return
+        setZones(data ?? [])
+        setLoading(false)
+      })
+      .catch(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
   }, [id])
 
   // Live video source — WebRTC-first com fallback pro HLS (mesmo padrão do
@@ -449,7 +497,9 @@ export default function CameraZonesSettingsPage() {
         const hls = new Hls({
           manifestLoadingMaxRetry: 20,
           manifestLoadingRetryDelay: 2000,
-          xhrSetup(xhr) { xhr.setRequestHeader('Authorization', `Bearer ${getToken()}`) },
+          xhrSetup(xhr) {
+            xhr.setRequestHeader('Authorization', `Bearer ${getToken()}`)
+          },
         })
         hls.loadSource(src)
         hls.attachMedia(video)
@@ -467,13 +517,17 @@ export default function CameraZonesSettingsPage() {
           if (fellBack || cancelled) return
           fellBack = true
           if (watchdog) clearTimeout(watchdog)
-          try { conn.close() } catch { /* noop */ }
+          try {
+            conn.close()
+          } catch {
+            /* noop */
+          }
           if (pc === conn) pc = null
           video.srcObject = null
           setupHLS()
         }
 
-        conn.ontrack = ev => {
+        conn.ontrack = (ev) => {
           const [stream] = ev.streams
           if (stream) video.srcObject = stream
         }
@@ -485,7 +539,10 @@ export default function CameraZonesSettingsPage() {
           fallback()
           return
         }
-        if (cancelled) { conn.close(); return }
+        if (cancelled) {
+          conn.close()
+          return
+        }
 
         conn.onconnectionstatechange = () => {
           if (conn.connectionState === 'connected') {
@@ -515,7 +572,11 @@ export default function CameraZonesSettingsPage() {
       hlsRef.current?.destroy()
       hlsRef.current = null
       if (pc) {
-        try { pc.close() } catch { /* noop */ }
+        try {
+          pc.close()
+        } catch {
+          /* noop */
+        }
         pc = null
       }
       video.srcObject = null
@@ -531,10 +592,16 @@ export default function CameraZonesSettingsPage() {
       const ctx = canvas?.getContext('2d')
       if (canvas && ctx) {
         paintCanvas(
-          ctx, videoRef.current, zonesRef.current,
-          canvas.width, canvas.height,
-          interactionRef.current, selectedIdxRef.current, !isAdmin,
-          globalThresholdRef.current, regionScoreRef.current,
+          ctx,
+          videoRef.current,
+          zonesRef.current,
+          canvas.width,
+          canvas.height,
+          interactionRef.current,
+          selectedIdxRef.current,
+          !isAdmin,
+          globalThresholdRef.current,
+          regionScoreRef.current,
         )
       }
       rafRef.current = requestAnimationFrame(loop)
@@ -548,20 +615,31 @@ export default function CameraZonesSettingsPage() {
   function updateCursor(px: number, py: number) {
     const canvas = canvasRef.current
     if (!canvas) return
-    const cw = canvas.width, ch = canvas.height
+    const cw = canvas.width,
+      ch = canvas.height
     const zs = zonesRef.current
     const si = selectedIdxRef.current
 
-    if (si !== null && zs[si] && hitDelBtn(zs[si], px, py, cw, ch)) { setCursorStyle('pointer'); return }
+    if (si !== null && zs[si] && hitDelBtn(zs[si], px, py, cw, ch)) {
+      setCursorStyle('pointer')
+      return
+    }
     if (si !== null && zs[si] && hitRotHandle(zs[si], px, py, cw, ch)) {
-      setCursorStyle('alias'); return
+      setCursorStyle('alias')
+      return
     }
     for (let i = zs.length - 1; i >= 0; i--) {
       const c = hitCorner(zs[i], px, py, cw, ch)
-      if (c >= 0) { setCursorStyle(CORNER_CURSORS[c]); return }
+      if (c >= 0) {
+        setCursorStyle(CORNER_CURSORS[c])
+        return
+      }
     }
     for (let i = zs.length - 1; i >= 0; i--) {
-      if (hitZone(zs[i], px, py, cw, ch)) { setCursorStyle('grab'); return }
+      if (hitZone(zs[i], px, py, cw, ch)) {
+        setCursorStyle('grab')
+        return
+      }
     }
     setCursorStyle('crosshair')
   }
@@ -571,28 +649,46 @@ export default function CameraZonesSettingsPage() {
   const commitInteraction = useCallback(() => {
     const ia = interactionRef.current
     const canvas = canvasRef.current
-    if (!ia || !canvas) { setInteraction(null); return }
-    interactionRef.current = null  // guard against double-commit (canvas + document)
-    const cw = canvas.width, ch = canvas.height
+    if (!ia || !canvas) {
+      setInteraction(null)
+      return
+    }
+    interactionRef.current = null // guard against double-commit (canvas + document)
+    const cw = canvas.width,
+      ch = canvas.height
 
     let next: Zone[] = zonesRef.current
     if (ia.mode === 'drawing') {
-      const lx = Math.min(ia.x0, ia.x1), rx = Math.max(ia.x0, ia.x1)
-      const ly = Math.min(ia.y0, ia.y1), ry = Math.max(ia.y0, ia.y1)
-      const nx = snapEdge(lx / cw), nx1 = snapEdge(rx / cw)
-      const ny = snapEdge(ly / ch), ny1 = snapEdge(ry / ch)
+      const lx = Math.min(ia.x0, ia.x1),
+        rx = Math.max(ia.x0, ia.x1)
+      const ly = Math.min(ia.y0, ia.y1),
+        ry = Math.max(ia.y0, ia.y1)
+      const nx = snapEdge(lx / cw),
+        nx1 = snapEdge(rx / cw)
+      const ny = snapEdge(ly / ch),
+        ny1 = snapEdge(ry / ch)
       if (nx1 - nx > 0.01 && ny1 - ny > 0.01) {
-        const newZone: Zone = { x: nx, y: ny, w: nx1 - nx, h: ny1 - ny, type: 'exclude', color: pickZoneColor(next) }
+        const newZone: Zone = {
+          x: nx,
+          y: ny,
+          w: nx1 - nx,
+          h: ny1 - ny,
+          type: 'exclude',
+          color: pickZoneColor(next),
+        }
         next = [...next, newZone]
         setSelectedIdx(next.length - 1)
-        setRegionScore(null); setPeakScore(null)
+        setRegionScore(null)
+        setPeakScore(null)
       }
     } else if (ia.mode === 'moving') {
-      next = next.map((z, i) => i === ia.idx ? moveZone(ia.orig, ia.x1 - ia.x0, ia.y1 - ia.y0, cw, ch) : z)
+      next = next.map((z, i) =>
+        i === ia.idx ? moveZone(ia.orig, ia.x1 - ia.x0, ia.y1 - ia.y0, cw, ch) : z,
+      )
     } else if (ia.mode === 'resizing') {
-      next = next.map((z, i) => i === ia.idx ? resizeZone(z, ia.corner, ia.x1, ia.y1, cw, ch) : z)
+      next = next.map((z, i) => (i === ia.idx ? resizeZone(z, ia.corner, ia.x1, ia.y1, cw, ch) : z))
     } else if (ia.mode === 'rotating') {
-      next = next.map((z, i) => i === ia.idx ? rotateZone(z, ia.x1, ia.y1, cw, ch) : z)
+      next = next.map((z, i) => (i === ia.idx ? rotateZone(z, ia.x1, ia.y1, cw, ch) : z))
     }
     // Sync ref immediately so save() reads correct positions before next render
     zonesRef.current = next
@@ -611,15 +707,17 @@ export default function CameraZonesSettingsPage() {
     const [x, y] = relPos(e)
     const canvas = canvasRef.current
     if (!canvas) return
-    const cw = canvas.width, ch = canvas.height
+    const cw = canvas.width,
+      ch = canvas.height
     const zs = zonesRef.current
     const si = selectedIdxRef.current
 
     // Delete button — only for the selected zone
     if (si !== null && zs[si] && hitDelBtn(zs[si], x, y, cw, ch)) {
-      setZones(prev => prev.filter((_, j) => j !== si))
+      setZones((prev) => prev.filter((_, j) => j !== si))
       setSelectedIdx(null)
-      setRegionScore(null); setPeakScore(null)
+      setRegionScore(null)
+      setPeakScore(null)
       return
     }
 
@@ -634,7 +732,10 @@ export default function CameraZonesSettingsPage() {
     for (let i = zs.length - 1; i >= 0; i--) {
       const c = hitCorner(zs[i], x, y, cw, ch)
       if (c >= 0) {
-        if (i !== si) { setRegionScore(null); setPeakScore(null) }
+        if (i !== si) {
+          setRegionScore(null)
+          setPeakScore(null)
+        }
         setSelectedIdx(i)
         setInteraction({ mode: 'resizing', idx: i, corner: c, x1: x, y1: y })
         setCursorStyle(CORNER_CURSORS[c])
@@ -645,7 +746,10 @@ export default function CameraZonesSettingsPage() {
     // Zone interior → move
     for (let i = zs.length - 1; i >= 0; i--) {
       if (hitZone(zs[i], x, y, cw, ch)) {
-        if (i !== si) { setRegionScore(null); setPeakScore(null) }
+        if (i !== si) {
+          setRegionScore(null)
+          setPeakScore(null)
+        }
         setSelectedIdx(i)
         setInteraction({ mode: 'moving', idx: i, orig: zs[i], x0: x, y0: y, x1: x, y1: y })
         setCursorStyle('grabbing')
@@ -655,14 +759,15 @@ export default function CameraZonesSettingsPage() {
 
     // Empty area → draw
     setSelectedIdx(null)
-    setRegionScore(null); setPeakScore(null)
+    setRegionScore(null)
+    setPeakScore(null)
     setInteraction({ mode: 'drawing', x0: x, y0: y, x1: x, y1: y })
   }
 
   function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
     const [x, y] = relPos(e)
     if (interactionRef.current) {
-      setInteraction(ia => ia ? { ...ia, x1: x, y1: y } : null)
+      setInteraction((ia) => (ia ? { ...ia, x1: x, y1: y } : null))
     } else {
       updateCursor(x, y)
     }
@@ -677,7 +782,7 @@ export default function CameraZonesSettingsPage() {
 
   function updateSelectedZone(patch: Partial<Zone>) {
     if (selectedIdx === null) return
-    setZones(prev => prev.map((z, i) => i === selectedIdx ? { ...z, ...patch } : z))
+    setZones((prev) => prev.map((z, i) => (i === selectedIdx ? { ...z, ...patch } : z)))
   }
 
   async function save() {
@@ -701,224 +806,267 @@ export default function CameraZonesSettingsPage() {
 
   return (
     <Layout id="camera-zones-page" footerId="camera-zones-footer" contentClassName="p-6">
-    <div id="camera-zones-content" className="page-content space-y-4">
-      <CameraSettingsTabs id={id!} active="zones" camName={cam?.name} />
+      <div id="camera-zones-content" className="page-content space-y-4">
+        <CameraSettingsTabs id={id!} active="zones" camName={cam?.name} />
 
-      {isAdmin && (
-        <p className="text-xs text-muted-foreground mb-5">
-          Arraste em área vazia para criar uma zona. Clique numa zona para selecioná-la. Arraste os cantos para redimensionar. Use o círculo acima para rotacionar. Clique no × na zona selecionada para excluí-la.
-        </p>
-      )}
+        {isAdmin && (
+          <p className="text-xs text-muted-foreground mb-5">
+            Arraste em área vazia para criar uma zona. Clique numa zona para selecioná-la. Arraste
+            os cantos para redimensionar. Use o círculo acima para rotacionar. Clique no × na zona
+            selecionada para excluí-la.
+          </p>
+        )}
 
-      {isAdmin && !settings ? (
-        <p className="text-muted-foreground text-sm">Carregando...</p>
-      ) : isAdmin && !cam ? (
-        <p className="text-muted-foreground text-sm">Câmera não encontrada.</p>
-      ) : loading ? (
-        <p className="text-muted-foreground text-sm">Carregando zonas...</p>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <div
-            className="relative bg-surface border border-border rounded-lg overflow-hidden"
-            style={{ aspectRatio: '16/9' }}
-          >
-            <canvas
-              ref={canvasRef}
-              width={1280}
-              height={720}
-              className="w-full h-full select-none"
-              style={{ cursor: isAdmin ? cursorStyle : 'default' }}
-              onMouseDown={isAdmin ? handleMouseDown : undefined}
-              onMouseMove={isAdmin ? handleMouseMove : undefined}
-              onMouseUp={isAdmin ? handleMouseUp : undefined}
-              onMouseLeave={isAdmin ? () => setCursorStyle('crosshair') : undefined}
-            />
-          </div>
+        {isAdmin && !settings ? (
+          <p className="text-muted-foreground text-sm">Carregando...</p>
+        ) : isAdmin && !cam ? (
+          <p className="text-muted-foreground text-sm">Câmera não encontrada.</p>
+        ) : loading ? (
+          <p className="text-muted-foreground text-sm">Carregando zonas...</p>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div
+              className="relative bg-surface border border-border rounded-lg overflow-hidden"
+              style={{ aspectRatio: '16/9' }}
+            >
+              <canvas
+                ref={canvasRef}
+                width={1280}
+                height={720}
+                className="w-full h-full select-none"
+                style={{ cursor: isAdmin ? cursorStyle : 'default' }}
+                onMouseDown={isAdmin ? handleMouseDown : undefined}
+                onMouseMove={isAdmin ? handleMouseMove : undefined}
+                onMouseUp={isAdmin ? handleMouseUp : undefined}
+                onMouseLeave={isAdmin ? () => setCursorStyle('crosshair') : undefined}
+              />
+            </div>
 
-          {isAdmin && selectedZone && (
-            <div className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <span
-                    className="inline-block w-3 h-3 rounded-sm flex-shrink-0"
-                    style={{ backgroundColor: selectedZone.color ?? (selectedZone.type === 'detect' ? '#f97316' : '#ef4444') }}
-                  />
-                  Zona {selectedIdx! + 1}
-                  {selectedZone.type === 'detect' && (
-                    <span className="text-xs text-muted-foreground font-normal">detecção independente</span>
-                  )}
-                </h3>
-                {sseURL && (
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-muted-foreground">Ao vivo:</span>
-                      <span className="text-sm font-mono text-yellow-400 min-w-[6ch]">
-                        {regionScore !== null ? regionScore.toFixed(4) : '—'}
+            {isAdmin && selectedZone && (
+              <div className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <span
+                      className="inline-block w-3 h-3 rounded-sm flex-shrink-0"
+                      style={{
+                        backgroundColor:
+                          selectedZone.color ??
+                          (selectedZone.type === 'detect' ? '#f97316' : '#ef4444'),
+                      }}
+                    />
+                    Zona {selectedIdx! + 1}
+                    {selectedZone.type === 'detect' && (
+                      <span className="text-xs text-muted-foreground font-normal">
+                        detecção independente
                       </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-muted-foreground">Pico:</span>
-                      <span className="text-sm font-mono text-orange-400 min-w-[6ch]">
-                        {peakScore !== null ? peakScore.toFixed(4) : '—'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-6 flex-wrap">
-                <div className="flex flex-col gap-1 min-w-40">
-                  <label className="text-xs text-muted-foreground">Nome (opcional)</label>
-                  <input
-                    type="text"
-                    value={selectedZone.label ?? ''}
-                    onChange={e => updateSelectedZone({ label: e.target.value || undefined })}
-                    placeholder="ex: entrada"
-                    className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-full"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1 min-w-32">
-                  <label className="text-xs text-muted-foreground">Rotação (graus)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={359}
-                    step={1}
-                    value={Math.round(selectedZone.rotation_deg ?? 0)}
-                    onChange={e => {
-                      let d = parseFloat(e.target.value) || 0
-                      d = ((d % 360) + 360) % 360
-                      updateSelectedZone({ rotation_deg: d })
-                    }}
-                    className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <span className="text-xs text-muted-foreground">Tipo</span>
-                  <div className="flex gap-4">
-                    {(['exclude', 'detect'] as const).map(t => (
-                      <label key={t} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
-                        <input
-                          type="radio"
-                          value={t}
-                          checked={(selectedZone.type ?? 'exclude') === t}
-                          onChange={() => updateSelectedZone({ type: t })}
-                          className="accent-primary"
-                        />
-                        {t === 'exclude' ? 'Exclusão' : 'Detecção'}
-                      </label>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground max-w-xs">
-                    {(selectedZone.type ?? 'exclude') === 'exclude'
-                      ? 'Ignora movimento nesta região no diff global.'
-                      : 'Detecta movimento nesta região de forma independente, com limiar e cooldown próprios.'}
-                  </p>
-                </div>
-
-                {(selectedZone.type ?? 'exclude') === 'detect' && (
-                  <>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-muted-foreground">Limiar (0 = câmera)</label>
-                      <input
-                        type="number"
-                        min={0} max={1} step={0.001}
-                        value={selectedZone.threshold ?? 0}
-                        onChange={e => updateSelectedZone({ threshold: parseFloat(e.target.value) || 0 })}
-                        className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-muted-foreground">Cooldown (s, 0 = câmera)</label>
-                      <input
-                        type="number"
-                        min={0} step={1}
-                        value={selectedZone.cooldown_seconds ?? 0}
-                        onChange={e => updateSelectedZone({ cooldown_seconds: parseInt(e.target.value) || 0 })}
-                        className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-muted-foreground">FPS de amostragem (0 = câmera)</label>
-                      <input
-                        type="number"
-                        min={0} step={1}
-                        value={selectedZone.fps ?? 0}
-                        onChange={e => updateSelectedZone({ fps: parseInt(e.target.value) || 0 })}
-                        className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-muted-foreground">Escala de análise</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="range"
-                          min={10} max={100} step={5}
-                          value={Math.round((selectedZone.scale || 1) * 100)}
-                          onChange={e => updateSelectedZone({ scale: parseInt(e.target.value) / 100 })}
-                          className="w-32 accent-primary"
-                        />
-                        <span className="text-xs text-foreground font-mono w-10 text-right">
-                          {Math.round((selectedZone.scale || 1) * 100)}%
+                    )}
+                  </h3>
+                  {sseURL && (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground">Ao vivo:</span>
+                        <span className="text-sm font-mono text-yellow-400 min-w-[6ch]">
+                          {regionScore !== null ? regionScore.toFixed(4) : '—'}
                         </span>
                       </div>
-                      {capW > 0 && capH > 0 && (() => {
-                        const zW = Math.max(1, Math.round(selectedZone.w * capW))
-                        const zH = Math.max(1, Math.round(selectedZone.h * capH))
-                        const sc = selectedZone.scale || 1
-                        const sW = Math.max(1, Math.round(zW * sc))
-                        const sH = Math.max(1, Math.round(zH * sc))
-                        return (
-                          <p className="text-xs text-muted-foreground">
-                            {sc < 1 ? `${zW} × ${zH} px → ${sW} × ${sH} px` : `${zW} × ${zH} px`}
-                          </p>
-                        )
-                      })()}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground">Pico:</span>
+                        <span className="text-sm font-mono text-orange-400 min-w-[6ch]">
+                          {peakScore !== null ? peakScore.toFixed(4) : '—'}
+                        </span>
+                      </div>
                     </div>
-                  </>
+                  )}
+                </div>
+
+                <div className="flex gap-6 flex-wrap">
+                  <div className="flex flex-col gap-1 min-w-40">
+                    <label className="text-xs text-muted-foreground">Nome (opcional)</label>
+                    <input
+                      type="text"
+                      value={selectedZone.label ?? ''}
+                      onChange={(e) => updateSelectedZone({ label: e.target.value || undefined })}
+                      placeholder="ex: entrada"
+                      className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-full"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1 min-w-32">
+                    <label className="text-xs text-muted-foreground">Rotação (graus)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={359}
+                      step={1}
+                      value={Math.round(selectedZone.rotation_deg ?? 0)}
+                      onChange={(e) => {
+                        let d = parseFloat(e.target.value) || 0
+                        d = ((d % 360) + 360) % 360
+                        updateSelectedZone({ rotation_deg: d })
+                      }}
+                      className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs text-muted-foreground">Tipo</span>
+                    <div className="flex gap-4">
+                      {(['exclude', 'detect'] as const).map((t) => (
+                        <label
+                          key={t}
+                          className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer"
+                        >
+                          <input
+                            type="radio"
+                            value={t}
+                            checked={(selectedZone.type ?? 'exclude') === t}
+                            onChange={() => updateSelectedZone({ type: t })}
+                            className="accent-primary"
+                          />
+                          {t === 'exclude' ? 'Exclusão' : 'Detecção'}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground max-w-xs">
+                      {(selectedZone.type ?? 'exclude') === 'exclude'
+                        ? 'Ignora movimento nesta região no diff global.'
+                        : 'Detecta movimento nesta região de forma independente, com limiar e cooldown próprios.'}
+                    </p>
+                  </div>
+
+                  {(selectedZone.type ?? 'exclude') === 'detect' && (
+                    <>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-muted-foreground">Limiar (0 = câmera)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={1}
+                          step={0.001}
+                          value={selectedZone.threshold ?? 0}
+                          onChange={(e) =>
+                            updateSelectedZone({ threshold: parseFloat(e.target.value) || 0 })
+                          }
+                          className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-muted-foreground">
+                          Cooldown (s, 0 = câmera)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={selectedZone.cooldown_seconds ?? 0}
+                          onChange={(e) =>
+                            updateSelectedZone({ cooldown_seconds: parseInt(e.target.value) || 0 })
+                          }
+                          className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-muted-foreground">
+                          FPS de amostragem (0 = câmera)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={selectedZone.fps ?? 0}
+                          onChange={(e) =>
+                            updateSelectedZone({ fps: parseInt(e.target.value) || 0 })
+                          }
+                          className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs text-muted-foreground">Escala de análise</label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="range"
+                            min={10}
+                            max={100}
+                            step={5}
+                            value={Math.round((selectedZone.scale || 1) * 100)}
+                            onChange={(e) =>
+                              updateSelectedZone({ scale: parseInt(e.target.value) / 100 })
+                            }
+                            className="w-32 accent-primary"
+                          />
+                          <span className="text-xs text-foreground font-mono w-10 text-right">
+                            {Math.round((selectedZone.scale || 1) * 100)}%
+                          </span>
+                        </div>
+                        {capW > 0 &&
+                          capH > 0 &&
+                          (() => {
+                            const zW = Math.max(1, Math.round(selectedZone.w * capW))
+                            const zH = Math.max(1, Math.round(selectedZone.h * capH))
+                            const sc = selectedZone.scale || 1
+                            const sW = Math.max(1, Math.round(zW * sc))
+                            const sH = Math.max(1, Math.round(zH * sc))
+                            return (
+                              <p className="text-xs text-muted-foreground">
+                                {sc < 1
+                                  ? `${zW} × ${zH} px → ${sW} × ${sH} px`
+                                  : `${zW} × ${zH} px`}
+                              </p>
+                            )
+                          })()}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isAdmin && toast && (
+              <p className={`text-sm ${toast.ok ? 'text-green-400' : 'text-red-400'}`}>
+                {toast.msg}
+              </p>
+            )}
+
+            {isAdmin && (
+              <div className="flex gap-3 items-center">
+                <Button id="zones-save" onClick={save} disabled={saving}>
+                  {saving ? 'Salvando...' : 'Salvar zonas'}
+                </Button>
+                {zones.length > 0 && (
+                  <Button id="zones-clear" variant="outline" onClick={() => setConfirmClear(true)}>
+                    Limpar todas
+                  </Button>
+                )}
+                {zones.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {zones.length} zona{zones.length !== 1 ? 's' : ''}
+                  </span>
                 )}
               </div>
-            </div>
-          )}
+            )}
 
-          {isAdmin && toast && (
-            <p className={`text-sm ${toast.ok ? 'text-green-400' : 'text-red-400'}`}>{toast.msg}</p>
-          )}
+            {!isAdmin && zones.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {zones.length} zona{zones.length !== 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+        )}
 
-          {isAdmin && (
-            <div className="flex gap-3 items-center">
-              <Button id="zones-save" onClick={save} disabled={saving}>
-                {saving ? 'Salvando...' : 'Salvar zonas'}
-              </Button>
-              {zones.length > 0 && (
-                <Button id="zones-clear" variant="outline" onClick={() => setConfirmClear(true)}>
-                  Limpar todas
-                </Button>
-              )}
-              {zones.length > 0 && (
-                <span className="text-xs text-muted-foreground">{zones.length} zona{zones.length !== 1 ? 's' : ''}</span>
-              )}
-            </div>
-          )}
-
-          {!isAdmin && zones.length > 0 && (
-            <p className="text-xs text-muted-foreground">{zones.length} zona{zones.length !== 1 ? 's' : ''}</p>
-          )}
-        </div>
-      )}
-
-      <ConfirmDialog
-        open={confirmClear}
-        title="Limpar todas as zonas"
-        message="Todas as zonas serão removidas. Esta ação não pode ser desfeita."
-        confirmLabel="Limpar"
-        danger
-        onConfirm={() => { setZones([]); setSelectedIdx(null); setConfirmClear(false) }}
-        onCancel={() => setConfirmClear(false)}
-      />
-    </div>
+        <ConfirmDialog
+          open={confirmClear}
+          title="Limpar todas as zonas"
+          message="Todas as zonas serão removidas. Esta ação não pode ser desfeita."
+          confirmLabel="Limpar"
+          danger
+          onConfirm={() => {
+            setZones([])
+            setSelectedIdx(null)
+            setConfirmClear(false)
+          }}
+          onCancel={() => setConfirmClear(false)}
+        />
+      </div>
     </Layout>
   )
 }

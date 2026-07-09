@@ -40,9 +40,18 @@ const END_EPSILON_SEC = 0.25
 // dependeria só do evento nativo `ended` do <video> — que gravações reais não fragmentadas
 // nem sempre disparam de forma confiável (foi a causa da reprodução contínua do Histórico
 // travar entre gravações em alguns casos).
-export function shouldAdvance(currentTime: number, toSeconds: number, realDuration: number | undefined): boolean {
+export function shouldAdvance(
+  currentTime: number,
+  toSeconds: number,
+  realDuration: number | undefined,
+): boolean {
   if (Number.isFinite(toSeconds) && currentTime >= toSeconds) return true
-  if (realDuration !== undefined && Number.isFinite(realDuration) && currentTime >= realDuration - END_EPSILON_SEC) return true
+  if (
+    realDuration !== undefined &&
+    Number.isFinite(realDuration) &&
+    currentTime >= realDuration - END_EPSILON_SEC
+  )
+    return true
   return false
 }
 

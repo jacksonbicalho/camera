@@ -13,7 +13,10 @@ export interface EventReport {
   heatmap?: { date: string; hour: number; count: number }[]
 }
 
-export interface CategoryDetail { total: number; labels: { label: string; count: number }[] }
+export interface CategoryDetail {
+  total: number
+  labels: { label: string; count: number }[]
+}
 
 // categoryDetail devolve o total e o detalhamento por label de uma categoria, para o
 // modal: `estados` vem de `byCategory`; as demais somam os labels que caem na categoria

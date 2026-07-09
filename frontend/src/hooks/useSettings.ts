@@ -77,15 +77,20 @@ export function useSettings() {
 
   useEffect(() => {
     fetch('/api/settings', { headers: authHeaders() })
-      .then(res => {
-        if (res.status === 401) { onUnauthorized(); return null }
+      .then((res) => {
+        if (res.status === 401) {
+          onUnauthorized()
+          return null
+        }
         return res.json()
       })
-      .then(data => { if (data) setSettings(data) })
+      .then((data) => {
+        if (data) setSettings(data)
+      })
       .catch(() => {})
   }, [key])
 
-  const reload = () => setKey(k => k + 1)
+  const reload = () => setKey((k) => k + 1)
 
   return { settings, reload }
 }
@@ -95,11 +100,16 @@ export function useAbout() {
 
   useEffect(() => {
     fetch('/api/about', { headers: authHeaders() })
-      .then(res => {
-        if (res.status === 401) { onUnauthorized(); return null }
+      .then((res) => {
+        if (res.status === 401) {
+          onUnauthorized()
+          return null
+        }
         return res.json()
       })
-      .then(data => { if (data) setAbout(data) })
+      .then((data) => {
+        if (data) setAbout(data)
+      })
       .catch(() => {})
   }, [])
 

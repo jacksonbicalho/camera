@@ -4,7 +4,10 @@ import { categoryBuckets, axisTicks, categoryDetail } from './reportsUtils'
 describe('categoryBuckets', () => {
   it('dobra labels nas categorias (vazio→movimento, pessoa, outro→ia)', () => {
     expect(categoryBuckets({ '': 5, pessoa: 3, carro: 2 })).toEqual({
-      movimento: 5, pessoa: 3, ia: 2, estados: 0,
+      movimento: 5,
+      pessoa: 3,
+      ia: 2,
+      estados: 0,
     })
   })
   it('soma múltiplos labels da mesma categoria', () => {
@@ -12,7 +15,10 @@ describe('categoryBuckets', () => {
   })
   it('inclui estados vindos do byCategory do backend', () => {
     expect(categoryBuckets({ '': 5, pessoa: 3 }, { estados: 7 })).toEqual({
-      movimento: 5, pessoa: 3, ia: 0, estados: 7,
+      movimento: 5,
+      pessoa: 3,
+      ia: 0,
+      estados: 7,
     })
   })
 })
@@ -22,7 +28,10 @@ describe('categoryDetail', () => {
   it('ia: total e labels ordenados desc, sem o label vazio', () => {
     expect(categoryDetail('ia', byLabel)).toEqual({
       total: 12,
-      labels: [{ label: 'carro', count: 10 }, { label: 'cachorro', count: 2 }],
+      labels: [
+        { label: 'carro', count: 10 },
+        { label: 'cachorro', count: 2 },
+      ],
     })
   })
   it('pessoa: total e label(s) que casam pessoa', () => {
@@ -40,7 +49,8 @@ describe('categoryDetail', () => {
 })
 
 describe('axisTicks', () => {
-  const days = (n: number) => Array.from({ length: n }, (_, i) => `2026-06-${String(i + 1).padStart(2, '0')}`)
+  const days = (n: number) =>
+    Array.from({ length: n }, (_, i) => `2026-06-${String(i + 1).padStart(2, '0')}`)
 
   it('lista vazia → sem ticks', () => {
     expect(axisTicks([], 6)).toEqual([])
@@ -60,7 +70,7 @@ describe('axisTicks', () => {
   })
   it('índices são crescentes e sem duplicatas', () => {
     const t = axisTicks(days(30), 6)
-    const idx = t.map(x => x.index)
+    const idx = t.map((x) => x.index)
     expect(idx).toEqual([...idx].sort((a, b) => a - b))
     expect(new Set(idx).size).toBe(idx.length)
   })

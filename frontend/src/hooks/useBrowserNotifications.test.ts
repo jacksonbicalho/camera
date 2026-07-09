@@ -92,7 +92,9 @@ describe('useBrowserNotifications — preferência persistida', () => {
     vi.stubGlobal('Notification', makeNotificationMock('granted'))
     const { result } = renderHook(() => useBrowserNotifications())
 
-    act(() => { result.current.disable() })
+    act(() => {
+      result.current.disable()
+    })
 
     expect(result.current.enabled).toBe(false)
     expect(localStorage.getItem(PREF_KEY)).toBe('false')
@@ -111,7 +113,9 @@ describe('useBrowserNotifications — notify', () => {
       await result.current.requestAndEnable()
     })
 
-    act(() => { result.current.notify('entrada', 0.042) })
+    act(() => {
+      result.current.notify('entrada', 0.042)
+    })
 
     expect(mock).toHaveBeenCalledOnce()
     expect(mock).toHaveBeenCalledWith(
@@ -127,7 +131,9 @@ describe('useBrowserNotifications — notify', () => {
     const { result } = renderHook(() => useBrowserNotifications())
     // enabled = false por padrão
 
-    act(() => { result.current.notify('entrada', 0.042) })
+    act(() => {
+      result.current.notify('entrada', 0.042)
+    })
 
     expect(mock).not.toHaveBeenCalled()
   })
@@ -139,25 +145,42 @@ describe('useBrowserNotifications — notify', () => {
 
     const { result } = renderHook(() => useBrowserNotifications())
 
-    act(() => { result.current.notify('entrada', 0.042) })
+    act(() => {
+      result.current.notify('entrada', 0.042)
+    })
 
     expect(mock).not.toHaveBeenCalled()
   })
 
   it('chama onClick ao clicar na notificação', async () => {
-    const instances: Array<{ onclick: (() => void) | null; onclose: null; close: ReturnType<typeof vi.fn> }> = []
-    function NotificationCtor(this: { onclick: null; onclose: null; close: ReturnType<typeof vi.fn> }) {
-      this.onclick = null; this.onclose = null; this.close = vi.fn(); instances.push(this)
+    const instances: Array<{
+      onclick: (() => void) | null
+      onclose: null
+      close: ReturnType<typeof vi.fn>
+    }> = []
+    function NotificationCtor(this: {
+      onclick: null
+      onclose: null
+      close: ReturnType<typeof vi.fn>
+    }) {
+      this.onclick = null
+      this.onclose = null
+      this.close = vi.fn()
+      instances.push(this)
     }
     NotificationCtor.permission = 'default' as NotificationPermission
     NotificationCtor.requestPermission = vi.fn().mockResolvedValue('granted')
     vi.stubGlobal('Notification', NotificationCtor)
 
     const { result } = renderHook(() => useBrowserNotifications())
-    await act(async () => { await result.current.requestAndEnable() })
+    await act(async () => {
+      await result.current.requestAndEnable()
+    })
 
     const onClick = vi.fn()
-    act(() => { result.current.notify('entrada', 0.042, undefined, onClick) })
+    act(() => {
+      result.current.notify('entrada', 0.042, undefined, onClick)
+    })
 
     instances[0]?.onclick?.()
     expect(onClick).toHaveBeenCalledOnce()
@@ -168,7 +191,9 @@ describe('useBrowserNotifications — notify', () => {
     const { result } = renderHook(() => useBrowserNotifications())
 
     expect(() => {
-      act(() => { result.current.notify('entrada', 0.042) })
+      act(() => {
+        result.current.notify('entrada', 0.042)
+      })
     }).not.toThrow()
   })
 })
@@ -176,7 +201,11 @@ describe('useBrowserNotifications — notify', () => {
 describe('useBrowserNotifications — closeBrowserNotification', () => {
   it('fecha a notificação ativa da câmera informada', async () => {
     const instances: Array<{ onclick: null; onclose: null; close: ReturnType<typeof vi.fn> }> = []
-    function NotificationCtor(this: { onclick: null; onclose: null; close: ReturnType<typeof vi.fn> }) {
+    function NotificationCtor(this: {
+      onclick: null
+      onclose: null
+      close: ReturnType<typeof vi.fn>
+    }) {
       this.onclick = null
       this.onclose = null
       this.close = vi.fn()
@@ -187,17 +216,27 @@ describe('useBrowserNotifications — closeBrowserNotification', () => {
     vi.stubGlobal('Notification', NotificationCtor)
 
     const { result } = renderHook(() => useBrowserNotifications())
-    await act(async () => { await result.current.requestAndEnable() })
-    act(() => { result.current.notify('cam1', 0.5) })
+    await act(async () => {
+      await result.current.requestAndEnable()
+    })
+    act(() => {
+      result.current.notify('cam1', 0.5)
+    })
 
-    act(() => { result.current.closeBrowserNotification('cam1') })
+    act(() => {
+      result.current.closeBrowserNotification('cam1')
+    })
 
     expect(instances[0].close).toHaveBeenCalledOnce()
   })
 
   it('closeAllBrowserNotifications fecha todas as notificações ativas', async () => {
     const instances: Array<{ onclick: null; onclose: null; close: ReturnType<typeof vi.fn> }> = []
-    function NotificationCtor(this: { onclick: null; onclose: null; close: ReturnType<typeof vi.fn> }) {
+    function NotificationCtor(this: {
+      onclick: null
+      onclose: null
+      close: ReturnType<typeof vi.fn>
+    }) {
       this.onclick = null
       this.onclose = null
       this.close = vi.fn()
@@ -208,11 +247,19 @@ describe('useBrowserNotifications — closeBrowserNotification', () => {
     vi.stubGlobal('Notification', NotificationCtor)
 
     const { result } = renderHook(() => useBrowserNotifications())
-    await act(async () => { await result.current.requestAndEnable() })
-    act(() => { result.current.notify('cam1', 0.5) })
-    act(() => { result.current.notify('cam2', 0.3) })
+    await act(async () => {
+      await result.current.requestAndEnable()
+    })
+    act(() => {
+      result.current.notify('cam1', 0.5)
+    })
+    act(() => {
+      result.current.notify('cam2', 0.3)
+    })
 
-    act(() => { result.current.closeAllBrowserNotifications() })
+    act(() => {
+      result.current.closeAllBrowserNotifications()
+    })
 
     expect(instances[0].close).toHaveBeenCalledOnce()
     expect(instances[1].close).toHaveBeenCalledOnce()

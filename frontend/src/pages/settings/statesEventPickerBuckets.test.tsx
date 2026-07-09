@@ -21,20 +21,37 @@ const events = [
 ]
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn(async (url: unknown) => {
-    const u = String(url)
-    if (u.includes('/motion')) return new Response(JSON.stringify({ events }), { status: 200 })
-    return new Response('[]', { status: 200 })
-  }))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: unknown) => {
+      const u = String(url)
+      if (u.includes('/motion')) return new Response(JSON.stringify({ events }), { status: 200 })
+      return new Response('[]', { status: 200 })
+    }),
+  )
 })
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 function base(): StateClassifier {
   return {
-    name: 'Janela', threshold: 0.8, trigger_motion: false, trigger_interval_seconds: 10,
-    crop_x: 0.3, crop_y: 0.3, crop_w: 0.4, crop_h: 0.4, min_consecutive: 3, enabled: true,
+    name: 'Janela',
+    threshold: 0.8,
+    trigger_motion: false,
+    trigger_interval_seconds: 10,
+    crop_x: 0.3,
+    crop_y: 0.3,
+    crop_w: 0.4,
+    crop_h: 0.4,
+    min_consecutive: 3,
+    enabled: true,
     classes: ['acesa', 'apagada'],
-    notify_enabled: false, footer_enabled: false, notify_user_ids: [], footer_user_ids: [],
+    notify_enabled: false,
+    footer_enabled: false,
+    notify_user_ids: [],
+    footer_user_ids: [],
   }
 }
 
@@ -42,7 +59,13 @@ function Harness() {
   const [value, setValue] = useState<StateClassifier>(base())
   return (
     <MemoryRouter>
-      <ClassifierForm cameraId="cam1" value={value} onChange={setValue} onDone={() => {}} onCancel={() => {}} />
+      <ClassifierForm
+        cameraId="cam1"
+        value={value}
+        onChange={setValue}
+        onDone={() => {}}
+        onCancel={() => {}}
+      />
     </MemoryRouter>
   )
 }
@@ -88,8 +111,10 @@ describe('EventPicker — rodapé com uma linha por classificação', () => {
     })
 
     // nenhuma thumbnail aponta para o frame absoluto da transição.
-    const imgs = Array.from(document.querySelectorAll('#state-frame-pick-events ~ * img, img')) as HTMLImageElement[]
-    expect(imgs.some(i => i.getAttribute('src')?.includes('state_history'))).toBe(false)
+    const imgs = Array.from(
+      document.querySelectorAll('#state-frame-pick-events ~ * img, img'),
+    ) as HTMLImageElement[]
+    expect(imgs.some((i) => i.getAttribute('src')?.includes('state_history'))).toBe(false)
   })
 
   it('"Limpar" remove a linha da classificação', async () => {
@@ -102,7 +127,11 @@ describe('EventPicker — rodapé com uma linha por classificação', () => {
     })
 
     fireEvent.click(checks[0])
-    const row = await waitFor(() => { const r = el('event-picker-row-acesa'); expect(r).toBeTruthy(); return r! })
+    const row = await waitFor(() => {
+      const r = el('event-picker-row-acesa')
+      expect(r).toBeTruthy()
+      return r!
+    })
 
     fireEvent.click(within(row).getByText('Limpar'))
     await waitFor(() => expect(el('event-picker-row-acesa')).toBeNull())

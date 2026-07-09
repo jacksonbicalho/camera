@@ -34,7 +34,7 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <NotificationsPage />
-    </MemoryRouter>
+    </MemoryRouter>,
   )
 }
 
@@ -48,7 +48,13 @@ describe('NotificationsPage', () => {
 
   it('lists notifications and triggers mark-read / delete', () => {
     mockNotifications = [
-      { id: 1, type: 'warning', message: 'Disco quase cheio', created_at: '2026-06-07T12:00:00Z', read: false },
+      {
+        id: 1,
+        type: 'warning',
+        message: 'Disco quase cheio',
+        created_at: '2026-06-07T12:00:00Z',
+        read: false,
+      },
       { id: 2, type: 'info', message: 'Já lida', created_at: '2026-06-06T10:00:00Z', read: true },
     ]
     mockUnread = 1
@@ -72,7 +78,15 @@ describe('NotificationsPage', () => {
 
   it('notification with link is clickable, navigates and marks read', () => {
     mockNotifications = [
-      { id: 7, type: 'info', title: 'Atualização disponível', message: 'Nova versão v2.0.0 disponível.', link: '/settings/about', created_at: '2026-06-26T12:00:00Z', read: false },
+      {
+        id: 7,
+        type: 'info',
+        title: 'Atualização disponível',
+        message: 'Nova versão v2.0.0 disponível.',
+        link: '/settings/about',
+        created_at: '2026-06-26T12:00:00Z',
+        read: false,
+      },
     ]
     mockUnread = 1
     renderPage()

@@ -16,32 +16,64 @@ vi.mock('../../components/Layout', () => ({
 vi.mock('../../components/CameraSettingsTabs', () => ({ default: () => <div /> }))
 
 const classifiers = [
-  { id: 1, name: 'Portão', classes: ['aberto', 'fechado'], trigger_interval_seconds: 10, threshold: 0.8, enabled: true, crop_x: 0.1, crop_y: 0.1, crop_w: 0.3, crop_h: 0.3, trigger_motion: false, min_consecutive: 3 },
-  { id: 2, name: 'Janela', classes: ['acesa', 'apagada'], trigger_interval_seconds: 3, threshold: 0.5, enabled: true, crop_x: 0.2, crop_y: 0.2, crop_w: 0.2, crop_h: 0.2, trigger_motion: false, min_consecutive: 2 },
+  {
+    id: 1,
+    name: 'Portão',
+    classes: ['aberto', 'fechado'],
+    trigger_interval_seconds: 10,
+    threshold: 0.8,
+    enabled: true,
+    crop_x: 0.1,
+    crop_y: 0.1,
+    crop_w: 0.3,
+    crop_h: 0.3,
+    trigger_motion: false,
+    min_consecutive: 3,
+  },
+  {
+    id: 2,
+    name: 'Janela',
+    classes: ['acesa', 'apagada'],
+    trigger_interval_seconds: 3,
+    threshold: 0.5,
+    enabled: true,
+    crop_x: 0.2,
+    crop_y: 0.2,
+    crop_w: 0.2,
+    crop_h: 0.2,
+    trigger_motion: false,
+    min_consecutive: 2,
+  },
 ]
 
 const trainCalls: { url: string; body: string }[] = []
 
 beforeEach(() => {
   trainCalls.length = 0
-  vi.stubGlobal('fetch', vi.fn(async (url: unknown, opts: { method?: string; body?: string } = {}) => {
-    const u = String(url)
-    const method = opts.method ?? 'GET'
-    if (method === 'POST' && u.includes('/train')) {
-      trainCalls.push({ url: u, body: String(opts.body ?? '') })
-      return new Response(JSON.stringify({ job_id: 'j1' }), { status: 200 })
-    }
-    if (u.endsWith('/classifiers')) {
-      return new Response(JSON.stringify(classifiers), { status: 200 })
-    }
-    if (u.includes('/state')) {
-      return new Response(JSON.stringify({ state: 'aberto' }), { status: 200 })
-    }
-    return new Response('{}', { status: 200 })
-  }))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: unknown, opts: { method?: string; body?: string } = {}) => {
+      const u = String(url)
+      const method = opts.method ?? 'GET'
+      if (method === 'POST' && u.includes('/train')) {
+        trainCalls.push({ url: u, body: String(opts.body ?? '') })
+        return new Response(JSON.stringify({ job_id: 'j1' }), { status: 200 })
+      }
+      if (u.endsWith('/classifiers')) {
+        return new Response(JSON.stringify(classifiers), { status: 200 })
+      }
+      if (u.includes('/state')) {
+        return new Response(JSON.stringify({ state: 'aberto' }), { status: 200 })
+      }
+      return new Response('{}', { status: 200 })
+    }),
+  )
 })
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 function renderPage() {
   return render(
@@ -74,8 +106,8 @@ describe('CameraStatesSettingsPage — botões de treino', () => {
     fireEvent.click(screen.getByText('Treinar todos'))
 
     await waitFor(() => expect(trainCalls).toHaveLength(2))
-    expect(trainCalls.map(c => c.url).join(' ')).toMatch(/\/classifiers\/1\/train/)
-    expect(trainCalls.map(c => c.url).join(' ')).toMatch(/\/classifiers\/2\/train/)
+    expect(trainCalls.map((c) => c.url).join(' ')).toMatch(/\/classifiers\/1\/train/)
+    expect(trainCalls.map((c) => c.url).join(' ')).toMatch(/\/classifiers\/2\/train/)
     await screen.findByText(/Treino iniciado em 2/i)
   })
 })

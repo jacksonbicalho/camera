@@ -38,8 +38,12 @@ describe('CameraForm advanced section', () => {
 
   it('submits all fields (advanced included) even while the section stays collapsed', () => {
     const { onSave } = renderForm()
-    fireEvent.change(screen.getByPlaceholderText('Sala, Garagem, Entrada'), { target: { value: 'Garagem' } })
-    fireEvent.change(screen.getByPlaceholderText('rtsp://usuario:senha@ip:554/stream'), { target: { value: 'rtsp://x/main' } })
+    fireEvent.change(screen.getByPlaceholderText('Sala, Garagem, Entrada'), {
+      target: { value: 'Garagem' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('rtsp://usuario:senha@ip:554/stream'), {
+      target: { value: 'rtsp://x/main' },
+    })
 
     fireEvent.click(screen.getByRole('button', { name: /^salvar$/i }))
 

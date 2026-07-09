@@ -32,7 +32,9 @@ const Ctx = createContext<ThemeContextValue>({
 })
 
 function prefersDark(): boolean {
-  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  return (
+    typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  )
 }
 
 // Resolve a color mode to a concrete dark/light. "system" follows the OS.
@@ -75,11 +77,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // The persisted preferences (user_settings keys 'theme'/'accent') hold
     // the color mode and the accent.
     fetch('/api/me/preferences', { headers: authHeaders() })
-      .then(res => {
-        if (res.status === 401) { onUnauthorized(); return null }
+      .then((res) => {
+        if (res.status === 401) {
+          onUnauthorized()
+          return null
+        }
         return res.json()
       })
-      .then(data => {
+      .then((data) => {
         if (data && isMode(data.theme)) {
           setModeState(data.theme)
           applyMode(data.theme)

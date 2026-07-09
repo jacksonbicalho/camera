@@ -27,7 +27,15 @@ interface DatePickerProps {
 
 // DatePicker — botão com a data + popover com o Calendar unificado (redesign do
 // Escopo B). Substitui os popovers de data ad-hoc da timeline e dos Estados.
-export default function DatePicker({ value, onChange, disableFuture, availableDays, openUp, align = 'left', id }: DatePickerProps) {
+export default function DatePicker({
+  value,
+  onChange,
+  disableFuture,
+  availableDays,
+  openUp,
+  align = 'left',
+  id,
+}: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -47,7 +55,13 @@ export default function DatePicker({ value, onChange, disableFuture, availableDa
 
   return (
     <div className="relative" ref={ref}>
-      <Button id={id} variant="outline" size="sm" className="tabular-nums gap-1.5" onClick={() => setOpen(o => !o)}>
+      <Button
+        id={id}
+        variant="outline"
+        size="sm"
+        className="tabular-nums gap-1.5"
+        onClick={() => setOpen((o) => !o)}
+      >
         <CalendarDays className="w-3.5 h-3.5" />
         {format(value, 'dd/MM/yyyy', { locale: ptBR })}
       </Button>
@@ -67,9 +81,18 @@ export default function DatePicker({ value, onChange, disableFuture, availableDa
             startMonth={cal.startMonth}
             endMonth={cal.endMonth}
             disabled={disabled.length > 0 ? disabled : undefined}
-            modifiers={cal.daySet.size > 0 ? { hasContent: (availableDays ?? []).map(parseDayKey) } : undefined}
+            modifiers={
+              cal.daySet.size > 0
+                ? { hasContent: (availableDays ?? []).map(parseDayKey) }
+                : undefined
+            }
             modifiersClassNames={{ hasContent: 'font-semibold text-primary' }}
-            onSelect={(d) => { if (d) { onChange(d); setOpen(false) } }}
+            onSelect={(d) => {
+              if (d) {
+                onChange(d)
+                setOpen(false)
+              }
+            }}
           />
         </div>
       )}

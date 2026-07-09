@@ -28,10 +28,15 @@ describe('ForgotPasswordPage', () => {
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: 'user@example.com' } })
     fireEvent.click(screen.getByRole('button', { name: /enviar/i }))
 
-    await waitFor(() => expect(mockFetch).toHaveBeenCalledWith('/api/auth/forgot-password', expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ email: 'user@example.com' }),
-    })))
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/auth/forgot-password',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ email: 'user@example.com' }),
+        }),
+      ),
+    )
     expect(await screen.findByText(/se o e-mail existir/i)).toBeTruthy()
   })
 

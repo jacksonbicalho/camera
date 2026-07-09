@@ -36,7 +36,8 @@ export default function ForgotPasswordPage() {
         </div>
         {sent ? (
           <p className="text-sm text-muted-foreground text-center">
-            Se o e-mail existir na nossa base, você vai receber um link para redefinir a senha em instantes.
+            Se o e-mail existir na nossa base, você vai receber um link para redefinir a senha em
+            instantes.
           </p>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -44,12 +45,14 @@ export default function ForgotPasswordPage() {
               Informe seu e-mail para receber um link de redefinição de senha.
             </p>
             <div>
-              <Label htmlFor="forgot-email" className="block text-muted-foreground mb-1">E-mail</Label>
+              <Label htmlFor="forgot-email" className="block text-muted-foreground mb-1">
+                E-mail
+              </Label>
               <Input
                 id="forgot-email"
                 type="email"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 autoFocus
                 autoComplete="email"
@@ -62,7 +65,9 @@ export default function ForgotPasswordPage() {
           </form>
         )}
         <p className="text-xs text-center mt-4">
-          <Link to="/login" className="text-primary hover:underline">Voltar para o login</Link>
+          <Link to="/login" className="text-primary hover:underline">
+            Voltar para o login
+          </Link>
         </p>
       </div>
     </div>

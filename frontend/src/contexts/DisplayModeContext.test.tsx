@@ -21,38 +21,44 @@ describe('DisplayModeContext', () => {
   })
 
   it('reads initial values from localStorage', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ sidebar: 'icons-text', player: 'text-only' }))
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ sidebar: 'icons-text', player: 'text-only' }),
+    )
     const { result } = renderHook(() => useDisplayMode(), { wrapper })
     expect(result.current.sidebar).toBe('icons-text')
     expect(result.current.player).toBe('text-only')
   })
 
   it('persists sidebar mode to localStorage', () => {
-    const { result } = renderHook(
-      () => ({ mode: useDisplayMode(), set: useSetDisplayMode() }),
-      { wrapper }
-    )
-    act(() => { result.current.set('sidebar', 'icons-text') })
+    const { result } = renderHook(() => ({ mode: useDisplayMode(), set: useSetDisplayMode() }), {
+      wrapper,
+    })
+    act(() => {
+      result.current.set('sidebar', 'icons-text')
+    })
     expect(result.current.mode.sidebar).toBe('icons-text')
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).sidebar).toBe('icons-text')
   })
 
   it('persists player mode to localStorage', () => {
-    const { result } = renderHook(
-      () => ({ mode: useDisplayMode(), set: useSetDisplayMode() }),
-      { wrapper }
-    )
-    act(() => { result.current.set('player', 'text-only') })
+    const { result } = renderHook(() => ({ mode: useDisplayMode(), set: useSetDisplayMode() }), {
+      wrapper,
+    })
+    act(() => {
+      result.current.set('player', 'text-only')
+    })
     expect(result.current.mode.player).toBe('text-only')
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).player).toBe('text-only')
   })
 
   it('changing one section does not affect the other', () => {
-    const { result } = renderHook(
-      () => ({ mode: useDisplayMode(), set: useSetDisplayMode() }),
-      { wrapper }
-    )
-    act(() => { result.current.set('sidebar', 'icons-text') })
+    const { result } = renderHook(() => ({ mode: useDisplayMode(), set: useSetDisplayMode() }), {
+      wrapper,
+    })
+    act(() => {
+      result.current.set('sidebar', 'icons-text')
+    })
     expect(result.current.mode.player).toBe('icons-only')
   })
 })

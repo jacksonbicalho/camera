@@ -9,7 +9,12 @@ export interface Recording {
   url: string
   is_recording: boolean
   has_motion: boolean
-  detections?: Array<{ label: string; confidence: number; frame_count: number; custom_model?: boolean }>
+  detections?: Array<{
+    label: string
+    confidence: number
+    frame_count: number
+    custom_model?: boolean
+  }>
 }
 
 export interface MotionBBox {
@@ -70,19 +75,19 @@ export function mergeRecordings(
   sortOrder: 'asc' | 'desc',
   hasMore: boolean,
 ): Recording[] {
-  const freshByName = new Map(fresh.map(r => [r.filename, r]))
-  const freshFilenames = new Set(fresh.map(r => r.filename))
+  const freshByName = new Map(fresh.map((r) => [r.filename, r]))
+  const freshFilenames = new Set(fresh.map((r) => r.filename))
   const freshAsc = [...fresh].sort((a, b) => a.filename.localeCompare(b.filename))
   const oldestFresh = freshAsc[0]?.filename ?? ''
   const newestFresh = freshAsc[freshAsc.length - 1]?.filename ?? ''
 
   const kept = prev
-    .map(r => {
+    .map((r) => {
       const f = freshByName.get(r.filename)
       if (!f) return r
       return sameRecording(r, f) ? r : f
     })
-    .filter(r => {
+    .filter((r) => {
       if (freshFilenames.has(r.filename)) return true
       // !hasMore: fresh é a lista completa — tudo fora dela foi deletado
       if (!hasMore) return false
@@ -90,19 +95,21 @@ export function mergeRecordings(
       return sortOrder === 'desc' ? r.filename < oldestFresh : r.filename > newestFresh
     })
 
-  const existingNames = new Set(prev.map(r => r.filename))
-  const newOnes = fresh.filter(r => !existingNames.has(r.filename))
+  const existingNames = new Set(prev.map((r) => r.filename))
+  const newOnes = fresh.filter((r) => !existingNames.has(r.filename))
 
   const result = [...kept, ...newOnes].sort((a, b) =>
     sortOrder === 'desc'
       ? b.filename.localeCompare(a.filename)
-      : a.filename.localeCompare(b.filename)
+      : a.filename.localeCompare(b.filename),
   )
 
   // Return same reference when nothing changed — React bails out and skips re-render
   if (
     result.length === prev.length &&
-    result.every((r, i) => r.filename === prev[i].filename && r.is_recording === prev[i].is_recording)
+    result.every(
+      (r, i) => r.filename === prev[i].filename && r.is_recording === prev[i].is_recording,
+    )
   ) {
     return prev
   }
@@ -136,7 +143,7 @@ export function secondStepTarget(
   currentDuration: number,
   dir: 1 | -1,
 ): SecondStep | null {
-  const curIdx = recsAsc.findIndex(r => r.filename === currentFilename)
+  const curIdx = recsAsc.findIndex((r) => r.filename === currentFilename)
   if (curIdx === -1) return null
   const newTime = currentTime + dir
   if (newTime >= 0 && (currentDuration <= 0 || newTime <= currentDuration)) {
@@ -145,7 +152,11 @@ export function secondStepTarget(
   if (dir > 0) {
     for (let i = curIdx + 1; i < recsAsc.length; i++) {
       if (!recsAsc[i].is_recording) {
-        return { kind: 'load', rec: recsAsc[i], offsetSeconds: Math.max(0, newTime - currentDuration) }
+        return {
+          kind: 'load',
+          rec: recsAsc[i],
+          offsetSeconds: Math.max(0, newTime - currentDuration),
+        }
       }
     }
     return null
@@ -262,7 +273,7 @@ export async function loadRecordingsData(
   const dateStr = format(date, 'yyyy-MM-dd')
   const res = await fetch(
     `/api/cameras/${cameraId}/recordings?date=${dateStr}&page=${page}&limit=${limit}&order=${order}`,
-    { headers: authHeaders() }
+    { headers: authHeaders() },
   )
   if (res.status === 401) return 401
   return res.json()
@@ -270,7 +281,9 @@ export async function loadRecordingsData(
 
 export async function loadMotionEvents(cameraId: string, date: Date): Promise<MotionEvent[]> {
   const dateStr = format(date, 'yyyy-MM-dd')
-  const res = await fetch(`/api/cameras/${cameraId}/motion?date=${dateStr}`, { headers: authHeaders() })
+  const res = await fetch(`/api/cameras/${cameraId}/motion?date=${dateStr}`, {
+    headers: authHeaders(),
+  })
   if (!res.ok) return []
   const data = await res.json()
   return data.events ?? []

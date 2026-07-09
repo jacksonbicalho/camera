@@ -9,8 +9,8 @@ describe('Footer', () => {
     render(<Footer />)
     const footer = screen.getByRole('contentinfo')
     expect(footer.id).toBe('footer')
-    expect(footer.textContent).toContain('os-camera')
-    expect(footer.textContent).toContain('monitoramento residencial')
+    expect(footer.textContent).toContain(`© ${new Date().getFullYear()} os-camera · Monitoramento`)
+    expect(footer.className).toContain('text-center')
   })
 
   it('respeita id e className sobrescritos', () => {

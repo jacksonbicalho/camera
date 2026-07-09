@@ -27,7 +27,13 @@ describe('PlayerControlsOverlay', () => {
   })
 
   it('com zoom ativo, mostra o botão de reset com a escala atual', () => {
-    render(<PlayerControlsOverlay id="p1" zoom={makeZoom({ isZoomed: true, scale: 2.5 })} onToggleFullscreen={vi.fn()} />)
+    render(
+      <PlayerControlsOverlay
+        id="p1"
+        zoom={makeZoom({ isZoomed: true, scale: 2.5 })}
+        onToggleFullscreen={vi.fn()}
+      />,
+    )
     const btn = document.getElementById('p1-zoom-reset')
     expect(btn).not.toBeNull()
     expect(btn?.textContent).toContain('2.5')
@@ -35,14 +41,22 @@ describe('PlayerControlsOverlay', () => {
 
   it('clicar no botão de reset chama zoom.reset', () => {
     const reset = vi.fn()
-    render(<PlayerControlsOverlay id="p1" zoom={makeZoom({ isZoomed: true, reset })} onToggleFullscreen={vi.fn()} />)
+    render(
+      <PlayerControlsOverlay
+        id="p1"
+        zoom={makeZoom({ isZoomed: true, reset })}
+        onToggleFullscreen={vi.fn()}
+      />,
+    )
     fireEvent.click(document.getElementById('p1-zoom-reset')!)
     expect(reset).toHaveBeenCalled()
   })
 
   it('clicar no botão de tela cheia chama onToggleFullscreen', () => {
     const onToggleFullscreen = vi.fn()
-    render(<PlayerControlsOverlay id="p1" zoom={makeZoom()} onToggleFullscreen={onToggleFullscreen} />)
+    render(
+      <PlayerControlsOverlay id="p1" zoom={makeZoom()} onToggleFullscreen={onToggleFullscreen} />,
+    )
     fireEvent.click(document.getElementById('p1-fullscreen')!)
     expect(onToggleFullscreen).toHaveBeenCalled()
   })

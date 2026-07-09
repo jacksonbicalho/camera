@@ -8,17 +8,54 @@ vi.mock('../auth', () => ({
   getToken: () => 'fake',
   onUnauthorized: vi.fn(),
 }))
-vi.mock('../components/Layout', () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
+vi.mock('../components/Layout', () => ({
+  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}))
 vi.mock('../components/DatePicker', () => ({ default: () => <div data-testid="datepicker" /> }))
 
-const cameras = [{ id: 'cam1', name: 'Corredor' }, { id: 'cam2', name: 'Quintal' }]
+const cameras = [
+  { id: 'cam1', name: 'Corredor' },
+  { id: 'cam2', name: 'Quintal' },
+]
 const moments = [
-  { camera_id: 'cam1', camera_name: 'Corredor', time: '2026-06-23T08:08:05Z', kind: 'state', label: 'aberto', category: 'estados', frame: '/recordings/state_history/1/x.jpg', score: 0.9 },
-  { camera_id: 'cam2', camera_name: 'Quintal', time: '2026-06-23T07:00:00Z', kind: 'motion', label: 'pessoa', category: 'pessoa', frame: '20260623070000_motion.jpg', score: 0.5 },
+  {
+    camera_id: 'cam1',
+    camera_name: 'Corredor',
+    time: '2026-06-23T08:08:05Z',
+    kind: 'state',
+    label: 'aberto',
+    category: 'estados',
+    frame: '/recordings/state_history/1/x.jpg',
+    score: 0.9,
+  },
+  {
+    camera_id: 'cam2',
+    camera_name: 'Quintal',
+    time: '2026-06-23T07:00:00Z',
+    kind: 'motion',
+    label: 'pessoa',
+    category: 'pessoa',
+    frame: '20260623070000_motion.jpg',
+    score: 0.5,
+  },
 ]
 const recordings = [
-  { id: 1, camera_id: 'cam1', camera_name: 'Corredor', start: '2026-06-23T23:50:00Z', has_motion: true, url: '/recordings/cam1/2026/06/23/c.mp4' },
-  { id: 2, camera_id: 'cam2', camera_name: 'Quintal', start: '2026-06-23T10:00:00Z', has_motion: false, url: '/recordings/cam2/2026/06/23/a.mp4' },
+  {
+    id: 1,
+    camera_id: 'cam1',
+    camera_name: 'Corredor',
+    start: '2026-06-23T23:50:00Z',
+    has_motion: true,
+    url: '/recordings/cam1/2026/06/23/c.mp4',
+  },
+  {
+    id: 2,
+    camera_id: 'cam2',
+    camera_name: 'Quintal',
+    start: '2026-06-23T10:00:00Z',
+    has_motion: false,
+    url: '/recordings/cam2/2026/06/23/a.mp4',
+  },
 ]
 // Gravações por câmera (endpoint usado por resolveEventRecordingUrl no clique de
 // momento) — distinto de /api/recordings (global, usado pela própria aba Gravações).
@@ -28,21 +65,47 @@ const camRecordings: Record<string, Array<{ id: number; start: string }>> = {
 }
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn((url: string) => {
-    if (url.startsWith('/api/cameras/cam1/motion') || url.startsWith('/api/cameras/cam2/motion')) {
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ events: [] }) })
-    }
-    const camMatch = url.match(/^\/api\/cameras\/(cam\d)\/recordings\?/)
-    if (camMatch) {
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ recordings: camRecordings[camMatch[1]] }) })
-    }
-    if (url.startsWith('/api/cameras')) return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
-    if (url.startsWith('/api/recordings')) return Promise.resolve({ status: 200, json: () => Promise.resolve({ recordings, total: 2 }) })
-    if (url.startsWith('/api/moments')) return Promise.resolve({ status: 200, json: () => Promise.resolve({ moments, total: 2, hasMore: false }) })
-    return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
-  }))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string) => {
+      if (
+        url.startsWith('/api/cameras/cam1/motion') ||
+        url.startsWith('/api/cameras/cam2/motion')
+      ) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ events: [] }),
+        })
+      }
+      const camMatch = url.match(/^\/api\/cameras\/(cam\d)\/recordings\?/)
+      if (camMatch) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ recordings: camRecordings[camMatch[1]] }),
+        })
+      }
+      if (url.startsWith('/api/cameras'))
+        return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+      if (url.startsWith('/api/recordings'))
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve({ recordings, total: 2 }),
+        })
+      if (url.startsWith('/api/moments'))
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve({ moments, total: 2, hasMore: false }),
+        })
+      return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+    }),
+  )
 })
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 // Sonda sempre montada (fora do <Routes>, mesmo padrão de ReportsPage.test.tsx) —
 // acompanha a URL corrente independente de qual <Route> casou.
@@ -103,7 +166,9 @@ describe('RecordingsPage', () => {
     const d = String(today.getDate()).padStart(2, '0')
     renderRecordings()
     await waitFor(() => {
-      expect(document.getElementById('test-location')!.textContent).toBe(`/recordings/${y}-${m}-${d}/24`)
+      expect(document.getElementById('test-location')!.textContent).toBe(
+        `/recordings/${y}-${m}-${d}/24`,
+      )
     })
   })
 
@@ -118,7 +183,9 @@ describe('RecordingsPage', () => {
     })
     expect(rec0.textContent).toContain('Corredor')
     expect(document.getElementById('recording-2')?.textContent).toContain('Quintal')
-    expect(document.getElementById('test-location')!.textContent).toMatch(/\/recordings\/\d{4}-\d{2}-\d{2}\/24\/recordings$/)
+    expect(document.getElementById('test-location')!.textContent).toMatch(
+      /\/recordings\/\d{4}-\d{2}-\d{2}\/24\/recordings$/,
+    )
 
     fetchMock.mockClear()
     fireEvent.click(rec0)
@@ -127,7 +194,9 @@ describe('RecordingsPage', () => {
     await waitFor(() => {
       expect(document.getElementById('test-location')!.textContent).toBe('/recording/cam1/1')
     })
-    expect(fetchMock.mock.calls.some(([u]: [string]) => String(u).includes('/motion?date='))).toBe(false)
+    expect(fetchMock.mock.calls.some(([u]: [string]) => String(u).includes('/motion?date='))).toBe(
+      false,
+    )
   })
 
   it('a janela dispara fetch de /api/recordings com window e motion_only (aba Gravações)', async () => {
@@ -143,8 +212,11 @@ describe('RecordingsPage', () => {
     fireEvent.click(document.getElementById('recordings-motion-only')!)
 
     await waitFor(() => {
-      const called = fetchMock.mock.calls.some(([u]: [string]) =>
-        u.startsWith('/api/recordings') && u.includes('window=6') && u.includes('motion_only=true'),
+      const called = fetchMock.mock.calls.some(
+        ([u]: [string]) =>
+          u.startsWith('/api/recordings') &&
+          u.includes('window=6') &&
+          u.includes('motion_only=true'),
       )
       if (!called) throw new Error('fetch com window=6&motion_only não disparou')
     })
@@ -161,12 +233,16 @@ describe('RecordingsPage', () => {
 
     fireEvent.change(input, { target: { value: 'portao' } })
 
-    await waitFor(() => {
-      const called = fetchMock.mock.calls.some(([u]: [string]) =>
-        u.startsWith('/api/moments') && u.includes('q=portao') && u.includes('page=1'),
-      )
-      if (!called) throw new Error('fetch com q=portao não disparou')
-    }, { timeout: 1500 })
+    await waitFor(
+      () => {
+        const called = fetchMock.mock.calls.some(
+          ([u]: [string]) =>
+            u.startsWith('/api/moments') && u.includes('q=portao') && u.includes('page=1'),
+        )
+        if (!called) throw new Error('fetch com q=portao não disparou')
+      },
+      { timeout: 1500 },
+    )
   })
 
   it('abrir /recordings/2026-06-23/6/recordings carrega direto na aba Gravações com a data e janela da URL', async () => {
@@ -176,8 +252,9 @@ describe('RecordingsPage', () => {
       expect(document.getElementById('recording-1')).toBeTruthy()
     })
     expect(document.getElementById('recordings-view-recordings')?.className).toContain('bg-primary')
-    const called = fetchMock.mock.calls.some(([u]: [string]) =>
-      u.startsWith('/api/recordings') && u.includes('date=2026-06-23') && u.includes('window=6'),
+    const called = fetchMock.mock.calls.some(
+      ([u]: [string]) =>
+        u.startsWith('/api/recordings') && u.includes('date=2026-06-23') && u.includes('window=6'),
     )
     expect(called).toBe(true)
   })

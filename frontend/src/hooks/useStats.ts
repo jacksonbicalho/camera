@@ -64,16 +64,25 @@ export function useStats(): { stats: Stats | null; connected: boolean } {
 
     function fetchStats() {
       fetch('/api/stats', { headers: authHeaders() })
-        .then(res => {
-          if (res.status === 401) { onUnauthorized(); return }
-          if (!res.ok) { onFailure(); return }
+        .then((res) => {
+          if (res.status === 401) {
+            onUnauthorized()
+            return
+          }
+          if (!res.ok) {
+            onFailure()
+            return
+          }
           res.json().then(onSuccess).catch(onFailure)
         })
         .catch(onFailure)
     }
     fetchStats()
     const interval = setInterval(fetchStats, POLL_MS)
-    return () => { cancelled.value = true; clearInterval(interval) }
+    return () => {
+      cancelled.value = true
+      clearInterval(interval)
+    }
   }, [])
 
   return { stats, connected }

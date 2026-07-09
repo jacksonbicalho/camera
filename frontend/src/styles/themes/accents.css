@@ -11,25 +11,37 @@
    com os 3 tokens acima e adicionar a opção em AppearanceSettingsPage.tsx
    (ACCENT_OPTIONS) + validAccents no backend (internal/server/theme.go).
    ============================================================================ */
-[data-accent="violet"] {
+
+/* Nunca aplicado no <html> (ThemeContext remove o atributo em vez de setar
+   "default" — o fallback ambiente continua vindo de themes/default.css
+   intocado). Existe só pra permitir que os swatches de preview
+   (AccentSwatchGroup/AccentSwatchNav) escopem localmente a própria cor com
+   data-accent="default", em vez de herdar o accent globalmente ativo. */
+[data-accent='default'] {
+  --color-primary: #1976d2;
+  --color-primary-strong: #1565c0;
+  --color-ring: #1976d2;
+}
+
+[data-accent='violet'] {
   --color-primary: #7c3aed;
   --color-primary-strong: #6d28d9;
   --color-ring: #7c3aed;
 }
 
-[data-accent="teal"] {
+[data-accent='teal'] {
   --color-primary: #0d9488;
   --color-primary-strong: #0f766e;
   --color-ring: #0d9488;
 }
 
-[data-accent="coral"] {
+[data-accent='coral'] {
   --color-primary: #e11d48;
   --color-primary-strong: #be123c;
   --color-ring: #e11d48;
 }
 
-[data-accent="amber"] {
+[data-accent='amber'] {
   --color-primary: #fb8c00;
   --color-primary-strong: #f57c00;
   --color-ring: #fb8c00;

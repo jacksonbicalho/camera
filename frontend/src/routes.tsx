@@ -31,7 +31,8 @@ const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'))
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation()
-  if (!getToken()) return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />
+  if (!getToken())
+    return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />
   if (mustChangePassword()) return <Navigate to="/change-password" replace />
   return <>{children}</>
 }
@@ -50,47 +51,299 @@ export function Lazy({ children }: { children: React.ReactNode }) {
 // e suas dependências exclusivas foram removidos, assim como `legacyRoutes`).
 export const routes = (
   <>
-    <Route path="/" element={<Lazy><AllCamerasPage /></Lazy>} />
-    <Route path="/live/:cameraId" element={<Lazy><LivePage /></Lazy>} />
-    <Route path="/history/:cameraId" element={<Lazy><HistoryPage /></Lazy>} />
-    <Route path="/history/:cameraId/:recordingId" element={<Lazy><HistoryPage /></Lazy>} />
-    <Route path="/recording/:cameraId/:recordingId" element={<Lazy><VideoBrowserPage /></Lazy>} />
-    <Route path="/recording/:cameraId/:recordingId/:motionId" element={<Lazy><VideoBrowserPage /></Lazy>} />
-    <Route path="/reports/:cameraId/:date/:days" element={<Lazy><ReportsPage /></Lazy>} />
-    <Route path="/dashboard" element={<Lazy><DashboardPage /></Lazy>} />
-    <Route path="/recordings" element={<Lazy><RecordingsPage /></Lazy>} />
-    <Route path="/recordings/:date" element={<Lazy><RecordingsPage /></Lazy>} />
-    <Route path="/recordings/:date/:hour" element={<Lazy><RecordingsPage /></Lazy>} />
-    <Route path="/recordings/:date/:hour/:view" element={<Lazy><RecordingsPage /></Lazy>} />
+    <Route
+      path="/"
+      element={
+        <Lazy>
+          <AllCamerasPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/live/:cameraId"
+      element={
+        <Lazy>
+          <LivePage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/history/:cameraId"
+      element={
+        <Lazy>
+          <HistoryPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/history/:cameraId/:recordingId"
+      element={
+        <Lazy>
+          <HistoryPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/recording/:cameraId/:recordingId"
+      element={
+        <Lazy>
+          <VideoBrowserPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/recording/:cameraId/:recordingId/:motionId"
+      element={
+        <Lazy>
+          <VideoBrowserPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/reports/:cameraId/:date/:days"
+      element={
+        <Lazy>
+          <ReportsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/dashboard"
+      element={
+        <Lazy>
+          <DashboardPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/recordings"
+      element={
+        <Lazy>
+          <RecordingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/recordings/:date"
+      element={
+        <Lazy>
+          <RecordingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/recordings/:date/:hour"
+      element={
+        <Lazy>
+          <RecordingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/recordings/:date/:hour/:view"
+      element={
+        <Lazy>
+          <RecordingsPage />
+        </Lazy>
+      }
+    />
     {/* Todo o settings usa Layout novo agora (SettingsLayout/AppLayout legado
         fechado) — um único ícone "Configurações" no Sidebar novo, tudo canonizado
         em /settings/*. /stats (bare, histórico) segue como alias de /settings/stats. */}
-    <Route path="/settings/stats" element={<Lazy><StatsPage /></Lazy>} />
-    <Route path="/stats" element={<Lazy><StatsPage /></Lazy>} />
-    <Route path="/settings/system" element={<Lazy><SystemSettingsPage /></Lazy>} />
-    <Route path="/settings/server" element={<Lazy><ServerSettingsPage /></Lazy>} />
-    <Route path="/settings/storage" element={<Lazy><StorageSettingsPage /></Lazy>} />
-    <Route path="/settings/users" element={<Lazy><UsersSettingsPage /></Lazy>} />
-    <Route path="/settings/users/new" element={<Lazy><UsersSettingsPage /></Lazy>} />
-    <Route path="/settings/users/:id" element={<Lazy><UserDetailSettingsPage /></Lazy>} />
-    <Route path="/settings/appearance" element={<Lazy><AppearanceSettingsPage /></Lazy>} />
-    <Route path="/settings/about" element={<Lazy><AboutPage /></Lazy>} />
-    <Route path="/settings/cameras" element={<Lazy><CamerasSettingsPage /></Lazy>} />
-    <Route path="/settings/cameras/new" element={<Lazy><CamerasSettingsPage /></Lazy>} />
-    <Route path="/settings/cameras/edit/:id" element={<Lazy><CameraDetailSettingsPage /></Lazy>} />
-    <Route path="/settings/cameras/motion/:id" element={<Lazy><CameraMotionSettingsPage /></Lazy>} />
-    <Route path="/settings/cameras/zones/:id" element={<Lazy><CameraZonesSettingsPage /></Lazy>} />
-    <Route path="/settings/cameras/analysis/:id" element={<Lazy><CameraAnalysisSettingsPage /></Lazy>} />
-    <Route path="/settings/cameras/states/:id" element={<Lazy><CameraStatesSettingsPage /></Lazy>} />
-    <Route path="/settings/cameras/:id/states/edit/:cid" element={<Lazy><CameraStatesSettingsPage /></Lazy>} />
-    <Route path="/settings/cameras/:id" element={<Lazy><CameraDetailSettingsPage /></Lazy>} />
-    <Route path="/settings/discover" element={<Lazy><DiscoverPage /></Lazy>} />
-    <Route path="/settings/analysis" element={<Lazy><AnalysisSettingsPage /></Lazy>} />
+    <Route
+      path="/settings/stats"
+      element={
+        <Lazy>
+          <StatsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/stats"
+      element={
+        <Lazy>
+          <StatsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/system"
+      element={
+        <Lazy>
+          <SystemSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/server"
+      element={
+        <Lazy>
+          <ServerSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/storage"
+      element={
+        <Lazy>
+          <StorageSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/users"
+      element={
+        <Lazy>
+          <UsersSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/users/new"
+      element={
+        <Lazy>
+          <UsersSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/users/:id"
+      element={
+        <Lazy>
+          <UserDetailSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/appearance"
+      element={
+        <Lazy>
+          <AppearanceSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/about"
+      element={
+        <Lazy>
+          <AboutPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/cameras"
+      element={
+        <Lazy>
+          <CamerasSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/cameras/new"
+      element={
+        <Lazy>
+          <CamerasSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/cameras/edit/:id"
+      element={
+        <Lazy>
+          <CameraDetailSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/cameras/motion/:id"
+      element={
+        <Lazy>
+          <CameraMotionSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/cameras/zones/:id"
+      element={
+        <Lazy>
+          <CameraZonesSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/cameras/analysis/:id"
+      element={
+        <Lazy>
+          <CameraAnalysisSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/cameras/states/:id"
+      element={
+        <Lazy>
+          <CameraStatesSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/cameras/:id/states/edit/:cid"
+      element={
+        <Lazy>
+          <CameraStatesSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/cameras/:id"
+      element={
+        <Lazy>
+          <CameraDetailSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/discover"
+      element={
+        <Lazy>
+          <DiscoverPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/analysis"
+      element={
+        <Lazy>
+          <AnalysisSettingsPage />
+        </Lazy>
+      }
+    />
     {/* AppLayout/AppSidebar legado fechado — /change-password fica em App.tsx, fora
         do <Lazy>, porque RequireAuth redireciona pra lá quando mustChangePassword()
         (envolvê-la em Lazy causaria loop de redirect). */}
-    <Route path="/notifications" element={<Lazy><NotificationsPage /></Lazy>} />
-    <Route path="/events" element={<Lazy><PlaceholderPage title="Eventos" description="Visão global de eventos em construção." /></Lazy>} />
-    <Route path="/users" element={<Lazy><PlaceholderPage title="Usuários" description="Gestão de usuários em construção." /></Lazy>} />
+    <Route
+      path="/notifications"
+      element={
+        <Lazy>
+          <NotificationsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/events"
+      element={
+        <Lazy>
+          <PlaceholderPage title="Eventos" description="Visão global de eventos em construção." />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/users"
+      element={
+        <Lazy>
+          <PlaceholderPage title="Usuários" description="Gestão de usuários em construção." />
+        </Lazy>
+      }
+    />
   </>
 )

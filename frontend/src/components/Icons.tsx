@@ -1,4 +1,4 @@
-import type { SVGProps } from "react"
+import type { SVGProps } from 'react'
 
 // Ícones SVG inline (sem dependência lucide-react). Os path data foram
 // extraídos da lucide-react v1.14.0 (ISC) que o projeto usava; o componente
@@ -416,7 +416,6 @@ export function ZoomOut(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-
 export function Github({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>
@@ -427,7 +426,16 @@ export function Github({ className, ...props }: SVGProps<SVGSVGElement>) {
 
 export function CameraCapture({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
       {/* Corner brackets — 5px arms, flush to edge */}
       <path d="M2 7V2h5" />
       <path d="M22 7V2h-5" />
@@ -457,7 +465,12 @@ export function CameraLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
     <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
       <rect width="512" height="512" rx="112" style={badge} />
       <rect x="68" y="172" width="376" height="252" rx="36" style={surface} strokeWidth="20" />
-      <path d="M188 172 L188 132 Q188 112 208 112 L304 112 Q324 112 324 132 L324 172" style={surface} strokeWidth="20" strokeLinejoin="round" />
+      <path
+        d="M188 172 L188 132 Q188 112 208 112 L304 112 Q324 112 324 132 L324 172"
+        style={surface}
+        strokeWidth="20"
+        strokeLinejoin="round"
+      />
       <circle cx="256" cy="298" r="90" style={surface} strokeWidth="20" />
       <circle cx="256" cy="298" r="56" style={surface} strokeWidth="12" />
       <circle cx="256" cy="298" r="26" style={dot} />

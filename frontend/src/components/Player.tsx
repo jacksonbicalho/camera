@@ -139,7 +139,7 @@ export default function Player({
           setupHLS(v)
         }
 
-        conn.ontrack = ev => {
+        conn.ontrack = (ev) => {
           const [stream] = ev.streams
           if (stream) v.srcObject = stream
         }
@@ -272,7 +272,7 @@ export default function Player({
         </div>
       ) : playBlocked ? (
         <button
-          onClick={e => {
+          onClick={(e) => {
             e.stopPropagation()
             videoRef.current?.play().catch(() => {})
             setPlayBlocked(false)

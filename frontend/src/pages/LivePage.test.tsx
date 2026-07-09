@@ -16,11 +16,18 @@ vi.mock('../contexts/UserNotificationContext', () => ({
 
 vi.mock('../contexts/NotificationContext', () => ({
   useNotifications: () => ({
-    notifications: [], unreadCount: 0,
-    markRead: vi.fn(), markSelectedRead: vi.fn(),
-    remove: vi.fn(), removeAll: vi.fn(), removeSelected: vi.fn(),
-    browserSupported: false, browserPermission: 'default', browserEnabled: false,
-    enableBrowserNotifications: vi.fn(), disableBrowserNotifications: vi.fn(),
+    notifications: [],
+    unreadCount: 0,
+    markRead: vi.fn(),
+    markSelectedRead: vi.fn(),
+    remove: vi.fn(),
+    removeAll: vi.fn(),
+    removeSelected: vi.fn(),
+    browserSupported: false,
+    browserPermission: 'default',
+    browserEnabled: false,
+    enableBrowserNotifications: vi.fn(),
+    disableBrowserNotifications: vi.fn(),
   }),
 }))
 
@@ -84,7 +91,9 @@ describe('LivePage', () => {
     // Tabs no header: "Ao vivo" ativa, "Histórico" → /history/{id}. O status "ao vivo" é
     // sinalizado pelo dot da própria aba — sem badge redundante no header.
     expect(document.getElementById('camera-tab-live')?.getAttribute('aria-current')).toBe('page')
-    expect(document.getElementById('camera-tab-history')?.getAttribute('href')).toBe('/history/cam1')
+    expect(document.getElementById('camera-tab-history')?.getAttribute('href')).toBe(
+      '/history/cam1',
+    )
     expect(document.getElementById('live-header')?.textContent).not.toContain('AO VIVO')
     expect(document.getElementById('live-badge-live')).toBeNull()
     const dot = document.getElementById('camera-tab-live-dot')!
@@ -113,7 +122,10 @@ describe('LivePage', () => {
         if (url.startsWith('/api/cameras')) {
           return Promise.resolve({
             status: 200,
-            json: () => Promise.resolve([{ id: 'cam1', name: 'Entrada', live_transport: 'auto', recording_enabled: false }]),
+            json: () =>
+              Promise.resolve([
+                { id: 'cam1', name: 'Entrada', live_transport: 'auto', recording_enabled: false },
+              ]),
           })
         }
         return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })

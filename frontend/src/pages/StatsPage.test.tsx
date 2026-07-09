@@ -11,25 +11,54 @@ vi.mock('../auth', () => ({
 // realmente migrou pro Layout novo: se alguém reintroduzir SettingsLayout por
 // engano, o render quebraria por falta de NotificationProvider (SettingsLayout
 // embute AppLayout -> AppSidebar -> useNotifications()).
-vi.mock('../components/Layout', () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
+vi.mock('../components/Layout', () => ({
+  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}))
 
 const stats = {
-  recordings_bytes: 0, recordings_count: 0, recordings_duration_seconds: 0, forecast_seconds: 0,
-  disk_total_bytes: 100, disk_free_bytes: 50, camera_count: 0, connected_clients: 0,
-  max_size_bytes: 0, warn_percent: 0, cameras: [], os: 'linux', pid: 1, cpu_percent: 1,
-  net_mbps: 0, mem_rss_bytes: 0, sys_mem_total_bytes: 0, sys_mem_free_bytes: 0, goroutines: 1,
+  recordings_bytes: 0,
+  recordings_count: 0,
+  recordings_duration_seconds: 0,
+  forecast_seconds: 0,
+  disk_total_bytes: 100,
+  disk_free_bytes: 50,
+  camera_count: 0,
+  connected_clients: 0,
+  max_size_bytes: 0,
+  warn_percent: 0,
+  cameras: [],
+  os: 'linux',
+  pid: 1,
+  cpu_percent: 1,
+  net_mbps: 0,
+  mem_rss_bytes: 0,
+  sys_mem_total_bytes: 0,
+  sys_mem_free_bytes: 0,
+  goroutines: 1,
 }
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('StatsPage', () => {
   it('renderiza o título dentro do Layout novo (sem SettingsLayout)', async () => {
-    vi.stubGlobal('fetch', vi.fn((url: string) => {
-      if (url.startsWith('/api/stats')) return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(stats) })
-      if (url.startsWith('/api/cameras')) return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
-      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
-    }))
-    render(<MemoryRouter initialEntries={['/settings/stats']}><StatsPage /></MemoryRouter>)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.startsWith('/api/stats'))
+          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(stats) })
+        if (url.startsWith('/api/cameras'))
+          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
+        return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+    render(
+      <MemoryRouter initialEntries={['/settings/stats']}>
+        <StatsPage />
+      </MemoryRouter>,
+    )
     await waitFor(() => {
       expect(document.body.textContent).toContain('Estatísticas')
     })

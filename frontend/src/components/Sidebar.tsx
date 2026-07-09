@@ -11,7 +11,16 @@ import ThemeModeNav from './ThemeModeNav'
 import AccentSwatchNav from './AccentSwatchNav'
 import MotionNotificationsBell from './MotionNotificationsBell'
 import { navItemClass, useFlyout } from './sidebarFlyout'
-import { BarChart2, CameraLogo, Cctv, ChevronLeft, CircleUser, Film, History, Settings } from './Icons'
+import {
+  BarChart2,
+  CameraLogo,
+  Cctv,
+  ChevronLeft,
+  CircleUser,
+  Film,
+  History,
+  Settings,
+} from './Icons'
 
 interface NavItem {
   id: string
@@ -23,11 +32,25 @@ interface NavItem {
 }
 
 const items: NavItem[] = [
-  { id: 'sidebar-all-cameras', to: '/', label: 'Todas as câmeras', icon: <Cctv className="h-5 w-5" />, end: true },
-  { id: 'sidebar-recordings', to: '/recordings', label: 'Gravações', icon: <Film className="h-5 w-5" /> },
+  {
+    id: 'sidebar-all-cameras',
+    to: '/',
+    label: 'Todas as câmeras',
+    icon: <Cctv className="h-5 w-5" />,
+    end: true,
+  },
+  {
+    id: 'sidebar-recordings',
+    to: '/recordings',
+    label: 'Gravações',
+    icon: <Film className="h-5 w-5" />,
+  },
 ]
 
-interface CameraOption { id: string; name: string }
+interface CameraOption {
+  id: string
+  name: string
+}
 
 interface CameraListFlyoutProps {
   id: string
@@ -45,7 +68,14 @@ interface CameraListFlyoutProps {
 // usuário; clicar numa câmera navega pro destino calculado por `buildTarget`.
 // Reaproveitado por "Relatórios" e "Gravações" — mesmo estilo de submenu pros dois,
 // só muda o destino da navegação.
-function CameraListFlyout({ id, label, icon, showLabel, activePrefix, buildTarget }: CameraListFlyoutProps) {
+function CameraListFlyout({
+  id,
+  label,
+  icon,
+  showLabel,
+  activePrefix,
+  buildTarget,
+}: CameraListFlyoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
@@ -55,7 +85,7 @@ function CameraListFlyout({ id, label, icon, showLabel, activePrefix, buildTarge
   useEffect(() => {
     if (!open) return
     fetch('/api/cameras', { headers: authHeaders() })
-      .then(r => r.ok ? r.json() : [])
+      .then((r) => (r.ok ? r.json() : []))
       .then((list: CameraOption[]) => setCameras(list))
       .catch(() => {})
   }, [open])
@@ -79,30 +109,31 @@ function CameraListFlyout({ id, label, icon, showLabel, activePrefix, buildTarge
         {icon}
         {showLabel && <span className="truncate text-sm">{label}</span>}
       </button>
-      {open && createPortal(
-        <div
-          ref={panelRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
-        >
-          {cameras.length === 0 ? (
-            <p className="px-3 py-1.5 text-xs text-faint">Nenhuma câmera</p>
-          ) : (
-            cameras.map(c => (
-              <button
-                key={c.id}
-                id={`${id}-camera-${c.id}`}
-                type="button"
-                onClick={() => selectCamera(c.id)}
-                className="block w-full truncate px-3 py-1.5 text-left text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-              >
-                {c.name}
-              </button>
-            ))
-          )}
-        </div>,
-        document.body,
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+            className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
+          >
+            {cameras.length === 0 ? (
+              <p className="px-3 py-1.5 text-xs text-faint">Nenhuma câmera</p>
+            ) : (
+              cameras.map((c) => (
+                <button
+                  key={c.id}
+                  id={`${id}-camera-${c.id}`}
+                  type="button"
+                  onClick={() => selectCamera(c.id)}
+                  className="block w-full truncate px-3 py-1.5 text-left text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
+                >
+                  {c.name}
+                </button>
+              ))
+            )}
+          </div>,
+          document.body,
+        )}
     </>
   )
 }
@@ -115,7 +146,7 @@ function ReportsFlyout({ showLabel }: { showLabel: boolean }) {
       icon={<BarChart2 className="h-5 w-5 shrink-0" />}
       showLabel={showLabel}
       activePrefix="/reports"
-      buildTarget={cameraId => `/reports/${cameraId}/${format(new Date(), 'yyyy-MM-dd')}/1`}
+      buildTarget={(cameraId) => `/reports/${cameraId}/${format(new Date(), 'yyyy-MM-dd')}/1`}
     />
   )
 }
@@ -133,13 +164,23 @@ function HistoryFlyout({ showLabel }: { showLabel: boolean }) {
       icon={<History className="h-5 w-5 shrink-0" />}
       showLabel={showLabel}
       activePrefix="/history"
-      buildTarget={cameraId => `/history/${cameraId}`}
+      buildTarget={(cameraId) => `/history/${cameraId}`}
     />
   )
 }
 
 // Link do flyout — mesmo estilo usado pelo SettingsFlyout.
-function FlyoutNavLink({ to, id, onSelect, children }: { to: string; id?: string; onSelect: () => void; children: React.ReactNode }) {
+function FlyoutNavLink({
+  to,
+  id,
+  onSelect,
+  children,
+}: {
+  to: string
+  id?: string
+  onSelect: () => void
+  children: React.ReactNode
+}) {
   return (
     <NavLink
       to={to}
@@ -186,25 +227,34 @@ function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
         <Settings className="h-5 w-5 shrink-0" />
         {showLabel && <span className="truncate text-sm">Configurações</span>}
       </button>
-      {open && createPortal(
-        <div
-          ref={panelRef}
-          style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
-          className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
-        >
-          {links.map(({ to, label }) => (
-            <Fragment key={to}>
-              {to === '/settings/about' && <ThemeModeNav onSelect={() => setOpen(false)} />}
-              {to === '/settings/about' && <AccentSwatchNav onSelect={() => setOpen(false)} />}
-              {to === '/settings/about' && (
-                <FlyoutNavLink to="/settings/stats" id="settings-stats" onSelect={() => setOpen(false)}>Estatísticas</FlyoutNavLink>
-              )}
-              <FlyoutNavLink to={to} onSelect={() => setOpen(false)}>{label}</FlyoutNavLink>
-            </Fragment>
-          ))}
-        </div>,
-        document.body,
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
+            className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
+          >
+            {links.map(({ to, label }) => (
+              <Fragment key={to}>
+                {to === '/settings/about' && <ThemeModeNav onSelect={() => setOpen(false)} />}
+                {to === '/settings/about' && <AccentSwatchNav onSelect={() => setOpen(false)} />}
+                {to === '/settings/about' && (
+                  <FlyoutNavLink
+                    to="/settings/stats"
+                    id="settings-stats"
+                    onSelect={() => setOpen(false)}
+                  >
+                    Estatísticas
+                  </FlyoutNavLink>
+                )}
+                <FlyoutNavLink to={to} onSelect={() => setOpen(false)}>
+                  {label}
+                </FlyoutNavLink>
+              </Fragment>
+            ))}
+          </div>,
+          document.body,
+        )}
     </>
   )
 }
@@ -247,39 +297,40 @@ function UserMenu({ showLabel }: { showLabel: boolean }) {
         </span>
         {showLabel && <span className="truncate text-sm">{username}</span>}
       </button>
-      {open && createPortal(
-        <div
-          ref={panelRef}
-          style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
-          className="w-44 rounded-lg border border-border bg-surface py-1 shadow-xl"
-        >
-          <div className="truncate border-b border-border px-3 py-2 text-caption text-faint">
-            {username} · {roleLabel}
-          </div>
-          <NavLink
-            to="/notifications"
-            onClick={() => setOpen(false)}
-            className="block px-3 py-1.5 text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
+            className="w-44 rounded-lg border border-border bg-surface py-1 shadow-xl"
           >
-            Notificações
-          </NavLink>
-          <NavLink
-            to="/profile"
-            onClick={() => setOpen(false)}
-            className="block px-3 py-1.5 text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-          >
-            Perfil
-          </NavLink>
-          <button
-            type="button"
-            onClick={logout}
-            className="block w-full px-3 py-1.5 text-left text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-          >
-            Sair
-          </button>
-        </div>,
-        document.body,
-      )}
+            <div className="truncate border-b border-border px-3 py-2 text-caption text-faint">
+              {username} · {roleLabel}
+            </div>
+            <NavLink
+              to="/notifications"
+              onClick={() => setOpen(false)}
+              className="block px-3 py-1.5 text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              Notificações
+            </NavLink>
+            <NavLink
+              to="/profile"
+              onClick={() => setOpen(false)}
+              className="block px-3 py-1.5 text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              Perfil
+            </NavLink>
+            <button
+              type="button"
+              onClick={logout}
+              className="block w-full px-3 py-1.5 text-left text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              Sair
+            </button>
+          </div>,
+          document.body,
+        )}
     </>
   )
 }
@@ -310,15 +361,25 @@ export default function Sidebar() {
       <Link
         to="/"
         id="sidebar-logo"
-        className={cn('flex items-center h-14 hover:opacity-80 transition-opacity border-b border-border flex-none', showLabel ? 'gap-2 px-4' : 'justify-center')}
+        className={cn(
+          'flex items-center h-14 hover:opacity-80 transition-opacity border-b border-border flex-none',
+          showLabel ? 'gap-2 px-4' : 'justify-center',
+        )}
         title="os-camera"
       >
         <CameraLogo className="w-8 h-8 shrink-0" />
-        {showLabel && <span className="text-sm font-semibold text-foreground truncate">os-camera</span>}
+        {showLabel && (
+          <span className="text-sm font-semibold text-foreground truncate">os-camera</span>
+        )}
       </Link>
-      <div className={cn('flex flex-1 flex-col gap-1 py-3', showLabel ? 'items-stretch px-2' : 'items-center')}>
+      <div
+        className={cn(
+          'flex flex-1 flex-col gap-1 py-3',
+          showLabel ? 'items-stretch px-2' : 'items-center',
+        )}
+      >
         <MotionNotificationsBell showLabel={showLabel} />
-        {items.map(item => (
+        {items.map((item) => (
           <NavLink
             key={item.id}
             id={item.id}
@@ -337,7 +398,10 @@ export default function Sidebar() {
         <div className="flex-1" />
         <div
           id="sidebar-bottom"
-          className={cn('flex flex-col gap-1 border-t border-border pt-2', showLabel ? 'items-stretch' : 'items-center')}
+          className={cn(
+            'flex flex-col gap-1 border-t border-border pt-2',
+            showLabel ? 'items-stretch' : 'items-center',
+          )}
         >
           <button
             id="sidebar-collapse"

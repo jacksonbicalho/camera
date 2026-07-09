@@ -7,7 +7,9 @@ vi.mock('../auth', () => ({
   authHeaders: () => ({}),
   onUnauthorized: vi.fn(),
 }))
-vi.mock('../components/Layout', () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
+vi.mock('../components/Layout', () => ({
+  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}))
 vi.mock('../components/DatePicker', () => ({ default: () => <div data-testid="datepicker" /> }))
 
 function LocationProbe() {
@@ -44,14 +46,29 @@ function makeHeatmap() {
 }
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn((url: string) => {
-    if (url.startsWith('/api/cameras')) return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
-    if (url.includes('bucket=heatmap')) return Promise.resolve({ status: 200, json: () => Promise.resolve({ total: 6, heatmap: makeHeatmap() }) })
-    if (url.startsWith('/api/reports/events')) return Promise.resolve({ status: 200, json: () => Promise.resolve({ total: 0, by_day: [], by_label: {} }) })
-    return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
-  }))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string) => {
+      if (url.startsWith('/api/cameras'))
+        return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+      if (url.includes('bucket=heatmap'))
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve({ total: 6, heatmap: makeHeatmap() }),
+        })
+      if (url.startsWith('/api/reports/events'))
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve({ total: 0, by_day: [], by_label: {} }),
+        })
+      return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+    }),
+  )
 })
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('ReportsPage cabeçalho', () => {
   it('mostra o nome da câmera selecionada como subtítulo, acima da linha de estatísticas', async () => {
@@ -92,7 +109,9 @@ describe('ReportsPage heatmap', () => {
     expect(row22?.textContent).toContain('22/06/2026 Seg')
 
     // célula com mais eventos (22/9h) tem o título com a contagem
-    expect(document.getElementById('report-heatmap-cell-2026-06-22-9')?.getAttribute('title')).toContain('4')
+    expect(
+      document.getElementById('report-heatmap-cell-2026-06-22-9')?.getAttribute('title'),
+    ).toContain('4')
 
     // um fetch com bucket=heatmap foi disparado
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
@@ -107,7 +126,7 @@ describe('ReportsPage heatmap', () => {
       return el
     })
     const header = grid.querySelector('div')!.firstElementChild as HTMLElement
-    const labels = Array.from(header.children).map(c => c.textContent)
+    const labels = Array.from(header.children).map((c) => c.textContent)
     expect(labels).toEqual(Array.from({ length: 24 }, (_, h) => String(h)))
   })
 
@@ -122,7 +141,8 @@ describe('ReportsPage heatmap', () => {
     fireEvent.change(range, { target: { value: '1' } })
 
     await waitFor(() => {
-      if (document.getElementById('report-heatmap')) throw new Error('heatmap deveria sumir no modo 1 dia')
+      if (document.getElementById('report-heatmap'))
+        throw new Error('heatmap deveria sumir no modo 1 dia')
     })
     expect(fetchMock.mock.calls.some(([u]: [string]) => u.includes('bucket=hour'))).toBe(true)
   })
@@ -134,7 +154,9 @@ describe('ReportsPage rota (câmera/data/range na URL)', () => {
     await waitFor(() => {
       if (!document.getElementById('report-camera-name')) throw new Error('não renderizou')
     })
-    expect((document.getElementById('report-camera-select') as HTMLSelectElement).value).toBe('cam1')
+    expect((document.getElementById('report-camera-select') as HTMLSelectElement).value).toBe(
+      'cam1',
+    )
     expect((document.getElementById('report-range-select') as HTMLSelectElement).value).toBe('3')
   })
 
@@ -153,7 +175,9 @@ describe('ReportsPage rota (câmera/data/range na URL)', () => {
     })
     fireEvent.change(document.getElementById('report-range-select')!, { target: { value: '14' } })
     await waitFor(() => {
-      expect(document.getElementById('test-location')!.textContent).toBe('/reports/cam1/2026-06-24/14')
+      expect(document.getElementById('test-location')!.textContent).toBe(
+        '/reports/cam1/2026-06-24/14',
+      )
     })
   })
 })

@@ -12,9 +12,12 @@ export default function Footer({ id = 'footer', className }: FooterProps) {
   return (
     <footer
       id={id}
-      className={cn('border-t border-border bg-surface px-4 py-3 text-caption text-muted', className)}
+      className={cn(
+        'border-t border-border bg-surface px-4 py-3 text-center text-caption text-muted',
+        className,
+      )}
     >
-      os-camera · monitoramento residencial
+      © {new Date().getFullYear()} os-camera · Monitoramento
     </footer>
   )
 }

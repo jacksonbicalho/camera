@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { eventCategory, filterEventsByCategory, eventTitle, recordingCategory, eventCardLines, firstEventInChunk } from './eventCategory'
+import {
+  eventCategory,
+  filterEventsByCategory,
+  eventTitle,
+  recordingCategory,
+  eventCardLines,
+  firstEventInChunk,
+} from './eventCategory'
 
 describe('recordingCategory', () => {
   const recAt = (ms: number) => ({ start: new Date(ms).toISOString() })
@@ -18,7 +25,9 @@ describe('recordingCategory', () => {
     expect(recordingCategory(recAt(0), events, 300_000)).toBe('continua')
   })
   it('chunk só com transição de estado (kind=state) → estados (verde)', () => {
-    const events = [{ time: new Date(60_000).toISOString(), label: 'aberto', kind: 'state' as const }]
+    const events = [
+      { time: new Date(60_000).toISOString(), label: 'aberto', kind: 'state' as const },
+    ]
     expect(recordingCategory(recAt(0), events, 300_000)).toBe('estados')
   })
   it('detecção real predomina sobre estado no mesmo chunk', () => {
@@ -29,7 +38,9 @@ describe('recordingCategory', () => {
     expect(recordingCategory(recAt(0), events, 300_000)).toBe('movimento')
   })
   it('estado tem prioridade sobre continua mas perde para pessoa/ia/movimento', () => {
-    const stateOnly = [{ time: new Date(60_000).toISOString(), label: 'fechado', kind: 'state' as const }]
+    const stateOnly = [
+      { time: new Date(60_000).toISOString(), label: 'fechado', kind: 'state' as const },
+    ]
     expect(recordingCategory(recAt(0), stateOnly, 300_000)).toBe('estados')
     const withPerson = [
       { time: new Date(60_000).toISOString(), label: 'fechado', kind: 'state' as const },
@@ -71,8 +82,11 @@ describe('eventTitle', () => {
 
 describe('firstEventInChunk', () => {
   const recAt = (ms: number) => ({ start: new Date(ms).toISOString() })
-  const ev = (id: number, ms: number, extra: Record<string, unknown> = {}) =>
-    ({ id, time: new Date(ms).toISOString(), ...extra })
+  const ev = (id: number, ms: number, extra: Record<string, unknown> = {}) => ({
+    id,
+    time: new Date(ms).toISOString(),
+    ...extra,
+  })
 
   it('devolve o evento mais antigo (por time) dentro de [start, start+chunk)', () => {
     const events = [ev(2, 120_000), ev(1, 60_000), ev(3, 200_000)]
@@ -93,20 +107,24 @@ describe('firstEventInChunk', () => {
 
 describe('eventCardLines', () => {
   it('estado: classificador no título, estado no subtítulo (Janela / apagada)', () => {
-    expect(eventCardLines({ kind: 'state', label: 'apagada', classifier_name: 'Janela' }, 'Cam1'))
-      .toEqual({ title: 'Janela', subtitle: 'apagada' })
+    expect(
+      eventCardLines({ kind: 'state', label: 'apagada', classifier_name: 'Janela' }, 'Cam1'),
+    ).toEqual({ title: 'Janela', subtitle: 'apagada' })
   })
   it('estado sem classifier_name cai pra câmera no título', () => {
-    expect(eventCardLines({ kind: 'state', label: 'apagada' }, 'Cam1'))
-      .toEqual({ title: 'Cam1', subtitle: 'apagada' })
+    expect(eventCardLines({ kind: 'state', label: 'apagada' }, 'Cam1')).toEqual({
+      title: 'Cam1',
+      subtitle: 'apagada',
+    })
   })
   it('movimento: descrição no título, câmera no subtítulo', () => {
-    expect(eventCardLines({ label: '' }, 'Cam1'))
-      .toEqual({ title: 'Movimento detectado', subtitle: 'Cam1' })
+    expect(eventCardLines({ label: '' }, 'Cam1')).toEqual({
+      title: 'Movimento detectado',
+      subtitle: 'Cam1',
+    })
   })
   it('ia: label no título, câmera no subtítulo', () => {
-    expect(eventCardLines({ label: 'carro' }, 'Cam1'))
-      .toEqual({ title: 'carro', subtitle: 'Cam1' })
+    expect(eventCardLines({ label: 'carro' }, 'Cam1')).toEqual({ title: 'carro', subtitle: 'Cam1' })
   })
 })
 
@@ -122,15 +140,15 @@ describe('filterEventsByCategory', () => {
     expect(filterEventsByCategory(evs, 'todos')).toHaveLength(5)
   })
   it('filtra por movimento', () => {
-    expect(filterEventsByCategory(evs, 'movimento').map(e => e.id)).toEqual([1])
+    expect(filterEventsByCategory(evs, 'movimento').map((e) => e.id)).toEqual([1])
   })
   it('filtra por pessoa', () => {
-    expect(filterEventsByCategory(evs, 'pessoa').map(e => e.id)).toEqual([2, 4])
+    expect(filterEventsByCategory(evs, 'pessoa').map((e) => e.id)).toEqual([2, 4])
   })
   it('filtra por ia', () => {
-    expect(filterEventsByCategory(evs, 'ia').map(e => e.id)).toEqual([3])
+    expect(filterEventsByCategory(evs, 'ia').map((e) => e.id)).toEqual([3])
   })
   it('filtra por estados (transições kind=state)', () => {
-    expect(filterEventsByCategory(evs, 'estados').map(e => e.id)).toEqual([5])
+    expect(filterEventsByCategory(evs, 'estados').map((e) => e.id)).toEqual([5])
   })
 })

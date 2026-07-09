@@ -8,18 +8,14 @@ afterEach(() => {
 
 describe('UserForm — e-mail e nome', () => {
   it('renders email and name fields', () => {
-    render(
-      <UserForm cameras={[]} onSave={vi.fn()} onCancel={vi.fn()} saving={false} />,
-    )
+    render(<UserForm cameras={[]} onSave={vi.fn()} onCancel={vi.fn()} saving={false} />)
     expect(screen.getByLabelText(/e-mail/i)).toBeInstanceOf(HTMLInputElement)
     expect(screen.getByLabelText(/^nome$/i)).toBeInstanceOf(HTMLInputElement)
   })
 
   it('submits email and name in the form data', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined)
-    render(
-      <UserForm cameras={[]} onSave={onSave} onCancel={vi.fn()} saving={false} />,
-    )
+    render(<UserForm cameras={[]} onSave={onSave} onCancel={vi.fn()} saving={false} />)
 
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'newuser' } })
     fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: 'password123' } })
@@ -36,7 +32,14 @@ describe('UserForm — e-mail e nome', () => {
     render(
       <UserForm
         cameras={[]}
-        initial={{ id: 1, username: 'alice', role: 'viewer', cameras: [], email: 'alice@example.com', name: 'Alice' }}
+        initial={{
+          id: 1,
+          username: 'alice',
+          role: 'viewer',
+          cameras: [],
+          email: 'alice@example.com',
+          name: 'Alice',
+        }}
         onSave={vi.fn()}
         onCancel={vi.fn()}
         saving={false}
@@ -48,7 +51,14 @@ describe('UserForm — e-mail e nome', () => {
 })
 
 describe('UserForm — troca de senha na edição', () => {
-  const alice = { id: 1, username: 'alice', role: 'viewer' as const, cameras: [], email: 'alice@example.com', name: 'Alice' }
+  const alice = {
+    id: 1,
+    username: 'alice',
+    role: 'viewer' as const,
+    cameras: [],
+    email: 'alice@example.com',
+    name: 'Alice',
+  }
 
   it('mostra o campo Senha também ao editar, opcional (sem required)', () => {
     render(
@@ -79,9 +89,7 @@ describe('UserForm — troca de senha na edição', () => {
   })
 
   it('campo Senha é obrigatório ao criar (sem initial)', () => {
-    render(
-      <UserForm cameras={[]} onSave={vi.fn()} onCancel={vi.fn()} saving={false} />,
-    )
+    render(<UserForm cameras={[]} onSave={vi.fn()} onCancel={vi.fn()} saving={false} />)
     expect((screen.getByLabelText(/senha/i) as HTMLInputElement).required).toBe(true)
   })
 

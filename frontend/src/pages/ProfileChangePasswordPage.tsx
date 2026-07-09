@@ -59,7 +59,7 @@ export default function ProfileChangePasswordPage() {
               id="profile-password-new"
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               required
               autoFocus
               minLength={8}
@@ -75,15 +75,24 @@ export default function ProfileChangePasswordPage() {
               id="profile-password-confirm"
               type="password"
               value={confirm}
-              onChange={e => setConfirm(e.target.value)}
+              onChange={(e) => setConfirm(e.target.value)}
               required
               autoComplete="new-password"
               aria-invalid={error ? 'true' : undefined}
             />
           </div>
-          {error && <p role="alert" className="text-danger text-sm">{error}</p>}
+          {error && (
+            <p role="alert" className="text-danger text-sm">
+              {error}
+            </p>
+          )}
           {message && <p className="text-success text-sm">{message}</p>}
-          <Button id="profile-password-submit" type="submit" disabled={loading} className="self-start">
+          <Button
+            id="profile-password-submit"
+            type="submit"
+            disabled={loading}
+            className="self-start"
+          >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {loading ? 'Salvando...' : 'Definir nova senha'}
           </Button>

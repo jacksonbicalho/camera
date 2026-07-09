@@ -1,6 +1,9 @@
 import { getToken } from '../../auth'
 
-export interface EventItem { time: string; frame: string }
+export interface EventItem {
+  time: string
+  frame: string
+}
 
 // eventCleanFrameURL aponta para o _frame.jpg LIMPO salvo pelo motion junto do
 // _motion.jpg (mesmo instante exato, sem box/score) — derivado do nome do snapshot.

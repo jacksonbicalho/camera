@@ -40,11 +40,14 @@ export function UserNotificationProvider({ children }: { children: React.ReactNo
   const reload = useCallback(() => {
     if (!getToken()) return
     fetch('/api/notifications', { headers: authHeaders() })
-      .then(res => {
-        if (res.status === 401) { onUnauthorized(); return null }
+      .then((res) => {
+        if (res.status === 401) {
+          onUnauthorized()
+          return null
+        }
         return res.json()
       })
-      .then(data => {
+      .then((data) => {
         if (data) {
           setNotifications(data.notifications ?? [])
           setUnreadCount(data.unread_count ?? 0)
@@ -80,17 +83,24 @@ export function UserNotificationProvider({ children }: { children: React.ReactNo
 
   const mutate = useCallback(
     (url: string, method: string) =>
-      fetch(url, { method, headers: authHeaders() }).then(() => reload()).catch(() => {}),
-    [reload]
+      fetch(url, { method, headers: authHeaders() })
+        .then(() => reload())
+        .catch(() => {}),
+    [reload],
   )
 
-  const markRead = useCallback((id: number) => mutate(`/api/notifications/${id}/read`, 'POST'), [mutate])
+  const markRead = useCallback(
+    (id: number) => mutate(`/api/notifications/${id}/read`, 'POST'),
+    [mutate],
+  )
   const markAllRead = useCallback(() => mutate('/api/notifications/read-all', 'POST'), [mutate])
   const remove = useCallback((id: number) => mutate(`/api/notifications/${id}`, 'DELETE'), [mutate])
   const removeAll = useCallback(() => mutate('/api/notifications', 'DELETE'), [mutate])
 
   return (
-    <Ctx.Provider value={{ notifications, unreadCount, reload, markRead, markAllRead, remove, removeAll }}>
+    <Ctx.Provider
+      value={{ notifications, unreadCount, reload, markRead, markAllRead, remove, removeAll }}
+    >
       {children}
     </Ctx.Provider>
   )

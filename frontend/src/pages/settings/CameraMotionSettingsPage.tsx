@@ -6,7 +6,12 @@ import MotionScoreChart from '../../components/MotionScoreChart'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { useMotionPeak, type MotionDailyPeak } from '../../hooks/useMotionPeak'
-import { emptyForm, formToPayload, type Camera, type CameraFormData } from '../../components/cameraFormUtils'
+import {
+  emptyForm,
+  formToPayload,
+  type Camera,
+  type CameraFormData,
+} from '../../components/cameraFormUtils'
 import { authHeaders, getRole } from '../../auth'
 import { Button } from '@/components/ui/button'
 
@@ -26,7 +31,8 @@ function ratioLabel(peak: number, threshold: number): React.ReactNode {
   if (ratio >= 1) {
     hint = 'Pico ultrapassou o limiar — eventos de movimento foram registrados hoje.'
   } else if (ratio >= 0.5) {
-    hint = 'Pico próximo ao limiar — considere reduzir o limiar para capturar este nível de movimento.'
+    hint =
+      'Pico próximo ao limiar — considere reduzir o limiar para capturar este nível de movimento.'
   } else {
     hint = 'Pico bem abaixo do limiar — nenhum evento foi disparado hoje.'
   }
@@ -55,33 +61,38 @@ function RatioGuide({ peak, threshold }: { peak: number; threshold: number }) {
       range: '≥ 1×',
       color: 'text-green-400',
       example: zone === 'high' ? `${ratio.toFixed(2)}×` : '1.50×',
-      suggestion: zone === 'high'
-        ? `Limiar ${formatScore(threshold)} funcionando. Se houver falsos positivos, aumente para ~${formatScore(threshold * 2)}.`
-        : 'Pico ultrapassou o limiar — eventos registrados. Aumente o limiar se houver falsos positivos.',
+      suggestion:
+        zone === 'high'
+          ? `Limiar ${formatScore(threshold)} funcionando. Se houver falsos positivos, aumente para ~${formatScore(threshold * 2)}.`
+          : 'Pico ultrapassou o limiar — eventos registrados. Aumente o limiar se houver falsos positivos.',
     },
     {
       id: 'mid',
       range: '0.5× – 1×',
       color: 'text-yellow-400',
       example: zone === 'mid' ? `${ratio.toFixed(2)}×` : '0.75×',
-      suggestion: zone === 'mid'
-        ? `Pico (${formatScore(peak)}) próximo ao limiar (${formatScore(threshold)}). Reduza para ~${formatScore(peak * 0.8)} para capturar este movimento.`
-        : 'Próximo ao limiar. Reduza o limiar para capturar este nível de movimento.',
+      suggestion:
+        zone === 'mid'
+          ? `Pico (${formatScore(peak)}) próximo ao limiar (${formatScore(threshold)}). Reduza para ~${formatScore(peak * 0.8)} para capturar este movimento.`
+          : 'Próximo ao limiar. Reduza o limiar para capturar este nível de movimento.',
     },
     {
       id: 'low',
       range: '< 0.5×',
       color: 'text-muted-foreground',
       example: zone === 'low' ? `${ratio.toFixed(2)}×` : '0.41×',
-      suggestion: zone === 'low'
-        ? `Pico (${formatScore(peak)}) bem abaixo do limiar (${formatScore(threshold)}). Para detectar este nível, reduza para ~${formatScore(peak * 1.5)}.`
-        : 'Bem abaixo do limiar — nenhum evento disparado.',
+      suggestion:
+        zone === 'low'
+          ? `Pico (${formatScore(peak)}) bem abaixo do limiar (${formatScore(threshold)}). Para detectar este nível, reduza para ~${formatScore(peak * 1.5)}.`
+          : 'Bem abaixo do limiar — nenhum evento disparado.',
     },
   ]
 
   return (
     <div className="bg-surface border border-border rounded-lg px-5 py-4">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Como interpretar a relação</p>
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+        Como interpretar a relação
+      </p>
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr className="border-b border-border">
@@ -91,15 +102,21 @@ function RatioGuide({ peak, threshold }: { peak: number; threshold: number }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {rows.map(row => {
+          {rows.map((row) => {
             const active = row.id === zone
             return (
               <tr key={row.id} className={active ? 'bg-surface-2/50' : 'opacity-40'}>
-                <td className={`py-2 pr-4 font-mono whitespace-nowrap ${row.color}`}>{row.range}</td>
-                <td className={`py-2 pr-4 font-mono whitespace-nowrap ${active ? 'text-white' : 'text-muted-foreground'}`}>
+                <td className={`py-2 pr-4 font-mono whitespace-nowrap ${row.color}`}>
+                  {row.range}
+                </td>
+                <td
+                  className={`py-2 pr-4 font-mono whitespace-nowrap ${active ? 'text-white' : 'text-muted-foreground'}`}
+                >
                   {row.example}
                 </td>
-                <td className={`py-2 ${active ? 'text-foreground' : 'text-muted-foreground'}`}>{row.suggestion}</td>
+                <td className={`py-2 ${active ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  {row.suggestion}
+                </td>
               </tr>
             )
           })}
@@ -109,7 +126,15 @@ function RatioGuide({ peak, threshold }: { peak: number; threshold: number }) {
   )
 }
 
-function MotionReadOnly({ cam, id, peak }: { cam: CameraSettings | null; id: string; peak: MotionDailyPeak | null }) {
+function MotionReadOnly({
+  cam,
+  id,
+  peak,
+}: {
+  cam: CameraSettings | null
+  id: string
+  peak: MotionDailyPeak | null
+}) {
   if (!cam) return <p className="text-muted-foreground text-sm">Câmera não encontrada.</p>
   const motion = cam.motion
   if (!motion?.enabled) {
@@ -148,7 +173,8 @@ function MotionReadOnly({ cam, id, peak }: { cam: CameraSettings | null; id: str
   )
 }
 
-const inputClass = 'w-full bg-surface-2 border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:border-ring'
+const inputClass =
+  'w-full bg-surface-2 border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:border-ring'
 const labelClass = 'block text-xs text-muted-foreground mb-1'
 
 interface MotionFormContentProps {
@@ -158,8 +184,6 @@ interface MotionFormContentProps {
   reload: () => void
 }
 
-
-
 function MotionFormContent({ cam, id, peak, reload }: MotionFormContentProps) {
   const [form, setForm] = useState<CameraFormData>(() => emptyForm(cam))
   const [saving, setSaving] = useState(false)
@@ -168,48 +192,64 @@ function MotionFormContent({ cam, id, peak, reload }: MotionFormContentProps) {
   const [saveCount, setSaveCount] = useState(0)
 
   const set = (field: keyof CameraFormData, value: string | boolean | number) =>
-    setForm(prev => ({ ...prev, [field]: value }))
+    setForm((prev) => ({ ...prev, [field]: value }))
 
   const effectiveThreshold = parseFloat(form.motion_threshold) || 0
   const streamW = cam.width ?? 0
   const streamH = cam.height ?? 0
   const previewW = form.motion_capture_auto
-    ? (streamW > 0 ? Math.round(streamW / 4) : null)
-    : (streamW > 0 ? Math.round(streamW * form.motion_capture_pct / 100) : null)
+    ? streamW > 0
+      ? Math.round(streamW / 4)
+      : null
+    : streamW > 0
+      ? Math.round((streamW * form.motion_capture_pct) / 100)
+      : null
   const previewH = form.motion_capture_auto
-    ? (streamH > 0 ? Math.round(streamH / 4) : null)
-    : (streamH > 0 ? Math.round(streamH * form.motion_capture_pct / 100) : null)
+    ? streamH > 0
+      ? Math.round(streamH / 4)
+      : null
+    : streamH > 0
+      ? Math.round((streamH * form.motion_capture_pct) / 100)
+      : null
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    setSaving(true); setError(null); setSaved(false)
+    setSaving(true)
+    setError(null)
+    setSaved(false)
     try {
       const res = await fetch(`/api/settings/cameras/${id}`, {
         method: 'PUT',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(formToPayload(form)),
       })
-      if (!res.ok) { setError((await res.text()).trim() || 'Erro ao salvar'); return }
+      if (!res.ok) {
+        setError((await res.text()).trim() || 'Erro ao salvar')
+        return
+      }
       setSaved(true)
-      setSaveCount(c => c + 1)
+      setSaveCount((c) => c + 1)
       reload()
       setTimeout(() => setSaved(false), 2000)
-    } finally { setSaving(false) }
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-4">
-
       <div className="bg-surface border border-border rounded-lg px-5 py-4">
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
             id="motion_enabled"
             checked={form.motion_enabled}
-            onChange={e => set('motion_enabled', e.target.checked)}
+            onChange={(e) => set('motion_enabled', e.target.checked)}
             className="accent-primary"
           />
-          <label htmlFor="motion_enabled" className="text-xs text-muted-foreground cursor-pointer">Habilitado</label>
+          <label htmlFor="motion_enabled" className="text-xs text-muted-foreground cursor-pointer">
+            Habilitado
+          </label>
         </div>
       </div>
 
@@ -227,7 +267,10 @@ function MotionFormContent({ cam, id, peak, reload }: MotionFormContentProps) {
                 fields={[
                   { label: 'Pico de score bruto', value: formatScore(peak.peak_raw_score) },
                   { label: 'Limiar configurado', value: effectiveThreshold },
-                  { label: 'Relação pico / limiar', value: ratioLabel(peak.peak_raw_score, effectiveThreshold) },
+                  {
+                    label: 'Relação pico / limiar',
+                    value: ratioLabel(peak.peak_raw_score, effectiveThreshold),
+                  },
                 ]}
               />
               <RatioGuide peak={peak.peak_raw_score} threshold={effectiveThreshold} />
@@ -235,33 +278,78 @@ function MotionFormContent({ cam, id, peak, reload }: MotionFormContentProps) {
           )}
 
           <div className="bg-surface border border-border rounded-lg px-5 py-4 flex flex-col gap-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Configuração</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Configuração
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Limiar</label>
-                <input type="number" step="0.001" min="0.001" max="1" value={form.motion_threshold} onChange={e => set('motion_threshold', e.target.value)} className={inputClass} />
-                <p className="text-xs text-muted-foreground mt-0.5">0.001 – 1.0 · quanto menor, mais sensível</p>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0.001"
+                  max="1"
+                  value={form.motion_threshold}
+                  onChange={(e) => set('motion_threshold', e.target.value)}
+                  className={inputClass}
+                />
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  0.001 – 1.0 · quanto menor, mais sensível
+                </p>
               </div>
               <div>
                 <label className={labelClass}>FPS de análise</label>
-                <input type="number" min="1" max="30" value={form.motion_fps} onChange={e => set('motion_fps', e.target.value)} className={inputClass} />
+                <input
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={form.motion_fps}
+                  onChange={(e) => set('motion_fps', e.target.value)}
+                  className={inputClass}
+                />
                 <p className="text-xs text-muted-foreground mt-0.5">1 – 30 fps · padrão: 2</p>
               </div>
               <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className={labelClass}>Cooldown (segundos)</label>
-                  <input type="number" min="0" value={form.motion_cooldown} onChange={e => set('motion_cooldown', e.target.value)} className={inputClass} />
-                  <p className="text-xs text-muted-foreground mt-0.5">Tempo mínimo entre eventos · 0 = sem cooldown</p>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.motion_cooldown}
+                    onChange={(e) => set('motion_cooldown', e.target.value)}
+                    className={inputClass}
+                  />
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Tempo mínimo entre eventos · 0 = sem cooldown
+                  </p>
                 </div>
                 <div>
                   <label className={labelClass}>Segundos antes do evento</label>
-                  <input type="number" min="0" max="300" value={form.motion_playback_lead} onChange={e => set('motion_playback_lead', e.target.value)} className={inputClass} />
-                  <p className="text-xs text-muted-foreground mt-0.5">0 – 300 s · recua o player antes do instante detectado</p>
+                  <input
+                    type="number"
+                    min="0"
+                    max="300"
+                    value={form.motion_playback_lead}
+                    onChange={(e) => set('motion_playback_lead', e.target.value)}
+                    className={inputClass}
+                  />
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    0 – 300 s · recua o player antes do instante detectado
+                  </p>
                 </div>
                 <div>
                   <label className={labelClass}>Segundos após o evento</label>
-                  <input type="number" min="0" max="300" value={form.motion_playback_trail} onChange={e => set('motion_playback_trail', e.target.value)} className={inputClass} />
-                  <p className="text-xs text-muted-foreground mt-0.5">0 – 300 s · preserva chunks gravados após o evento</p>
+                  <input
+                    type="number"
+                    min="0"
+                    max="300"
+                    value={form.motion_playback_trail}
+                    onChange={(e) => set('motion_playback_trail', e.target.value)}
+                    className={inputClass}
+                  />
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    0 – 300 s · preserva chunks gravados após o evento
+                  </p>
                 </div>
               </div>
               <div className="sm:col-span-2">
@@ -271,11 +359,15 @@ function MotionFormContent({ cam, id, peak, reload }: MotionFormContentProps) {
                     type="checkbox"
                     id="motion_capture_auto"
                     checked={form.motion_capture_auto}
-                    onChange={e => set('motion_capture_auto', e.target.checked)}
+                    onChange={(e) => set('motion_capture_auto', e.target.checked)}
                     className="accent-primary"
                   />
-                  <label htmlFor="motion_capture_auto" className="text-xs text-muted-foreground cursor-pointer">
-                    Automático (stream ÷ 4{previewW !== null ? ` → ${previewW} × ${previewH} px` : ''})
+                  <label
+                    htmlFor="motion_capture_auto"
+                    className="text-xs text-muted-foreground cursor-pointer"
+                  >
+                    Automático (stream ÷ 4
+                    {previewW !== null ? ` → ${previewW} × ${previewH} px` : ''})
                   </label>
                 </div>
                 {!form.motion_capture_auto && (
@@ -283,17 +375,26 @@ function MotionFormContent({ cam, id, peak, reload }: MotionFormContentProps) {
                     <div className="flex items-center gap-3">
                       <input
                         type="range"
-                        min={5} max={100} step={5}
+                        min={5}
+                        max={100}
+                        step={5}
                         value={form.motion_capture_pct}
-                        onChange={e => set('motion_capture_pct', parseInt(e.target.value))}
+                        onChange={(e) => set('motion_capture_pct', parseInt(e.target.value))}
                         className="flex-1 accent-primary"
                       />
-                      <span className="text-xs text-foreground font-mono w-10 text-right">{form.motion_capture_pct}%</span>
+                      <span className="text-xs text-foreground font-mono w-10 text-right">
+                        {form.motion_capture_pct}%
+                      </span>
                     </div>
-                    {previewW !== null
-                      ? <p className="text-xs text-muted-foreground">→ {previewW} × {previewH} px</p>
-                      : <p className="text-xs text-muted-foreground">Configure largura e altura do stream para ver a resolução em pixels</p>
-                    }
+                    {previewW !== null ? (
+                      <p className="text-xs text-muted-foreground">
+                        → {previewW} × {previewH} px
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Configure largura e altura do stream para ver a resolução em pixels
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -314,7 +415,6 @@ function MotionFormContent({ cam, id, peak, reload }: MotionFormContentProps) {
         </Button>
         {saved && <span className="text-xs text-green-400">Salvo</span>}
       </div>
-
     </form>
   )
 }
@@ -324,7 +424,7 @@ export default function CameraMotionSettingsPage() {
   const isAdmin = getRole() === 'admin'
   const { settings, reload } = useSettings()
   const peak = useMotionPeak(id)
-  const cam = settings?.cameras.find(c => c.id === id) as Camera | undefined
+  const cam = settings?.cameras.find((c) => c.id === id) as Camera | undefined
 
   const [viewerCam, setViewerCam] = useState<CameraSettings | null>(null)
   const [viewerLoading, setViewerLoading] = useState(!isAdmin)
@@ -332,30 +432,34 @@ export default function CameraMotionSettingsPage() {
   useEffect(() => {
     if (isAdmin || !id) return
     fetch('/api/cameras', { headers: authHeaders() })
-      .then(r => r.ok ? r.json() : [])
-      .then((cams: CameraSettings[]) => setViewerCam(cams.find(c => c.id === id) ?? null))
+      .then((r) => (r.ok ? r.json() : []))
+      .then((cams: CameraSettings[]) => setViewerCam(cams.find((c) => c.id === id) ?? null))
       .catch(() => {})
       .finally(() => setViewerLoading(false))
   }, [isAdmin, id])
 
   return (
     <Layout id="camera-motion-page" footerId="camera-motion-footer" contentClassName="p-6">
-    <div id="camera-motion-content" className="page-content space-y-4">
-      <CameraSettingsTabs id={id!} active="motion" camName={isAdmin ? cam?.name : viewerCam?.name} />
-      {!isAdmin ? (
-        viewerLoading ? (
+      <div id="camera-motion-content" className="page-content space-y-4">
+        <CameraSettingsTabs
+          id={id!}
+          active="motion"
+          camName={isAdmin ? cam?.name : viewerCam?.name}
+        />
+        {!isAdmin ? (
+          viewerLoading ? (
+            <p className="text-muted-foreground text-sm">Carregando...</p>
+          ) : (
+            <MotionReadOnly cam={viewerCam} id={id!} peak={peak} />
+          )
+        ) : !settings ? (
           <p className="text-muted-foreground text-sm">Carregando...</p>
+        ) : !cam ? (
+          <p className="text-muted-foreground text-sm">Câmera não encontrada.</p>
         ) : (
-          <MotionReadOnly cam={viewerCam} id={id!} peak={peak} />
-        )
-      ) : !settings ? (
-        <p className="text-muted-foreground text-sm">Carregando...</p>
-      ) : !cam ? (
-        <p className="text-muted-foreground text-sm">Câmera não encontrada.</p>
-      ) : (
-        <MotionFormContent cam={cam} id={id!} peak={peak} reload={reload} />
-      )}
-    </div>
+          <MotionFormContent cam={cam} id={id!} peak={peak} reload={reload} />
+        )}
+      </div>
     </Layout>
   )
 }

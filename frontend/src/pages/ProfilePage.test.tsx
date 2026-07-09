@@ -16,7 +16,12 @@ vi.mock('../components/ProfileLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
-const adminProfile = { username: 'jackson', email: 'jackson@example.com', name: 'Jackson', role: 'admin' }
+const adminProfile = {
+  username: 'jackson',
+  email: 'jackson@example.com',
+  name: 'Jackson',
+  role: 'admin',
+}
 const viewerProfile = { username: 'ana', email: 'ana@example.com', name: '', role: 'viewer' }
 
 function stubFetch(profile: typeof adminProfile = adminProfile) {
@@ -50,7 +55,9 @@ describe('ProfilePage', () => {
     await waitFor(() => {
       expect(document.getElementById('profile-details')).not.toBeNull()
     })
-    const labels = Array.from(document.querySelectorAll('#profile-details .text-caption')).map(el => el.textContent)
+    const labels = Array.from(document.querySelectorAll('#profile-details .text-caption')).map(
+      (el) => el.textContent,
+    )
     expect(labels).toEqual(['Nome', 'E-mail', 'Usuário', 'Perfil de acesso'])
     expect(screen.getByText('Administrador')).toBeTruthy()
   })
@@ -61,7 +68,9 @@ describe('ProfilePage', () => {
     await waitFor(() => {
       expect(document.getElementById('profile-details')).not.toBeNull()
     })
-    const labels = Array.from(document.querySelectorAll('#profile-details .text-caption')).map(el => el.textContent)
+    const labels = Array.from(document.querySelectorAll('#profile-details .text-caption')).map(
+      (el) => el.textContent,
+    )
     expect(labels).toEqual(['Nome', 'E-mail', 'Usuário'])
   })
 
@@ -82,17 +91,24 @@ describe('ProfilePage', () => {
     await waitFor(() => expect(document.getElementById('profile-edit-email')).not.toBeNull())
     fireEvent.click(document.getElementById('profile-edit-email')!)
 
-    fireEvent.change(screen.getByLabelText('Novo e-mail'), { target: { value: 'novo@example.com' } })
+    fireEvent.change(screen.getByLabelText('Novo e-mail'), {
+      target: { value: 'novo@example.com' },
+    })
     fireEvent.click(screen.getByRole('button', { name: /enviar código/i }))
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
         '/api/me/email/request-change',
-        expect.objectContaining({ method: 'POST', body: JSON.stringify({ new_email: 'novo@example.com' }) }),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ new_email: 'novo@example.com' }),
+        }),
       )
     })
     expect(await screen.findByLabelText('Código de confirmação')).toBeTruthy()
 
-    fireEvent.change(screen.getByLabelText('Código de confirmação'), { target: { value: '123456' } })
+    fireEvent.change(screen.getByLabelText('Código de confirmação'), {
+      target: { value: '123456' },
+    })
     fireEvent.click(screen.getByRole('button', { name: /confirmar/i }))
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -143,7 +159,11 @@ describe('ProfilePage', () => {
       'fetch',
       vi.fn((url: string, init?: RequestInit) => {
         if (url === '/api/me' && (!init || !init.method)) {
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(adminProfile) })
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve(adminProfile),
+          })
         }
         if (url === '/api/me' && init?.method === 'PUT') {
           return Promise.resolve({ ok: false, status: 409, text: () => Promise.resolve('') })

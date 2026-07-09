@@ -40,7 +40,7 @@ function NotificationItem({
   return (
     <div
       className={`flex items-start gap-2 px-3 py-2 hover:bg-accent transition-colors ${
-        !n.read ? "border-l-2 border-primary" : "border-l-2 border-transparent"
+        !n.read ? 'border-l-2 border-primary' : 'border-l-2 border-transparent'
       }`}
     >
       <input
@@ -55,14 +55,17 @@ function NotificationItem({
           {n.cameraName || n.cameraId}
         </div>
         <div className="text-xs text-muted-foreground">
-          {n.label && <span style={{ color: n.color ?? "#f97316" }}>{n.label} · </span>}
+          {n.label && <span style={{ color: n.color ?? '#f97316' }}>{n.label} · </span>}
           {(n.score * 100).toFixed(1)}% · {relTime}
         </div>
       </div>
       <Button
         variant="ghost"
         size="icon"
-        onClick={(e) => { e.stopPropagation(); onRemove() }}
+        onClick={(e) => {
+          e.stopPropagation()
+          onRemove()
+        }}
         className="h-6 w-6 shrink-0 mt-0.5 text-muted-foreground [&_svg]:size-3.5"
         title="Excluir"
       >
@@ -88,11 +91,18 @@ function NotificationItem({
 export default function MotionNotificationsBell({ showLabel }: { showLabel: boolean }) {
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
   const {
-    notifications, unreadCount,
-    markRead, markSelectedRead,
-    remove, removeAll, removeSelected,
-    browserSupported, browserPermission, browserEnabled,
-    enableBrowserNotifications, disableBrowserNotifications,
+    notifications,
+    unreadCount,
+    markRead,
+    markSelectedRead,
+    remove,
+    removeAll,
+    removeSelected,
+    browserSupported,
+    browserPermission,
+    browserEnabled,
+    enableBrowserNotifications,
+    disableBrowserNotifications,
   } = useNotifications()
   const navigate = useNavigate()
 
@@ -109,13 +119,21 @@ export default function MotionNotificationsBell({ showLabel }: { showLabel: bool
   function toggleOne(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
 
-  function targetIds() { return [...selectedIds] }
-  function targetLabel() { return `${selectedIds.size} notificação(ões) selecionada(s)` }
+  function targetIds() {
+    return [...selectedIds]
+  }
+  function targetLabel() {
+    return `${selectedIds.size} notificação(ões) selecionada(s)`
+  }
 
   const selectedNotifications = notifications.filter((n) => selectedIds.has(n.id))
   const canMarkRead = selectedNotifications.some((n) => !n.read)
@@ -158,86 +176,116 @@ export default function MotionNotificationsBell({ showLabel }: { showLabel: bool
         {showLabel && <span className="truncate text-sm">Eventos</span>}
       </button>
 
-      {open && createPortal(
-        <div
-          id="events-panel"
-          ref={panelRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="w-72 bg-surface border border-border rounded shadow-lg flex flex-col max-h-[80vh]">
-          <EventsPanelHeader
-            allSelected={allSelected}
-            someSelected={someSelected}
-            canMarkRead={canMarkRead}
-            onToggleAll={toggleAll}
-            onMarkRead={() => ask({
-              title: "Marcar como lidas",
-              message: `Marcar ${targetLabel()} como lidas?`,
-              confirmLabel: "Marcar",
-              action: () => { markSelectedRead(targetIds()); setSelectedIds(new Set()) },
-            })}
-            onDelete={() => ask({
-              title: "Excluir notificações",
-              message: `Excluir ${targetLabel()}? Esta ação não pode ser desfeita.`,
-              confirmLabel: "Excluir",
-              danger: true,
-              action: () => {
-                if (someSelected) { removeSelected(targetIds()) } else { removeAll() }
-                setSelectedIds(new Set())
-              },
-            })}
-          />
+      {open &&
+        createPortal(
+          <div
+            id="events-panel"
+            ref={panelRef}
+            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+            className="w-72 bg-surface border border-border rounded shadow-lg flex flex-col max-h-[80vh]"
+          >
+            <EventsPanelHeader
+              allSelected={allSelected}
+              someSelected={someSelected}
+              canMarkRead={canMarkRead}
+              onToggleAll={toggleAll}
+              onMarkRead={() =>
+                ask({
+                  title: 'Marcar como lidas',
+                  message: `Marcar ${targetLabel()} como lidas?`,
+                  confirmLabel: 'Marcar',
+                  action: () => {
+                    markSelectedRead(targetIds())
+                    setSelectedIds(new Set())
+                  },
+                })
+              }
+              onDelete={() =>
+                ask({
+                  title: 'Excluir notificações',
+                  message: `Excluir ${targetLabel()}? Esta ação não pode ser desfeita.`,
+                  confirmLabel: 'Excluir',
+                  danger: true,
+                  action: () => {
+                    if (someSelected) {
+                      removeSelected(targetIds())
+                    } else {
+                      removeAll()
+                    }
+                    setSelectedIds(new Set())
+                  },
+                })
+              }
+            />
 
-          <div className="overflow-y-auto flex-1">
-            {notifications.length === 0 ? (
-              <p className="text-xs text-faint text-center py-6">Nenhuma notificação</p>
-            ) : (
-              notifications.map((n) => (
-                <NotificationItem
-                  key={n.id}
-                  n={n}
-                  checked={selectedIds.has(n.id)}
-                  onToggle={() => toggleOne(n.id)}
-                  onClick={() => goToEvent(n)}
-                  onRemove={() => ask({
-                    title: "Excluir notificação",
-                    message: "Excluir esta notificação?",
-                    confirmLabel: "Excluir",
-                    danger: true,
-                    action: () => {
-                      remove(n.id)
-                      setSelectedIds((prev) => {
-                        const next = new Set(prev)
-                        next.delete(n.id)
-                        return next
-                      })
-                    },
-                  })}
-                />
-              ))
-            )}
-          </div>
-
-          {browserSupported && (
-            <div className="border-t border-border px-3 py-2 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Alertas do sistema</span>
-              {browserPermission === "denied" ? (
-                <button onClick={enableBrowserNotifications} className="text-xs text-red-400 hover:text-red-300 transition-colors cursor-pointer" title="Permissão negada — tentar">
-                  Permissão negada
-                </button>
-              ) : browserEnabled ? (
-                <button onClick={disableBrowserNotifications} className="text-xs text-primary hover:text-primary/80 transition-colors">Desativar</button>
+            <div className="overflow-y-auto flex-1">
+              {notifications.length === 0 ? (
+                <p className="text-xs text-faint text-center py-6">Nenhuma notificação</p>
               ) : (
-                <button onClick={enableBrowserNotifications} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Ativar</button>
+                notifications.map((n) => (
+                  <NotificationItem
+                    key={n.id}
+                    n={n}
+                    checked={selectedIds.has(n.id)}
+                    onToggle={() => toggleOne(n.id)}
+                    onClick={() => goToEvent(n)}
+                    onRemove={() =>
+                      ask({
+                        title: 'Excluir notificação',
+                        message: 'Excluir esta notificação?',
+                        confirmLabel: 'Excluir',
+                        danger: true,
+                        action: () => {
+                          remove(n.id)
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev)
+                            next.delete(n.id)
+                            return next
+                          })
+                        },
+                      })
+                    }
+                  />
+                ))
               )}
             </div>
-          )}
-        </div>
-      , document.body)}
+
+            {browserSupported && (
+              <div className="border-t border-border px-3 py-2 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Alertas do sistema</span>
+                {browserPermission === 'denied' ? (
+                  <button
+                    onClick={enableBrowserNotifications}
+                    className="text-xs text-red-400 hover:text-red-300 transition-colors cursor-pointer"
+                    title="Permissão negada — tentar"
+                  >
+                    Permissão negada
+                  </button>
+                ) : browserEnabled ? (
+                  <button
+                    onClick={disableBrowserNotifications}
+                    className="text-xs text-primary hover:text-primary/80 transition-colors"
+                  >
+                    Desativar
+                  </button>
+                ) : (
+                  <button
+                    onClick={enableBrowserNotifications}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Ativar
+                  </button>
+                )}
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
 
       <ConfirmDialog
         open={confirm !== null}
-        title={confirm?.title ?? ""}
-        message={confirm?.message ?? ""}
+        title={confirm?.title ?? ''}
+        message={confirm?.message ?? ''}
         confirmLabel={confirm?.confirmLabel}
         danger={confirm?.danger}
         onConfirm={handleConfirm}

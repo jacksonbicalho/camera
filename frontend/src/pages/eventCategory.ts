@@ -72,10 +72,14 @@ export function firstEventInChunk<T extends Pick<MotionEvent, 'time'>>(
 // Título legível do evento por categoria, para o card do painel de eventos.
 export function eventTitle(ev: Pick<MotionEvent, 'label' | 'kind'>): string {
   switch (eventCategory(ev)) {
-    case 'pessoa': return 'Pessoa detectada'
-    case 'movimento': return 'Movimento detectado'
-    case 'estados': return (ev.label ?? '').trim() || 'Estado'
-    case 'ia': return (ev.label ?? '').trim() || 'Detecção IA'
+    case 'pessoa':
+      return 'Pessoa detectada'
+    case 'movimento':
+      return 'Movimento detectado'
+    case 'estados':
+      return (ev.label ?? '').trim() || 'Estado'
+    case 'ia':
+      return (ev.label ?? '').trim() || 'Detecção IA'
   }
 }
 
@@ -98,5 +102,5 @@ export function filterEventsByCategory<T extends Pick<MotionEvent, 'label' | 'ki
   filter: EventFilter,
 ): T[] {
   if (filter === 'todos') return events
-  return events.filter(ev => eventCategory(ev) === filter)
+  return events.filter((ev) => eventCategory(ev) === filter)
 }

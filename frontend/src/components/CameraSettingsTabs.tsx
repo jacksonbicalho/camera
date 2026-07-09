@@ -12,11 +12,11 @@ interface Props {
 }
 
 const TABS: { key: Tab; label: string; path: (id: string) => string }[] = [
-  { key: 'detail', label: 'Câmera', path: id => `/settings/cameras/${id}` },
-  { key: 'motion', label: 'Detecção de movimento', path: id => `/settings/cameras/motion/${id}` },
-  { key: 'zones', label: 'Zonas', path: id => `/settings/cameras/zones/${id}` },
-  { key: 'analysis', label: 'Análise', path: id => `/settings/cameras/analysis/${id}` },
-  { key: 'states', label: 'Estados', path: id => `/settings/cameras/states/${id}` },
+  { key: 'detail', label: 'Câmera', path: (id) => `/settings/cameras/${id}` },
+  { key: 'motion', label: 'Detecção de movimento', path: (id) => `/settings/cameras/motion/${id}` },
+  { key: 'zones', label: 'Zonas', path: (id) => `/settings/cameras/zones/${id}` },
+  { key: 'analysis', label: 'Análise', path: (id) => `/settings/cameras/analysis/${id}` },
+  { key: 'states', label: 'Estados', path: (id) => `/settings/cameras/states/${id}` },
 ]
 
 export default function CameraSettingsTabs({ id, active, camName }: Props) {
@@ -24,13 +24,15 @@ export default function CameraSettingsTabs({ id, active, camName }: Props) {
   return (
     <div className="mb-6">
       <nav className="flex items-center gap-1.5 text-xs text-faint mb-4">
-        <Link to="/settings/cameras" className="hover:text-foreground transition-colors">Câmeras</Link>
+        <Link to="/settings/cameras" className="hover:text-foreground transition-colors">
+          Câmeras
+        </Link>
         <span>/</span>
         <span className="text-foreground">{camName || id}</span>
       </nav>
       <div className="flex items-center justify-between border-b border-border">
         <div className="flex gap-1">
-          {TABS.map(tab => (
+          {TABS.map((tab) => (
             <Link
               key={tab.key}
               to={tab.path(id)}

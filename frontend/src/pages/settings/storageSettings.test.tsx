@@ -38,32 +38,58 @@ vi.mock('../../components/ConfirmDialog', () => ({
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
-const drive1 = { id: 'drive-1', name: 'Backup S3', type: 's3', endpoint: 'https://s3.example.com', bucket: 'cam', region: 'us-east-1', prefix: '' }
-const drive2 = { id: 'drive-2', name: 'Offsite', type: 's3', endpoint: 'https://s3.example.com', bucket: 'cam', region: 'us-east-1', prefix: '' }
+const drive1 = {
+  id: 'drive-1',
+  name: 'Backup S3',
+  type: 's3',
+  endpoint: 'https://s3.example.com',
+  bucket: 'cam',
+  region: 'us-east-1',
+  prefix: '',
+}
+const drive2 = {
+  id: 'drive-2',
+  name: 'Offsite',
+  type: 's3',
+  endpoint: 'https://s3.example.com',
+  bucket: 'cam',
+  region: 'us-east-1',
+  prefix: '',
+}
 
 function putCalls() {
   return mockFetch.mock.calls.filter(
-    (c: unknown[]) => (c[0] as string).includes('/api/retention/') && (c[1] as RequestInit)?.method === 'PUT'
+    (c: unknown[]) =>
+      (c[0] as string).includes('/api/retention/') && (c[1] as RequestInit)?.method === 'PUT',
   )
 }
 
 describe('retention destination — unified dropdown (Apagar + drives)', () => {
   it('lists "Apagar" plus every registered drive as options', async () => {
     mockFetch.mockImplementation((url: string) => {
-      if (url === '/api/drives') return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
+      if (url === '/api/drives')
+        return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
       if (url === '/api/retention') return Promise.resolve({ ok: true, json: async () => [] })
       return Promise.resolve({ ok: true, json: async () => ({}) })
     })
 
-    render(<MemoryRouter><StorageSettingsPage /></MemoryRouter>)
+    render(
+      <MemoryRouter>
+        <StorageSettingsPage />
+      </MemoryRouter>,
+    )
 
     const destSelect = await waitFor(() => {
-      const s = screen.getAllByRole('combobox').find(el => (el as HTMLSelectElement).value === 'delete')
+      const s = screen
+        .getAllByRole('combobox')
+        .find((el) => (el as HTMLSelectElement).value === 'delete')
       expect(s).toBeTruthy()
       return s as HTMLSelectElement
     })
 
-    const opts = within(destSelect).getAllByRole('option').map(o => o.textContent)
+    const opts = within(destSelect)
+      .getAllByRole('option')
+      .map((o) => o.textContent)
     expect(opts).toContain('Apagar')
     expect(opts).toContain('Backup S3')
     expect(opts).toContain('Offsite')
@@ -71,17 +97,24 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
 
   it('selecting a drive sends send_to_drive + drive_id', async () => {
     mockFetch.mockImplementation((url: string) => {
-      if (url === '/api/drives') return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
+      if (url === '/api/drives')
+        return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
       if (url === '/api/retention') return Promise.resolve({ ok: true, json: async () => [] })
       return Promise.resolve({ ok: true, json: async () => ({}) })
     })
 
-    render(<MemoryRouter><StorageSettingsPage /></MemoryRouter>)
+    render(
+      <MemoryRouter>
+        <StorageSettingsPage />
+      </MemoryRouter>,
+    )
 
     // Wait until the dropdown exists AND the drive options have loaded, otherwise
     // changing to a not-yet-rendered option yields an empty value (flaky).
     const destSelect = await waitFor(() => {
-      const s = screen.getAllByRole('combobox').find(el => (el as HTMLSelectElement).value === 'delete')
+      const s = screen
+        .getAllByRole('combobox')
+        .find((el) => (el as HTMLSelectElement).value === 'delete')
       expect(s).toBeTruthy()
       expect(within(s as HTMLElement).queryByRole('option', { name: 'Backup S3' })).toBeTruthy()
       return s as HTMLSelectElement
@@ -102,17 +135,28 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
 
   it('selecting "Apagar" sends action delete', async () => {
     mockFetch.mockImplementation((url: string) => {
-      if (url === '/api/drives') return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
-      if (url === '/api/retention') return Promise.resolve({ ok: true, json: async () => [
-        { category: 'with_motion', action: 'send_to_drive', drive_id: 'drive-2' },
-      ] })
+      if (url === '/api/drives')
+        return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
+      if (url === '/api/retention')
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            { category: 'with_motion', action: 'send_to_drive', drive_id: 'drive-2' },
+          ],
+        })
       return Promise.resolve({ ok: true, json: async () => ({}) })
     })
 
-    render(<MemoryRouter><StorageSettingsPage /></MemoryRouter>)
+    render(
+      <MemoryRouter>
+        <StorageSettingsPage />
+      </MemoryRouter>,
+    )
 
     const driveSelect = await waitFor(() => {
-      const s = screen.getAllByRole('combobox').find(el => (el as HTMLSelectElement).value === 'drive:drive-2')
+      const s = screen
+        .getAllByRole('combobox')
+        .find((el) => (el as HTMLSelectElement).value === 'drive:drive-2')
       expect(s).toBeTruthy()
       return s as HTMLSelectElement
     })
@@ -131,17 +175,28 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
 
   it('pre-selects the configured drive (value drive:<id>)', async () => {
     mockFetch.mockImplementation((url: string) => {
-      if (url === '/api/drives') return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
-      if (url === '/api/retention') return Promise.resolve({ ok: true, json: async () => [
-        { category: 'with_motion', action: 'send_to_drive', drive_id: 'drive-2' },
-      ] })
+      if (url === '/api/drives')
+        return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
+      if (url === '/api/retention')
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            { category: 'with_motion', action: 'send_to_drive', drive_id: 'drive-2' },
+          ],
+        })
       return Promise.resolve({ ok: true, json: async () => ({}) })
     })
 
-    render(<MemoryRouter><StorageSettingsPage /></MemoryRouter>)
+    render(
+      <MemoryRouter>
+        <StorageSettingsPage />
+      </MemoryRouter>,
+    )
 
     await waitFor(() => {
-      const s = screen.getAllByRole('combobox').find(el => (el as HTMLSelectElement).value === 'drive:drive-2')
+      const s = screen
+        .getAllByRole('combobox')
+        .find((el) => (el as HTMLSelectElement).value === 'drive:drive-2')
       expect(s).toBeTruthy()
     })
   })

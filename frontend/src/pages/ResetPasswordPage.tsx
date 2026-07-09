@@ -54,12 +54,14 @@ export default function ResetPasswordPage() {
         <h2 className="text-lg font-semibold text-foreground mb-6 text-center">Redefinir senha</h2>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <Label htmlFor="reset-password-new" className="block text-muted-foreground mb-1">Nova senha</Label>
+            <Label htmlFor="reset-password-new" className="block text-muted-foreground mb-1">
+              Nova senha
+            </Label>
             <Input
               id="reset-password-new"
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               required
               autoFocus
               minLength={8}
@@ -68,18 +70,24 @@ export default function ResetPasswordPage() {
             />
           </div>
           <div>
-            <Label htmlFor="reset-password-confirm" className="block text-muted-foreground mb-1">Confirmar senha</Label>
+            <Label htmlFor="reset-password-confirm" className="block text-muted-foreground mb-1">
+              Confirmar senha
+            </Label>
             <Input
               id="reset-password-confirm"
               type="password"
               value={confirm}
-              onChange={e => setConfirm(e.target.value)}
+              onChange={(e) => setConfirm(e.target.value)}
               required
               autoComplete="new-password"
               aria-invalid={error ? 'true' : undefined}
             />
           </div>
-          {error && <p role="alert" className="text-danger text-sm">{error}</p>}
+          {error && (
+            <p role="alert" className="text-danger text-sm">
+              {error}
+            </p>
+          )}
           <Button id="reset-password-submit" type="submit" disabled={loading}>
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {loading ? 'Redefinindo...' : 'Redefinir senha'}

@@ -30,11 +30,14 @@ export default function AllCamerasPage() {
 
   useEffect(() => {
     fetch('/api/cameras', { headers: authHeaders() })
-      .then(res => {
-        if (res.status === 401) { onUnauthorized(); return [] }
+      .then((res) => {
+        if (res.status === 401) {
+          onUnauthorized()
+          return []
+        }
         return res.json()
       })
-      .then(data => {
+      .then((data) => {
         if (!Array.isArray(data)) return
         if (data.length === 0 && getRole() === 'admin') {
           navigate('/settings/cameras/new', { replace: true })
@@ -49,14 +52,18 @@ export default function AllCamerasPage() {
       <div id="all-cameras-content" className="page-content space-y-4">
         <PageHeader id="all-cameras-header" title="Todas as câmeras" />
         {cameras.length === 0 ? (
-          <p id="all-cameras-empty" className="text-faint text-body">Nenhuma câmera configurada.</p>
+          <p id="all-cameras-empty" className="text-faint text-body">
+            Nenhuma câmera configurada.
+          </p>
         ) : (
           <div
             id="all-cameras-grid"
             className="grid min-h-[70vh] auto-rows-fr gap-4"
-            style={{ gridTemplateColumns: `repeat(${gridColumns(cameras.length)}, minmax(0, 1fr))` }}
+            style={{
+              gridTemplateColumns: `repeat(${gridColumns(cameras.length)}, minmax(0, 1fr))`,
+            }}
           >
-            {cameras.map(cam => (
+            {cameras.map((cam) => (
               <button
                 key={cam.id}
                 id={`all-cameras-card-${cam.id}`}
@@ -76,7 +83,9 @@ export default function AllCamerasPage() {
                   </span>
                 </div>
                 <div className="shrink-0 px-3 py-2">
-                  <p className="text-body font-medium text-foreground group-hover:text-foreground truncate">{cam.name}</p>
+                  <p className="text-body font-medium text-foreground group-hover:text-foreground truncate">
+                    {cam.name}
+                  </p>
                 </div>
               </button>
             ))}

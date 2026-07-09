@@ -6,7 +6,13 @@ import CameraStageHeader from '../components/CameraStageHeader'
 import DatePicker from '../components/DatePicker'
 import { Loader2, Play } from '../components/Icons'
 import VideoPlayer, { type VideoPlayerSegment } from '../components/VideoPlayer'
-import { loadMotionEvents, loadRecordingsData, mergeRecordings, type MotionEvent, type Recording } from './cameraUtils'
+import {
+  loadMotionEvents,
+  loadRecordingsData,
+  mergeRecordings,
+  type MotionEvent,
+  type Recording,
+} from './cameraUtils'
 import { recordingCategory, type RecordingCategory } from './eventCategory'
 import { RecordingsGateway } from '../lib/recordingsGateway'
 
@@ -55,7 +61,7 @@ function formatDuration(rec: Recording, next: Recording | undefined): string | n
 // primeiro) + clique no 2 → toca "2, 3, 4". `id` não encontrado (não deveria acontecer,
 // `id` sempre vem de um card do próprio filmstrip) → sequência inteira como fallback.
 function buildContinuousSequence(recs: Recording[], id: number | null): Recording[] {
-  const idx = recs.findIndex(r => r.id === id)
+  const idx = recs.findIndex((r) => r.id === id)
   const upToSelected = idx >= 0 ? recs.slice(0, idx + 1) : recs
   return [...upToSelected].reverse()
 }
@@ -108,7 +114,9 @@ export default function HistoryPage() {
   // Sem "onError", uma gravação que falha em carregar (arquivo ausente/corrompido, rede lenta)
   // deixava o spinner de loading girando pra sempre — nunca chegava a "onLoadedData".
   const [videoError, setVideoError] = useState(false)
-  const [selectedDate, setSelectedDate] = useState<Date | null>(() => (initialRecordingId ? null : new Date()))
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() =>
+    initialRecordingId ? null : new Date(),
+  )
   const [availableDays, setAvailableDays] = useState<string[]>([])
   const [readyForUrlSync, setReadyForUrlSync] = useState(!initialRecordingId)
   // Paginação do filmstrip: `recordings` acumula as páginas já carregadas (sempre em ordem
@@ -136,7 +144,7 @@ export default function HistoryPage() {
     const targetId = initialRecordingId
     if (!targetId) return
     let cancelled = false
-    gateway.getRecording(cameraId, targetId).then(meta => {
+    gateway.getRecording(cameraId, targetId).then((meta) => {
       if (cancelled) return
       if (!meta) {
         setRecordingNotFound(true)
@@ -179,7 +187,9 @@ export default function HistoryPage() {
         }
         const data = await res.json()
         if (cancelled) return
-        const cam = Array.isArray(data) ? (data as Camera[]).find(c => c.id === cameraId) : undefined
+        const cam = Array.isArray(data)
+          ? (data as Camera[]).find((c) => c.id === cameraId)
+          : undefined
         if (!cam) {
           setError('Câmera não encontrada.')
           return
@@ -214,20 +224,26 @@ export default function HistoryPage() {
       let total: number
       let sawActive = false
       for (;;) {
-        const recRes = await loadRecordingsData(cameraId!, selectedDate!, currentPage, 'desc', PAGE_SIZE)
+        const recRes = await loadRecordingsData(
+          cameraId!,
+          selectedDate!,
+          currentPage,
+          'desc',
+          PAGE_SIZE,
+        )
         if (cancelled) return
         if (recRes === 401) {
           onUnauthorized()
           return
         }
-        recs = [...recs, ...recRes.recordings.filter(r => !r.is_recording)]
+        recs = [...recs, ...recRes.recordings.filter((r) => !r.is_recording)]
         more = recRes.hasMore
         total = recRes.total
-        if (recRes.recordings.some(r => r.is_recording)) sawActive = true
+        if (recRes.recordings.some((r) => r.is_recording)) sawActive = true
         // Sem alvo pendente (navegação normal): só a 1ª página, mesmo que hasMore — a
         // paginação automática é só pra achar uma gravação específica vinda da URL.
         if (pending == null) break
-        if (recs.some(r => r.id === pending) || !more) break
+        if (recs.some((r) => r.id === pending) || !more) break
         currentPage += 1
       }
 
@@ -238,7 +254,12 @@ export default function HistoryPage() {
       pageRef.current = currentPage
       setDayTotal(total - (sawActive ? 1 : 0))
       pendingSelectRef.current = null
-      const initial = pending != null && recs.some(r => r.id === pending) ? pending : recs.length > 0 ? recs[0].id : null
+      const initial =
+        pending != null && recs.some((r) => r.id === pending)
+          ? pending
+          : recs.length > 0
+            ? recs[0].id
+            : null
       setSelectedId(initial)
       setVideoLoading(true)
       setReadyForUrlSync(true)
@@ -268,20 +289,23 @@ export default function HistoryPage() {
       selectedDate.getMonth() === today.getMonth() &&
       selectedDate.getDate() === today.getDate()
 
-    const interval = setInterval(async () => {
-      const [recRes, evs] = await Promise.all([
-        loadRecordingsData(cameraId, selectedDate, 1, 'desc', pageRef.current * PAGE_SIZE),
-        loadMotionEvents(cameraId, selectedDate),
-      ])
-      if (recRes === 401) {
-        onUnauthorized()
-        return
-      }
-      const recs = recRes.recordings.filter(r => !r.is_recording)
-      setRecordings(prev => mergeRecordings(prev, recs, 'desc', recRes.hasMore))
-      setEvents(evs)
-      setDayTotal(recRes.total - (recRes.recordings.some(r => r.is_recording) ? 1 : 0))
-    }, isToday ? 5_000 : 30_000)
+    const interval = setInterval(
+      async () => {
+        const [recRes, evs] = await Promise.all([
+          loadRecordingsData(cameraId, selectedDate, 1, 'desc', pageRef.current * PAGE_SIZE),
+          loadMotionEvents(cameraId, selectedDate),
+        ])
+        if (recRes === 401) {
+          onUnauthorized()
+          return
+        }
+        const recs = recRes.recordings.filter((r) => !r.is_recording)
+        setRecordings((prev) => mergeRecordings(prev, recs, 'desc', recRes.hasMore))
+        setEvents(evs)
+        setDayTotal(recRes.total - (recRes.recordings.some((r) => r.is_recording) ? 1 : 0))
+      },
+      isToday ? 5_000 : 30_000,
+    )
 
     return () => clearInterval(interval)
   }, [cameraId, selectedDate])
@@ -290,7 +314,7 @@ export default function HistoryPage() {
   useEffect(() => {
     if (!cameraId) return
     fetch(`/api/cameras/${cameraId}/content-days`, { headers: authHeaders() })
-      .then(r => (r.ok ? r.json() : { days: [] }))
+      .then((r) => (r.ok ? r.json() : { days: [] }))
       .then((d: { days?: string[] }) => setAvailableDays(d.days ?? []))
       .catch(() => {})
   }, [cameraId])
@@ -301,7 +325,8 @@ export default function HistoryPage() {
   // reescrever uma URL compartilhada antes dela ser resolvida.
   useEffect(() => {
     if (!cameraId || !readyForUrlSync) return
-    const target = selectedId != null ? `/history/${cameraId}/${selectedId}` : `/history/${cameraId}`
+    const target =
+      selectedId != null ? `/history/${cameraId}/${selectedId}` : `/history/${cameraId}`
     if (location.pathname !== target) navigate(target, { replace: true })
   }, [cameraId, selectedId, readyForUrlSync, location.pathname, navigate])
 
@@ -310,12 +335,15 @@ export default function HistoryPage() {
   // `selected` virava null e o player caía em "Sem gravações nesse dia" mesmo com outras
   // gravações do dia ainda disponíveis; troca pra mais recente ainda existente. Ajuste durante o
   // render (mesmo padrão do `playingForId` abaixo), não useEffect+setState.
-  if (selectedId != null && recordings.length > 0 && !recordings.some(r => r.id === selectedId)) {
+  if (selectedId != null && recordings.length > 0 && !recordings.some((r) => r.id === selectedId)) {
     setSelectedId(recordings[0].id)
     setVideoLoading(true)
   }
 
-  const selected = useMemo(() => recordings.find(r => r.id === selectedId) ?? null, [recordings, selectedId])
+  const selected = useMemo(
+    () => recordings.find((r) => r.id === selectedId) ?? null,
+    [recordings, selectedId],
+  )
 
   // `recordings` já vem em ordem decrescente (mais recente primeiro — pedido igual à exibição
   // do filmstrip, sem precisar reverter). O "próximo cronológico" (pra inferir a duração quando
@@ -332,7 +360,11 @@ export default function HistoryPage() {
   // (dia com muitos chunks), o card destacado fica fora da área visível.
   const activeCardRef = useRef<HTMLButtonElement | null>(null)
   useEffect(() => {
-    activeCardRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    activeCardRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'center',
+      block: 'nearest',
+    })
   }, [selectedId])
 
   // singleSegments: 1 gravação = 1 segmento (modo normal, troca manual de card) —
@@ -345,7 +377,10 @@ export default function HistoryPage() {
   // NÃO reconstrói a playlist a cada passo — senão o motor do VideoPlayer reiniciaria do
   // zero (perde o double-buffering) a cada transição, o oposto do que a feature pede.
   const singleSegments = useMemo<VideoPlayerSegment[]>(
-    () => (selected ? [{ src: `${selected.url}?token=${getToken()}`, fromSeconds: 0, toSeconds: Infinity }] : []),
+    () =>
+      selected
+        ? [{ src: `${selected.url}?token=${getToken()}`, fromSeconds: 0, toSeconds: Infinity }]
+        : [],
     [selected],
   )
   // toSeconds do modo contínuo usa a duração REAL do registro (`end - start`, mesmo cálculo
@@ -359,10 +394,13 @@ export default function HistoryPage() {
   const continuousSegments = useMemo<VideoPlayerSegment[]>(
     () =>
       continuousRecordings
-        ? continuousRecordings.map(rec => {
+        ? continuousRecordings.map((rec) => {
             const start = Date.parse(rec.start)
             const end = rec.end ? Date.parse(rec.end) : NaN
-            const toSeconds = Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, (end - start) / 1000) : Infinity
+            const toSeconds =
+              Number.isFinite(start) && Number.isFinite(end)
+                ? Math.max(0, (end - start) / 1000)
+                : Infinity
             return { src: `${rec.url}?token=${getToken()}`, fromSeconds: 0, toSeconds }
           })
         : [],
@@ -379,7 +417,7 @@ export default function HistoryPage() {
   activeRecordingsRef.current = continuousRecordings ?? (selected ? [selected] : [])
   const handleSegmentChange = useCallback((index: number) => {
     const rec = activeRecordingsRef.current[index]
-    if (rec) setSelectedId(id => (id === rec.id ? id : rec.id))
+    if (rec) setSelectedId((id) => (id === rec.id ? id : rec.id))
   }, [])
 
   // videoError não pode grudar na gravação seguinte — reseta ao trocar. `playing` já é
@@ -422,7 +460,9 @@ export default function HistoryPage() {
   // referência de `segments`) — reinício simples e previsível, sem tentar preservar a
   // posição exata na troca de modo.
   function toggleContinuous() {
-    setContinuousRecordings(prev => (prev ? null : buildContinuousSequence(recordings, selectedId)))
+    setContinuousRecordings((prev) =>
+      prev ? null : buildContinuousSequence(recordings, selectedId),
+    )
   }
 
   // "Carregar mais" — busca a próxima página (mais antiga) sob demanda e concatena no fim do
@@ -438,15 +478,15 @@ export default function HistoryPage() {
         onUnauthorized()
         return
       }
-      const newRecs = recRes.recordings.filter(r => !r.is_recording)
-      setRecordings(prev => {
-        const existing = new Set(prev.map(r => r.id))
-        return [...prev, ...newRecs.filter(r => !existing.has(r.id))]
+      const newRecs = recRes.recordings.filter((r) => !r.is_recording)
+      setRecordings((prev) => {
+        const existing = new Set(prev.map((r) => r.id))
+        return [...prev, ...newRecs.filter((r) => !existing.has(r.id))]
       })
       setHasMore(recRes.hasMore)
       setPage(nextPage)
       pageRef.current = nextPage
-      setDayTotal(recRes.total - (recRes.recordings.some(r => r.is_recording) ? 1 : 0))
+      setDayTotal(recRes.total - (recRes.recordings.some((r) => r.is_recording) ? 1 : 0))
     } finally {
       setLoadingMore(false)
     }
@@ -554,12 +594,16 @@ export default function HistoryPage() {
                 >
                   <span
                     className={`inline-flex h-5 w-14 shrink-0 items-center rounded-full border-2 transition-colors ${
-                      continuousRecordings != null ? 'justify-end border-primary' : 'justify-start border-faint'
+                      continuousRecordings != null
+                        ? 'justify-end border-primary'
+                        : 'justify-start border-faint'
                     }`}
                   >
                     <span
                       className={`-my-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 bg-background transition-colors ${
-                        continuousRecordings != null ? 'border-primary text-primary' : 'border-faint text-faint'
+                        continuousRecordings != null
+                          ? 'border-primary text-primary'
+                          : 'border-faint text-faint'
                       }`}
                     >
                       <Play className="ml-0.5 h-3 w-3" />
@@ -597,7 +641,10 @@ export default function HistoryPage() {
                   // keyframe já usado no Filmstrip legado) enquanto o vídeo está tocando de
                   // verdade — só "selecionado" (pausado) não pisca. Cards inativos mantêm a
                   // cor de categoria intacta (informação real, não deve ser ofuscada).
-                  const blinkStyle = active && playing ? { animation: 'filmstrip-blink 1.1s ease-in-out infinite' } : undefined
+                  const blinkStyle =
+                    active && playing
+                      ? { animation: 'filmstrip-blink 1.1s ease-in-out infinite' }
+                      : undefined
                   return (
                     <button
                       key={rec.id}
@@ -614,7 +661,9 @@ export default function HistoryPage() {
                       <div className="flex items-center justify-between">
                         <Play className="h-4 w-4 text-muted-foreground" />
                         {duration && (
-                          <span className="rounded bg-foreground/10 px-1 text-caption text-foreground">{duration}</span>
+                          <span className="rounded bg-foreground/10 px-1 text-caption text-foreground">
+                            {duration}
+                          </span>
                         )}
                       </div>
                       <div>

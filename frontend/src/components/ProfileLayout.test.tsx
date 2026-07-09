@@ -16,11 +16,18 @@ vi.mock('../contexts/UserNotificationContext', () => ({
 
 vi.mock('../contexts/NotificationContext', () => ({
   useNotifications: () => ({
-    notifications: [], unreadCount: 0,
-    markRead: vi.fn(), markSelectedRead: vi.fn(),
-    remove: vi.fn(), removeAll: vi.fn(), removeSelected: vi.fn(),
-    browserSupported: false, browserPermission: 'default', browserEnabled: false,
-    enableBrowserNotifications: vi.fn(), disableBrowserNotifications: vi.fn(),
+    notifications: [],
+    unreadCount: 0,
+    markRead: vi.fn(),
+    markSelectedRead: vi.fn(),
+    remove: vi.fn(),
+    removeAll: vi.fn(),
+    removeSelected: vi.fn(),
+    browserSupported: false,
+    browserPermission: 'default',
+    browserEnabled: false,
+    enableBrowserNotifications: vi.fn(),
+    disableBrowserNotifications: vi.fn(),
   }),
 }))
 
@@ -41,7 +48,9 @@ describe('ProfileLayout', () => {
     renderAt('/profile')
     expect(document.body.textContent).toContain('conteúdo')
     expect(document.getElementById('profile-nav-perfil')?.getAttribute('href')).toBe('/profile')
-    expect(document.getElementById('profile-nav-senha')?.getAttribute('href')).toBe('/profile/change-password')
+    expect(document.getElementById('profile-nav-senha')?.getAttribute('href')).toBe(
+      '/profile/change-password',
+    )
   })
 
   it('marca o link ativo conforme a rota atual', () => {

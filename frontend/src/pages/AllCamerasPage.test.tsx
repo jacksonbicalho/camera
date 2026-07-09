@@ -18,11 +18,18 @@ vi.mock('../contexts/UserNotificationContext', () => ({
 
 vi.mock('../contexts/NotificationContext', () => ({
   useNotifications: () => ({
-    notifications: [], unreadCount: 0,
-    markRead: vi.fn(), markSelectedRead: vi.fn(),
-    remove: vi.fn(), removeAll: vi.fn(), removeSelected: vi.fn(),
-    browserSupported: false, browserPermission: 'default', browserEnabled: false,
-    enableBrowserNotifications: vi.fn(), disableBrowserNotifications: vi.fn(),
+    notifications: [],
+    unreadCount: 0,
+    markRead: vi.fn(),
+    markSelectedRead: vi.fn(),
+    remove: vi.fn(),
+    removeAll: vi.fn(),
+    removeSelected: vi.fn(),
+    browserSupported: false,
+    browserPermission: 'default',
+    browserEnabled: false,
+    enableBrowserNotifications: vi.fn(),
+    disableBrowserNotifications: vi.fn(),
   }),
 }))
 
@@ -74,7 +81,10 @@ describe('AllCamerasPage — grid de câmeras ao vivo', () => {
   ]
 
   it('usa a largura padrão compartilhada (.page-content) e o título via PageHeader ("Todas as câmeras")', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })),
+    )
     renderAt('/')
     await waitFor(() => {
       expect(document.getElementById('all-cameras-content')).not.toBeNull()
@@ -93,7 +103,10 @@ describe('AllCamerasPage — grid de câmeras ao vivo', () => {
     [10, 4],
   ])('divide o grid em %i câmera(s) → %i colunas', async (count, expectedCols) => {
     const many = Array.from({ length: count }, (_, i) => ({ id: `cam${i}`, name: `Cam ${i}` }))
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(many) })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(many) })),
+    )
     renderAt('/')
     await waitFor(() => {
       expect(document.getElementById('all-cameras-grid')).not.toBeNull()
@@ -104,7 +117,10 @@ describe('AllCamerasPage — grid de câmeras ao vivo', () => {
   })
 
   it('renderiza um card por câmera com o player ao vivo (src/transport corretos)', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })),
+    )
     renderAt('/')
     await waitFor(() => {
       expect(document.getElementById('all-cameras-card-cam1')).not.toBeNull()
@@ -117,7 +133,10 @@ describe('AllCamerasPage — grid de câmeras ao vivo', () => {
   })
 
   it('clicar num card navega para /live/{id} (rota nova, não mais /camera/live/:id)', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })),
+    )
     renderAt('/')
     await waitFor(() => {
       expect(document.getElementById('all-cameras-card-cam2')).not.toBeNull()
@@ -129,7 +148,10 @@ describe('AllCamerasPage — grid de câmeras ao vivo', () => {
   })
 
   it('lista vazia + admin redireciona para /settings/cameras/new', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve([]) })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve([]) })),
+    )
     renderAt('/')
     await waitFor(() => {
       expect(document.getElementById('test-location')!.textContent).toBe('/settings/cameras/new')
@@ -138,7 +160,10 @@ describe('AllCamerasPage — grid de câmeras ao vivo', () => {
 
   it('lista vazia + viewer mostra mensagem sem redirecionar', async () => {
     vi.mocked(getRole).mockReturnValue('viewer')
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve([]) })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve([]) })),
+    )
     renderAt('/')
     await waitFor(() => {
       expect(document.getElementById('all-cameras-empty')).not.toBeNull()

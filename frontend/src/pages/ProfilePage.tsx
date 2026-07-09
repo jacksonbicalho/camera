@@ -50,14 +50,14 @@ export default function ProfilePage() {
 
   function loadProfile() {
     fetch('/api/me', { headers: authHeaders() })
-      .then(res => {
+      .then((res) => {
         if (res.status === 401) {
           onUnauthorized()
           return null
         }
         return res.ok ? res.json() : null
       })
-      .then(data => {
+      .then((data) => {
         if (data) setProfile(data)
       })
   }
@@ -93,7 +93,11 @@ export default function ProfilePage() {
         return
       }
       if (!res.ok) {
-        setError(res.status === 409 ? 'Esse usuário já está em uso.' : (await res.text()) || 'Não foi possível salvar.')
+        setError(
+          res.status === 409
+            ? 'Esse usuário já está em uso.'
+            : (await res.text()) || 'Não foi possível salvar.',
+        )
         return
       }
       setEditingBasic(false)
@@ -187,7 +191,13 @@ export default function ProfilePage() {
               label="E-mail"
               value={profile.email || 'nenhum cadastrado'}
               action={
-                <Button id="profile-edit-email" type="button" variant="outline" size="sm" onClick={startEditEmail}>
+                <Button
+                  id="profile-edit-email"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={startEditEmail}
+                >
                   Editar
                 </Button>
               }
@@ -197,7 +207,11 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {error && <p role="alert" className="text-danger text-sm">{error}</p>}
+        {error && (
+          <p role="alert" className="text-danger text-sm">
+            {error}
+          </p>
+        )}
         {message && <p className="text-success text-sm">{message}</p>}
 
         {editingBasic && (
@@ -206,20 +220,34 @@ export default function ProfilePage() {
               <Label htmlFor="profile-name" className="mb-1 block text-muted-foreground">
                 Nome
               </Label>
-              <Input id="profile-name" value={nameInput} onChange={e => setNameInput(e.target.value)} />
+              <Input
+                id="profile-name"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+              />
             </div>
             <div>
               <Label htmlFor="profile-username" className="mb-1 block text-muted-foreground">
                 Usuário
               </Label>
-              <Input id="profile-username" value={usernameInput} onChange={e => setUsernameInput(e.target.value)} required />
+              <Input
+                id="profile-username"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                required
+              />
             </div>
             <div className="flex gap-2">
               <Button id="profile-save-basic" type="submit" disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Salvar
               </Button>
-              <Button id="profile-cancel-basic" type="button" variant="outline" onClick={cancelEditBasic}>
+              <Button
+                id="profile-cancel-basic"
+                type="button"
+                variant="outline"
+                onClick={cancelEditBasic}
+              >
                 Cancelar
               </Button>
             </div>
@@ -236,7 +264,7 @@ export default function ProfilePage() {
                 id="profile-new-email"
                 type="email"
                 value={newEmail}
-                onChange={e => setNewEmail(e.target.value)}
+                onChange={(e) => setNewEmail(e.target.value)}
                 required
                 autoFocus
                 autoComplete="email"
@@ -247,7 +275,12 @@ export default function ProfilePage() {
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Enviar código
               </Button>
-              <Button id="profile-cancel-email" type="button" variant="outline" onClick={cancelEditEmail}>
+              <Button
+                id="profile-cancel-email"
+                type="button"
+                variant="outline"
+                onClick={cancelEditEmail}
+              >
                 Cancelar
               </Button>
             </div>
@@ -263,7 +296,7 @@ export default function ProfilePage() {
               <Input
                 id="profile-confirm-code"
                 value={code}
-                onChange={e => setCode(e.target.value)}
+                onChange={(e) => setCode(e.target.value)}
                 required
                 autoFocus
                 inputMode="numeric"
@@ -275,7 +308,12 @@ export default function ProfilePage() {
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Confirmar
               </Button>
-              <Button id="profile-cancel-code" type="button" variant="outline" onClick={cancelEditEmail}>
+              <Button
+                id="profile-cancel-code"
+                type="button"
+                variant="outline"
+                onClick={cancelEditEmail}
+              >
                 Cancelar
               </Button>
             </div>

@@ -1,23 +1,18 @@
-import { Card } from "./ui/card";
+import { Card } from './ui/card'
 
 interface FieldRow {
-  label: string;
-  value: React.ReactNode;
+  label: string
+  value: React.ReactNode
 }
 
 interface SettingsSectionProps {
-  title: string;
-  fields?: FieldRow[];
-  groups?: FieldRow[][];
-  children?: React.ReactNode;
+  title: string
+  fields?: FieldRow[]
+  groups?: FieldRow[][]
+  children?: React.ReactNode
 }
 
-export default function SettingsSection({
-  title,
-  fields,
-  groups,
-  children,
-}: SettingsSectionProps) {
+export default function SettingsSection({ title, fields, groups, children }: SettingsSectionProps) {
   return (
     <Card className="overflow-hidden">
       <p className="text-h4 text-muted-foreground uppercase tracking-wider font-medium px-5 pt-4 pb-3 border-b border-border">
@@ -29,7 +24,13 @@ export default function SettingsSection({
           {groups.map((group, i) => (
             <div
               key={i}
-              className={group.length === 2 ? 'grid grid-cols-2 divide-x divide-border' : group.length === 3 ? 'grid grid-cols-3 divide-x divide-border' : ''}
+              className={
+                group.length === 2
+                  ? 'grid grid-cols-2 divide-x divide-border'
+                  : group.length === 3
+                    ? 'grid grid-cols-3 divide-x divide-border'
+                    : ''
+              }
             >
               {group.map(({ label, value }) => (
                 <div key={label} className="px-5 py-3">
@@ -53,5 +54,5 @@ export default function SettingsSection({
 
       {children}
     </Card>
-  );
+  )
 }

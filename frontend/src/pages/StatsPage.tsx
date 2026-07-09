@@ -17,12 +17,18 @@ interface CameraInfo {
 
 function StatusDot({ online }: { online: boolean }) {
   return (
-    <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${online ? 'bg-green-500' : 'bg-faint'}`} />
+    <span
+      className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${online ? 'bg-green-500' : 'bg-faint'}`}
+    />
   )
 }
 
 function ChevronIcon({ open }: { open: boolean }) {
-  return <ChevronDown className={`w-4 h-4 text-faint transition-transform flex-shrink-0 ${open ? 'rotate-180' : ''}`} />
+  return (
+    <ChevronDown
+      className={`w-4 h-4 text-faint transition-transform flex-shrink-0 ${open ? 'rotate-180' : ''}`}
+    />
+  )
 }
 
 export default function StatsPage() {
@@ -32,37 +38,45 @@ export default function StatsPage() {
 
   useEffect(() => {
     fetch('/api/cameras', { headers: authHeaders() })
-      .then(res => {
-        if (res.status === 401) { onUnauthorized(); return null }
+      .then((res) => {
+        if (res.status === 401) {
+          onUnauthorized()
+          return null
+        }
         return res.json()
       })
-      .then(data => { if (Array.isArray(data)) setCameras(data) })
+      .then((data) => {
+        if (Array.isArray(data)) setCameras(data)
+      })
       .catch(() => {})
   }, [])
 
   function toggleCam(id: string) {
-    setExpandedCams(prev => {
+    setExpandedCams((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
 
   const hasLimit = (stats?.max_size_bytes ?? 0) > 0
   const limitRef = hasLimit ? stats!.max_size_bytes : (stats?.disk_total_bytes ?? 0)
-  const usedPercent = limitRef > 0
-    ? Math.min(100, Math.round((stats!.recordings_bytes / limitRef) * 100))
-    : 0
+  const usedPercent =
+    limitRef > 0 ? Math.min(100, Math.round((stats!.recordings_bytes / limitRef) * 100)) : 0
   const warnThreshold = hasLimit && stats ? stats.warn_percent : 0
   const isWarning = warnThreshold > 0 && usedPercent >= warnThreshold
   const isOver = hasLimit && stats ? stats.recordings_bytes >= stats.max_size_bytes : false
   const barColor = isOver
     ? 'bg-gradient-to-r from-red-700 to-red-500'
     : isWarning
-    ? 'bg-gradient-to-r from-yellow-600 to-yellow-400'
-    : 'bg-gradient-to-r from-blue-700 to-blue-400'
+      ? 'bg-gradient-to-r from-yellow-600 to-yellow-400'
+      : 'bg-gradient-to-r from-blue-700 to-blue-400'
 
-  const cameraHealthMap = Object.fromEntries((stats?.cameras ?? []).map(c => [c.id, c]))
+  const cameraHealthMap = Object.fromEntries((stats?.cameras ?? []).map((c) => [c.id, c]))
 
   const cpuPct = stats?.cpu_percent ?? -1
   const sysMemUsed = (stats?.sys_mem_total_bytes ?? 0) - (stats?.sys_mem_free_bytes ?? 0)
@@ -70,186 +84,204 @@ export default function StatsPage() {
   return (
     <Layout id="stats-page" footerId="stats-footer" contentClassName="p-6">
       <div id="stats-content" className="page-content space-y-4">
-      <PageHeader title="Estatísticas" subtitle="Uso de disco, sistema e saúde das câmeras." />
+        <PageHeader title="Estatísticas" subtitle="Uso de disco, sistema e saúde das câmeras." />
 
-      {!stats ? (
-        <p className="text-faint text-sm">Carregando...</p>
-      ) : (
-        <div className="space-y-4">
-
-          {/* KPIs */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-surface border border-border rounded-xl p-5">
-              <p className="text-xs text-faint uppercase tracking-wider mb-3">Gravações</p>
-              <p className="text-3xl font-bold text-foreground">{stats.recordings_count.toLocaleString()}</p>
-              <p className="text-sm text-muted-foreground mt-1">{formatBytes(stats.recordings_bytes)}</p>
-            </div>
-            <div className="bg-surface border border-border rounded-xl p-5">
-              <p className="text-xs text-faint uppercase tracking-wider mb-3">Horas gravadas</p>
-              <p className="text-3xl font-bold text-foreground">{formatDuration(stats.recordings_duration_seconds)}</p>
-              <p className="text-sm text-muted-foreground mt-1">de vídeo em disco</p>
-            </div>
-            <div className="bg-surface border border-border rounded-xl p-5">
-              <p className="text-xs text-faint uppercase tracking-wider mb-3">Câmeras</p>
-              <p className="text-3xl font-bold text-foreground">{stats.camera_count}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {stats.connected_clients} cliente{stats.connected_clients !== 1 ? 's' : ''} conectado{stats.connected_clients !== 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
-
-          {/* Disco */}
-          <div className="bg-surface border border-border rounded-xl p-5">
-            <p className="text-xs text-faint uppercase tracking-wider mb-5">Armazenamento</p>
-            <div className="grid grid-cols-3 gap-6 mb-5">
-              <div>
-                <p className="text-xs text-faint mb-1">{hasLimit ? 'Limite' : 'Total'}</p>
-                <p className="text-2xl font-bold text-foreground">
-                  {formatBytes(hasLimit ? stats.max_size_bytes : stats.disk_total_bytes)}
+        {!stats ? (
+          <p className="text-faint text-sm">Carregando...</p>
+        ) : (
+          <div className="space-y-4">
+            {/* KPIs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-surface border border-border rounded-xl p-5">
+                <p className="text-xs text-faint uppercase tracking-wider mb-3">Gravações</p>
+                <p className="text-3xl font-bold text-foreground">
+                  {stats.recordings_count.toLocaleString()}
                 </p>
-              </div>
-              <div>
-                <p className="text-xs text-faint mb-1">Gravações</p>
-                <p className={`text-2xl font-bold ${isOver ? 'text-red-400' : isWarning ? 'text-yellow-400' : 'text-blue-400'}`}>
+                <p className="text-sm text-muted-foreground mt-1">
                   {formatBytes(stats.recordings_bytes)}
                 </p>
               </div>
-              <div>
-                <p className="text-xs text-faint mb-1">Disponível</p>
-                <p className="text-2xl font-bold text-green-400">
-                  {formatBytes(hasLimit
-                    ? Math.max(0, stats.max_size_bytes - stats.recordings_bytes)
-                    : stats.disk_free_bytes)}
+              <div className="bg-surface border border-border rounded-xl p-5">
+                <p className="text-xs text-faint uppercase tracking-wider mb-3">Horas gravadas</p>
+                <p className="text-3xl font-bold text-foreground">
+                  {formatDuration(stats.recordings_duration_seconds)}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">de vídeo em disco</p>
+              </div>
+              <div className="bg-surface border border-border rounded-xl p-5">
+                <p className="text-xs text-faint uppercase tracking-wider mb-3">Câmeras</p>
+                <p className="text-3xl font-bold text-foreground">{stats.camera_count}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {stats.connected_clients} cliente{stats.connected_clients !== 1 ? 's' : ''}{' '}
+                  conectado{stats.connected_clients !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>
-            <div className="h-3 bg-surface-2 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-                style={{ width: `${usedPercent}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between mt-2">
-              <p className="text-xs text-faint">
-                {usedPercent}% {hasLimit ? `do limite de ${formatBytes(stats.max_size_bytes)}` : 'do disco'}
-              </p>
-              {isWarning && !isOver && <p className="text-xs text-yellow-500">⚠ próximo do limite</p>}
-              {isOver && <p className="text-xs text-red-500">⚠ limite atingido</p>}
-            </div>
-            {stats.forecast_seconds > 0 && (
-              <div className="mt-4 pt-4 border-t border-border">
+
+            {/* Disco */}
+            <div className="bg-surface border border-border rounded-xl p-5">
+              <p className="text-xs text-faint uppercase tracking-wider mb-5">Armazenamento</p>
+              <div className="grid grid-cols-3 gap-6 mb-5">
+                <div>
+                  <p className="text-xs text-faint mb-1">{hasLimit ? 'Limite' : 'Total'}</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {formatBytes(hasLimit ? stats.max_size_bytes : stats.disk_total_bytes)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-faint mb-1">Gravações</p>
+                  <p
+                    className={`text-2xl font-bold ${isOver ? 'text-red-400' : isWarning ? 'text-yellow-400' : 'text-blue-400'}`}
+                  >
+                    {formatBytes(stats.recordings_bytes)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-faint mb-1">Disponível</p>
+                  <p className="text-2xl font-bold text-green-400">
+                    {formatBytes(
+                      hasLimit
+                        ? Math.max(0, stats.max_size_bytes - stats.recordings_bytes)
+                        : stats.disk_free_bytes,
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="h-3 bg-surface-2 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+                  style={{ width: `${usedPercent}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between mt-2">
                 <p className="text-xs text-faint">
-                  Previsão de capacidade:{' '}
-                  <span className="text-foreground font-medium">{formatDuration(stats.forecast_seconds)} restantes</span>
+                  {usedPercent}%{' '}
+                  {hasLimit ? `do limite de ${formatBytes(stats.max_size_bytes)}` : 'do disco'}
                 </p>
+                {isWarning && !isOver && (
+                  <p className="text-xs text-yellow-500">⚠ próximo do limite</p>
+                )}
+                {isOver && <p className="text-xs text-red-500">⚠ limite atingido</p>}
+              </div>
+              {stats.forecast_seconds > 0 && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <p className="text-xs text-faint">
+                    Previsão de capacidade:{' '}
+                    <span className="text-foreground font-medium">
+                      {formatDuration(stats.forecast_seconds)} restantes
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Sistema */}
+            <div className="bg-surface border border-border rounded-xl p-5">
+              <p className="text-xs text-faint uppercase tracking-wider mb-4">Sistema</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-4">
+                <div>
+                  <p className="text-xs text-faint mb-1">OS</p>
+                  <p className="text-sm font-medium text-foreground truncate">{stats.os || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-faint mb-1">PID</p>
+                  <p className="text-sm font-mono text-foreground">{stats.pid}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-faint mb-1">CPU</p>
+                  <p className="text-sm font-mono text-foreground">
+                    {cpuPct < 0 ? '—' : `${cpuPct.toFixed(1)}%`}
+                  </p>
+                  {cpuPct >= 0 && <p className="text-xs text-faint">amostra 30 s</p>}
+                </div>
+                <div>
+                  <p className="text-xs text-faint mb-1">Mem. processo</p>
+                  <p className="text-sm font-mono text-foreground">
+                    {stats.mem_rss_bytes > 0 ? formatBytes(stats.mem_rss_bytes) : '—'}
+                  </p>
+                </div>
+                {stats.sys_mem_total_bytes > 0 && (
+                  <div>
+                    <p className="text-xs text-faint mb-1">RAM host</p>
+                    <p className="text-sm font-mono text-foreground">
+                      {formatBytes(sysMemUsed)} / {formatBytes(stats.sys_mem_total_bytes)}
+                    </p>
+                    <p className="text-xs text-faint">
+                      livre: {formatBytes(stats.sys_mem_free_bytes)}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-faint mb-1">Goroutines</p>
+                  <p className="text-sm font-mono text-foreground">{stats.goroutines}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Câmeras */}
+            {cameras.length > 0 && (
+              <div className="bg-surface border border-border rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <p className="text-xs text-faint uppercase tracking-wider font-medium">Câmeras</p>
+                </div>
+                <div className="divide-y divide-border">
+                  {cameras.map((cam) => {
+                    const health = cameraHealthMap[cam.id]
+                    const lastRec = health?.last_recording_at
+                      ? new Date(health.last_recording_at)
+                      : null
+                    const isOpen = expandedCams.has(cam.id)
+                    const hasMotion = health?.motion_enabled ?? false
+
+                    return (
+                      <div key={cam.id}>
+                        <button
+                          onClick={() => toggleCam(cam.id)}
+                          className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-surface-2/50 transition-colors"
+                        >
+                          <StatusDot online={health?.online ?? false} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {cam.name || cam.id}
+                            </p>
+                            <p className="text-xs text-faint font-mono">{cam.id}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0 mr-2">
+                            {lastRec ? (
+                              <p className="text-xs text-muted-foreground">
+                                {formatDistanceToNow(lastRec, { addSuffix: true, locale: ptBR })}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-faint">sem gravações</p>
+                            )}
+                            {hasMotion && <p className="text-xs text-blue-500">detecção ativa</p>}
+                          </div>
+                          <ChevronIcon open={isOpen} />
+                        </button>
+
+                        {isOpen && (
+                          <div className="px-5 pb-5">
+                            {hasMotion ? (
+                              <MotionScoreChart
+                                key={cam.id}
+                                cameraId={cam.id}
+                                threshold={cam.motion_threshold}
+                              />
+                            ) : (
+                              <p className="text-xs text-faint py-3">
+                                Detecção de movimento desativada para esta câmera.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>
-
-          {/* Sistema */}
-          <div className="bg-surface border border-border rounded-xl p-5">
-            <p className="text-xs text-faint uppercase tracking-wider mb-4">Sistema</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-4">
-              <div>
-                <p className="text-xs text-faint mb-1">OS</p>
-                <p className="text-sm font-medium text-foreground truncate">{stats.os || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-faint mb-1">PID</p>
-                <p className="text-sm font-mono text-foreground">{stats.pid}</p>
-              </div>
-              <div>
-                <p className="text-xs text-faint mb-1">CPU</p>
-                <p className="text-sm font-mono text-foreground">
-                  {cpuPct < 0 ? '—' : `${cpuPct.toFixed(1)}%`}
-                </p>
-                {cpuPct >= 0 && <p className="text-xs text-faint">amostra 30 s</p>}
-              </div>
-              <div>
-                <p className="text-xs text-faint mb-1">Mem. processo</p>
-                <p className="text-sm font-mono text-foreground">
-                  {stats.mem_rss_bytes > 0 ? formatBytes(stats.mem_rss_bytes) : '—'}
-                </p>
-              </div>
-              {stats.sys_mem_total_bytes > 0 && (
-                <div>
-                  <p className="text-xs text-faint mb-1">RAM host</p>
-                  <p className="text-sm font-mono text-foreground">
-                    {formatBytes(sysMemUsed)} / {formatBytes(stats.sys_mem_total_bytes)}
-                  </p>
-                  <p className="text-xs text-faint">livre: {formatBytes(stats.sys_mem_free_bytes)}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-xs text-faint mb-1">Goroutines</p>
-                <p className="text-sm font-mono text-foreground">{stats.goroutines}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Câmeras */}
-          {cameras.length > 0 && (
-            <div className="bg-surface border border-border rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-border">
-                <p className="text-xs text-faint uppercase tracking-wider font-medium">Câmeras</p>
-              </div>
-              <div className="divide-y divide-border">
-                {cameras.map(cam => {
-                  const health = cameraHealthMap[cam.id]
-                  const lastRec = health?.last_recording_at ? new Date(health.last_recording_at) : null
-                  const isOpen = expandedCams.has(cam.id)
-                  const hasMotion = health?.motion_enabled ?? false
-
-                  return (
-                    <div key={cam.id}>
-                      <button
-                        onClick={() => toggleCam(cam.id)}
-                        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-surface-2/50 transition-colors"
-                      >
-                        <StatusDot online={health?.online ?? false} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{cam.name || cam.id}</p>
-                          <p className="text-xs text-faint font-mono">{cam.id}</p>
-                        </div>
-                        <div className="text-right flex-shrink-0 mr-2">
-                          {lastRec ? (
-                            <p className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(lastRec, { addSuffix: true, locale: ptBR })}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-faint">sem gravações</p>
-                          )}
-                          {hasMotion && (
-                            <p className="text-xs text-blue-500">detecção ativa</p>
-                          )}
-                        </div>
-                        <ChevronIcon open={isOpen} />
-                      </button>
-
-                      {isOpen && (
-                        <div className="px-5 pb-5">
-                          {hasMotion ? (
-                            <MotionScoreChart
-                              key={cam.id}
-                              cameraId={cam.id}
-                              threshold={cam.motion_threshold}
-                            />
-                          ) : (
-                            <p className="text-xs text-faint py-3">
-                              Detecção de movimento desativada para esta câmera.
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-        </div>
-      )}
+        )}
       </div>
     </Layout>
   )

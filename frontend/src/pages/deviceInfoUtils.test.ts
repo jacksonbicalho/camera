@@ -33,8 +33,14 @@ describe('groupDeviceInfo', () => {
   })
 
   it('groups main and sub streams separately', () => {
-    expect(field('Stream principal', 'stream.main.gop')).toMatchObject({ label: 'GOP', value: '40' })
-    expect(field('Stream secundário', 'stream.sub.width')).toMatchObject({ label: 'Largura', value: '640' })
+    expect(field('Stream principal', 'stream.main.gop')).toMatchObject({
+      label: 'GOP',
+      value: '40',
+    })
+    expect(field('Stream secundário', 'stream.sub.width')).toMatchObject({
+      label: 'Largura',
+      value: '640',
+    })
   })
 
   it('isolates raw.* keys with the prefix stripped, sorted', () => {
