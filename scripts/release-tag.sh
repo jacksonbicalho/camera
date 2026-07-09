@@ -77,4 +77,10 @@ git push origin develop --quiet
 # ── rotaciona o release file: carimba o _next publicado e abre o próximo ─────
 ./scripts/rotate-release-next.sh "$VERSION" >/dev/null 2>&1 || true
 
+# ── remove a release candidate correspondente, se existir ──────────────────
+# Melhor esforço (|| true): a release candidate é conveniência de teste, sua
+# ausência/remoção falha não pode derrubar o corte de release que já aconteceu.
+RC_VERSION="${VERSION%-dev}-rc"
+gh release delete "$RC_VERSION" --cleanup-tag --yes >/dev/null 2>&1 || true
+
 echo -e "${GREEN}RELEASED ${VERSION} | assets: ${ASSETS} | develop sincronizado (describe: $(git describe --tags)) | release file rotacionado${RESET}"

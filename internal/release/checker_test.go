@@ -10,7 +10,6 @@ import (
 const sampleManifest = `{
   "latest": "v1.4.0-dev",
   "notes_md": "### Novidades\n- algo",
-  "min_supported": "v0.0.0",
   "image": "jacksonbicalho/os-camera:1.4.0-dev",
   "assets": {
     "linux-amd64": { "name": "camera-linux-amd64", "sha256": "abc" }

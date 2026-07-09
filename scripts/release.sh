@@ -3,14 +3,22 @@
 # Tags usam sufixo -dev enquanto o projeto não atingir estabilidade.
 #
 # Uso:
-#   ./scripts/release.sh            # interativo — cria e envia a tag
-#   ./scripts/release.sh --dry-run  # apenas exibe o que seria feito
+#   ./scripts/release.sh                  # interativo — cria e envia a tag
+#   ./scripts/release.sh --dry-run        # apenas exibe o que seria feito
+#   ./scripts/release.sh --print-next-version  # só calcula e imprime a próxima
+#                                                # versão (stdout), sem exigir
+#                                                # master nem estar sincronizado —
+#                                                # usado por scripts/release-candidate.sh
+#                                                # pra saber que versão testar
+#                                                # a partir de develop.
 
 set -euo pipefail
 
 DRY_RUN=false
+PRINT_NEXT_ONLY=false
 for arg in "$@"; do
     [[ "$arg" == "--dry-run" ]] && DRY_RUN=true
+    [[ "$arg" == "--print-next-version" ]] && PRINT_NEXT_ONLY=true
 done
 
 # ── cores ─────────────────────────────────────────────────────────────────────
@@ -22,25 +30,30 @@ for cmd in git gh; do
     command -v "$cmd" &>/dev/null || { echo -e "${RED}Erro: $cmd não encontrado${RESET}" >&2; exit 1; }
 done
 
-# Garante que está no branch master
-CURRENT_BRANCH="$(git branch --show-current)"
-if [[ "$CURRENT_BRANCH" != "master" ]]; then
-    echo -e "${RED}Erro: execute o script a partir do branch master (atual: ${CURRENT_BRANCH}).${RESET}" >&2
-    exit 1
-fi
+# --print-next-version é somente-leitura (usado a partir de develop por
+# scripts/release-candidate.sh) — pula os checks de branch/sync que só fazem
+# sentido pro corte de release de verdade.
+if [[ "$PRINT_NEXT_ONLY" != true ]]; then
+    # Garante que está no branch master
+    CURRENT_BRANCH="$(git branch --show-current)"
+    if [[ "$CURRENT_BRANCH" != "master" ]]; then
+        echo -e "${RED}Erro: execute o script a partir do branch master (atual: ${CURRENT_BRANCH}).${RESET}" >&2
+        exit 1
+    fi
 
-# Garante que master está sincronizado com origin
-git fetch origin master --quiet
-BEHIND="$(git rev-list --count HEAD..origin/master 2>/dev/null || echo 0)"
-if [[ "$BEHIND" -gt 0 ]]; then
-    echo -e "${RED}Erro: master está ${BEHIND} commit(s) atrás de origin/master. Faça git pull antes.${RESET}" >&2
-    exit 1
-fi
+    # Garante que master está sincronizado com origin
+    git fetch origin master --quiet
+    BEHIND="$(git rev-list --count HEAD..origin/master 2>/dev/null || echo 0)"
+    if [[ "$BEHIND" -gt 0 ]]; then
+        echo -e "${RED}Erro: master está ${BEHIND} commit(s) atrás de origin/master. Faça git pull antes.${RESET}" >&2
+        exit 1
+    fi
 
-# Garante que não há alterações em arquivos rastreados
-if [[ -n "$(git status --porcelain | grep -v '^??')" ]]; then
-    echo -e "${RED}Erro: há alterações não commitadas. Faça commit ou stash antes de criar uma release.${RESET}" >&2
-    exit 1
+    # Garante que não há alterações em arquivos rastreados
+    if [[ -n "$(git status --porcelain | grep -v '^??')" ]]; then
+        echo -e "${RED}Erro: há alterações não commitadas. Faça commit ou stash antes de criar uma release.${RESET}" >&2
+        exit 1
+    fi
 fi
 
 # ── commits desde a última tag ────────────────────────────────────────────────
@@ -48,8 +61,11 @@ fi
 # e tags locais ausentes fazem o describe abaixo retornar uma tag antiga.
 git fetch origin --tags --force --quiet
 # Ordena por versão semântica (v0.10 > v0.2) em vez de cronologia/topologia do
-# grafo, que pode pular tags em squash merges sequenciais.
-LAST_TAG="$(git tag --list 'v*' --sort=-version:refname | head -1)"
+# grafo, que pode pular tags em squash merges sequenciais. Exclui tags de
+# pré-release (-rc/-beta/-alpha, ver scripts/release-candidate.sh) — uma
+# release candidate nunca pode virar a "última tag" de referência pra uma
+# release de verdade, senão corrompe o cálculo de bump e o changelog dela.
+LAST_TAG="$(git tag --list 'v*' --sort=-version:refname | { grep -vE -- '-(rc|beta|alpha)(\.|$)' || true; } | head -1)"
 RANGE="${LAST_TAG:+${LAST_TAG}..}HEAD"
 
 # Commits squash de release têm subject "release: vX.Y.Z (#N)" e carregam no
@@ -99,6 +115,10 @@ while IFS= read -r line; do
 done < <(git log "$RANGE" --format="%H %s" --no-merges)
 
 if [[ -z "$COMMITS" ]]; then
+    if [[ "$PRINT_NEXT_ONLY" == true ]]; then
+        echo "Nenhum commit desde ${LAST_TAG:-o início}. Nada para versionar." >&2
+        exit 1
+    fi
     echo -e "${YELLOW}Nenhum commit desde ${LAST_TAG:-o início}. Nada para versionar.${RESET}"
     exit 0
 fi
@@ -132,6 +152,11 @@ esac
 NEW_BASE="v${MAJ}.${MIN}.${PAT}"
 
 NEW_VERSION="${NEW_BASE}-dev"
+
+if [[ "$PRINT_NEXT_ONLY" == true ]]; then
+    echo "$NEW_VERSION"
+    exit 0
+fi
 
 # ── organiza commits por categoria ────────────────────────────────────────────
 declare -A SECTIONS=(

@@ -254,7 +254,9 @@ jobs:
         id: prerelease
         run: |
           TAG="${{ github.ref_name }}"
-          if [[ "$TAG" =~ -(beta|alpha|rc)\. ]]; then
+          # Aceita tanto "-rc.N" (incremental) quanto "-rc" sozinho (tag flutuante
+          # de release candidate, reescrita a cada tentativa — ver scripts/release-candidate.sh).
+          if [[ "$TAG" =~ -(beta|alpha|rc)(\.|$) ]]; then
             echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
@@ -263,7 +265,6 @@ jobs:
       - name: Generate version.json manifest
         run: |
           printf '%s' "${{ steps.notes.outputs.body }}" > notes.md
-          MIN="$(head -1 MIN_SUPPORTED_VERSION)"
           TAG="${{ github.ref_name }}"
           # ${TAG#v} casa com o {{version}} do metadata-action (sem o 'v').
           IMAGE="${IMAGE_NAME}:${TAG#v}"
@@ -271,7 +272,6 @@ jobs:
             --tag "$TAG" \
             --notes-file notes.md \
             --checksums dist/checksums.txt \
-            --min-supported "$MIN" \
             --image "$IMAGE" \
             --output dist/version.json
           cat dist/version.json

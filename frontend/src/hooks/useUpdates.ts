@@ -6,7 +6,6 @@ export interface UpdateStatus {
   latest: string
   notes_md: string
   image: string
-  min_supported: string
   update_available: boolean
   apply_mode: string
   checked_at: string

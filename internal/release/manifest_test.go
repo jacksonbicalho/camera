@@ -15,7 +15,7 @@ dddd000000000000000000000000000000000000000000000000000000000004  checksums.txt
 
 func TestBuildManifestParsesAssets(t *testing.T) {
 	notes := "### ✨ Novidades\n- algo novo (`abc1234`)\n\n**Commits:** \"aspas\" & <tag>"
-	m, err := BuildManifest("v1.2.3-dev", notes, "v0.0.0", "", sampleChecksums)
+	m, err := BuildManifest("v1.2.3-dev", notes, "", sampleChecksums)
 	if err != nil {
 		t.Fatalf("BuildManifest: %v", err)
 	}
@@ -25,9 +25,6 @@ func TestBuildManifestParsesAssets(t *testing.T) {
 	}
 	if m.NotesMD != notes {
 		t.Errorf("NotesMD = %q, quero %q", m.NotesMD, notes)
-	}
-	if m.MinSupported != "v0.0.0" {
-		t.Errorf("MinSupported = %q, quero v0.0.0", m.MinSupported)
 	}
 
 	want := map[string]Asset{
@@ -51,7 +48,7 @@ func TestBuildManifestParsesAssets(t *testing.T) {
 }
 
 func TestBuildManifestIgnoresNonAssetLines(t *testing.T) {
-	m, err := BuildManifest("v1.0.0", "n", "v0.0.0", "", sampleChecksums)
+	m, err := BuildManifest("v1.0.0", "n", "", sampleChecksums)
 	if err != nil {
 		t.Fatalf("BuildManifest: %v", err)
 	}
@@ -66,7 +63,7 @@ func TestBuildManifestIgnoresNonAssetLines(t *testing.T) {
 }
 
 func TestBuildManifestErrorsWhenNoAssets(t *testing.T) {
-	if _, err := BuildManifest("v1.0.0", "n", "v0.0.0", "", "dddd  checksums.txt\n"); err == nil {
+	if _, err := BuildManifest("v1.0.0", "n", "", "dddd  checksums.txt\n"); err == nil {
 		t.Error("esperava erro quando não há binários camera-linux-*")
 	}
 }
@@ -74,7 +71,7 @@ func TestBuildManifestErrorsWhenNoAssets(t *testing.T) {
 func TestBuildManifestImage(t *testing.T) {
 	const img = "jacksonbicalho/os-camera:1.2.3-dev"
 
-	withImg, err := BuildManifest("v1.2.3-dev", "n", "v0.0.0", img, sampleChecksums)
+	withImg, err := BuildManifest("v1.2.3-dev", "n", img, sampleChecksums)
 	if err != nil {
 		t.Fatalf("BuildManifest: %v", err)
 	}
@@ -94,7 +91,7 @@ func TestBuildManifestImage(t *testing.T) {
 	}
 
 	// image vazio → campo omitido (omitempty).
-	noImg, err := BuildManifest("v1.2.3-dev", "n", "v0.0.0", "", sampleChecksums)
+	noImg, err := BuildManifest("v1.2.3-dev", "n", "", sampleChecksums)
 	if err != nil {
 		t.Fatalf("BuildManifest: %v", err)
 	}
@@ -113,7 +110,7 @@ func TestBuildManifestImage(t *testing.T) {
 
 func TestManifestJSON(t *testing.T) {
 	notes := "linha 1\nlinha 2 com \"aspas\" e <html> & símbolos"
-	m, err := BuildManifest("v1.2.3-dev", notes, "v0.9.0", "", sampleChecksums)
+	m, err := BuildManifest("v1.2.3-dev", notes, "", sampleChecksums)
 	if err != nil {
 		t.Fatalf("BuildManifest: %v", err)
 	}
@@ -127,7 +124,7 @@ func TestManifestJSON(t *testing.T) {
 	if err := json.Unmarshal(raw, &back); err != nil {
 		t.Fatalf("JSON inválido: %v\n%s", err, raw)
 	}
-	for _, key := range []string{"latest", "notes_md", "min_supported", "assets"} {
+	for _, key := range []string{"latest", "notes_md", "assets"} {
 		if _, ok := back[key]; !ok {
 			t.Errorf("falta chave %q no JSON: %s", key, raw)
 		}
