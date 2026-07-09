@@ -103,15 +103,18 @@ export class RecordingsGateway {
   }
 
   // listByDay carrega TODAS as gravações do dia (limit=0) — necessário para montar o
-  // clip cross-boundary (precisa dos vizinhos do chunk-âncora).
+  // clip cross-boundary (precisa dos vizinhos do chunk-âncora). `signal` opcional permite
+  // ao chamador abortar a requisição de verdade (não só ignorar o resultado) — usado pelo
+  // VideoBrowserPage para cancelar no cleanup do efeito em vez de só descartar a resposta.
   async listByDay(
     cameraId: string,
     date: Date,
     order: 'asc' | 'desc' = 'desc',
+    signal?: AbortSignal,
   ): Promise<Recording[] | Unauthorized> {
     const res = await this.fetchFn(
       `/api/cameras/${cameraId}/recordings?date=${ymd(date)}&page=1&limit=0&order=${order}`,
-      { headers: authHeaders() },
+      { headers: authHeaders(), signal },
     )
     if (res.status === 401) return UNAUTHORIZED
     const data = await res.json()
@@ -123,9 +126,11 @@ export class RecordingsGateway {
   async getRecording(
     cameraId: string,
     recId: string | number,
+    signal?: AbortSignal,
   ): Promise<{ filename: string; date: string } | null> {
     const res = await this.fetchFn(`/api/cameras/${cameraId}/recordings/by-id/${recId}`, {
       headers: authHeaders(),
+      signal,
     })
     if (!res.ok) return null
     return res.json()
@@ -133,8 +138,8 @@ export class RecordingsGateway {
 
   // getEvent busca o evento de movimento pelo id — de onde sai o `occurred_at` (time)
   // usado no cálculo do offset/janela do clip.
-  async getEvent(motionId: string | number): Promise<GatewayEvent | null> {
-    const res = await this.fetchFn(`/api/events/${motionId}`, { headers: authHeaders() })
+  async getEvent(motionId: string | number, signal?: AbortSignal): Promise<GatewayEvent | null> {
+    const res = await this.fetchFn(`/api/events/${motionId}`, { headers: authHeaders(), signal })
     if (!res.ok) return null
     return res.json()
   }
@@ -142,8 +147,8 @@ export class RecordingsGateway {
   // getPlaybackWindow devolve o lead/trail (segundos) da câmera — as bordas da janela do
   // clip. Vive no gateway para a página não fazer fetch cru: o intermediário é o único
   // ponto de verdade de tudo que é preciso para reproduzir uma gravação. Default 10/10.
-  async getPlaybackWindow(cameraId: string): Promise<{ lead: number; trail: number }> {
-    const res = await this.fetchFn('/api/cameras', { headers: authHeaders() })
+  async getPlaybackWindow(cameraId: string, signal?: AbortSignal): Promise<{ lead: number; trail: number }> {
+    const res = await this.fetchFn('/api/cameras', { headers: authHeaders(), signal })
     if (!res.ok) return { lead: 10, trail: 10 }
     const list = (await res.json()) as Array<{
       id: string

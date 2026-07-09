@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
@@ -45,6 +45,19 @@ function formatDuration(rec: Recording, next: Recording | undefined): string | n
   const m = Math.floor(totalSec / 60)
   const s = totalSec % 60
   return `${m}:${String(s).padStart(2, '0')}`
+}
+
+// buildContinuousSequence monta a playlist da reprodução contínua a partir de `id`,
+// avançando pra gravações mais NOVAS — não mais antigas. `recs` já vem em ordem
+// decrescente (mais recente primeiro, mesma ordem do filmstrip), então "mais novo" =
+// índice menor: pega de índice 0 até `id` (inclusive) e inverte, deixando `id` primeiro e
+// progredindo em direção à mais recente. Ex.: filmstrip [4,3,2,1] (ids, mais recente
+// primeiro) + clique no 2 → toca "2, 3, 4". `id` não encontrado (não deveria acontecer,
+// `id` sempre vem de um card do próprio filmstrip) → sequência inteira como fallback.
+function buildContinuousSequence(recs: Recording[], id: number | null): Recording[] {
+  const idx = recs.findIndex(r => r.id === id)
+  const upToSelected = idx >= 0 ? recs.slice(0, idx + 1) : recs
+  return [...upToSelected].reverse()
 }
 
 function formatClockTime(iso: string): string {
@@ -113,6 +126,9 @@ export default function HistoryPage() {
   // mais" foi acumulando em tela, sem nunca refletir uma exclusão pelo `storage.Cleaner` fora da
   // janela carregada — dava pra "a contagem chega a 22/23, recarrega a página e mostra 19".
   const [dayTotal, setDayTotal] = useState<number | null>(null)
+  // Reprodução contínua: null = desligada; array = ligada, com o snapshot das gravações a
+  // encadear (tomado no instante em que liga — ver comentário no `toggleContinuous`).
+  const [continuousRecordings, setContinuousRecordings] = useState<Recording[] | null>(null)
 
   // Resolve o :recordingId da URL (se veio um) pro dia que ele pertence — só na carga inicial.
   useEffect(() => {
@@ -319,13 +335,52 @@ export default function HistoryPage() {
     activeCardRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   }, [selectedId])
 
-  // segments é a playlist (1 gravação = 1 segmento) que o VideoPlayer toca — referência
-  // estável (useMemo) enquanto `selected` não muda, pra não re-disparar o efeito de carga
-  // do VideoPlayer a cada render (ele reage à identidade do array, não ao conteúdo).
-  const segments = useMemo<VideoPlayerSegment[]>(
+  // singleSegments: 1 gravação = 1 segmento (modo normal, troca manual de card) —
+  // referência estável (useMemo) enquanto `selected` não muda. continuousSegments: a
+  // playlist inteira do modo contínuo — referência estável enquanto `continuousRecordings`
+  // não muda (ou seja, enquanto o toggle não é ligado/desligado de novo). `segments` escolhe
+  // qual delas repassar pro VideoPlayer. Separar os dois memos (em vez de um só dependendo
+  // de `selected` e `continuousRecordings` juntos) é o que garante que avançar de segmento
+  // durante a reprodução contínua (que atualiza `selectedId` via `onSegmentChange` abaixo)
+  // NÃO reconstrói a playlist a cada passo — senão o motor do VideoPlayer reiniciaria do
+  // zero (perde o double-buffering) a cada transição, o oposto do que a feature pede.
+  const singleSegments = useMemo<VideoPlayerSegment[]>(
     () => (selected ? [{ src: `${selected.url}?token=${getToken()}`, fromSeconds: 0, toSeconds: Infinity }] : []),
     [selected],
   )
+  // toSeconds do modo contínuo usa a duração REAL do registro (`end - start`, mesmo cálculo
+  // de `formatDuration`) em vez de `Infinity` — isso faz a transição entre gravações passar
+  // pelo mesmo caminho (onTimeUpdate cruzando `toSeconds`) já comprovado pelos clipes de
+  // evento do VideoBrowserPage, em vez de depender só do evento nativo `ended` do <video>
+  // (caminho novo, nunca exercitado em produção antes desta história — gravações reais não
+  // fragmentadas podem não disparar `ended` de forma confiável). Sem `end` (não deveria
+  // acontecer aqui — `is_recording` já é filtrado antes de chegar em `recordings`), cai pra
+  // `Infinity` como rede de segurança.
+  const continuousSegments = useMemo<VideoPlayerSegment[]>(
+    () =>
+      continuousRecordings
+        ? continuousRecordings.map(rec => {
+            const start = Date.parse(rec.start)
+            const end = rec.end ? Date.parse(rec.end) : NaN
+            const toSeconds = Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, (end - start) / 1000) : Infinity
+            return { src: `${rec.url}?token=${getToken()}`, fromSeconds: 0, toSeconds }
+          })
+        : [],
+    [continuousRecordings],
+  )
+  const segments = continuousRecordings ? continuousSegments : singleSegments
+
+  // onSegmentChange (VideoPlayer) dispara com o índice do segmento ativo a cada transição —
+  // mapeia de volta pro id da gravação via ref (callback com deps vazias = identidade
+  // estável; se não fosse estável, mudaria a cada render de HistoryPage e isso cascatearia
+  // pro VideoPlayer reiniciar o motor à toa, ver comentário acima). `setSelectedId` já
+  // dispara o efeito de sync de URL existente — não precisa de lógica de URL nova aqui.
+  const activeRecordingsRef = useRef<Recording[]>([])
+  activeRecordingsRef.current = continuousRecordings ?? (selected ? [selected] : [])
+  const handleSegmentChange = useCallback((index: number) => {
+    const rec = activeRecordingsRef.current[index]
+    if (rec) setSelectedId(id => (id === rec.id ? id : rec.id))
+  }, [])
 
   // videoError não pode grudar na gravação seguinte — reseta ao trocar. `playing` já é
   // resolvido pelo próprio VideoPlayer (onPlayingChange dispara true de cara, assumindo
@@ -338,13 +393,36 @@ export default function HistoryPage() {
     setVideoError(false)
   }
 
+  // Reprodução contínua não atravessa a troca de dia — reseta ao trocar (mesmo padrão de
+  // ajuste-durante-o-render usado acima, não useEffect+setState).
+  const [continuousResetForDate, setContinuousResetForDate] = useState(selectedDate)
+  if (selectedDate !== continuousResetForDate) {
+    setContinuousResetForDate(selectedDate)
+    setContinuousRecordings(null)
+  }
+
   function selectRecording(id: number) {
+    // Com o modo contínuo ligado, clicar num card RE-ANCORA a sequência nele (mantém
+    // ligado) em vez de desligar — é assim que se pula pra outro ponto do dia sem sair do
+    // modo: a partir de agora encadeia as mais novas que `id`, na ordem "id, id+1, id+2...".
+    if (continuousRecordings != null) {
+      setContinuousRecordings(buildContinuousSequence(recordings, id))
+    }
     // Clicar no card já ativo não é uma troca de verdade: `key={selected.id}` não muda, o
     // <video> não remonta, e "onLoadedData" não dispara de novo — sem esse guard,
     // `videoLoading` ficava travado em `true` até o usuário clicar noutro card.
     if (id === selectedId) return
     setSelectedId(id)
     setVideoLoading(true)
+  }
+
+  // Liga: encadeia a partir da gravação selecionada em direção às mais NOVAS (ver
+  // `buildContinuousSequence`). Desliga: volta pro clipe único da gravação que estiver
+  // tocando no momento. Em ambos os casos o motor do VideoPlayer reinicia do zero (troca de
+  // referência de `segments`) — reinício simples e previsível, sem tentar preservar a
+  // posição exata na troca de modo.
+  function toggleContinuous() {
+    setContinuousRecordings(prev => (prev ? null : buildContinuousSequence(recordings, selectedId)))
   }
 
   // "Carregar mais" — busca a próxima página (mais antiga) sob demanda e concatena no fim do
@@ -405,6 +483,11 @@ export default function HistoryPage() {
             <VideoPlayer
               idPrefix="history-player"
               segments={segments}
+              // O contador "N / M" é específico do clipe de UM evento (VideoBrowserPage,
+              // `:motionId` explícito na URL) — no Histórico, mesmo com >1 segmento (modo
+              // contínuo), "N / M" não corresponde a nada que o usuário reconheça (não é
+              // "parte 2 de 5 de UMA gravação", é "a 2ª de 5 gravações distintas na lista").
+              segmentCounter={false}
               emptyMessage="Sem gravações nesse dia."
               onLoadedData={() => setVideoLoading(false)}
               onError={() => {
@@ -412,6 +495,7 @@ export default function HistoryPage() {
                 setVideoError(true)
               }}
               onPlayingChange={setPlaying}
+              onSegmentChange={handleSegmentChange}
               overlay={
                 <>
                   {videoError ? (
@@ -452,9 +536,44 @@ export default function HistoryPage() {
         {camera && (
           <div id="history-recordings" className="rounded-lg border border-border p-2">
             <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-caption font-medium uppercase tracking-wide text-muted">
-                {dayTotal ? `Gravações · ${dayTotal}` : 'Gravações'}
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="whitespace-nowrap text-caption font-medium uppercase tracking-wide text-muted">
+                  {dayTotal ? `Gravações · ${dayTotal}` : 'Gravações'}
+                </p>
+                {/* Divisor explícito (não `divide-x`) — o reset de borda do <button> zera
+                    `border-left-width` do utilitário `divide-x`, então ele não aparecia. */}
+                <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
+                <button
+                  id="history-continuous-toggle"
+                  type="button"
+                  role="switch"
+                  onClick={toggleContinuous}
+                  disabled={recordings.length === 0}
+                  aria-checked={continuousRecordings != null}
+                  className="flex items-center gap-1.5 disabled:opacity-40"
+                >
+                  <span
+                    className={`inline-flex h-5 w-14 shrink-0 items-center rounded-full border-2 transition-colors ${
+                      continuousRecordings != null ? 'justify-end border-primary' : 'justify-start border-faint'
+                    }`}
+                  >
+                    <span
+                      className={`-my-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 bg-background transition-colors ${
+                        continuousRecordings != null ? 'border-primary text-primary' : 'border-faint text-faint'
+                      }`}
+                    >
+                      <Play className="ml-0.5 h-3 w-3" />
+                    </span>
+                  </span>
+                  <span
+                    className={`whitespace-nowrap text-caption font-medium transition-colors ${
+                      continuousRecordings != null ? 'text-primary' : 'text-faint'
+                    }`}
+                  >
+                    Reprodução contínua
+                  </span>
+                </button>
+              </div>
               <DatePicker
                 id="history-date-picker"
                 value={selectedDate ?? new Date()}

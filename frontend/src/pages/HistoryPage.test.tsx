@@ -777,4 +777,104 @@ describe('HistoryPage', () => {
     // A página 1 também veio junto (paginou por cima dela até achar a 31 na página 2).
     expect(document.getElementById('history-recording-30')).not.toBeNull()
   })
+
+  it('toggle de reprodução contínua fica desabilitado sem gravações no dia', async () => {
+    stubFetch([])
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-continuous-toggle')).not.toBeNull()
+    })
+    expect(document.getElementById('history-continuous-toggle')?.hasAttribute('disabled')).toBe(true)
+  })
+
+  it('reprodução contínua: liga a partir da selecionada, encadeia em direção às mais NOVAS (double-buffering) e mantém a URL/filmstrip sincronizados ao avançar; desliga volta pro clipe único', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
+    })
+    // Seleciona a mais antiga (a.mp4, id 1) primeiro — liga o contínuo a partir dela, que
+    // tem "mais novas" pra encadear (a mais recente, b.mp4, não teria: ver próximo teste).
+    document.getElementById('history-recording-1')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-1')?.getAttribute('aria-current')).toBe('true')
+    })
+
+    const toggle = document.getElementById('history-continuous-toggle')!
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+
+    toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(toggle.getAttribute('aria-checked')).toBe('true')
+    })
+    // Encadeia a partir da selecionada (a.mp4, mais antiga) em direção à mais nova — 2
+    // gravações no dia, mas o contador "N / M" NUNCA aparece no Histórico (é específico do
+    // clipe de evento do VideoBrowserPage — aqui seria "a 2ª de 2 gravações distintas", o
+    // que não corresponde a nada que o usuário reconheça).
+    await waitFor(() => {
+      const video = document.getElementById('history-player-video') as HTMLVideoElement
+      expect(video.getAttribute('src')).toBe('/recordings/cam1/a.mp4?token=tok')
+    })
+    expect(document.getElementById('history-player-segment')).toBeNull()
+    const video = document.getElementById('history-player-video') as HTMLVideoElement
+
+    // Fim natural do 1º arquivo → avança pro próximo, MAIS NOVO (b.mp4, id 2) sem tela
+    // preta — mesmo motor de dois <video> que já atravessa fronteiras de evento
+    // multi-segmento.
+    video.dispatchEvent(new Event('ended'))
+    await waitFor(() => {
+      expect(currentPathname()).toBe('/history/cam1/2')
+    })
+    expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBe('true')
+    expect(document.getElementById('history-recording-1')?.getAttribute('aria-current')).toBeNull()
+    expect(document.getElementById('history-player-segment')).toBeNull()
+
+    // Desliga: volta pro clipe único da gravação que está tocando agora.
+    toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(toggle.getAttribute('aria-checked')).toBe('false')
+    })
+  })
+
+  it('clicar num card do filmstrip enquanto a reprodução contínua está ligada re-ancora a sequência nele, sem desligar', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
+    })
+    document.getElementById('history-continuous-toggle')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked')).toBe('true')
+    })
+    // Ligou com a mais recente selecionada (b.mp4, id 2) — nada mais novo pra encadear,
+    // sequência de 1 item só. Contador nunca aparece no Histórico de qualquer forma.
+    expect(document.getElementById('history-player-segment')).toBeNull()
+
+    // Clica na mais antiga (a.mp4, id 1) — RE-ANCORA a sequência nela, sem desligar o modo:
+    // passa a encadear "1, 2" (a partir da clicada, em direção à mais nova).
+    document.getElementById('history-recording-1')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked')).toBe('true')
+    })
+    await waitFor(() => {
+      expect(document.getElementById('history-player-video')?.getAttribute('src')).toBe('/recordings/cam1/a.mp4?token=tok')
+    })
+    expect(document.getElementById('history-player-segment')).toBeNull()
+  })
+
+  it('trocar de dia (calendário) desliga a reprodução contínua', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
+    })
+    document.getElementById('history-continuous-toggle')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked')).toBe('true')
+    })
+    document.querySelector('[data-testid="history-datepicker"] button')!.dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    )
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-3')).not.toBeNull()
+    })
+    expect(document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked')).toBe('false')
+  })
 })

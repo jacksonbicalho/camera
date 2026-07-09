@@ -43,6 +43,27 @@ export interface MotionEvent {
   classifier_name?: string
 }
 
+// sameRecording compara o conteúdo relevante de duas gravações com o mesmo filename.
+// Usado por mergeRecordings pra decidir se preserva a referência antiga em vez de trocar
+// pela versão fresca — sem isso, QUALQUER poll que mude o tamanho do array (ex.: chunk novo
+// terminou de gravar) troca a referência de TODOS os itens mantidos, mesmo os que não
+// mudaram em nada. Páginas que derivam estado de um item específico via useMemo (ex.:
+// HistoryPage.singleSegments, dependente de `selected`) reagem à identidade do objeto, não
+// ao conteúdo — uma referência nova à toa reinicia o VideoPlayer (recarrega os <video>) no
+// meio da reprodução, mesmo a gravação tocando sendo a mesma de antes.
+function sameRecording(a: Recording, b: Recording): boolean {
+  return (
+    a.id === b.id &&
+    a.filename === b.filename &&
+    a.start === b.start &&
+    a.end === b.end &&
+    a.url === b.url &&
+    a.is_recording === b.is_recording &&
+    a.has_motion === b.has_motion &&
+    JSON.stringify(a.detections) === JSON.stringify(b.detections)
+  )
+}
+
 export function mergeRecordings(
   prev: Recording[],
   fresh: Recording[],
@@ -56,7 +77,11 @@ export function mergeRecordings(
   const newestFresh = freshAsc[freshAsc.length - 1]?.filename ?? ''
 
   const kept = prev
-    .map(r => freshByName.get(r.filename) ?? r)
+    .map(r => {
+      const f = freshByName.get(r.filename)
+      if (!f) return r
+      return sameRecording(r, f) ? r : f
+    })
     .filter(r => {
       if (freshFilenames.has(r.filename)) return true
       // !hasMore: fresh é a lista completa — tudo fora dela foi deletado
