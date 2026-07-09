@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   IDENTITY,
   isZoomed as isZoomedState,
@@ -98,14 +98,21 @@ export function usePlayerZoom(getVideoEl: () => HTMLVideoElement | null): Player
     return d
   }, [])
 
-  return {
-    setContainer,
-    onPointerDown,
-    onPointerMove,
-    onPointerUp,
-    isZoomed: isZoomedState(zoom),
-    scale: zoom.scale,
-    reset,
-    consumeDrag,
-  }
+  // Memoizado: consumidores (VideoPlayer) dependem do objeto inteiro em useCallback/useEffect
+  // (ex.: `[..., zoom]` pra resetar zoom na troca de segmento) — sem isso, cada render
+  // (mesmo sem a transform mudar) devolveria uma referência nova e invalidaria essas
+  // memoizações à toa.
+  return useMemo(
+    () => ({
+      setContainer,
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      isZoomed: isZoomedState(zoom),
+      scale: zoom.scale,
+      reset,
+      consumeDrag,
+    }),
+    [setContainer, onPointerDown, onPointerMove, onPointerUp, zoom, reset, consumeDrag],
+  )
 }
