@@ -78,6 +78,22 @@ describe('mergeRecordings', () => {
     expect(result).not.toBe(prev)
     expect(result[0].is_recording).toBe(false)
   })
+
+  // Uma gravação nova terminando de gravar (poll de "hoje") não pode trocar a referência
+  // dos itens JÁ conhecidos que não mudaram — páginas que derivam segmentos do player via
+  // useMemo(..., [selected]) (ex.: HistoryPage) reagem à identidade do objeto; uma troca à
+  // toa reinicia o <video> (recarrega o src) no meio da reprodução, mesmo tocando a mesma
+  // gravação de antes.
+  it('preserves object reference of unchanged items when a new recording arrives', () => {
+    const r120 = rec('20260506120000.mp4')
+    const r110 = rec('20260506110000.mp4')
+    const r130 = rec('20260506130000.mp4') // acabou de terminar de gravar, mais recente
+    // fresh vem da API (objetos novos, mas com o mesmo conteúdo para r120/r110)
+    const result = mergeRecordings([r120, r110], [r130, { ...r120 }, { ...r110 }], 'desc', false)
+    expect(result.map(r => r.filename)).toEqual(['20260506130000.mp4', '20260506120000.mp4', '20260506110000.mp4'])
+    expect(result[1]).toBe(r120)
+    expect(result[2]).toBe(r110)
+  })
 })
 
 // ─── parseDurationToMs ──────────────────────────────────────────────────────

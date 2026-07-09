@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { segmentDuration, clipTotal, globalTime, locate, formatClock } from './clipTimeline'
+import { segmentDuration, clipTotal, globalTime, locate, formatClock, shouldAdvance } from './clipTimeline'
 import type { ClipSegment } from './recordingsGateway'
 
 function seg(fromSeconds: number, toSeconds: number): ClipSegment {
@@ -18,6 +18,27 @@ describe('segmentDuration', () => {
   })
   it('para toSeconds Infinity sem duração real dá 0', () => {
     expect(segmentDuration(seg(0, Infinity))).toBe(0)
+  })
+})
+
+describe('shouldAdvance', () => {
+  it('avança ao cruzar toSeconds (caminho normal, trim de evento)', () => {
+    expect(shouldAdvance(10, 10, undefined)).toBe(true)
+    expect(shouldAdvance(9.9, 10, undefined)).toBe(false)
+  })
+  it('avança perto do fim real quando toSeconds (timestamp de parede) é um pouco MAIOR que a duração real — sem isso currentTime nunca alcançaria toSeconds', () => {
+    // gravação: end - start = 300s (toSeconds), mas o arquivo de fato só tem 299.9s
+    expect(shouldAdvance(299.9, 300, 299.9)).toBe(true)
+  })
+  it('não avança fora das duas margens', () => {
+    expect(shouldAdvance(100, 300, 299.9)).toBe(false)
+  })
+  it('toSeconds Infinity (gravação inteira, sem trim): só o fim real decide', () => {
+    expect(shouldAdvance(14.9, Infinity, 15)).toBe(true)
+    expect(shouldAdvance(5, Infinity, 15)).toBe(false)
+  })
+  it('duração real ainda não conhecida (undefined): não derruba o corte por toSeconds', () => {
+    expect(shouldAdvance(5, Infinity, undefined)).toBe(false)
   })
 })
 

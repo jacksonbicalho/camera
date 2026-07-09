@@ -26,6 +26,26 @@ export function segmentDuration(seg: TimedSegment, realDuration?: number): numbe
   return Math.max(0, end - seg.fromSeconds)
 }
 
+// Margem (s) pra considerar "chegou no fim real do arquivo" — currentTime raramente bate
+// exatamente em `duration` (passo de frame, arredondamento do decoder).
+const END_EPSILON_SEC = 0.25
+
+// shouldAdvance decide se o segmento ativo terminou e o player deve avançar pro próximo.
+// Dois critérios independentes, o que disparar primeiro vale: (1) cruzou `toSeconds` — o
+// caminho normal, já usado pelos clipes de evento (trim finito bem dentro do arquivo); (2)
+// chegou perto do fim REAL do arquivo (`realDuration`, só conhecido depois da metadata
+// carregar) — cobre o caso em que `toSeconds` (inferido do timestamp de parede no banco,
+// ex.: `end - start` de uma gravação) é um pouco MAIOR que a duração de fato reproduzível
+// do arquivo: sem esse 2º critério, `currentTime` nunca alcançaria `toSeconds` e o avanço
+// dependeria só do evento nativo `ended` do <video> — que gravações reais não fragmentadas
+// nem sempre disparam de forma confiável (foi a causa da reprodução contínua do Histórico
+// travar entre gravações em alguns casos).
+export function shouldAdvance(currentTime: number, toSeconds: number, realDuration: number | undefined): boolean {
+  if (Number.isFinite(toSeconds) && currentTime >= toSeconds) return true
+  if (realDuration !== undefined && Number.isFinite(realDuration) && currentTime >= realDuration - END_EPSILON_SEC) return true
+  return false
+}
+
 // clipTotal soma as durações dos segmentos (duração total do clipe, em segundos).
 export function clipTotal(durations: number[]): number {
   return durations.reduce((acc, d) => acc + d, 0)

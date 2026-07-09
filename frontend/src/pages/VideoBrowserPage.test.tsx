@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { StrictMode } from 'react'
 import { cleanup, render, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
@@ -106,5 +107,47 @@ describe('VideoBrowserPage — estrutura visual', () => {
     })
     expect(err.className).toContain('border-danger/40')
     expect(err.textContent).toContain('não encontrada')
+  })
+})
+
+describe('VideoBrowserPage — StrictMode (efeito de carga duplicado no mount em dev)', () => {
+  it('a chamada fantasma do StrictMode é abortada de verdade (signal.aborted), e o contador de segmento só reflete os dados da chamada real', async () => {
+    const realDayRecs = [
+      { id: 1, filename: '20260101120000.mp4', start: '2026-01-01T12:00:00Z', end: '2026-01-01T12:00:20Z', url: '/r/1.mp4', is_recording: false, has_motion: true },
+      { id: 2, filename: '20260101120020.mp4', start: '2026-01-01T12:00:20Z', end: '2026-01-01T12:00:40Z', url: '/r/2.mp4', is_recording: false, has_motion: false },
+      { id: 3, filename: '20260101120040.mp4', start: '2026-01-01T12:00:40Z', url: '/r/3.mp4', is_recording: false, has_motion: false },
+    ]
+    const signals: (AbortSignal | undefined)[] = []
+    g.getEvent.mockResolvedValue({ id: 1, time: '2026-01-01T12:00:30Z', score: 1 })
+    g.getPlaybackWindow.mockResolvedValue({ lead: 30, trail: 30 })
+    g.listByDay.mockImplementation((..._args: unknown[]) => {
+      const signal = _args[3] as AbortSignal | undefined
+      signals.push(signal)
+      // 1ª chamada (fantasma do StrictMode): nunca resolve por conta própria — só rejeita
+      // se abortada de verdade, simulando um fetch real em andamento sendo cancelado.
+      if (signals.length === 1) {
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+        })
+      }
+      // 2ª chamada (real): resolve com os dados de verdade.
+      return Promise.resolve(realDayRecs)
+    })
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={['/recording/cam1/1/1']}>
+          <Routes>
+            <Route path="/recording/:cameraId/:recordingId/:motionId" element={<VideoBrowserPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    )
+
+    await waitFor(() => {
+      expect(document.getElementById('video-browser-segment')?.textContent).toBe('1 / 3')
+    })
+    expect(signals).toHaveLength(2)
+    expect(signals[0]?.aborted).toBe(true)
   })
 })

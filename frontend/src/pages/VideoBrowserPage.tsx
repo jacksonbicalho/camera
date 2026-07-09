@@ -47,65 +47,70 @@ export default function VideoBrowserPage() {
 
   useEffect(() => {
     if (!cameraId || !recordingId) return
-    let cancelled = false
+    const controller = new AbortController()
+    const { signal } = controller
 
+    // Cancela os fetches de verdade no cleanup (AbortSignal), em vez de só marcar uma
+    // flag e ignorar o resultado — o StrictMode do React duplica esse efeito no mount em
+    // dev (setup → cleanup → setup); sem abortar de verdade, a chamada fantasma ainda
+    // dispara os fetches reais contra o backend (que pode estar gravando ativamente),
+    // e nada garante que as duas respostas de listByDay batam em contagem de segmentos.
     async function load() {
       setError(null)
+      try {
+        // 1. Resolve o chunk-âncora → dia.
+        const meta = await gateway.getRecording(cameraId!, recordingId!, signal)
+        if (!meta) {
+          setError('Gravação não encontrada.')
+          return
+        }
+        const [y, m, d] = meta.date.split('-').map(Number)
+        const dayRecs = await gateway.listByDay(cameraId!, new Date(y, m - 1, d), 'asc', signal)
+        if (dayRecs === UNAUTHORIZED) {
+          setError('Sessão expirada.')
+          return
+        }
+        const anchorRec = dayRecs.find(r => r.filename === meta.filename) ?? null
+        setAnchor(anchorRec)
+        if (!anchorRec) {
+          setError('Gravação não encontrada no dia.')
+          return
+        }
 
-      // 1. Resolve o chunk-âncora → dia.
-      const meta = await gateway.getRecording(cameraId!, recordingId!)
-      if (cancelled) return
-      if (!meta) {
-        setError('Gravação não encontrada.')
-        return
-      }
-      const [y, m, d] = meta.date.split('-').map(Number)
-      const dayRecs = await gateway.listByDay(cameraId!, new Date(y, m - 1, d), 'asc')
-      if (cancelled) return
-      if (dayRecs === UNAUTHORIZED) {
-        setError('Sessão expirada.')
-        return
-      }
-      const anchorRec = dayRecs.find(r => r.filename === meta.filename) ?? null
-      setAnchor(anchorRec)
-      if (!anchorRec) {
-        setError('Gravação não encontrada no dia.')
-        return
-      }
+        // 2. Sem motionId → reproduz o chunk-âncora inteiro.
+        if (!motionId) {
+          setEvent(null)
+          setSegments([{ src: gateway.playbackURL(anchorRec), fromSeconds: 0, toSeconds: Infinity }])
+          return
+        }
 
-      // 2. Sem motionId → reproduz o chunk-âncora inteiro.
-      if (!motionId) {
-        setEvent(null)
-        setSegments([{ src: gateway.playbackURL(anchorRec), fromSeconds: 0, toSeconds: Infinity }])
-        return
+        // 3. Com motionId → resolve occurred_at + lead/trail e monta o clip.
+        const [ev, win] = await Promise.all([
+          gateway.getEvent(motionId!, signal),
+          gateway.getPlaybackWindow(cameraId!, signal),
+        ])
+        if (!ev) {
+          setError('Evento não encontrado.')
+          return
+        }
+        setEvent(ev)
+        const segs = clipSegments(ev.time, dayRecs, win.lead, win.trail)
+        if (segs.length === 0) {
+          setError('Sem gravação cobrindo o evento.')
+          setSegments([])
+          return
+        }
+        setSegments(
+          segs.map(s => ({ src: gateway.playbackURL(s.recording), fromSeconds: s.fromSeconds, toSeconds: s.toSeconds })),
+        )
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return
+        throw err
       }
-
-      // 3. Com motionId → resolve occurred_at + lead/trail e monta o clip.
-      const [ev, win] = await Promise.all([
-        gateway.getEvent(motionId!),
-        gateway.getPlaybackWindow(cameraId!),
-      ])
-      if (cancelled) return
-      if (!ev) {
-        setError('Evento não encontrado.')
-        return
-      }
-      setEvent(ev)
-      const segs = clipSegments(ev.time, dayRecs, win.lead, win.trail)
-      if (segs.length === 0) {
-        setError('Sem gravação cobrindo o evento.')
-        setSegments([])
-        return
-      }
-      setSegments(
-        segs.map(s => ({ src: gateway.playbackURL(s.recording), fromSeconds: s.fromSeconds, toSeconds: s.toSeconds })),
-      )
     }
 
     load()
-    return () => {
-      cancelled = true
-    }
+    return () => controller.abort()
   }, [cameraId, recordingId, motionId])
 
   return (
