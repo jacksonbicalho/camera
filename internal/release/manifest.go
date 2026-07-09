@@ -21,19 +21,18 @@ type Asset struct {
 // versionada (ex: jacksonbicalho/os-camera:1.2.3-dev) que o caminho
 // Docker/Watchtower do updater puxa; fica omitido quando não informado.
 type Manifest struct {
-	Latest       string           `json:"latest"`
-	NotesMD      string           `json:"notes_md"`
-	MinSupported string           `json:"min_supported"`
-	Image        string           `json:"image,omitempty"`
-	Assets       map[string]Asset `json:"assets"`
+	Latest  string           `json:"latest"`
+	NotesMD string           `json:"notes_md"`
+	Image   string           `json:"image,omitempty"`
+	Assets  map[string]Asset `json:"assets"`
 }
 
 // BuildManifest monta o manifesto a partir da tag, das notas de release em
-// markdown, da versão mínima suportada, da referência da imagem Docker (vazia
-// = omitida) e do conteúdo de um checksums.txt no formato do `sha256sum`
-// ("<hash>  <arquivo>"). Apenas binários cujo nome casa "camera-linux-<arch>"
-// viram assets; a chave de plataforma é "linux-<arch>".
-func BuildManifest(latest, notesMD, minSupported, image, checksums string) (Manifest, error) {
+// markdown, da referência da imagem Docker (vazia = omitida) e do conteúdo de
+// um checksums.txt no formato do `sha256sum` ("<hash>  <arquivo>"). Apenas
+// binários cujo nome casa "camera-linux-<arch>" viram assets; a chave de
+// plataforma é "linux-<arch>".
+func BuildManifest(latest, notesMD, image, checksums string) (Manifest, error) {
 	const prefix = "camera-linux-"
 
 	assets := make(map[string]Asset)
@@ -55,11 +54,10 @@ func BuildManifest(latest, notesMD, minSupported, image, checksums string) (Mani
 	}
 
 	return Manifest{
-		Latest:       latest,
-		NotesMD:      notesMD,
-		MinSupported: minSupported,
-		Image:        image,
-		Assets:       assets,
+		Latest:  latest,
+		NotesMD: notesMD,
+		Image:   image,
+		Assets:  assets,
 	}, nil
 }
 

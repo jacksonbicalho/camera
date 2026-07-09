@@ -154,6 +154,7 @@ Encadeiam o fluxo por história. **Checkboxes usam `[]` para não-marcado** (e `
 | `commit.sh` | Claude | Commita o que está staged usando o heading `#` da story como mensagem (já é `tipo(escopo): desc`); exige `[x] Aprovado`; adiciona `Co-Authored-By`. |
 | `push-pr.sh` | Claude | **Orquestra o ciclo pós-aprovação:** push + `gh pr create --base develop` + **registra a linha da história no `_next.md` com `[~]`** (idempotente por `#PR`) + aguarda o CI e mergeia (chama `merge-when-green.sh`). Só com tree limpa + story aprovada; idempotente (não recria PR; re-roda após fix). `--no-merge` só abre o PR sem mergear. CI vermelho: propaga erro sem mergear. |
 | `release-pr.sh [versão]` | Claude (via `/release-pr`) | **Corte de release:** valida o `_next.md` (todas `[✓]`) + pré-condições git (develop sincronizado, tree limpa, à frente de master), calcula a versão estimada (bump convencional) e abre o PR `develop → master`. Idempotente (PR aberto → mostra URL). **Não mergeia** (master exige aprovação humana). |
+| `release-candidate.sh` | Navigator (manual) | **Pré-release (RC) sem tocar em master:** roda a partir de `develop`, calcula a próxima versão (via `release.sh --print-next-version`) e cria/sobrescreve a tag flutuante `vX.Y.Z-rc` (`git push --force`) — dispara o mesmo `release.yml`, publicando binários + imagem Docker como pré-release do GitHub. `--dry-run` só mostra a tag; `--cleanup` remove a RC do ciclo atual. |
 
 ### Merge pós-PR
 
@@ -173,6 +174,30 @@ Encadeiam o fluxo por história. **Checkboxes usam `[]` para não-marcado** (e `
 ```
 
 O script lê os commits convencionais desde a última tag, determina o bump (`feat` → minor, breaking → major, resto → patch), gera o changelog agrupado por tipo e cria uma tag no formato `vX.Y.Z-dev`. O push da tag dispara o GitHub Actions que publica a release. O sufixo `-dev` indica projeto em desenvolvimento ativo; quando atingir estabilidade, as tags passarão a usar `vX.Y.Z` sem sufixo.
+
+#### Pré-release / release candidate (sem tocar em master)
+
+Pra testar o binário/imagem Docker de um ciclo em andamento **antes** de cortar a release de verdade (sem tocar em `master`), use `scripts/release-candidate.sh` a partir de `develop`:
+
+```bash
+./scripts/release-candidate.sh            # cria/atualiza a -rc da versão atual
+./scripts/release-candidate.sh --dry-run  # só mostra a tag que seria criada/atualizada
+./scripts/release-candidate.sh --cleanup  # apaga a -rc do ciclo atual (release real já saiu)
+```
+
+O workflow `release.yml` dispara em **qualquer** tag `v*` enviada, não só as que apontam pra `master` — então uma pré-release funciona no mesmo pipeline da release de verdade, só marcada como *pre-release* no GitHub (o passo "Detect pre-release" reconhece o sufixo `-rc`/`-beta`/`-alpha`). Isso importa porque o auto-updater embutido no app (`internal/release/checker.go`) só consulta `/releases/latest`, que a API do GitHub **nunca** devolve como pré-release — instalações existentes nunca são notificadas/atualizadas pra uma RC.
+
+**Tag fixa por ciclo** (`vX.Y.Z-rc`, sem número incremental): cada chamada sobrescreve a mesma tag (`git push --force`). O `softprops/action-gh-release` faz upsert por nome de tag — atualiza a release existente em vez de criar outra, então só existe uma entrada de pré-release por versão sendo testada (evita entupir a lista de Releases a cada tentativa). Quando a versão real sai, `release-tag.sh` já remove (melhor esforço) a `-rc` correspondente sozinho.
+
+**Instalar uma `-rc`** não exige nada especial — os assets de pré-release ficam acessíveis normalmente (só o atalho `/latest/download/` é que pula pré-releases):
+
+```bash
+# binário direto
+curl -LO https://github.com/jacksonbicalho/os-camera/releases/download/v1.4.0-rc/camera-linux-amd64
+
+# imagem Docker (a tag preserva o sufixo -rc, é semver válido)
+docker pull jacksonbicalho/os-camera:1.4.0-rc
+```
 
 #### Planejamento de release (releases/)
 

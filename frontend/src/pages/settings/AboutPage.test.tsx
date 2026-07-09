@@ -45,7 +45,6 @@ const base: UpdateStatus = {
   latest: 'v1.4.0-dev',
   notes_md: '### Novidades\n- coisa nova',
   image: 'jacksonbicalho/os-camera:1.4.0-dev',
-  min_supported: 'v0.0.0',
   update_available: true,
   apply_mode: 'self-replace',
   checked_at: '2026-06-25T00:00:00Z',
