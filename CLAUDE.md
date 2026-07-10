@@ -120,17 +120,17 @@ Microserviço Python/FastAPI opcional para análise de gravações e fine-tuning
 
 **Testes do serviço:** `services/yolo/test_main.py` (pytest). As deps pesadas (torch/ultralytics/cv2) são **stubadas via `sys.modules`** antes de importar `main`, então os testes rodam numa imagem Python slim sem GPU. Rodam via `scripts/yolo-check.sh` (Docker), acionado pelo `scripts/check.sh` quando `services/yolo/` muda, e por um job dedicado no CI (`.github/workflows/ci.yml`).
 
-**Subir o serviço:**
+**Subir o serviço:** totalmente independente do `docker-compose.yml` da câmera — compose file próprio em `services/yolo/`. Só precisa (1) estar acessível pela URL configurada em Settings e (2) montar o **mesmo diretório de storage** da instância de câmera que vai consumi-lo (os paths de arquivo trocados via API são resolvidos dentro do container do YOLO a partir desse volume — divergência aqui é a causa mais comum de `404` no `/classify`/`/analyze`). Copie `services/yolo/.env.example` para `services/yolo/.env` e ajuste `YOLO_STORAGE_PATH`/`YOLO_MODELS_PATH` antes de subir.
 
 ```bash
 # CPU (qualquer hardware, incluindo Raspberry Pi)
-docker compose --profile yolo up -d
+docker compose -f services/yolo/docker-compose.yml up -d
 
 # GPU NVIDIA (requer nvidia-container-toolkit no host)
-docker compose -f docker-compose.yml -f docker-compose.nvidia.yml --profile yolo up -d
+docker compose -f services/yolo/docker-compose.yml -f services/yolo/docker-compose.nvidia.yml up -d
 ```
 
-O padrão de **override files** mantém `docker-compose.yml` universal (funciona em RPi, AMD, CPU-only) e `docker-compose.nvidia.yml` adiciona apenas o device reservation NVIDIA. Nunca colocar configuração de GPU no `docker-compose.yml` base.
+O padrão de **override files** mantém `services/yolo/docker-compose.yml` universal (funciona em RPi, AMD, CPU-only) e `services/yolo/docker-compose.nvidia.yml` adiciona apenas o device reservation NVIDIA. Nunca colocar configuração de GPU no `docker-compose.yml` base.
 
 Modelos pré-baixados na imagem: `yolov8n` e `yolo11n`. Com GPU RTX 3050 (4GB VRAM): fine-tuning viável para variantes `n` e `s`; variantes `l` e `x` causam OOM no treino (inferência funciona). Ver `docs/analysis.md` para documentação completa.
 

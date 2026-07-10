@@ -15,16 +15,25 @@ o resultado é exibido na interface web junto ao evento de movimento corresponde
 
 ## Subir o serviço
 
+O serviço é totalmente independente do `docker-compose.yml` da câmera — tem
+seu próprio compose file em `services/yolo/`. Ele só precisa (1) estar
+acessível pela **URL do serviço** configurada em Settings e (2) montar o
+**mesmo diretório de storage** usado pela instância da câmera que vai
+consumi-lo (os paths de arquivo trocados via API, ex. `/data/state_samples/...`,
+são resolvidos dentro do container do YOLO a partir desse volume). Copie
+`services/yolo/.env.example` para `services/yolo/.env` e ajuste
+`YOLO_STORAGE_PATH`/`YOLO_MODELS_PATH` antes de subir.
+
 ### Sem GPU (CPU — funciona em qualquer hardware, incluindo Raspberry Pi)
 
 ```bash
-docker compose --profile yolo up -d
+docker compose -f services/yolo/docker-compose.yml up -d
 ```
 
 ### Com GPU NVIDIA
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.nvidia.yml --profile yolo up -d
+docker compose -f services/yolo/docker-compose.yml -f services/yolo/docker-compose.nvidia.yml up -d
 ```
 
 > O arquivo `docker-compose.nvidia.yml` adiciona o device reservation para NVIDIA.
@@ -33,7 +42,7 @@ docker compose -f docker-compose.yml -f docker-compose.nvidia.yml --profile yolo
 ### Verificar se a GPU está sendo usada
 
 ```bash
-docker compose exec yolo nvidia-smi
+docker compose -f services/yolo/docker-compose.yml exec yolo nvidia-smi
 ```
 
 ---
