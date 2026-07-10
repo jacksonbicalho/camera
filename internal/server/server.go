@@ -343,123 +343,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) routes() {
-	s.mux.HandleFunc("POST /api/auth/login", s.handleLogin)
-	s.mux.HandleFunc("POST /api/auth/change-password", s.requireAuth(s.handleChangePassword))
-	s.mux.HandleFunc("POST /api/auth/forgot-password", s.handleForgotPassword)
-	s.mux.HandleFunc("POST /api/auth/reset-password", s.handleResetPassword)
-	s.mux.HandleFunc("GET /api/config", s.handleClientConfig)
-	s.mux.HandleFunc("GET /api/settings", s.requireAdmin(s.handleSettings))
-	s.mux.HandleFunc("GET /api/about", s.requireFullAuth(s.handleAbout))
-	s.mux.HandleFunc("GET /api/updates", s.requireAdmin(s.handleUpdates))
-	s.mux.HandleFunc("POST /api/updates/apply", s.requireAdmin(s.handleApplyUpdate))
-	s.mux.HandleFunc("GET /api/cameras", s.requireFullAuth(s.handleCameras))
-
-	s.mux.HandleFunc("GET /api/discover", s.requireAdmin(s.handleDiscover))
-	s.mux.HandleFunc("POST /api/discover/streams", s.requireAdmin(s.handleDiscoverStreams))
-	s.mux.HandleFunc("GET /api/settings/cameras", s.requireAdmin(s.handleListSettingsCameras))
-	s.mux.HandleFunc("POST /api/settings/cameras", s.requireAdmin(s.handleCreateCamera))
-	s.mux.HandleFunc("POST /api/settings/cameras/detect-substream", s.requireAdmin(s.handleDetectSubstream))
-	s.mux.HandleFunc("POST /api/settings/cameras/detect-streams", s.requireAdmin(s.handleDetectStreams))
-	s.mux.HandleFunc("PUT /api/settings/cameras/reorder", s.requireAdmin(s.handleReorderCameras))
-	s.mux.HandleFunc("PUT /api/settings/cameras/{id}", s.requireAdmin(s.handleUpdateCamera))
-	s.mux.HandleFunc("DELETE /api/settings/cameras/{id}", s.requireAdmin(s.handleDeleteCamera))
-
-	// Notifications are per-user (scoped to the authenticated user, not admin-only).
-	s.mux.HandleFunc("GET /api/notifications", s.requireFullAuth(s.handleListNotifications))
-	s.mux.HandleFunc("POST /api/notifications/read-all", s.requireFullAuth(s.handleMarkAllNotificationsRead))
-	s.mux.HandleFunc("POST /api/notifications/{id}/read", s.requireFullAuth(s.handleMarkNotificationRead))
-	s.mux.HandleFunc("DELETE /api/notifications/{id}", s.requireFullAuth(s.handleDeleteNotification))
-	s.mux.HandleFunc("DELETE /api/notifications", s.requireFullAuth(s.handleDeleteAllNotifications))
-
-	// Per-user preferences (theme), scoped to the authenticated user.
-	s.mux.HandleFunc("GET /api/me/footer-states", s.requireFullAuth(s.handleFooterStates))
-	s.mux.HandleFunc("GET /api/me/preferences", s.requireFullAuth(s.handleGetPreferences))
-	s.mux.HandleFunc("PUT /api/me/preferences", s.requireFullAuth(s.handleUpdatePreferences))
-
-	// Perfil: dados do usuário + troca de e-mail com código de confirmação.
-	s.mux.HandleFunc("GET /api/me", s.requireFullAuth(s.handleGetMe))
-	s.mux.HandleFunc("PUT /api/me", s.requireFullAuth(s.handleUpdateMe))
-	s.mux.HandleFunc("POST /api/me/email/request-change", s.requireFullAuth(s.handleRequestEmailChange))
-	s.mux.HandleFunc("POST /api/me/email/confirm-change", s.requireFullAuth(s.handleConfirmEmailChange))
-
-	s.mux.HandleFunc("GET /api/users", s.requireAdmin(s.handleListUsers))
-	s.mux.HandleFunc("POST /api/users", s.requireAdmin(s.handleCreateUser))
-	s.mux.HandleFunc("PUT /api/users/{id}", s.requireAdmin(s.handleUpdateUser))
-	s.mux.HandleFunc("DELETE /api/users/{id}", s.requireAdmin(s.handleDeleteUser))
-
-	s.mux.HandleFunc("PUT /api/settings/storage", s.requireAdmin(s.handleUpdateStorageSettings))
-
-	s.mux.HandleFunc("GET /api/drives", s.requireAdmin(s.handleListDrives))
-	s.mux.HandleFunc("POST /api/drives", s.requireAdmin(s.handleCreateDrive))
-	s.mux.HandleFunc("PUT /api/drives/{id}", s.requireAdmin(s.handleUpdateDrive))
-	s.mux.HandleFunc("DELETE /api/drives/{id}", s.requireAdmin(s.handleDeleteDrive))
-	s.mux.HandleFunc("GET /api/retention", s.requireAdmin(s.handleListRetentionConfigs))
-	s.mux.HandleFunc("PUT /api/retention/{category}", s.requireAdmin(s.handleUpdateRetentionConfig))
-
-	s.mux.HandleFunc("GET /api/settings/analysis", s.requireAdmin(s.handleGetAnalysisConfig))
-	s.mux.HandleFunc("PUT /api/settings/analysis", s.requireAdmin(s.handleUpdateAnalysisConfig))
-	s.mux.HandleFunc("GET /api/settings/analysis/models", s.requireAdmin(s.handleListModels))
-	s.mux.HandleFunc("POST /api/settings/analysis/reanalyze", s.requireAdmin(s.handleReanalyze))
-	s.mux.HandleFunc("POST /api/settings/analysis/finetune", s.requireAdmin(s.handleStartFinetune))
-	s.mux.HandleFunc("DELETE /api/settings/analysis/finetune/{job_id}", s.requireAdmin(s.handleCancelFinetune))
-	s.mux.HandleFunc("GET /api/settings/analysis/finetune/status/{job_id}", s.requireAdmin(s.handleFinetuneStatus))
-	s.mux.HandleFunc("GET /api/settings/cameras/{id}/analysis", s.requireAdmin(s.handleGetCameraAnalysisConfig))
-	s.mux.HandleFunc("PUT /api/settings/cameras/{id}/analysis", s.requireAdmin(s.handleUpdateCameraAnalysisConfig))
+	for _, rt := range s.routeTable() {
+		s.mux.HandleFunc(rt.method+" "+rt.path, s.guard(rt))
+	}
 
 	streamHandler := http.StripPrefix("/stream/", noCachePlaylist(http.FileServer(http.Dir(s.cfg.SegmentsPath))))
 	s.mux.Handle("/stream/", s.requireStreamAccess(streamHandler))
 
 	recHandler := http.StripPrefix("/recordings/", http.FileServer(http.Dir(s.cfg.RecordingsPath)))
 	s.mux.Handle("/recordings/", s.requireRecordingsAccess(recHandler))
-
-	s.mux.HandleFunc("GET /api/cameras/{id}/recordings", s.requireCameraAccess(s.handleRecordings))
-	s.mux.HandleFunc("GET /api/cameras/{id}/content-days", s.requireCameraAccess(s.handleContentDays))
-	s.mux.HandleFunc("GET /api/cameras/{id}/recordings/by-id/{recording_id}", s.requireCameraAccess(s.handleRecordingByID))
-	s.mux.HandleFunc("DELETE /api/cameras/{id}/recordings/{filename}", s.requireAdmin(s.handleDeleteRecording))
-	s.mux.HandleFunc("GET /api/reports/events", s.requireFullAuth(s.handleEventReport))
-	s.mux.HandleFunc("GET /api/moments", s.requireFullAuth(s.handleMoments))
-	s.mux.HandleFunc("GET /api/recordings", s.requireFullAuth(s.handleGlobalRecordings))
-	s.mux.HandleFunc("GET /api/content-days", s.requireFullAuth(s.handleGlobalContentDays))
-	s.mux.HandleFunc("GET /api/cameras/{id}/device-info", s.requireCameraAccess(s.handleDeviceInfo))
-	s.mux.HandleFunc("POST /api/cameras/{id}/device-info/refresh", s.requireAdmin(s.handleRefreshDeviceInfo))
-	s.mux.HandleFunc("GET /api/cameras/{id}/motion", s.requireCameraAccess(s.handleMotionEvents))
-	s.mux.HandleFunc("POST /api/cameras/{id}/webrtc", s.requireCameraAccess(s.handleWebRTC))
-	s.mux.HandleFunc("GET /api/motion/live", s.requireFullAuth(s.handleAllMotionLive))
-	s.mux.HandleFunc("GET /api/notifications/live", s.requireFullAuth(s.handleNotificationsLive))
-	s.mux.HandleFunc("GET /api/cameras/{id}/motion/live", s.requireCameraAccess(s.handleMotionLive))
-	s.mux.HandleFunc("GET /api/cameras/{id}/motion/scores", s.requireCameraAccess(s.handleMotionScores))
-	s.mux.HandleFunc("GET /api/cameras/{id}/motion/region-score", s.requireCameraAccess(s.handleMotionRegionScore))
-	s.mux.HandleFunc("GET /api/cameras/{id}/motion/daily-peak", s.requireCameraAccess(s.handleMotionDailyPeak))
-	s.mux.HandleFunc("GET /api/cameras/{id}/motion/zones", s.requireCameraAccess(s.handleMotionZonesGet))
-	s.mux.HandleFunc("PUT /api/cameras/{id}/motion/zones", s.requireCameraAccess(s.handleMotionZonesPut))
-	// State classification: config (admin) + leitura do estado corrente (cameraAccess).
-	s.mux.HandleFunc("GET /api/settings/cameras/{id}/classifiers", s.requireAdmin(s.handleStateClassifiersGet))
-	s.mux.HandleFunc("POST /api/settings/cameras/{id}/classifiers", s.requireAdmin(s.handleStateClassifierCreate))
-	s.mux.HandleFunc("PUT /api/settings/cameras/{id}/classifiers/{cid}", s.requireAdmin(s.handleStateClassifierUpdate))
-	s.mux.HandleFunc("DELETE /api/settings/cameras/{id}/classifiers/{cid}", s.requireAdmin(s.handleStateClassifierDelete))
-	s.mux.HandleFunc("POST /api/settings/cameras/{id}/classifiers/{cid}/train", s.requireAdmin(s.handleStateClassifierTrain))
-	s.mux.HandleFunc("GET /api/settings/cameras/{id}/classifiers/{cid}/samples", s.requireAdmin(s.handleStateClassifierSamplesGet))
-	s.mux.HandleFunc("POST /api/settings/cameras/{id}/classifiers/{cid}/samples", s.requireAdmin(s.handleStateClassifierSamplesSave))
-	s.mux.HandleFunc("GET /api/cameras/{id}/classifiers/{cid}/state", s.requireCameraAccess(s.handleStateClassifierState))
-	s.mux.HandleFunc("GET /api/cameras/{id}/classifiers/{cid}/history", s.requireCameraAccess(s.handleStateClassifierHistory))
-	s.mux.HandleFunc("GET /api/events/{id}", s.requireFullAuth(s.handleGetEventByID))
-	s.mux.HandleFunc("POST /api/events/{id}/annotations", s.requireFullAuth(s.handleCreateAnnotation))
-	s.mux.HandleFunc("GET /api/events/{id}/annotations", s.requireFullAuth(s.handleListAnnotations))
-	s.mux.HandleFunc("DELETE /api/events/{id}/annotations", s.requireFullAuth(s.handleDeleteAnnotationsByEvent))
-	s.mux.HandleFunc("PATCH /api/annotations/{id}", s.requireFullAuth(s.handleUpdateAnnotation))
-	s.mux.HandleFunc("DELETE /api/annotations/{id}", s.requireFullAuth(s.handleDeleteAnnotation))
-	s.mux.HandleFunc("PATCH /api/events/{id}/label", s.requireFullAuth(s.handleUpdateEventLabel))
-	s.mux.HandleFunc("PUT /api/events/{id}/frame", s.requireFullAuth(s.handleUpdateEventFrame))
-	s.mux.HandleFunc("DELETE /api/events/bulk", s.requireAdmin(s.handleBulkDeleteEvents))
-	s.mux.HandleFunc("PATCH /api/events/bulk/dismiss", s.requireAdmin(s.handleBulkDismissEvents))
-	s.mux.HandleFunc("PATCH /api/events/bulk/label", s.requireAdmin(s.handleBulkUpdateEventLabels))
-	s.mux.HandleFunc("GET /api/cameras/{id}/events", s.requireCameraAccess(s.handlePageEvents))
-	s.mux.HandleFunc("GET /api/settings/analysis/annotation-count", s.requireAdmin(s.handleAnnotationCount))
-
-	s.mux.HandleFunc("GET /api/cameras/{id}/snapshot", s.requireCameraAccess(s.handleSnapshot))
-	s.mux.HandleFunc("GET /api/cameras/{id}/event-frame", s.requireCameraAccess(s.handleEventFrame))
-	s.mux.HandleFunc("GET /api/cameras/{id}/stats", s.requireCameraAccess(s.handleCameraStats))
-	s.mux.HandleFunc("GET /api/stats", s.requireFullAuth(s.handleStats))
 
 	if s.frontend != nil {
 		// Rota exata da SPA que colide com o mount de arquivos /recordings/: sem ela, o
