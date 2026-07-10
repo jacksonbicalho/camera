@@ -121,16 +121,18 @@ describe('Sidebar (enxuto)', () => {
     expect(document.getElementById('accent-swatch-teal')).not.toBeNull()
     expect(document.getElementById('accent-swatch-coral')).not.toBeNull()
     expect(document.getElementById('accent-swatch-amber')).not.toBeNull()
-    expect(document.querySelector('a[href="/settings/stats"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/stats"]')).toBeNull()
   })
 
-  it('viewer não vê os itens administrativos, mas continua vendo Câmeras/Aparência/tema/Estatísticas/Sobre', () => {
+  it('viewer não vê os itens administrativos, mas continua vendo Câmeras/Aparência/tema/Sistema/Sobre', () => {
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
     fireEvent.click(document.getElementById('sidebar-config')!)
     expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/appearance"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/stats"]')).toBeTruthy()
+    const statsLink = document.querySelector('a[href="/settings/stats"]')
+    expect(statsLink).toBeTruthy()
+    expect(statsLink?.textContent).toContain('Sistema')
     expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/users"]')).toBeNull()
     expect(document.querySelector('a[href="/settings/server"]')).toBeNull()

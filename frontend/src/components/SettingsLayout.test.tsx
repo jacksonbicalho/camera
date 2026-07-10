@@ -52,7 +52,7 @@ describe('SettingsLayout', () => {
     expect(document.body.textContent).toContain('conteúdo')
     expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/users"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/stats"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/system"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
   })
 

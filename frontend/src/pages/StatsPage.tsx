@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { authHeaders, onUnauthorized } from '../auth'
 import SettingsLayout from '../components/SettingsLayout'
 import PageHeader from '../components/PageHeader'
+import SystemSettingsTabs from '../components/SystemSettingsTabs'
 import MotionScoreChart from '../components/MotionScoreChart'
 import { useStats } from '../hooks/useStats'
 import { formatBytes, formatDuration } from './statsUtils'
@@ -84,6 +85,7 @@ export default function StatsPage() {
   return (
     <SettingsLayout id="stats-page" footerId="stats-footer">
       <PageHeader title="Estatísticas" subtitle="Uso de disco, sistema e saúde das câmeras." />
+      <SystemSettingsTabs active="stats" />
 
       {!stats ? (
         <p className="text-faint text-sm">Carregando...</p>
