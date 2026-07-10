@@ -11,13 +11,34 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Resumo do que quebrou, para o log de um dos checks.
+fail_summary() {
+    local log="$1"
+    # Sinal = teste que falhou ou panic. O rodapé `FAIL <pkg>` fica de fora: ele
+    # sozinho não diz nada (um erro de compilação também o imprime), e detectá-lo
+    # como sinal impediria o fallback abaixo.
+    local signal='--- FAIL|panic:'
+    # O `--` encerra o parse de opções: sem ele o grep lê o padrão (que começa
+    # com "--") como opção longa e sai com erro de uso, engolindo a saída.
+    if grep -qE -- "$signal" "$log"; then
+        grep -E -- "$signal|^FAIL" "$log" | head -20
+    else
+        # Erro de compilação não tem linha de sinal — não deixe a tela vazia.
+        tail -25 "$log"
+    fi
+    echo "· log completo: $log"
+}
+
+# Carregado como biblioteca (scripts/check_test.go): só as funções, sem rodar nada.
+[ -n "${CHECK_SH_LIB:-}" ] && return 0
+
 echo "→ go build ./..."
 if ! go build ./...; then echo "❌ go build falhou"; exit 1; fi
 
 echo "→ go test -count=1 ./..."
 if ! go test -count=1 ./... >/tmp/check-go.log 2>&1; then
     echo "❌ go test falhou:"
-    grep -E '--- FAIL|FAIL|panic|cannot' /tmp/check-go.log | head -20
+    fail_summary /tmp/check-go.log
     exit 1
 fi
 echo "✓ backend verde"
@@ -30,7 +51,7 @@ if [ "$fe_changed" -eq 1 ]; then
     echo "→ frontend mudou: scripts/frontend-check.sh (Docker)"
     if ! bash "$ROOT/scripts/frontend-check.sh" >/tmp/check-fe.log 2>&1; then
         echo "❌ frontend-check falhou:"
-        tail -25 /tmp/check-fe.log
+        fail_summary /tmp/check-fe.log
         exit 1
     fi
     echo "✓ frontend verde"
@@ -46,7 +67,7 @@ if [ "$yolo_changed" -eq 1 ]; then
     echo "→ services/yolo mudou: scripts/yolo-check.sh (Docker)"
     if ! bash "$ROOT/scripts/yolo-check.sh" >/tmp/check-yolo.log 2>&1; then
         echo "❌ yolo-check falhou:"
-        tail -25 /tmp/check-yolo.log
+        fail_summary /tmp/check-yolo.log
         exit 1
     fi
     echo "✓ yolo verde"
