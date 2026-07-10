@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Layout from '../../components/Layout'
+import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import { authHeaders } from '../../auth'
 import { Loader2, Search } from '../../components/Icons'
@@ -166,194 +166,190 @@ export default function DiscoverPage() {
     'bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-ring w-36'
 
   return (
-    <Layout id="discover-page" footerId="discover-footer" contentClassName="p-6">
-      <div id="discover-content" className="page-content space-y-4">
-        <div className="flex flex-col gap-6">
-          <PageHeader
-            className="mb-0"
-            title="Rastrear câmeras na rede"
-            subtitle="ONVIF WS-Discovery (multicast UDP) + varredura de porta 554 na subnet local"
-            actions={
-              <Button id="discover-scan" onClick={handleScan} disabled={status === 'scanning'}>
-                {status === 'scanning' ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Rastreando…
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4" />
-                    Rastrear
-                  </>
-                )}
-              </Button>
-            }
-          />
+    <SettingsLayout id="discover-page" footerId="discover-footer">
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          className="mb-0"
+          title="Rastrear câmeras na rede"
+          subtitle="ONVIF WS-Discovery (multicast UDP) + varredura de porta 554 na subnet local"
+          actions={
+            <Button id="discover-scan" onClick={handleScan} disabled={status === 'scanning'}>
+              {status === 'scanning' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Rastreando…
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4" />
+                  Rastrear
+                </>
+              )}
+            </Button>
+          }
+        />
 
-          {status === 'scanning' && (
-            <p className="text-xs text-muted-foreground animate-pulse">
-              Aguardando respostas ONVIF (3 s) e varrendo porta 554 na subnet…
-            </p>
-          )}
+        {status === 'scanning' && (
+          <p className="text-xs text-muted-foreground animate-pulse">
+            Aguardando respostas ONVIF (3 s) e varrendo porta 554 na subnet…
+          </p>
+        )}
 
-          {status === 'error' && <p className="text-xs text-red-400">{error}</p>}
+        {status === 'error' && <p className="text-xs text-red-400">{error}</p>}
 
-          {status === 'done' && results.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nenhuma câmera encontrada na rede.</p>
-          )}
+        {status === 'done' && results.length === 0 && (
+          <p className="text-sm text-muted-foreground">Nenhuma câmera encontrada na rede.</p>
+        )}
 
-          {results.length > 0 && (
-            <div className="bg-surface border border-border rounded-lg overflow-hidden">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground uppercase tracking-wider">
-                    <th className="text-left px-4 py-2.5">IP</th>
-                    <th className="text-left px-4 py-2.5">Porta</th>
-                    <th className="text-left px-4 py-2.5">Método</th>
-                    <th className="text-left px-4 py-2.5">Nome / Modelo</th>
-                    <th className="px-4 py-2.5" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map((r, i) => {
-                    const cam = findRegisteredCamera(r.ip, registered)
-                    const regName = cam ? cam.name || cam.id || r.ip : null
-                    const lines = cam?.id ? identityLines(deviceInfo[cam.id] ?? {}) : []
-                    const fallbackName = discoveredDisplayName(r, registered)
-                    return (
-                      <>
+        {results.length > 0 && (
+          <div className="bg-surface border border-border rounded-lg overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground uppercase tracking-wider">
+                  <th className="text-left px-4 py-2.5">IP</th>
+                  <th className="text-left px-4 py-2.5">Porta</th>
+                  <th className="text-left px-4 py-2.5">Método</th>
+                  <th className="text-left px-4 py-2.5">Nome / Modelo</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {results.map((r, i) => {
+                  const cam = findRegisteredCamera(r.ip, registered)
+                  const regName = cam ? cam.name || cam.id || r.ip : null
+                  const lines = cam?.id ? identityLines(deviceInfo[cam.id] ?? {}) : []
+                  const fallbackName = discoveredDisplayName(r, registered)
+                  return (
+                    <>
+                      <tr
+                        key={i}
+                        className={`border-b border-border ${adding?.idx === i ? '' : 'last:border-0'} hover:bg-accent/40 transition-colors`}
+                      >
+                        <td className="px-4 py-2.5 font-mono text-foreground">{r.ip}</td>
+                        <td className="px-4 py-2.5 font-mono text-muted-foreground">{r.port}</td>
+                        <td className="px-4 py-2.5">
+                          {r.onvif ? (
+                            <span className="px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 text-xs font-mono">
+                              ONVIF
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded bg-surface-2 text-muted-foreground text-xs font-mono">
+                              Scan
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-foreground">
+                          {lines.length > 0 ? (
+                            <div className="space-y-0.5">
+                              {lines.map((l) => (
+                                <div key={l.label}>
+                                  <span className="text-muted-foreground">{l.label}:</span>{' '}
+                                  {l.value}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            fallbackName || <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          {regName ? (
+                            <span className="text-xs font-mono text-muted-foreground">
+                              Já cadastrada como “{regName}”
+                            </span>
+                          ) : adding?.idx === i ? (
+                            <Button variant="outline" size="sm" onClick={() => setAdding(null)}>
+                              Cancelar
+                            </Button>
+                          ) : (
+                            <Button size="sm" onClick={() => startAdding(i)}>
+                              Adicionar
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+
+                      {adding?.idx === i && adding.step === 'creds' && (
                         <tr
-                          key={i}
-                          className={`border-b border-border ${adding?.idx === i ? '' : 'last:border-0'} hover:bg-accent/40 transition-colors`}
+                          key={`${i}-creds`}
+                          className="border-b border-border last:border-0 bg-surface-2/50"
                         >
-                          <td className="px-4 py-2.5 font-mono text-foreground">{r.ip}</td>
-                          <td className="px-4 py-2.5 font-mono text-muted-foreground">{r.port}</td>
-                          <td className="px-4 py-2.5">
-                            {r.onvif ? (
-                              <span className="px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 text-xs font-mono">
-                                ONVIF
-                              </span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 rounded bg-surface-2 text-muted-foreground text-xs font-mono">
-                                Scan
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2.5 font-mono text-foreground">
-                            {lines.length > 0 ? (
-                              <div className="space-y-0.5">
-                                {lines.map((l) => (
-                                  <div key={l.label}>
-                                    <span className="text-muted-foreground">{l.label}:</span>{' '}
-                                    {l.value}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              fallbackName || <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2.5 text-right">
-                            {regName ? (
-                              <span className="text-xs font-mono text-muted-foreground">
-                                Já cadastrada como “{regName}”
-                              </span>
-                            ) : adding?.idx === i ? (
-                              <Button variant="outline" size="sm" onClick={() => setAdding(null)}>
-                                Cancelar
+                          <td colSpan={5} className="px-4 py-3">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <input
+                                placeholder="Usuário"
+                                value={adding.user}
+                                onChange={(e) =>
+                                  setAdding((a) => (a ? { ...a, user: e.target.value } : a))
+                                }
+                                className={inputClass}
+                                autoFocus
+                              />
+                              <input
+                                type="password"
+                                placeholder="Senha"
+                                value={adding.pass}
+                                onChange={(e) =>
+                                  setAdding((a) => (a ? { ...a, pass: e.target.value } : a))
+                                }
+                                onKeyDown={(e) => e.key === 'Enter' && confirmCreds(r)}
+                                className={inputClass}
+                              />
+                              <Button size="sm" onClick={() => confirmCreds(r)}>
+                                Confirmar
                               </Button>
-                            ) : (
-                              <Button size="sm" onClick={() => startAdding(i)}>
-                                Adicionar
-                              </Button>
-                            )}
+                            </div>
                           </td>
                         </tr>
+                      )}
 
-                        {adding?.idx === i && adding.step === 'creds' && (
-                          <tr
-                            key={`${i}-creds`}
-                            className="border-b border-border last:border-0 bg-surface-2/50"
-                          >
-                            <td colSpan={5} className="px-4 py-3">
-                              <div className="flex items-center gap-3 flex-wrap">
-                                <input
-                                  placeholder="Usuário"
-                                  value={adding.user}
-                                  onChange={(e) =>
-                                    setAdding((a) => (a ? { ...a, user: e.target.value } : a))
-                                  }
-                                  className={inputClass}
-                                  autoFocus
-                                />
-                                <input
-                                  type="password"
-                                  placeholder="Senha"
-                                  value={adding.pass}
-                                  onChange={(e) =>
-                                    setAdding((a) => (a ? { ...a, pass: e.target.value } : a))
-                                  }
-                                  onKeyDown={(e) => e.key === 'Enter' && confirmCreds(r)}
-                                  className={inputClass}
-                                />
-                                <Button size="sm" onClick={() => confirmCreds(r)}>
-                                  Confirmar
+                      {adding?.idx === i && adding.step === 'loading' && (
+                        <tr
+                          key={`${i}-loading`}
+                          className="border-b border-border last:border-0 bg-surface-2/50"
+                        >
+                          <td colSpan={5} className="px-4 py-3">
+                            <p className="text-xs text-muted-foreground animate-pulse">
+                              Buscando streams disponíveis…
+                            </p>
+                          </td>
+                        </tr>
+                      )}
+
+                      {adding?.idx === i && adding.step === 'streams' && (
+                        <tr
+                          key={`${i}-streams`}
+                          className="border-b border-border last:border-0 bg-surface-2/50"
+                        >
+                          <td colSpan={5} className="px-4 py-3">
+                            <p className="text-xs text-muted-foreground mb-2">Escolha o stream:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {adding.streams.map((s) => (
+                                <Button
+                                  key={s.url}
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-auto py-1.5"
+                                  onClick={() => selectStream(r, s.url)}
+                                >
+                                  <span className="font-medium">{s.name}</span>
+                                  <span className="text-muted-foreground ml-1.5 font-mono">
+                                    {s.url.replace(/^rtsp:\/\/[^@]+@/, 'rtsp://…@')}
+                                  </span>
                                 </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-
-                        {adding?.idx === i && adding.step === 'loading' && (
-                          <tr
-                            key={`${i}-loading`}
-                            className="border-b border-border last:border-0 bg-surface-2/50"
-                          >
-                            <td colSpan={5} className="px-4 py-3">
-                              <p className="text-xs text-muted-foreground animate-pulse">
-                                Buscando streams disponíveis…
-                              </p>
-                            </td>
-                          </tr>
-                        )}
-
-                        {adding?.idx === i && adding.step === 'streams' && (
-                          <tr
-                            key={`${i}-streams`}
-                            className="border-b border-border last:border-0 bg-surface-2/50"
-                          >
-                            <td colSpan={5} className="px-4 py-3">
-                              <p className="text-xs text-muted-foreground mb-2">
-                                Escolha o stream:
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {adding.streams.map((s) => (
-                                  <Button
-                                    key={s.url}
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-auto py-1.5"
-                                    onClick={() => selectStream(r, s.url)}
-                                  >
-                                    <span className="font-medium">{s.name}</span>
-                                    <span className="text-muted-foreground ml-1.5 font-mono">
-                                      {s.url.replace(/^rtsp:\/\/[^@]+@/, 'rtsp://…@')}
-                                    </span>
-                                  </Button>
-                                ))}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-    </Layout>
+    </SettingsLayout>
   )
 }

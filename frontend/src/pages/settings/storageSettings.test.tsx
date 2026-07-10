@@ -27,7 +27,7 @@ vi.mock('../../hooks/useSettings', () => ({
   }),
 }))
 
-vi.mock('../../components/Layout', () => ({
+vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 

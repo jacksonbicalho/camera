@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import Layout from '../../components/Layout'
+import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import SettingsSection from '../../components/SettingsSection'
-import { useAbout } from '../../hooks/useSettings'
+import ReleaseNotesMarkdown from '../../components/ReleaseNotesMarkdown'
+import { useAbout, type AboutInfo } from '../../hooks/useSettings'
 import { useUpdates } from '../../hooks/useUpdates'
 import { getRole } from '../../auth'
 
@@ -41,7 +42,7 @@ function UpdatesSection() {
 
   return (
     <section id="updates-section" className="mt-8">
-      <h4 className="text-h4 font-semibold text-foreground mb-3">Atualizações</h4>
+      <h3 className="text-h3 font-semibold text-foreground mb-3">Atualizações</h3>
 
       {applyMsg ? (
         <p id="update-applying" className="text-sm text-foreground">
@@ -54,12 +55,9 @@ function UpdatesSection() {
           </p>
 
           {status.notes_md && (
-            <pre
-              id="update-notes"
-              className="mt-3 whitespace-pre-wrap text-xs text-muted-foreground font-sans"
-            >
-              {status.notes_md}
-            </pre>
+            <div id="update-notes" className="mt-3">
+              <ReleaseNotesMarkdown md={status.notes_md} />
+            </div>
           )}
 
           {status.apply_mode === 'self-replace' && (
@@ -102,29 +100,54 @@ function UpdatesSection() {
   )
 }
 
+// ReleaseNotesSection — changelog (body) da release do GitHub que corresponde
+// EXATAMENTE à versão instalada (release_notes_md/release_notes_version vêm de
+// /api/about, buscados por tag via internal/release.NotesFetcher — não a
+// "latest" do checker de updates, que a API do GitHub nunca resolve como
+// pré-release). Ao contrário de UpdatesSection, é visível a qualquer role e não
+// depende de haver update pendente — é só "o que tem na release desta versão".
+function ReleaseNotesSection({ about }: { about: AboutInfo }) {
+  if (!about.release_notes_md) return null
+
+  return (
+    <section id="release-notes-section" className="mt-8">
+      <h3 className="text-h3 font-semibold text-foreground mb-3">
+        Release notes
+        {about.release_notes_version && (
+          <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
+            {about.release_notes_version}
+          </span>
+        )}
+      </h3>
+      <div id="release-notes-md" className="rounded-lg border border-border bg-surface p-4">
+        <ReleaseNotesMarkdown md={about.release_notes_md} />
+      </div>
+    </section>
+  )
+}
+
 export default function AboutPage() {
   const about = useAbout()
 
   return (
-    <Layout id="about-page" footerId="about-footer" contentClassName="p-6">
-      <div id="about-content" className="page-content space-y-4">
-        <PageHeader title="Sobre" subtitle="Versão instalada, commit e tempo de atividade." />
-        {!about ? (
-          <p className="text-muted-foreground text-sm">Carregando...</p>
-        ) : (
-          <SettingsSection
-            title="Informações do servidor"
-            fields={[
-              { label: 'Versão', value: about.version || 'dev' },
-              { label: 'Commit', value: about.commit || '—' },
-              { label: 'Build', value: about.built_at || '—' },
-              { label: 'Ativo há', value: fmtUptime(about.uptime_seconds) },
-              { label: 'Go', value: about.go_version },
-            ]}
-          />
-        )}
-        <UpdatesSection />
-      </div>
-    </Layout>
+    <SettingsLayout id="about-page" footerId="about-footer">
+      <PageHeader title="Sobre" subtitle="Versão instalada, commit e tempo de atividade." />
+      {!about ? (
+        <p className="text-muted-foreground text-sm">Carregando...</p>
+      ) : (
+        <SettingsSection
+          title="Informações do servidor"
+          fields={[
+            { label: 'Versão', value: about.version || 'dev' },
+            { label: 'Commit', value: about.commit || '—' },
+            { label: 'Build', value: about.built_at || '—' },
+            { label: 'Ativo há', value: fmtUptime(about.uptime_seconds) },
+            { label: 'Go', value: about.go_version },
+          ]}
+        />
+      )}
+      <UpdatesSection />
+      {about && <ReleaseNotesSection about={about} />}
+    </SettingsLayout>
   )
 }

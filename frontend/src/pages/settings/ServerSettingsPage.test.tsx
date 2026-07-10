@@ -8,10 +8,9 @@ vi.mock('../../auth', () => ({
   onUnauthorized: vi.fn(),
   getRole: () => 'admin',
 }))
-// Mocka Layout (não SettingsLayout/AppLayout) — garante que a migração pro Layout
-// novo realmente aconteceu (SettingsLayout quebraria o render por falta de
-// NotificationProvider).
-vi.mock('../../components/Layout', () => ({
+// Mocka SettingsLayout (shallow) — isola o conteúdo da página da coluna de
+// navegação/Layout real, que exigiria NotificationProvider/router completo.
+vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
@@ -21,7 +20,7 @@ afterEach(() => {
 })
 
 describe('ServerSettingsPage', () => {
-  it('renderiza o título e os dados do servidor dentro do Layout novo (sem SettingsLayout)', async () => {
+  it('renderiza o título e os dados do servidor dentro do SettingsLayout', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>

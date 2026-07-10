@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import Layout from '../../components/Layout'
+import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import UserForm, { type UserFormData } from '../../components/UserForm'
@@ -107,108 +107,106 @@ export default function UsersSettingsPage() {
   const userToDelete = users.find((u) => u.id === deleteId)
 
   return (
-    <Layout id="users-settings-page" footerId="users-settings-footer" contentClassName="p-6">
-      <div id="users-settings-content" className="page-content space-y-4">
-        <PageHeader
-          title="Usuários"
-          subtitle="Gerencie usuários e permissões de acesso."
-          actions={
-            !creating && (
-              <Button
-                id="user-create"
-                size="sm"
-                className="shrink-0"
-                onClick={() => {
-                  setCreating(true)
-                  setError(null)
-                }}
-              >
-                + Novo usuário
-              </Button>
-            )
-          }
-        />
-
-        {error && (
-          <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
-            {error}
-          </div>
-        )}
-
-        {creating && (
-          <div className="mb-4 bg-surface border border-border rounded-lg p-4">
-            <p className="text-xs font-medium text-muted-foreground mb-3">Novo usuário</p>
-            <UserForm
-              cameras={cameras}
-              onSave={handleCreate}
-              onCancel={() => {
-                if (isNewRoute) {
-                  navigate('/settings/users', { replace: true })
-                  return
-                }
-                setCreating(false)
+    <SettingsLayout id="users-settings-page" footerId="users-settings-footer">
+      <PageHeader
+        title="Usuários"
+        subtitle="Gerencie usuários e permissões de acesso."
+        actions={
+          !creating && (
+            <Button
+              id="user-create"
+              size="sm"
+              className="shrink-0"
+              onClick={() => {
+                setCreating(true)
                 setError(null)
               }}
-              saving={saving}
-            />
-          </div>
-        )}
+            >
+              + Novo usuário
+            </Button>
+          )
+        }
+      />
 
-        {loading ? (
-          <p className="text-muted-foreground text-sm">Carregando...</p>
-        ) : users.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Nenhum usuário.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {users.map((user) => (
-              <div key={user.id} className="bg-surface border border-border rounded-lg px-4 py-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <Link
-                    to={`/settings/users/${user.id}`}
-                    className="text-sm font-mono text-foreground hover:text-primary transition-colors truncate min-w-0"
+      {error && (
+        <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
+          {error}
+        </div>
+      )}
+
+      {creating && (
+        <div className="mb-4 bg-surface border border-border rounded-lg p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-3">Novo usuário</p>
+          <UserForm
+            cameras={cameras}
+            onSave={handleCreate}
+            onCancel={() => {
+              if (isNewRoute) {
+                navigate('/settings/users', { replace: true })
+                return
+              }
+              setCreating(false)
+              setError(null)
+            }}
+            saving={saving}
+          />
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-muted-foreground text-sm">Carregando...</p>
+      ) : users.length === 0 ? (
+        <p className="text-muted-foreground text-sm">Nenhum usuário.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {users.map((user) => (
+            <div key={user.id} className="bg-surface border border-border rounded-lg px-4 py-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <Link
+                  to={`/settings/users/${user.id}`}
+                  className="text-sm font-mono text-foreground hover:text-primary transition-colors truncate min-w-0"
+                >
+                  {user.username}
+                </Link>
+                {user.name && (
+                  <span className="text-xs text-muted-foreground truncate">{user.name}</span>
+                )}
+                <RoleBadge role={user.role} />
+                {user.role === 'viewer' && (
+                  <span className="text-xs text-muted-foreground truncate">
+                    {user.cameras.length === 0 ? 'sem câmeras' : user.cameras.join(', ')}
+                  </span>
+                )}
+                <div className="ml-auto flex items-center gap-1 pl-3 shrink-0">
+                  <Button asChild variant="outline" size="sm">
+                    <Link to={`/settings/users/${user.id}`} state={{ editing: true }}>
+                      Editar
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setDeleteId(user.id)}
                   >
-                    {user.username}
-                  </Link>
-                  {user.name && (
-                    <span className="text-xs text-muted-foreground truncate">{user.name}</span>
-                  )}
-                  <RoleBadge role={user.role} />
-                  {user.role === 'viewer' && (
-                    <span className="text-xs text-muted-foreground truncate">
-                      {user.cameras.length === 0 ? 'sem câmeras' : user.cameras.join(', ')}
-                    </span>
-                  )}
-                  <div className="ml-auto flex items-center gap-1 pl-3 shrink-0">
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={`/settings/users/${user.id}`} state={{ editing: true }}>
-                        Editar
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => setDeleteId(user.id)}
-                    >
-                      Remover
-                    </Button>
-                  </div>
+                    Remover
+                  </Button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
+      )}
 
-        <ConfirmDialog
-          open={deleteId != null}
-          title="Remover usuário"
-          message={`Remover "${userToDelete?.username}"? Esta ação não pode ser desfeita.`}
-          confirmLabel="Remover"
-          danger
-          onConfirm={handleDelete}
-          onCancel={() => setDeleteId(null)}
-        />
-      </div>
-    </Layout>
+      <ConfirmDialog
+        open={deleteId != null}
+        title="Remover usuário"
+        message={`Remover "${userToDelete?.username}"? Esta ação não pode ser desfeita.`}
+        confirmLabel="Remover"
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteId(null)}
+      />
+    </SettingsLayout>
   )
 }

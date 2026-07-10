@@ -37,7 +37,7 @@ vi.mock('../../lib/webrtc', async (importOriginal) => {
   return { ...actual, negotiateWebRTC: vi.fn() }
 })
 
-vi.mock('../../components/Layout', () => ({
+vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 vi.mock('../../components/CameraSettingsTabs', () => ({ default: () => <div /> }))

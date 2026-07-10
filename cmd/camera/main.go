@@ -483,6 +483,8 @@ func main() {
 		srv.WithUpdateChecker(updateChecker)
 		go updateChecker.Run(ctx, 6*time.Hour)
 
+		srv.WithReleaseNotesFetcher(release.NewNotesFetcher(nil))
+
 		updEnv := updater.Detect(exe)
 		srv.WithApplyMode(updEnv.ApplyMode)
 		slog.Info("update environment detected", "apply_mode", updEnv.ApplyMode, "in_docker", updEnv.InDocker, "binary_writable", updEnv.BinaryWritable)

@@ -91,47 +91,48 @@ func (b *broadcaster) run(src <-chan motion.Event) {
 }
 
 type Server struct {
-	cfg                config.ServerConfig
-	storageCfg         config.StorageConfig
-	logCfg             config.LogConfig
-	debug              bool
-	timezone           string
-	version            string
-	commit             string
-	builtAt            string
-	startTime          time.Time
-	cameras            []config.CameraConfig
-	log                *slog.Logger
-	secret             []byte
-	frontend           fs.FS
-	mux                *http.ServeMux
-	mu                 sync.Mutex
-	streamSeen         map[string]time.Time
-	motionBroadcasters map[string]*broadcaster
-	rawBroadcasters    map[string]*broadcaster
-	notifHub           *notifHub
-	peakMu             sync.RWMutex
-	dailyPeakRaw       map[string]float64
-	dailyPeakDate      map[string]string
-	snapFn             func(ctx context.Context, rtspURL string) ([]byte, error)
-	frameFn            func(ctx context.Context, path string, offsetSeconds float64) ([]byte, error)
-	probedStreams      map[string]ffprobe.StreamInfo
-	db                 *db.DB
-	prober             *ffprobe.Prober
-	onCameraStart      func(config.CameraConfig)
-	onCameraStop       func(string)
-	monitors           map[string]*motion.Monitor
-	livePublishers     map[string]livePublisher
-	cpu                cpuTracker
-	net                netTracker
-	cleaner            interface{ ForceClean() }
-	deviceCollectors   []deviceinfo.Collector
-	updateChecker      updateStatuser
-	applyMode          string
-	applier            applyRunner
-	updateNotifyMu     sync.Mutex
-	updateNotified     string // última versão latest já notificada (dedup)
-	emailSender        emailSender
+	cfg                 config.ServerConfig
+	storageCfg          config.StorageConfig
+	logCfg              config.LogConfig
+	debug               bool
+	timezone            string
+	version             string
+	commit              string
+	builtAt             string
+	startTime           time.Time
+	cameras             []config.CameraConfig
+	log                 *slog.Logger
+	secret              []byte
+	frontend            fs.FS
+	mux                 *http.ServeMux
+	mu                  sync.Mutex
+	streamSeen          map[string]time.Time
+	motionBroadcasters  map[string]*broadcaster
+	rawBroadcasters     map[string]*broadcaster
+	notifHub            *notifHub
+	peakMu              sync.RWMutex
+	dailyPeakRaw        map[string]float64
+	dailyPeakDate       map[string]string
+	snapFn              func(ctx context.Context, rtspURL string) ([]byte, error)
+	frameFn             func(ctx context.Context, path string, offsetSeconds float64) ([]byte, error)
+	probedStreams       map[string]ffprobe.StreamInfo
+	db                  *db.DB
+	prober              *ffprobe.Prober
+	onCameraStart       func(config.CameraConfig)
+	onCameraStop        func(string)
+	monitors            map[string]*motion.Monitor
+	livePublishers      map[string]livePublisher
+	cpu                 cpuTracker
+	net                 netTracker
+	cleaner             interface{ ForceClean() }
+	deviceCollectors    []deviceinfo.Collector
+	updateChecker       updateStatuser
+	releaseNotesFetcher releaseNotesFetcher
+	applyMode           string
+	applier             applyRunner
+	updateNotifyMu      sync.Mutex
+	updateNotified      string // última versão latest já notificada (dedup)
+	emailSender         emailSender
 }
 
 // emailSender envia e-mail (esqueci-a-senha hoje). Definido aqui no
@@ -147,6 +148,15 @@ type emailSender interface {
 type updateStatuser interface {
 	Status() release.Status
 	Manifest() (release.Manifest, bool)
+}
+
+// releaseNotesFetcher busca o changelog da release do GitHub correspondente a
+// uma versão exata (ao contrário de updateStatuser, que só enxerga a "latest"
+// — a API do GitHub nunca resolve pré-releases como latest, então uma RC
+// rodando não teria como mostrar suas próprias notas via updateStatuser).
+// Consumido por handleAbout.
+type releaseNotesFetcher interface {
+	Notes(ctx context.Context, version string) (string, error)
 }
 
 // applyRunner aplica uma atualização a partir de um manifesto.
@@ -232,6 +242,11 @@ func (s *Server) WithCleaner(c interface{ ForceClean() }) *Server {
 
 func (s *Server) WithUpdateChecker(c updateStatuser) *Server {
 	s.updateChecker = c
+	return s
+}
+
+func (s *Server) WithReleaseNotesFetcher(f releaseNotesFetcher) *Server {
+	s.releaseNotesFetcher = f
 	return s
 }
 
@@ -785,13 +800,25 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	resp := map[string]any{
 		"version":        s.version,
 		"commit":         s.commit,
 		"built_at":       s.builtAt,
 		"uptime_seconds": time.Since(s.startTime).Seconds(),
 		"go_version":     runtime.Version(),
-	})
+	}
+	// Notas da release do GitHub que corresponde EXATAMENTE à versão instalada
+	// (não a "latest" do updateStatuser — releases/latest da API do GitHub nunca
+	// resolve pré-releases, então uma RC rodando nunca apareceria por ali).
+	// Ausentes (sem erro) quando não há release publicada pra essa versão exata
+	// (build de dev) ou o fetcher não está configurado.
+	if s.releaseNotesFetcher != nil {
+		if notes, err := s.releaseNotesFetcher.Notes(r.Context(), s.version); err == nil && notes != "" {
+			resp["release_notes_version"] = s.version
+			resp["release_notes_md"] = notes
+		}
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 type updatesResponse struct {

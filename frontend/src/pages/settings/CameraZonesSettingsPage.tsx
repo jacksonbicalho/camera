@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type HlsType from 'hls.js'
 import { useParams } from 'react-router-dom'
-import Layout from '../../components/Layout'
+import SettingsLayout from '../../components/SettingsLayout'
+import PageHeader from '../../components/PageHeader'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { authHeaders, getRole, getToken } from '../../auth'
@@ -805,268 +806,261 @@ export default function CameraZonesSettingsPage() {
   const selectedZone = selectedIdx !== null ? zones[selectedIdx] : null
 
   return (
-    <Layout id="camera-zones-page" footerId="camera-zones-footer" contentClassName="p-6">
-      <div id="camera-zones-content" className="page-content space-y-4">
-        <CameraSettingsTabs id={id!} active="zones" camName={cam?.name} />
+    <SettingsLayout id="camera-zones-page" footerId="camera-zones-footer">
+      <PageHeader title="Câmeras" subtitle="Zonas" />
+      <CameraSettingsTabs id={id!} active="zones" camName={cam?.name} />
 
-        {isAdmin && (
-          <p className="text-xs text-muted-foreground mb-5">
-            Arraste em área vazia para criar uma zona. Clique numa zona para selecioná-la. Arraste
-            os cantos para redimensionar. Use o círculo acima para rotacionar. Clique no × na zona
-            selecionada para excluí-la.
-          </p>
-        )}
+      {isAdmin && (
+        <p className="text-xs text-muted-foreground mb-5">
+          Arraste em área vazia para criar uma zona. Clique numa zona para selecioná-la. Arraste os
+          cantos para redimensionar. Use o círculo acima para rotacionar. Clique no × na zona
+          selecionada para excluí-la.
+        </p>
+      )}
 
-        {isAdmin && !settings ? (
-          <p className="text-muted-foreground text-sm">Carregando...</p>
-        ) : isAdmin && !cam ? (
-          <p className="text-muted-foreground text-sm">Câmera não encontrada.</p>
-        ) : loading ? (
-          <p className="text-muted-foreground text-sm">Carregando zonas...</p>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <div
-              className="relative bg-surface border border-border rounded-lg overflow-hidden"
-              style={{ aspectRatio: '16/9' }}
-            >
-              <canvas
-                ref={canvasRef}
-                width={1280}
-                height={720}
-                className="w-full h-full select-none"
-                style={{ cursor: isAdmin ? cursorStyle : 'default' }}
-                onMouseDown={isAdmin ? handleMouseDown : undefined}
-                onMouseMove={isAdmin ? handleMouseMove : undefined}
-                onMouseUp={isAdmin ? handleMouseUp : undefined}
-                onMouseLeave={isAdmin ? () => setCursorStyle('crosshair') : undefined}
-              />
-            </div>
-
-            {isAdmin && selectedZone && (
-              <div className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-                    <span
-                      className="inline-block w-3 h-3 rounded-sm flex-shrink-0"
-                      style={{
-                        backgroundColor:
-                          selectedZone.color ??
-                          (selectedZone.type === 'detect' ? '#f97316' : '#ef4444'),
-                      }}
-                    />
-                    Zona {selectedIdx! + 1}
-                    {selectedZone.type === 'detect' && (
-                      <span className="text-xs text-muted-foreground font-normal">
-                        detecção independente
-                      </span>
-                    )}
-                  </h3>
-                  {sseURL && (
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-muted-foreground">Ao vivo:</span>
-                        <span className="text-sm font-mono text-yellow-400 min-w-[6ch]">
-                          {regionScore !== null ? regionScore.toFixed(4) : '—'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-muted-foreground">Pico:</span>
-                        <span className="text-sm font-mono text-orange-400 min-w-[6ch]">
-                          {peakScore !== null ? peakScore.toFixed(4) : '—'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-6 flex-wrap">
-                  <div className="flex flex-col gap-1 min-w-40">
-                    <label className="text-xs text-muted-foreground">Nome (opcional)</label>
-                    <input
-                      type="text"
-                      value={selectedZone.label ?? ''}
-                      onChange={(e) => updateSelectedZone({ label: e.target.value || undefined })}
-                      placeholder="ex: entrada"
-                      className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-full"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1 min-w-32">
-                    <label className="text-xs text-muted-foreground">Rotação (graus)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={359}
-                      step={1}
-                      value={Math.round(selectedZone.rotation_deg ?? 0)}
-                      onChange={(e) => {
-                        let d = parseFloat(e.target.value) || 0
-                        d = ((d % 360) + 360) % 360
-                        updateSelectedZone({ rotation_deg: d })
-                      }}
-                      className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <span className="text-xs text-muted-foreground">Tipo</span>
-                    <div className="flex gap-4">
-                      {(['exclude', 'detect'] as const).map((t) => (
-                        <label
-                          key={t}
-                          className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer"
-                        >
-                          <input
-                            type="radio"
-                            value={t}
-                            checked={(selectedZone.type ?? 'exclude') === t}
-                            onChange={() => updateSelectedZone({ type: t })}
-                            className="accent-primary"
-                          />
-                          {t === 'exclude' ? 'Exclusão' : 'Detecção'}
-                        </label>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground max-w-xs">
-                      {(selectedZone.type ?? 'exclude') === 'exclude'
-                        ? 'Ignora movimento nesta região no diff global.'
-                        : 'Detecta movimento nesta região de forma independente, com limiar e cooldown próprios.'}
-                    </p>
-                  </div>
-
-                  {(selectedZone.type ?? 'exclude') === 'detect' && (
-                    <>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-muted-foreground">Limiar (0 = câmera)</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={1}
-                          step={0.001}
-                          value={selectedZone.threshold ?? 0}
-                          onChange={(e) =>
-                            updateSelectedZone({ threshold: parseFloat(e.target.value) || 0 })
-                          }
-                          className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-muted-foreground">
-                          Cooldown (s, 0 = câmera)
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={selectedZone.cooldown_seconds ?? 0}
-                          onChange={(e) =>
-                            updateSelectedZone({ cooldown_seconds: parseInt(e.target.value) || 0 })
-                          }
-                          className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-muted-foreground">
-                          FPS de amostragem (0 = câmera)
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={selectedZone.fps ?? 0}
-                          onChange={(e) =>
-                            updateSelectedZone({ fps: parseInt(e.target.value) || 0 })
-                          }
-                          className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs text-muted-foreground">Escala de análise</label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="range"
-                            min={10}
-                            max={100}
-                            step={5}
-                            value={Math.round((selectedZone.scale || 1) * 100)}
-                            onChange={(e) =>
-                              updateSelectedZone({ scale: parseInt(e.target.value) / 100 })
-                            }
-                            className="w-32 accent-primary"
-                          />
-                          <span className="text-xs text-foreground font-mono w-10 text-right">
-                            {Math.round((selectedZone.scale || 1) * 100)}%
-                          </span>
-                        </div>
-                        {capW > 0 &&
-                          capH > 0 &&
-                          (() => {
-                            const zW = Math.max(1, Math.round(selectedZone.w * capW))
-                            const zH = Math.max(1, Math.round(selectedZone.h * capH))
-                            const sc = selectedZone.scale || 1
-                            const sW = Math.max(1, Math.round(zW * sc))
-                            const sH = Math.max(1, Math.round(zH * sc))
-                            return (
-                              <p className="text-xs text-muted-foreground">
-                                {sc < 1
-                                  ? `${zW} × ${zH} px → ${sW} × ${sH} px`
-                                  : `${zW} × ${zH} px`}
-                              </p>
-                            )
-                          })()}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {isAdmin && toast && (
-              <p className={`text-sm ${toast.ok ? 'text-green-400' : 'text-red-400'}`}>
-                {toast.msg}
-              </p>
-            )}
-
-            {isAdmin && (
-              <div className="flex gap-3 items-center">
-                <Button id="zones-save" onClick={save} disabled={saving}>
-                  {saving ? 'Salvando...' : 'Salvar zonas'}
-                </Button>
-                {zones.length > 0 && (
-                  <Button id="zones-clear" variant="outline" onClick={() => setConfirmClear(true)}>
-                    Limpar todas
-                  </Button>
-                )}
-                {zones.length > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {zones.length} zona{zones.length !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {!isAdmin && zones.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {zones.length} zona{zones.length !== 1 ? 's' : ''}
-              </p>
-            )}
+      {isAdmin && !settings ? (
+        <p className="text-muted-foreground text-sm">Carregando...</p>
+      ) : isAdmin && !cam ? (
+        <p className="text-muted-foreground text-sm">Câmera não encontrada.</p>
+      ) : loading ? (
+        <p className="text-muted-foreground text-sm">Carregando zonas...</p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div
+            className="relative bg-surface border border-border rounded-lg overflow-hidden"
+            style={{ aspectRatio: '16/9' }}
+          >
+            <canvas
+              ref={canvasRef}
+              width={1280}
+              height={720}
+              className="w-full h-full select-none"
+              style={{ cursor: isAdmin ? cursorStyle : 'default' }}
+              onMouseDown={isAdmin ? handleMouseDown : undefined}
+              onMouseMove={isAdmin ? handleMouseMove : undefined}
+              onMouseUp={isAdmin ? handleMouseUp : undefined}
+              onMouseLeave={isAdmin ? () => setCursorStyle('crosshair') : undefined}
+            />
           </div>
-        )}
 
-        <ConfirmDialog
-          open={confirmClear}
-          title="Limpar todas as zonas"
-          message="Todas as zonas serão removidas. Esta ação não pode ser desfeita."
-          confirmLabel="Limpar"
-          danger
-          onConfirm={() => {
-            setZones([])
-            setSelectedIdx(null)
-            setConfirmClear(false)
-          }}
-          onCancel={() => setConfirmClear(false)}
-        />
-      </div>
-    </Layout>
+          {isAdmin && selectedZone && (
+            <div className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <span
+                    className="inline-block w-3 h-3 rounded-sm flex-shrink-0"
+                    style={{
+                      backgroundColor:
+                        selectedZone.color ??
+                        (selectedZone.type === 'detect' ? '#f97316' : '#ef4444'),
+                    }}
+                  />
+                  Zona {selectedIdx! + 1}
+                  {selectedZone.type === 'detect' && (
+                    <span className="text-xs text-muted-foreground font-normal">
+                      detecção independente
+                    </span>
+                  )}
+                </h3>
+                {sseURL && (
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">Ao vivo:</span>
+                      <span className="text-sm font-mono text-yellow-400 min-w-[6ch]">
+                        {regionScore !== null ? regionScore.toFixed(4) : '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">Pico:</span>
+                      <span className="text-sm font-mono text-orange-400 min-w-[6ch]">
+                        {peakScore !== null ? peakScore.toFixed(4) : '—'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-6 flex-wrap">
+                <div className="flex flex-col gap-1 min-w-40">
+                  <label className="text-xs text-muted-foreground">Nome (opcional)</label>
+                  <input
+                    type="text"
+                    value={selectedZone.label ?? ''}
+                    onChange={(e) => updateSelectedZone({ label: e.target.value || undefined })}
+                    placeholder="ex: entrada"
+                    className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-full"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1 min-w-32">
+                  <label className="text-xs text-muted-foreground">Rotação (graus)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={359}
+                    step={1}
+                    value={Math.round(selectedZone.rotation_deg ?? 0)}
+                    onChange={(e) => {
+                      let d = parseFloat(e.target.value) || 0
+                      d = ((d % 360) + 360) % 360
+                      updateSelectedZone({ rotation_deg: d })
+                    }}
+                    className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs text-muted-foreground">Tipo</span>
+                  <div className="flex gap-4">
+                    {(['exclude', 'detect'] as const).map((t) => (
+                      <label
+                        key={t}
+                        className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer"
+                      >
+                        <input
+                          type="radio"
+                          value={t}
+                          checked={(selectedZone.type ?? 'exclude') === t}
+                          onChange={() => updateSelectedZone({ type: t })}
+                          className="accent-primary"
+                        />
+                        {t === 'exclude' ? 'Exclusão' : 'Detecção'}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground max-w-xs">
+                    {(selectedZone.type ?? 'exclude') === 'exclude'
+                      ? 'Ignora movimento nesta região no diff global.'
+                      : 'Detecta movimento nesta região de forma independente, com limiar e cooldown próprios.'}
+                  </p>
+                </div>
+
+                {(selectedZone.type ?? 'exclude') === 'detect' && (
+                  <>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-muted-foreground">Limiar (0 = câmera)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.001}
+                        value={selectedZone.threshold ?? 0}
+                        onChange={(e) =>
+                          updateSelectedZone({ threshold: parseFloat(e.target.value) || 0 })
+                        }
+                        className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-muted-foreground">
+                        Cooldown (s, 0 = câmera)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={selectedZone.cooldown_seconds ?? 0}
+                        onChange={(e) =>
+                          updateSelectedZone({ cooldown_seconds: parseInt(e.target.value) || 0 })
+                        }
+                        className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-muted-foreground">
+                        FPS de amostragem (0 = câmera)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={selectedZone.fps ?? 0}
+                        onChange={(e) => updateSelectedZone({ fps: parseInt(e.target.value) || 0 })}
+                        className="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border w-28"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs text-muted-foreground">Escala de análise</label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={10}
+                          max={100}
+                          step={5}
+                          value={Math.round((selectedZone.scale || 1) * 100)}
+                          onChange={(e) =>
+                            updateSelectedZone({ scale: parseInt(e.target.value) / 100 })
+                          }
+                          className="w-32 accent-primary"
+                        />
+                        <span className="text-xs text-foreground font-mono w-10 text-right">
+                          {Math.round((selectedZone.scale || 1) * 100)}%
+                        </span>
+                      </div>
+                      {capW > 0 &&
+                        capH > 0 &&
+                        (() => {
+                          const zW = Math.max(1, Math.round(selectedZone.w * capW))
+                          const zH = Math.max(1, Math.round(selectedZone.h * capH))
+                          const sc = selectedZone.scale || 1
+                          const sW = Math.max(1, Math.round(zW * sc))
+                          const sH = Math.max(1, Math.round(zH * sc))
+                          return (
+                            <p className="text-xs text-muted-foreground">
+                              {sc < 1 ? `${zW} × ${zH} px → ${sW} × ${sH} px` : `${zW} × ${zH} px`}
+                            </p>
+                          )
+                        })()}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {isAdmin && toast && (
+            <p className={`text-sm ${toast.ok ? 'text-green-400' : 'text-red-400'}`}>{toast.msg}</p>
+          )}
+
+          {isAdmin && (
+            <div className="flex gap-3 items-center">
+              <Button id="zones-save" onClick={save} disabled={saving}>
+                {saving ? 'Salvando...' : 'Salvar zonas'}
+              </Button>
+              {zones.length > 0 && (
+                <Button id="zones-clear" variant="outline" onClick={() => setConfirmClear(true)}>
+                  Limpar todas
+                </Button>
+              )}
+              {zones.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {zones.length} zona{zones.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          )}
+
+          {!isAdmin && zones.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {zones.length} zona{zones.length !== 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmClear}
+        title="Limpar todas as zonas"
+        message="Todas as zonas serão removidas. Esta ação não pode ser desfeita."
+        confirmLabel="Limpar"
+        danger
+        onConfirm={() => {
+          setZones([])
+          setSelectedIdx(null)
+          setConfirmClear(false)
+        }}
+        onCancel={() => setConfirmClear(false)}
+      />
+    </SettingsLayout>
   )
 }

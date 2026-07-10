@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
-import Layout from '../../components/Layout'
+import SettingsLayout from '../../components/SettingsLayout'
+import PageHeader from '../../components/PageHeader'
 import SettingsSection from '../../components/SettingsSection'
 import CameraForm from '../../components/CameraForm'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
@@ -107,164 +108,167 @@ export default function CameraDetailSettingsPage() {
 
   if (!isAdmin) {
     return (
-      <Layout id="camera-detail-page" footerId="camera-detail-footer" contentClassName="p-6">
-        <div id="camera-detail-content" className="page-content space-y-4">
-          <CameraSettingsTabs id={id!} active="detail" camName={viewerCam?.name} />
-          {viewerLoading ? (
-            <p className="text-muted-foreground text-sm">Carregando...</p>
-          ) : !viewerCam ? (
-            <p className="text-muted-foreground text-sm">Câmera não encontrada.</p>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <SettingsSection
-                title="Identificação"
-                fields={[
-                  { label: 'ID', value: viewerCam.id },
-                  { label: 'Nome', value: viewerCam.name },
-                ]}
-              />
-              <SettingsSection
-                title="Stream"
-                fields={[
-                  { label: 'Codec de vídeo', value: viewerCam.video_codec || 'auto' },
-                  { label: 'Áudio', value: fmtHasAudio(viewerCam.has_audio) },
-                  { label: 'Resolução', value: fmtResolution(viewerCam.width, viewerCam.height) },
-                ]}
-              />
-              <SettingsSection
-                title="Gravação"
-                fields={[
-                  { label: 'Gravar em disco', value: viewerCam.recording_enabled ? 'Sim' : 'Não' },
-                ]}
-              />
-              <SettingsSection
-                title="Estatísticas"
-                fields={
-                  stats == null
-                    ? [{ label: 'Carregando...', value: '' }]
-                    : [
-                        { label: 'Total gravado', value: fmtDuration(stats.total_seconds) },
-                        { label: 'Segmentos MP4', value: String(stats.total_chunks) },
-                        { label: 'Espaço em disco', value: fmtBytes(stats.total_bytes) },
-                        { label: 'Eventos de movimento', value: String(stats.total_motion_events) },
-                      ]
-                }
-              />
-              <DeviceInfoPanel cameraId={id!} isAdmin={false} />
-            </div>
-          )}
-        </div>
-      </Layout>
-    )
-  }
-
-  return (
-    <Layout id="camera-detail-page" footerId="camera-detail-footer" contentClassName="p-6">
-      <div id="camera-detail-content" className="page-content space-y-4">
-        <CameraSettingsTabs id={id!} active="detail" camName={cam?.name} />
-
-        {error && (
-          <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
-            {error}
-          </div>
-        )}
-
-        {!settings ? (
+      <SettingsLayout id="camera-detail-page" footerId="camera-detail-footer">
+        <PageHeader title="Câmeras" subtitle={viewerCam?.name} />
+        <CameraSettingsTabs id={id!} active="detail" camName={viewerCam?.name} />
+        {viewerLoading ? (
           <p className="text-muted-foreground text-sm">Carregando...</p>
-        ) : !cam ? (
+        ) : !viewerCam ? (
           <p className="text-muted-foreground text-sm">Câmera não encontrada.</p>
-        ) : editing ? (
-          <CameraForm initial={cam} onSave={handleUpdate} onCancel={stopEditing} saving={saving} />
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="flex justify-end">
-              <Button
-                id="camera-edit"
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/settings/cameras/edit/${id}`)}
-              >
-                Editar
-              </Button>
-            </div>
             <SettingsSection
               title="Identificação"
               fields={[
-                { label: 'Nome', value: cam.name },
-                { label: 'ID', value: cam.id },
-                { label: 'URL RTSP', value: cam.rtsp_url },
+                { label: 'ID', value: viewerCam.id },
+                { label: 'Nome', value: viewerCam.name },
               ]}
             />
             <SettingsSection
-              title="Vídeo"
-              groups={[
-                [
-                  { label: 'Codec', value: cam.video_codec || 'auto' },
-                  { label: 'Resolução', value: fmtResolution(cam.width, cam.height) },
-                ],
-                [
-                  { label: 'Áudio', value: fmtHasAudio(cam.has_audio) },
-                  { label: 'Modo HLS', value: cam.hls_video_mode || 'auto' },
-                ],
-                [{ label: 'Modo gravação', value: cam.record_video_mode || 'auto' }],
-              ]}
-            />
-            <SettingsSection
-              title="Transmissão ao vivo"
-              groups={[
-                [
-                  {
-                    label: 'Duração do segmento',
-                    value:
-                      cam.hls_segment_seconds != null
-                        ? `${cam.hls_segment_seconds} s`
-                        : 'padrão (2 s)',
-                  },
-                  {
-                    label: 'Janela de reprodução',
-                    value:
-                      cam.hls_list_size != null
-                        ? `${cam.hls_list_size} segmentos`
-                        : 'padrão (5 segmentos)',
-                  },
-                  {
-                    label: 'Retenção DVR',
-                    value: cam.hls_dvr_seconds ? `${cam.hls_dvr_seconds} s` : 'desativado',
-                  },
-                ],
+              title="Stream"
+              fields={[
+                { label: 'Codec de vídeo', value: viewerCam.video_codec || 'auto' },
+                { label: 'Áudio', value: fmtHasAudio(viewerCam.has_audio) },
+                { label: 'Resolução', value: fmtResolution(viewerCam.width, viewerCam.height) },
               ]}
             />
             <SettingsSection
               title="Gravação"
-              groups={[
-                [{ label: 'Gravar em disco', value: cam.recording_enabled ? 'Sim' : 'Não' }],
-                [
-                  { label: 'Duração do chunk', value: cam.chunk_duration },
-                  { label: 'Intervalo de reconexão', value: cam.reconnect_interval },
-                ],
+              fields={[
+                { label: 'Gravar em disco', value: viewerCam.recording_enabled ? 'Sim' : 'Não' },
               ]}
             />
             <SettingsSection
               title="Estatísticas"
-              groups={
+              fields={
                 stats == null
-                  ? [[{ label: 'Carregando...', value: '' }]]
+                  ? [{ label: 'Carregando...', value: '' }]
                   : [
-                      [
-                        { label: 'Total gravado', value: fmtDuration(stats.total_seconds) },
-                        { label: 'Segmentos MP4', value: String(stats.total_chunks) },
-                      ],
-                      [
-                        { label: 'Espaço em disco', value: fmtBytes(stats.total_bytes) },
-                        { label: 'Eventos de movimento', value: String(stats.total_motion_events) },
-                      ],
+                      { label: 'Total gravado', value: fmtDuration(stats.total_seconds) },
+                      { label: 'Segmentos MP4', value: String(stats.total_chunks) },
+                      { label: 'Espaço em disco', value: fmtBytes(stats.total_bytes) },
+                      { label: 'Eventos de movimento', value: String(stats.total_motion_events) },
                     ]
               }
             />
-            <DeviceInfoPanel cameraId={id!} isAdmin={isAdmin} />
+            <DeviceInfoPanel cameraId={id!} isAdmin={false} />
           </div>
         )}
-      </div>
-    </Layout>
+      </SettingsLayout>
+    )
+  }
+
+  return (
+    <SettingsLayout id="camera-detail-page" footerId="camera-detail-footer">
+      <PageHeader
+        title="Câmeras"
+        subtitle={cam?.name}
+        actions={
+          settings && cam && !editing ? (
+            <Button
+              id="camera-edit"
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/settings/cameras/edit/${id}`)}
+            >
+              Editar
+            </Button>
+          ) : undefined
+        }
+      />
+      <CameraSettingsTabs id={id!} active="detail" camName={cam?.name} />
+
+      {error && (
+        <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
+          {error}
+        </div>
+      )}
+
+      {!settings ? (
+        <p className="text-muted-foreground text-sm">Carregando...</p>
+      ) : !cam ? (
+        <p className="text-muted-foreground text-sm">Câmera não encontrada.</p>
+      ) : editing ? (
+        <CameraForm initial={cam} onSave={handleUpdate} onCancel={stopEditing} saving={saving} />
+      ) : (
+        <div className="flex flex-col gap-4">
+          <SettingsSection
+            title="Identificação"
+            fields={[
+              { label: 'Nome', value: cam.name },
+              { label: 'ID', value: cam.id },
+              { label: 'URL RTSP', value: cam.rtsp_url },
+            ]}
+          />
+          <SettingsSection
+            title="Vídeo"
+            groups={[
+              [
+                { label: 'Codec', value: cam.video_codec || 'auto' },
+                { label: 'Resolução', value: fmtResolution(cam.width, cam.height) },
+              ],
+              [
+                { label: 'Áudio', value: fmtHasAudio(cam.has_audio) },
+                { label: 'Modo HLS', value: cam.hls_video_mode || 'auto' },
+              ],
+              [{ label: 'Modo gravação', value: cam.record_video_mode || 'auto' }],
+            ]}
+          />
+          <SettingsSection
+            title="Transmissão ao vivo"
+            groups={[
+              [
+                {
+                  label: 'Duração do segmento',
+                  value:
+                    cam.hls_segment_seconds != null
+                      ? `${cam.hls_segment_seconds} s`
+                      : 'padrão (2 s)',
+                },
+                {
+                  label: 'Janela de reprodução',
+                  value:
+                    cam.hls_list_size != null
+                      ? `${cam.hls_list_size} segmentos`
+                      : 'padrão (5 segmentos)',
+                },
+                {
+                  label: 'Retenção DVR',
+                  value: cam.hls_dvr_seconds ? `${cam.hls_dvr_seconds} s` : 'desativado',
+                },
+              ],
+            ]}
+          />
+          <SettingsSection
+            title="Gravação"
+            groups={[
+              [{ label: 'Gravar em disco', value: cam.recording_enabled ? 'Sim' : 'Não' }],
+              [
+                { label: 'Duração do chunk', value: cam.chunk_duration },
+                { label: 'Intervalo de reconexão', value: cam.reconnect_interval },
+              ],
+            ]}
+          />
+          <SettingsSection
+            title="Estatísticas"
+            groups={
+              stats == null
+                ? [[{ label: 'Carregando...', value: '' }]]
+                : [
+                    [
+                      { label: 'Total gravado', value: fmtDuration(stats.total_seconds) },
+                      { label: 'Segmentos MP4', value: String(stats.total_chunks) },
+                    ],
+                    [
+                      { label: 'Espaço em disco', value: fmtBytes(stats.total_bytes) },
+                      { label: 'Eventos de movimento', value: String(stats.total_motion_events) },
+                    ],
+                  ]
+            }
+          />
+          <DeviceInfoPanel cameraId={id!} isAdmin={isAdmin} />
+        </div>
+      )}
+    </SettingsLayout>
   )
 }

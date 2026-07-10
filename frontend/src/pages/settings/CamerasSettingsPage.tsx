@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import Layout from '../../components/Layout'
+import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import CameraForm from '../../components/CameraForm'
@@ -136,192 +136,188 @@ export default function CamerasSettingsPage() {
 
   if (!isAdmin) {
     return (
-      <Layout id="cameras-settings-page" footerId="cameras-settings-footer" contentClassName="p-6">
-        <div id="cameras-settings-content" className="page-content space-y-4">
-          <PageHeader title="Câmeras" />
-          {loading ? (
-            <p className="text-muted-foreground text-sm">Carregando...</p>
-          ) : cameras.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Nenhuma câmera disponível.</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {cameras.map((cam) => (
-                <Link
-                  key={cam.id}
-                  to={`/settings/cameras/${cam.id}`}
-                  className="flex items-center gap-4 bg-surface border border-border rounded-lg px-4 py-3 hover:border-primary transition-colors"
-                >
-                  <Thumbnail cameraId={cam.id} name={cam.name} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {cam.name || cam.id}
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <StatusBadges cam={cam} />
-                    </div>
+      <SettingsLayout id="cameras-settings-page" footerId="cameras-settings-footer">
+        <PageHeader title="Câmeras" />
+        {loading ? (
+          <p className="text-muted-foreground text-sm">Carregando...</p>
+        ) : cameras.length === 0 ? (
+          <p className="text-muted-foreground text-sm">Nenhuma câmera disponível.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {cameras.map((cam) => (
+              <Link
+                key={cam.id}
+                to={`/settings/cameras/${cam.id}`}
+                className="flex items-center gap-4 bg-surface border border-border rounded-lg px-4 py-3 hover:border-primary transition-colors"
+              >
+                <Thumbnail cameraId={cam.id} name={cam.name} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {cam.name || cam.id}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <StatusBadges cam={cam} />
                   </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      </Layout>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              </Link>
+            ))}
+          </div>
+        )}
+      </SettingsLayout>
     )
   }
 
   return (
-    <Layout id="cameras-settings-page" footerId="cameras-settings-footer" contentClassName="p-6">
-      <div id="cameras-settings-content" className="page-content space-y-4">
-        <PageHeader
-          title="Câmeras"
-          actions={
-            !creating &&
-            !noDb && (
-              <Button
-                id="camera-create"
-                onClick={() => {
-                  setCreating(true)
-                  setError(null)
-                }}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Nova câmera
-              </Button>
-            )
-          }
-        />
-
-        {noDb && (
-          <p className="text-muted-foreground text-sm">
-            Gerenciamento de câmeras requer banco de dados configurado.
-          </p>
-        )}
-
-        {error && (
-          <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
-            {error}
-          </div>
-        )}
-
-        {creating && (
-          <div className="mb-4 bg-surface border border-border rounded-lg p-4">
-            <p className="text-xs font-medium text-muted-foreground mb-3">Nova câmera</p>
-            <CameraForm
-              onSave={handleCreate}
-              onCancel={() => {
-                if (isNewRoute) {
-                  navigate('/settings/cameras', { replace: true })
-                  return
-                }
-                setCreating(false)
+    <SettingsLayout id="cameras-settings-page" footerId="cameras-settings-footer">
+      <PageHeader
+        title="Câmeras"
+        actions={
+          !creating &&
+          !noDb && (
+            <Button
+              id="camera-create"
+              onClick={() => {
+                setCreating(true)
                 setError(null)
               }}
-              saving={saving}
-              prefillRtsp={prefillRTSP || undefined}
-              prefillName={prefillName || undefined}
-            />
-          </div>
-        )}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Nova câmera
+            </Button>
+          )
+        }
+      />
 
-        {loading ? (
-          <p className="text-muted-foreground text-sm">Carregando...</p>
-        ) : cameras.length === 0 && !noDb ? (
-          <p className="text-muted-foreground text-sm">Nenhuma câmera configurada.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {cameras.map((cam) => (
-              <div
-                key={cam.id}
-                draggable
-                onDragStart={() => {
-                  dragIdRef.current = cam.id
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  setDragOverId(cam.id)
-                }}
-                onDragLeave={() => setDragOverId(null)}
-                onDrop={() => handleDrop(cam.id)}
-                onDragEnd={() => {
-                  dragIdRef.current = null
-                  setDragOverId(null)
-                }}
-                className={`group bg-surface border rounded-lg flex items-stretch transition-colors ${dragOverId === cam.id ? 'border-primary' : 'border-border hover:border-primary'}`}
-              >
-                {/* drag handle */}
-                <div className="flex items-center pl-3 shrink-0">
-                  <GripVertical className="w-4 h-4 text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing" />
-                </div>
+      {noDb && (
+        <p className="text-muted-foreground text-sm">
+          Gerenciamento de câmeras requer banco de dados configurado.
+        </p>
+      )}
 
-                {/* card clicável: thumbnail + info (link cobre tudo, exceto a coluna de ações) */}
-                <Link
-                  to={`/settings/cameras/${cam.id}`}
-                  className="flex items-center gap-4 flex-1 min-w-0 pl-2 pr-3 py-4"
-                >
-                  <Thumbnail cameraId={cam.id} name={cam.name} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {cam.name || cam.id}
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <StatusBadges cam={cam} />
-                    </div>
-                  </div>
-                </Link>
+      {error && (
+        <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
+          {error}
+        </div>
+      )}
 
-                {/* coluna de ações: sempre visível, separada do link do card */}
-                <div className="flex items-center gap-1 shrink-0 border-l border-border px-2">
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                    title="Editar"
-                  >
-                    <Link to={`/settings/cameras/edit/${cam.id}`}>
-                      <Pencil className="w-4 h-4" />
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => setDeleteId(cam.id)}
-                    title="Remover"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
+      {creating && (
+        <div className="mb-4 bg-surface border border-border rounded-lg p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-3">Nova câmera</p>
+          <CameraForm
+            onSave={handleCreate}
+            onCancel={() => {
+              if (isNewRoute) {
+                navigate('/settings/cameras', { replace: true })
+                return
+              }
+              setCreating(false)
+              setError(null)
+            }}
+            saving={saving}
+            prefillRtsp={prefillRTSP || undefined}
+            prefillName={prefillName || undefined}
+          />
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-muted-foreground text-sm">Carregando...</p>
+      ) : cameras.length === 0 && !noDb ? (
+        <p className="text-muted-foreground text-sm">Nenhuma câmera configurada.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {cameras.map((cam) => (
+            <div
+              key={cam.id}
+              draggable
+              onDragStart={() => {
+                dragIdRef.current = cam.id
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragOverId(cam.id)
+              }}
+              onDragLeave={() => setDragOverId(null)}
+              onDrop={() => handleDrop(cam.id)}
+              onDragEnd={() => {
+                dragIdRef.current = null
+                setDragOverId(null)
+              }}
+              className={`group bg-surface border rounded-lg flex items-stretch transition-colors ${dragOverId === cam.id ? 'border-primary' : 'border-border hover:border-primary'}`}
+            >
+              {/* drag handle */}
+              <div className="flex items-center pl-3 shrink-0">
+                <GripVertical className="w-4 h-4 text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing" />
               </div>
-            ))}
-          </div>
-        )}
 
-        <ConfirmDialog
-          open={deleteId != null}
-          title="Remover câmera"
-          message={`Remover câmera "${camToDelete?.name || camToDelete?.id}"?`}
-          confirmLabel="Remover"
-          danger
-          onConfirm={handleDelete}
-          onCancel={() => {
-            setDeleteId(null)
-            setDeleteData(false)
-          }}
-        >
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={deleteData}
-              onChange={(e) => setDeleteData(e.target.checked)}
-              className="accent-red-500"
-            />
-            <span className="text-xs text-foreground">Apagar também as gravações do disco</span>
-          </label>
-        </ConfirmDialog>
-      </div>
-    </Layout>
+              {/* card clicável: thumbnail + info (link cobre tudo, exceto a coluna de ações) */}
+              <Link
+                to={`/settings/cameras/${cam.id}`}
+                className="flex items-center gap-4 flex-1 min-w-0 pl-2 pr-3 py-4"
+              >
+                <Thumbnail cameraId={cam.id} name={cam.name} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {cam.name || cam.id}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <StatusBadges cam={cam} />
+                  </div>
+                </div>
+              </Link>
+
+              {/* coluna de ações: sempre visível, separada do link do card */}
+              <div className="flex items-center gap-1 shrink-0 border-l border-border px-2">
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  title="Editar"
+                >
+                  <Link to={`/settings/cameras/edit/${cam.id}`}>
+                    <Pencil className="w-4 h-4" />
+                  </Link>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  onClick={() => setDeleteId(cam.id)}
+                  title="Remover"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={deleteId != null}
+        title="Remover câmera"
+        message={`Remover câmera "${camToDelete?.name || camToDelete?.id}"?`}
+        confirmLabel="Remover"
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => {
+          setDeleteId(null)
+          setDeleteData(false)
+        }}
+      >
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={deleteData}
+            onChange={(e) => setDeleteData(e.target.checked)}
+            className="accent-red-500"
+          />
+          <span className="text-xs text-foreground">Apagar também as gravações do disco</span>
+        </label>
+      </ConfirmDialog>
+    </SettingsLayout>
   )
 }
 
