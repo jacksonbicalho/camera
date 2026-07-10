@@ -1,17 +1,18 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState } from 'react'
 
-export type DisplayMode = 'icons-only' | 'icons-text' | 'text-only'
+// Só 2 modos: um rail de navegação enxuto não comporta um modo "só texto, sem
+// ícone" (os ícones são o ponto do rail recolhido) — ver Sidebar.tsx.
+export type DisplayMode = 'icons-only' | 'icons-text'
 
 export interface DisplayModeState {
   sidebar: DisplayMode
-  player: DisplayMode
 }
 
 type SetDisplayMode = (section: keyof DisplayModeState, mode: DisplayMode) => void
 
 const STORAGE_KEY = 'ui-display-mode'
-const DEFAULT: DisplayModeState = { sidebar: 'icons-only', player: 'icons-only' }
+const DEFAULT: DisplayModeState = { sidebar: 'icons-only' }
 
 function load(): DisplayModeState {
   try {
@@ -20,7 +21,6 @@ function load(): DisplayModeState {
     const parsed = JSON.parse(raw)
     return {
       sidebar: parsed.sidebar ?? DEFAULT.sidebar,
-      player: parsed.player ?? DEFAULT.player,
     }
   } catch {
     return DEFAULT

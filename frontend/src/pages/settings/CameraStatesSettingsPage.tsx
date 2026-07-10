@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import Layout from '../../components/Layout'
+import SettingsLayout from '../../components/SettingsLayout'
+import PageHeader from '../../components/PageHeader'
 import DatePicker from '../../components/DatePicker'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
 import ConfirmDialog from '../../components/ConfirmDialog'
@@ -307,176 +308,174 @@ export default function CameraStatesSettingsPage() {
 
   if (!isAdmin) {
     return (
-      <Layout id="camera-states-page" footerId="camera-states-footer" contentClassName="p-6">
-        <div id="camera-states-content" className="page-content space-y-4">
-          <CameraSettingsTabs id={id!} active="states" camName={camName} />
-          <p className="text-muted-foreground text-sm">Apenas administradores.</p>
-        </div>
-      </Layout>
+      <SettingsLayout id="camera-states-page" footerId="camera-states-footer">
+        <PageHeader title="Câmeras" subtitle="Estados" />
+        <CameraSettingsTabs id={id!} active="states" camName={camName} />
+        <p className="text-muted-foreground text-sm">Apenas administradores.</p>
+      </SettingsLayout>
     )
   }
 
   return (
-    <Layout id="camera-states-page" footerId="camera-states-footer" contentClassName="p-6">
-      <div id="camera-states-content" className="page-content space-y-4">
-        <CameraSettingsTabs id={id!} active="states" camName={camName} />
+    <SettingsLayout id="camera-states-page" footerId="camera-states-footer">
+      <PageHeader title="Câmeras" subtitle="Estados" />
+      <CameraSettingsTabs id={id!} active="states" camName={camName} />
 
-        {error && (
-          <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
-            {error}
-          </div>
-        )}
+      {error && (
+        <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
+          {error}
+        </div>
+      )}
 
-        {editing ? (
-          <ClassifierForm
-            cameraId={id!}
-            value={editing}
-            onChange={setEditing}
-            onDone={() => {
-              setEditing(null)
-              if (cid) navigate(`/settings/cameras/states/${id}`)
-              else reload()
-            }}
-            onCancel={() => {
-              setEditing(null)
-              setError(null)
-              if (cid) navigate(`/settings/cameras/states/${id}`)
-            }}
-          />
-        ) : historyFor ? (
-          <ClassifierHistory cameraId={id!} classifier={historyFor} onBack={closeHistory} />
-        ) : (
-          <>
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-muted-foreground">
-                Classificadores de estado (recorte fixo → estado).
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  id="state-train-all"
-                  variant="outline"
-                  disabled={trainingId != null || items.length === 0}
-                  title="Treina todos os classificadores a partir das amostras já salvas"
-                  onClick={handleTrainAll}
-                >
-                  {trainingId === 'all' ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Zap className="w-3.5 h-3.5" />
-                  )}{' '}
-                  Treinar todos
-                </Button>
-                <Button
-                  id="state-classifier-new"
-                  onClick={() => {
-                    setEditing(emptyClassifier())
-                    setError(null)
-                  }}
-                >
-                  <Plus className="w-3.5 h-3.5" /> Novo classificador
-                </Button>
-              </div>
-            </div>
-
-            {trainMsg && (
-              <p id="state-train-msg" className="text-xs text-muted-foreground mb-3">
-                {trainMsg}
-              </p>
-            )}
-
-            {loading ? (
-              <p className="text-muted-foreground text-sm">Carregando...</p>
-            ) : items.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Nenhum classificador configurado.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {items.map((c) => (
-                  <div
-                    key={c.id}
-                    className="bg-surface border border-border rounded-lg px-4 py-3 flex items-center gap-3"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {c.classes.join(' · ')} — a cada {c.trigger_interval_seconds}s · limiar{' '}
-                        {c.threshold}
-                        {!c.enabled && ' · desativado'}
-                      </p>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded border tabular-nums shrink-0 ${
-                        states[c.id!]
-                          ? 'bg-primary/15 text-primary border-primary/30'
-                          : 'bg-surface-2 text-muted-foreground border-border'
-                      }`}
-                      title="Estado atual"
-                    >
-                      {states[c.id!] || '—'}
-                    </span>
-                    <Button
-                      id={`state-history-${c.id}`}
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-primary"
-                      title="Histórico de estados"
-                      onClick={() => openHistory(c)}
-                    >
-                      <CalendarDays className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-primary"
-                      title="Treinar agora (usa as amostras já salvas)"
-                      disabled={trainingId != null}
-                      onClick={() => handleTrainOne(c)}
-                    >
-                      {trainingId === c.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Zap className="w-4 h-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      title="Editar"
-                      onClick={() => {
-                        setEditing(c)
-                        setError(null)
-                        navigate(`/settings/cameras/${id}/states/edit/${c.id}`)
-                      }}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      title="Remover"
-                      onClick={() => setDeleteId(c.id!)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        <ConfirmDialog
-          open={deleteId != null}
-          title="Remover classificador"
-          message="Remover este classificador de estado?"
-          confirmLabel="Remover"
-          danger
-          onConfirm={remove}
-          onCancel={() => setDeleteId(null)}
+      {editing ? (
+        <ClassifierForm
+          cameraId={id!}
+          value={editing}
+          onChange={setEditing}
+          onDone={() => {
+            setEditing(null)
+            if (cid) navigate(`/settings/cameras/states/${id}`)
+            else reload()
+          }}
+          onCancel={() => {
+            setEditing(null)
+            setError(null)
+            if (cid) navigate(`/settings/cameras/states/${id}`)
+          }}
         />
-      </div>
-    </Layout>
+      ) : historyFor ? (
+        <ClassifierHistory cameraId={id!} classifier={historyFor} onBack={closeHistory} />
+      ) : (
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-muted-foreground">
+              Classificadores de estado (recorte fixo → estado).
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                id="state-train-all"
+                variant="outline"
+                disabled={trainingId != null || items.length === 0}
+                title="Treina todos os classificadores a partir das amostras já salvas"
+                onClick={handleTrainAll}
+              >
+                {trainingId === 'all' ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Zap className="w-3.5 h-3.5" />
+                )}{' '}
+                Treinar todos
+              </Button>
+              <Button
+                id="state-classifier-new"
+                onClick={() => {
+                  setEditing(emptyClassifier())
+                  setError(null)
+                }}
+              >
+                <Plus className="w-3.5 h-3.5" /> Novo classificador
+              </Button>
+            </div>
+          </div>
+
+          {trainMsg && (
+            <p id="state-train-msg" className="text-xs text-muted-foreground mb-3">
+              {trainMsg}
+            </p>
+          )}
+
+          {loading ? (
+            <p className="text-muted-foreground text-sm">Carregando...</p>
+          ) : items.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Nenhum classificador configurado.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {items.map((c) => (
+                <div
+                  key={c.id}
+                  className="bg-surface border border-border rounded-lg px-4 py-3 flex items-center gap-3"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {c.classes.join(' · ')} — a cada {c.trigger_interval_seconds}s · limiar{' '}
+                      {c.threshold}
+                      {!c.enabled && ' · desativado'}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 text-xs rounded border tabular-nums shrink-0 ${
+                      states[c.id!]
+                        ? 'bg-primary/15 text-primary border-primary/30'
+                        : 'bg-surface-2 text-muted-foreground border-border'
+                    }`}
+                    title="Estado atual"
+                  >
+                    {states[c.id!] || '—'}
+                  </span>
+                  <Button
+                    id={`state-history-${c.id}`}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    title="Histórico de estados"
+                    onClick={() => openHistory(c)}
+                  >
+                    <CalendarDays className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    title="Treinar agora (usa as amostras já salvas)"
+                    disabled={trainingId != null}
+                    onClick={() => handleTrainOne(c)}
+                  >
+                    {trainingId === c.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Zap className="w-4 h-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Editar"
+                    onClick={() => {
+                      setEditing(c)
+                      setError(null)
+                      navigate(`/settings/cameras/${id}/states/edit/${c.id}`)
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    title="Remover"
+                    onClick={() => setDeleteId(c.id!)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      <ConfirmDialog
+        open={deleteId != null}
+        title="Remover classificador"
+        message="Remover este classificador de estado?"
+        confirmLabel="Remover"
+        danger
+        onConfirm={remove}
+        onCancel={() => setDeleteId(null)}
+      />
+    </SettingsLayout>
   )
 }
 

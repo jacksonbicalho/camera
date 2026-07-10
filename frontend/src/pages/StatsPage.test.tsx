@@ -7,11 +7,9 @@ vi.mock('../auth', () => ({
   authHeaders: () => ({}),
   onUnauthorized: vi.fn(),
 }))
-// Mocka Layout (não SettingsLayout/AppLayout) — é essa a garantia de que a página
-// realmente migrou pro Layout novo: se alguém reintroduzir SettingsLayout por
-// engano, o render quebraria por falta de NotificationProvider (SettingsLayout
-// embute AppLayout -> AppSidebar -> useNotifications()).
-vi.mock('../components/Layout', () => ({
+// Mocka SettingsLayout (shallow) — isola o conteúdo da página da coluna de
+// navegação/Layout real, que exigiria NotificationProvider/router completo.
+vi.mock('../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
@@ -43,7 +41,7 @@ afterEach(() => {
 })
 
 describe('StatsPage', () => {
-  it('renderiza o título dentro do Layout novo (sem SettingsLayout)', async () => {
+  it('renderiza o título dentro do SettingsLayout', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {

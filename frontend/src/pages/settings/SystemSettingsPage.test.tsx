@@ -8,7 +8,7 @@ vi.mock('../../auth', () => ({
   onUnauthorized: vi.fn(),
   getRole: () => 'admin',
 }))
-vi.mock('../../components/Layout', () => ({
+vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
@@ -47,7 +47,7 @@ afterEach(() => {
 })
 
 describe('SystemSettingsPage', () => {
-  it('renderiza o título e o fuso horário dentro do Layout novo (sem SettingsLayout)', async () => {
+  it('renderiza o título e o fuso horário dentro do SettingsLayout', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>

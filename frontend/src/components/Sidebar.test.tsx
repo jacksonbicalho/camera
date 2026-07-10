@@ -121,7 +121,7 @@ describe('Sidebar (enxuto)', () => {
     expect(document.getElementById('accent-swatch-teal')).not.toBeNull()
     expect(document.getElementById('accent-swatch-coral')).not.toBeNull()
     expect(document.getElementById('accent-swatch-amber')).not.toBeNull()
-    expect(document.getElementById('settings-stats')?.getAttribute('href')).toBe('/settings/stats')
+    expect(document.querySelector('a[href="/settings/stats"]')).toBeTruthy()
   })
 
   it('viewer não vê os itens administrativos, mas continua vendo Câmeras/Aparência/tema/Estatísticas/Sobre', () => {
@@ -130,7 +130,7 @@ describe('Sidebar (enxuto)', () => {
     fireEvent.click(document.getElementById('sidebar-config')!)
     expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/appearance"]')).toBeTruthy()
-    expect(document.getElementById('settings-stats')).not.toBeNull()
+    expect(document.querySelector('a[href="/settings/stats"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/users"]')).toBeNull()
     expect(document.querySelector('a[href="/settings/server"]')).toBeNull()

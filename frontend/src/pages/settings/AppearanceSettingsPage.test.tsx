@@ -6,13 +6,8 @@ afterEach(() => {
   cleanup()
 })
 
-vi.mock('../../components/Layout', () => ({
+vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}))
-
-vi.mock('../../contexts/DisplayModeContext', () => ({
-  useDisplayMode: () => ({ sidebar: 'icons-text', player: 'icons-text' }),
-  useSetDisplayMode: () => vi.fn(),
 }))
 
 const setAccent = vi.fn()

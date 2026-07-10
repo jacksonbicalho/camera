@@ -8,7 +8,7 @@ vi.mock('../../auth', () => ({
   onUnauthorized: vi.fn(),
   getRole: () => 'admin',
 }))
-vi.mock('../../components/Layout', () => ({
+vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
@@ -42,7 +42,7 @@ afterEach(() => {
 })
 
 describe('StorageSettingsPage', () => {
-  it('renderiza o título dentro do Layout novo (sem SettingsLayout)', async () => {
+  it('renderiza o título dentro do SettingsLayout', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {

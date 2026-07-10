@@ -5,17 +5,11 @@ import PageHeader from './PageHeader'
 afterEach(cleanup)
 
 describe('PageHeader', () => {
-  it('renderiza o título com o id no wrapper; size padrão (page) usa text-2xl', () => {
+  it('renderiza o título com o id no wrapper; sempre text-2xl (padrão único)', () => {
     render(<PageHeader id="ph" title="Relatórios" />)
     const h = screen.getByRole('heading', { name: 'Relatórios' })
     expect(h.className).toContain('text-2xl')
     expect(document.getElementById('ph')).toBeTruthy()
-  })
-
-  it('size="section" usa text-h2', () => {
-    render(<PageHeader title="Sobre" size="section" />)
-    const h = screen.getByRole('heading', { name: 'Sobre' })
-    expect(h.className).toContain('text-h2')
   })
 
   it('title aceita ReactNode (não só string), compondo nome + badges', () => {

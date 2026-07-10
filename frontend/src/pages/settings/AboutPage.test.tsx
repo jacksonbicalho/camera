@@ -1,23 +1,26 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import AboutPage from './AboutPage'
 import type { UpdateStatus } from '../../hooks/useUpdates'
+import type { AboutInfo } from '../../hooks/useSettings'
 
 afterEach(cleanup)
 
-vi.mock('../../components/Layout', () => ({
+vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
+let mockAbout: AboutInfo = {
+  version: 'v1.3.0-dev',
+  commit: 'abc',
+  built_at: '2026-06-25',
+  uptime_seconds: 10,
+  go_version: 'go1.25',
+}
+
 vi.mock('../../hooks/useSettings', () => ({
-  useAbout: () => ({
-    version: 'v1.3.0-dev',
-    commit: 'abc',
-    built_at: '2026-06-25',
-    uptime_seconds: 10,
-    go_version: 'go1.25',
-  }),
+  useAbout: () => mockAbout,
 }))
 
 let mockStatus: UpdateStatus | null
@@ -31,6 +34,16 @@ vi.mock('../../hooks/useUpdates', () => ({
 vi.mock('../../auth', () => ({
   getRole: () => mockRole,
 }))
+
+beforeEach(() => {
+  mockAbout = {
+    version: 'v1.3.0-dev',
+    commit: 'abc',
+    built_at: '2026-06-25',
+    uptime_seconds: 10,
+    go_version: 'go1.25',
+  }
+})
 
 function renderPage() {
   return render(
@@ -99,5 +112,55 @@ describe('AboutPage updates section', () => {
     renderPage()
 
     expect(screen.queryByText(/Atualiza/i)).toBeNull()
+  })
+})
+
+describe('AboutPage — Release notes', () => {
+  it('mostra as notas da última release conhecida, com a versão a que pertencem', () => {
+    mockRole = 'viewer'
+    mockStatus = null
+    mockAbout = {
+      ...mockAbout,
+      release_notes_version: 'v1.3.0-dev',
+      release_notes_md: '### Novidades\n- coisa nova',
+    }
+    renderPage()
+
+    const section = within(document.getElementById('release-notes-section')!)
+    expect(section.getByText('Release notes')).toBeTruthy()
+    expect(section.getByText(/v1\.3\.0-dev/)).toBeTruthy()
+    expect(section.getByText(/coisa nova/)).toBeTruthy()
+  })
+
+  it('segue a hierarquia de headings: título da seção h3, sub-headers do changelog h4', () => {
+    mockRole = 'viewer'
+    mockStatus = null
+    mockAbout = {
+      ...mockAbout,
+      release_notes_version: 'v0.15.0-rc',
+      release_notes_md: '### ✨ Novidades\n- algo',
+    }
+    renderPage()
+
+    const section = document.getElementById('release-notes-section')!
+    expect(section.querySelector('h3')?.textContent).toContain('Release notes')
+    expect(section.querySelector('h4')?.textContent).toContain('✨ Novidades')
+  })
+
+  it('visível pra qualquer role (não é admin-only, diferente da seção de update)', () => {
+    mockRole = 'viewer'
+    mockStatus = null
+    mockAbout = { ...mockAbout, release_notes_version: 'v1.3.0-dev', release_notes_md: '- x' }
+    renderPage()
+
+    expect(screen.getByText('Release notes')).toBeTruthy()
+  })
+
+  it('sem release_notes_md (checker não rodou ainda), não renderiza a seção', () => {
+    mockRole = 'admin'
+    mockStatus = null
+    renderPage()
+
+    expect(screen.queryByText('Release notes')).toBeNull()
   })
 })

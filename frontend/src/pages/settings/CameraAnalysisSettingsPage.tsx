@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import Layout from '../../components/Layout'
+import SettingsLayout from '../../components/SettingsLayout'
+import PageHeader from '../../components/PageHeader'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { authHeaders } from '../../auth'
@@ -53,56 +54,55 @@ export default function CameraAnalysisSettingsPage() {
   }
 
   return (
-    <Layout id="camera-analysis-page" footerId="camera-analysis-footer" contentClassName="p-6">
-      <div id="camera-analysis-content" className="page-content space-y-4">
-        <CameraSettingsTabs id={id!} active="analysis" camName={cam?.name} />
+    <SettingsLayout id="camera-analysis-page" footerId="camera-analysis-footer">
+      <PageHeader title="Câmeras" subtitle="Análise" />
+      <CameraSettingsTabs id={id!} active="analysis" camName={cam?.name} />
 
-        <div className="space-y-6">
-          <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
-            {!globalEnabled && (
-              <div className="px-4 py-3 bg-yellow-900/20 border-b border-yellow-700/30 flex items-start gap-2">
-                <span className="text-yellow-400 text-xs mt-0.5">⚠</span>
-                <p className="text-xs text-yellow-400">
-                  A análise global está desativada.{' '}
-                  <a href="/settings/analysis" className="underline hover:text-yellow-300">
-                    Ativar em Configurações → Análise de vídeo
-                  </a>{' '}
-                  para que esta câmera seja processada.
-                </p>
-              </div>
-            )}
-            <div className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Análise de objetos</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Ativar detecção YOLO nas gravações desta câmera.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (globalEnabled) setEnabled((v) => !v)
-                }}
-                disabled={!globalEnabled}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled && globalEnabled ? 'bg-primary' : 'bg-surface-2'} ${!globalEnabled ? 'opacity-40 cursor-not-allowed' : ''}`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`}
-                />
-              </button>
+      <div className="space-y-6">
+        <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
+          {!globalEnabled && (
+            <div className="px-4 py-3 bg-yellow-900/20 border-b border-yellow-700/30 flex items-start gap-2">
+              <span className="text-yellow-400 text-xs mt-0.5">⚠</span>
+              <p className="text-xs text-yellow-400">
+                A análise global está desativada.{' '}
+                <a href="/settings/analysis" className="underline hover:text-yellow-300">
+                  Ativar em Configurações → Análise de vídeo
+                </a>{' '}
+                para que esta câmera seja processada.
+              </p>
             </div>
+          )}
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Análise de objetos</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Ativar detecção YOLO nas gravações desta câmera.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (globalEnabled) setEnabled((v) => !v)
+              }}
+              disabled={!globalEnabled}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled && globalEnabled ? 'bg-primary' : 'bg-surface-2'} ${!globalEnabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`}
+              />
+            </button>
+          </div>
 
-            <div className="p-4 flex items-center justify-between">
-              {error && <p className="text-sm text-red-400">{error}</p>}
-              {saved && <p className="text-sm text-green-400">Salvo</p>}
-              {!error && !saved && <span />}
-              <Button id="camera-analysis-save" onClick={handleSave} disabled={saving}>
-                {saving ? 'Salvando...' : 'Salvar'}
-              </Button>
-            </div>
+          <div className="p-4 flex items-center justify-between">
+            {error && <p className="text-sm text-red-400">{error}</p>}
+            {saved && <p className="text-sm text-green-400">Salvo</p>}
+            {!error && !saved && <span />}
+            <Button id="camera-analysis-save" onClick={handleSave} disabled={saving}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </Button>
           </div>
         </div>
       </div>
-    </Layout>
+    </SettingsLayout>
   )
 }

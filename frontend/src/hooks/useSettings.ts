@@ -69,6 +69,12 @@ export interface AboutInfo {
   built_at: string
   uptime_seconds: number
   go_version: string
+  /** Notas da última release conhecida (mesma fonte do /api/updates) — refletem
+   *  a versão instalada quando release_notes_version === version; senão são as
+   *  notas da versão mais nova disponível. Ausentes se o checker de updates não
+   *  tiver rodado ainda. */
+  release_notes_version?: string
+  release_notes_md?: string
 }
 
 export function useSettings() {

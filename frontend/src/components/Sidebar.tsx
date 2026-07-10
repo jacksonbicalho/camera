@@ -202,11 +202,11 @@ function FlyoutNavLink({
 
 // SettingsFlyout — botão único "Configurações" (id sidebar-config): itera
 // ADMIN_SETTINGS_LINKS/VIEWER_SETTINGS_LINKS (settingsNavLinks.ts, compartilhada
-// com o AppSidebar legado, que faz o mesmo num único flyout) e intercala
-// ThemeModeNav/AccentSwatchNav/Estatísticas logo antes do link Sobre — espelha
-// exatamente o flyout único do AppSidebar.tsx. Unificado com o antigo
-// PreferencesFlyout (sidebar-settings) — não há mais split entre "configuração
-// administrativa" e "preferências pessoais".
+// com SettingsLayout, a coluna persistente das páginas top-level de /settings/*)
+// e intercala ThemeModeNav/AccentSwatchNav (widgets, não itens de navegação)
+// logo antes do link Sobre. Unificado com o antigo PreferencesFlyout
+// (sidebar-settings) — não há mais split entre "configuração administrativa" e
+// "preferências pessoais".
 function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
   const location = useLocation()
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
@@ -238,15 +238,6 @@ function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
               <Fragment key={to}>
                 {to === '/settings/about' && <ThemeModeNav onSelect={() => setOpen(false)} />}
                 {to === '/settings/about' && <AccentSwatchNav onSelect={() => setOpen(false)} />}
-                {to === '/settings/about' && (
-                  <FlyoutNavLink
-                    to="/settings/stats"
-                    id="settings-stats"
-                    onSelect={() => setOpen(false)}
-                  >
-                    Estatísticas
-                  </FlyoutNavLink>
-                )}
                 <FlyoutNavLink to={to} onSelect={() => setOpen(false)}>
                   {label}
                 </FlyoutNavLink>
@@ -335,10 +326,9 @@ function UserMenu({ showLabel }: { showLabel: boolean }) {
   )
 }
 
-// Sidebar — rail de navegação enxuto para o Layout (páginas novas). Links + recolher/expandir
-// (DisplayModeContext global — só 2 dos 3 modos, não faz sentido "text-only" pra um rail de
-// 3 itens; se o usuário estiver em "text-only", tratamos como expandido e o botão de
-// recolher força de volta pra "icons-only") + flyout de Configurações + UserMenu.
+// Sidebar — rail de navegação enxuto para o Layout (páginas novas). Links +
+// recolher/expandir (DisplayModeContext global, só 2 modos: icons-only/icons-text
+// — ver o tipo DisplayMode) + flyout de Configurações + UserMenu.
 export default function Sidebar() {
   const { sidebar: sidebarMode } = useDisplayMode()
   const setDisplayMode = useSetDisplayMode()

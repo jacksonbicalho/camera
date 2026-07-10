@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useLocation, useNavigate } from 'react-router-dom'
-import Layout from '../../components/Layout'
+import SettingsLayout from '../../components/SettingsLayout'
+import PageHeader from '../../components/PageHeader'
 import SettingsSection from '../../components/SettingsSection'
 import UserForm, { type UserFormData } from '../../components/UserForm'
 import RoleBadge from '../../components/RoleBadge'
@@ -87,47 +88,13 @@ export default function UserDetailSettingsPage() {
   }
 
   return (
-    <Layout id="user-detail-page" footerId="user-detail-footer" contentClassName="p-6">
-      <div id="user-detail-content" className="page-content space-y-4">
-        <div className="mb-6">
-          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
-            <Link to="/settings/users" className="hover:text-foreground transition-colors">
-              Usuários
-            </Link>
-            <span>/</span>
-            <span className="text-foreground">{user?.username ?? '...'}</span>
-          </nav>
-          <div className="flex items-center justify-end border-b border-border pb-2">
-            <Button asChild size="sm" className="mb-1">
-              <Link to="/settings/users/new">
-                <Plus className="w-3.5 h-3.5" /> Novo usuário
-              </Link>
-            </Button>
-          </div>
-        </div>
-
-        {error && (
-          <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <p className="text-muted-foreground text-sm">Carregando...</p>
-        ) : !user ? null : editing ? (
-          <UserForm
-            cameras={cameras}
-            initial={user}
-            onSave={handleUpdate}
-            onCancel={() => {
-              setEditing(false)
-              setError(null)
-            }}
-            saving={saving}
-          />
-        ) : (
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-end">
+    <SettingsLayout id="user-detail-page" footerId="user-detail-footer">
+      <PageHeader
+        title="Usuários"
+        subtitle={user?.username}
+        actions={
+          <div className="flex items-center gap-2">
+            {user && !editing && (
               <Button
                 id="user-edit"
                 variant="outline"
@@ -139,29 +106,65 @@ export default function UserDetailSettingsPage() {
               >
                 Editar
               </Button>
-            </div>
-            <SettingsSection
-              title="Conta"
-              fields={[
-                { label: 'Username', value: user.username },
-                ...(user.name ? [{ label: 'Nome', value: user.name }] : []),
-                ...(user.email ? [{ label: 'E-mail', value: user.email }] : []),
-                { label: 'Role', value: <RoleBadge role={user.role} /> },
-                {
-                  label: 'Câmeras',
-                  value:
-                    user.role === 'admin'
-                      ? 'todas'
-                      : user.cameras.length === 0
-                        ? 'nenhuma'
-                        : user.cameras.join(', '),
-                },
-                { label: 'Criado em', value: new Date(user.created_at).toLocaleString('pt-BR') },
-              ]}
-            />
+            )}
+            <Button asChild size="sm">
+              <Link to="/settings/users/new">
+                <Plus className="w-3.5 h-3.5" /> Novo usuário
+              </Link>
+            </Button>
           </div>
-        )}
-      </div>
-    </Layout>
+        }
+      />
+      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
+        <Link to="/settings/users" className="hover:text-foreground transition-colors">
+          Usuários
+        </Link>
+        <span>/</span>
+        <span className="text-foreground">{user?.username ?? '...'}</span>
+      </nav>
+
+      {error && (
+        <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-muted-foreground text-sm">Carregando...</p>
+      ) : !user ? null : editing ? (
+        <UserForm
+          cameras={cameras}
+          initial={user}
+          onSave={handleUpdate}
+          onCancel={() => {
+            setEditing(false)
+            setError(null)
+          }}
+          saving={saving}
+        />
+      ) : (
+        <div className="flex flex-col gap-4">
+          <SettingsSection
+            title="Conta"
+            fields={[
+              { label: 'Username', value: user.username },
+              ...(user.name ? [{ label: 'Nome', value: user.name }] : []),
+              ...(user.email ? [{ label: 'E-mail', value: user.email }] : []),
+              { label: 'Role', value: <RoleBadge role={user.role} /> },
+              {
+                label: 'Câmeras',
+                value:
+                  user.role === 'admin'
+                    ? 'todas'
+                    : user.cameras.length === 0
+                      ? 'nenhuma'
+                      : user.cameras.join(', '),
+              },
+              { label: 'Criado em', value: new Date(user.created_at).toLocaleString('pt-BR') },
+            ]}
+          />
+        </div>
+      )}
+    </SettingsLayout>
   )
 }

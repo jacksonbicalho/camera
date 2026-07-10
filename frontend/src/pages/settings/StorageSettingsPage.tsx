@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import Layout from '../../components/Layout'
+import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { useSettings } from '../../hooks/useSettings'
@@ -261,287 +261,283 @@ export default function StorageSettingsPage() {
 
   if (!isAdmin) {
     return (
-      <Layout id="storage-settings-page" footerId="storage-settings-footer" contentClassName="p-6">
-        <div id="storage-settings-content" className="page-content space-y-4">
-          <PageHeader
-            title="Armazenamento"
-            subtitle="Retenção, limpeza automática e espaço em disco."
-          />
-          <p className="text-muted-foreground text-sm">Acesso restrito.</p>
-        </div>
-      </Layout>
-    )
-  }
-
-  return (
-    <Layout id="storage-settings-page" footerId="storage-settings-footer" contentClassName="p-6">
-      <div id="storage-settings-content" className="page-content space-y-4">
+      <SettingsLayout id="storage-settings-page" footerId="storage-settings-footer">
         <PageHeader
           title="Armazenamento"
           subtitle="Retenção, limpeza automática e espaço em disco."
         />
+        <p className="text-muted-foreground text-sm">Acesso restrito.</p>
+      </SettingsLayout>
+    )
+  }
 
-        {form ? (
-          <div className="space-y-2 mb-4">
-            {/* Diretório + Máximo + Alerta + Intervalo */}
-            <div className="bg-surface-2 rounded-lg px-4 py-3 grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-x-8 gap-y-3 items-start">
-              <div>
-                <span className="block text-xs text-muted-foreground mb-1">Diretório</span>
-                <span className="text-sm text-foreground break-all">{s?.path || '—'}</span>
-              </div>
-              <div>
-                <span className="block text-xs text-muted-foreground mb-1">Máximo (GB)</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    className="w-20 bg-surface-2 text-foreground text-sm rounded px-2 py-1 border border-border focus:outline-none focus:border-ring"
-                    value={form.maxSizeGB}
-                    onChange={(e) => set({ maxSizeGB: Number(e.target.value) })}
-                  />
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">0 = off</span>
-                </div>
-              </div>
-              <div>
-                <span className="block text-xs text-muted-foreground mb-1">Alerta (%)</span>
+  return (
+    <SettingsLayout id="storage-settings-page" footerId="storage-settings-footer">
+      <PageHeader
+        title="Armazenamento"
+        subtitle="Retenção, limpeza automática e espaço em disco."
+      />
+
+      {form ? (
+        <div className="space-y-2 mb-4">
+          {/* Diretório + Máximo + Alerta + Intervalo */}
+          <div className="bg-surface-2 rounded-lg px-4 py-3 grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-x-8 gap-y-3 items-start">
+            <div>
+              <span className="block text-xs text-muted-foreground mb-1">Diretório</span>
+              <span className="text-sm text-foreground break-all">{s?.path || '—'}</span>
+            </div>
+            <div>
+              <span className="block text-xs text-muted-foreground mb-1">Máximo (GB)</span>
+              <div className="flex items-center gap-2">
                 <input
                   type="number"
                   min={0}
-                  max={100}
+                  step={0.1}
                   className="w-20 bg-surface-2 text-foreground text-sm rounded px-2 py-1 border border-border focus:outline-none focus:border-ring"
-                  value={form.warnPercent}
-                  onChange={(e) => set({ warnPercent: Number(e.target.value) })}
+                  value={form.maxSizeGB}
+                  onChange={(e) => set({ maxSizeGB: Number(e.target.value) })}
                 />
-              </div>
-              <div>
-                <span className="block text-xs text-muted-foreground mb-1">
-                  Intervalo de verificação
-                </span>
-                <DurationInput
-                  value={form.intervalValue}
-                  unit={form.intervalUnit}
-                  onValueChange={(v) => set({ intervalValue: v })}
-                  onUnitChange={(u) => set({ intervalUnit: u })}
-                />
+                <span className="text-xs text-muted-foreground whitespace-nowrap">0 = off</span>
               </div>
             </div>
+            <div>
+              <span className="block text-xs text-muted-foreground mb-1">Alerta (%)</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                className="w-20 bg-surface-2 text-foreground text-sm rounded px-2 py-1 border border-border focus:outline-none focus:border-ring"
+                value={form.warnPercent}
+                onChange={(e) => set({ warnPercent: Number(e.target.value) })}
+              />
+            </div>
+            <div>
+              <span className="block text-xs text-muted-foreground mb-1">
+                Intervalo de verificação
+              </span>
+              <DurationInput
+                value={form.intervalValue}
+                unit={form.intervalUnit}
+                onValueChange={(v) => set({ intervalValue: v })}
+                onUnitChange={(u) => set({ intervalUnit: u })}
+              />
+            </div>
+          </div>
 
-            {/* Retention rows */}
-            {(
-              [
-                {
-                  label: 'Com movimento',
-                  vk: 'withMotionValue',
-                  uk: 'withMotionUnit',
-                  cat: 'with_motion',
-                },
-                {
-                  label: 'Sem movimento',
-                  vk: 'withoutMotionValue',
-                  uk: 'withoutMotionUnit',
-                  cat: 'without_motion',
-                },
-              ] as const
-            ).map(({ label, vk, uk, cat }) => {
-              const rc = retentionFor(cat)
-              return (
-                <div
-                  key={cat}
-                  className="bg-surface-2 rounded-lg px-4 py-3 grid grid-cols-1 sm:grid-cols-[auto_auto_auto] gap-x-6 gap-y-3 items-start"
-                >
-                  <div>
-                    <span className="block text-xs text-muted-foreground mb-1">{label}</span>
-                    <DurationInput
-                      value={form[vk]}
-                      unit={form[uk]}
-                      onValueChange={(v) => set({ [vk]: v })}
-                      onUnitChange={(u) => set({ [uk]: u })}
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-xs text-muted-foreground mb-1">Ao expirar</span>
-                    {/* Destino unificado: "Apagar" + cada drive cadastrado numa única lista.
+          {/* Retention rows */}
+          {(
+            [
+              {
+                label: 'Com movimento',
+                vk: 'withMotionValue',
+                uk: 'withMotionUnit',
+                cat: 'with_motion',
+              },
+              {
+                label: 'Sem movimento',
+                vk: 'withoutMotionValue',
+                uk: 'withoutMotionUnit',
+                cat: 'without_motion',
+              },
+            ] as const
+          ).map(({ label, vk, uk, cat }) => {
+            const rc = retentionFor(cat)
+            return (
+              <div
+                key={cat}
+                className="bg-surface-2 rounded-lg px-4 py-3 grid grid-cols-1 sm:grid-cols-[auto_auto_auto] gap-x-6 gap-y-3 items-start"
+              >
+                <div>
+                  <span className="block text-xs text-muted-foreground mb-1">{label}</span>
+                  <DurationInput
+                    value={form[vk]}
+                    unit={form[uk]}
+                    onValueChange={(v) => set({ [vk]: v })}
+                    onUnitChange={(u) => set({ [uk]: u })}
+                  />
+                </div>
+                <div>
+                  <span className="block text-xs text-muted-foreground mb-1">Ao expirar</span>
+                  {/* Destino unificado: "Apagar" + cada drive cadastrado numa única lista.
                       Drives recém-criados aparecem aqui na hora (mapeiam o estado `drives`,
                       recarregado após salvar um drive). */}
-                    <select
-                      className="bg-surface-2 text-foreground text-sm rounded px-2 py-1 border border-border"
-                      value={
-                        rc.action === 'send_to_drive' && rc.drive_id
-                          ? `drive:${rc.drive_id}`
-                          : 'delete'
-                      }
-                      onChange={(e) => {
-                        const v = e.target.value
-                        if (v === 'delete') handleRetentionChange(cat, 'delete', '')
-                        else handleRetentionChange(cat, 'send_to_drive', v.slice('drive:'.length))
-                      }}
-                    >
-                      <option value="delete">Apagar</option>
-                      {drives.map((dr) => (
-                        <option key={dr.id} value={`drive:${dr.id}`}>
-                          {dr.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <select
+                    className="bg-surface-2 text-foreground text-sm rounded px-2 py-1 border border-border"
+                    value={
+                      rc.action === 'send_to_drive' && rc.drive_id
+                        ? `drive:${rc.drive_id}`
+                        : 'delete'
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === 'delete') handleRetentionChange(cat, 'delete', '')
+                      else handleRetentionChange(cat, 'send_to_drive', v.slice('drive:'.length))
+                    }}
+                  >
+                    <option value="delete">Apagar</option>
+                    {drives.map((dr) => (
+                      <option key={dr.id} value={`drive:${dr.id}`}>
+                        {dr.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              )
-            })}
+              </div>
+            )
+          })}
 
-            <div className="flex justify-end items-center gap-3 pt-1">
-              {storageSaved && <span className="text-xs text-green-400">Salvo</span>}
-              <Button id="storage-save" onClick={handleStorageSave} disabled={storageSaving}>
-                {storageSaving ? 'Salvando...' : 'Salvar'}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-muted-foreground text-sm mb-4">Carregando...</p>
-        )}
-
-        {drives.length === 0 && retention.some((r) => r.action === 'send_to_drive') && (
-          <p className="text-xs text-amber-400 mb-4">
-            Nenhum drive configurado — gravações com essa ação serão ignoradas pelo cleaner.
-          </p>
-        )}
-
-        {/* Drives section */}
-        <div className="mt-6">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-foreground">Drives</h4>
-            <Button id="drive-add" onClick={openCreateDrive} size="sm">
-              + Adicionar drive
+          <div className="flex justify-end items-center gap-3 pt-1">
+            {storageSaved && <span className="text-xs text-green-400">Salvo</span>}
+            <Button id="storage-save" onClick={handleStorageSave} disabled={storageSaving}>
+              {storageSaving ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-sm mb-4">Carregando...</p>
+      )}
 
-          {drives.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum drive configurado.</p>
-          ) : (
-            <div className="space-y-2">
-              {drives.map((dr) => (
-                <div
-                  key={dr.id}
-                  className="flex items-center justify-between bg-surface-2 rounded-lg px-4 py-3"
-                >
-                  <div>
-                    <span className="text-sm font-medium text-foreground">{dr.name}</span>
-                    <span className="ml-2 text-xs text-muted-foreground uppercase">{dr.type}</span>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {dr.bucket}
-                      {dr.endpoint ? ` · ${dr.endpoint}` : ''}
-                      {dr.prefix ? ` · /${dr.prefix}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => openEditDrive(dr)}>
-                      Editar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setConfirmDelete(dr)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      Excluir
-                    </Button>
-                  </div>
+      {drives.length === 0 && retention.some((r) => r.action === 'send_to_drive') && (
+        <p className="text-xs text-amber-400 mb-4">
+          Nenhum drive configurado — gravações com essa ação serão ignoradas pelo cleaner.
+        </p>
+      )}
+
+      {/* Drives section */}
+      <div className="mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-semibold text-foreground">Drives</h4>
+          <Button id="drive-add" onClick={openCreateDrive} size="sm">
+            + Adicionar drive
+          </Button>
+        </div>
+
+        {drives.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum drive configurado.</p>
+        ) : (
+          <div className="space-y-2">
+            {drives.map((dr) => (
+              <div
+                key={dr.id}
+                className="flex items-center justify-between bg-surface-2 rounded-lg px-4 py-3"
+              >
+                <div>
+                  <span className="text-sm font-medium text-foreground">{dr.name}</span>
+                  <span className="ml-2 text-xs text-muted-foreground uppercase">{dr.type}</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {dr.bucket}
+                    {dr.endpoint ? ` · ${dr.endpoint}` : ''}
+                    {dr.prefix ? ` · /${dr.prefix}` : ''}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => openEditDrive(dr)}>
+                    Editar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConfirmDelete(dr)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    Excluir
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Drive form modal */}
+      {showDriveForm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-surface rounded-xl p-5 w-full max-w-md border border-border shadow-xl">
+            <h3 className="text-base font-semibold text-foreground mb-4">
+              {editDrive ? 'Editar drive' : 'Novo drive S3'}
+            </h3>
+            <div className="space-y-3">
+              {(
+                [
+                  { label: 'Nome', field: 'name', required: true },
+                  {
+                    label: 'Endpoint (opcional)',
+                    field: 'endpoint',
+                    placeholder: 'https://s3.amazonaws.com',
+                  },
+                  { label: 'Bucket', field: 'bucket', required: true },
+                  { label: 'Região', field: 'region', placeholder: 'us-east-1' },
+                  {
+                    label: 'Access Key',
+                    field: 'access_key',
+                    required: !editDrive,
+                    placeholder: editDrive ? '(manter atual)' : '',
+                  },
+                  {
+                    label: 'Secret Key',
+                    field: 'secret_key',
+                    required: !editDrive,
+                    placeholder: editDrive ? '(manter atual)' : '',
+                    password: true,
+                  },
+                  { label: 'Prefixo (opcional)', field: 'prefix' },
+                ] as Array<{
+                  label: string
+                  field: keyof typeof driveForm
+                  required?: boolean
+                  placeholder?: string
+                  password?: boolean
+                }>
+              ).map(({ label, field, required, placeholder, password }) => (
+                <div key={field}>
+                  <label className="block text-xs text-muted-foreground mb-1">
+                    {label}
+                    {required && <span className="text-red-400 ml-0.5">*</span>}
+                  </label>
+                  <input
+                    type={password ? 'password' : 'text'}
+                    autoComplete={password ? 'new-password' : 'off'}
+                    className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-1.5 border border-border focus:outline-none focus:border-ring"
+                    value={driveForm[field]}
+                    placeholder={placeholder}
+                    onChange={(e) => setDriveForm((f) => ({ ...f, [field]: e.target.value }))}
+                  />
                 </div>
               ))}
             </div>
-          )}
-        </div>
-
-        {/* Drive form modal */}
-        {showDriveForm && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-            <div className="bg-surface rounded-xl p-5 w-full max-w-md border border-border shadow-xl">
-              <h3 className="text-base font-semibold text-foreground mb-4">
-                {editDrive ? 'Editar drive' : 'Novo drive S3'}
-              </h3>
-              <div className="space-y-3">
-                {(
-                  [
-                    { label: 'Nome', field: 'name', required: true },
-                    {
-                      label: 'Endpoint (opcional)',
-                      field: 'endpoint',
-                      placeholder: 'https://s3.amazonaws.com',
-                    },
-                    { label: 'Bucket', field: 'bucket', required: true },
-                    { label: 'Região', field: 'region', placeholder: 'us-east-1' },
-                    {
-                      label: 'Access Key',
-                      field: 'access_key',
-                      required: !editDrive,
-                      placeholder: editDrive ? '(manter atual)' : '',
-                    },
-                    {
-                      label: 'Secret Key',
-                      field: 'secret_key',
-                      required: !editDrive,
-                      placeholder: editDrive ? '(manter atual)' : '',
-                      password: true,
-                    },
-                    { label: 'Prefixo (opcional)', field: 'prefix' },
-                  ] as Array<{
-                    label: string
-                    field: keyof typeof driveForm
-                    required?: boolean
-                    placeholder?: string
-                    password?: boolean
-                  }>
-                ).map(({ label, field, required, placeholder, password }) => (
-                  <div key={field}>
-                    <label className="block text-xs text-muted-foreground mb-1">
-                      {label}
-                      {required && <span className="text-red-400 ml-0.5">*</span>}
-                    </label>
-                    <input
-                      type={password ? 'password' : 'text'}
-                      autoComplete={password ? 'new-password' : 'off'}
-                      className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-1.5 border border-border focus:outline-none focus:border-ring"
-                      value={driveForm[field]}
-                      placeholder={placeholder}
-                      onChange={(e) => setDriveForm((f) => ({ ...f, [field]: e.target.value }))}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-end gap-2 mt-5">
-                <Button id="drive-cancel" variant="ghost" onClick={() => setShowDriveForm(false)}>
-                  Cancelar
-                </Button>
-                <Button
-                  id="drive-save"
-                  onClick={handleDriveSave}
-                  disabled={
-                    driveSaving ||
-                    !driveForm.name ||
-                    !driveForm.bucket ||
-                    (!editDrive && (!driveForm.access_key || !driveForm.secret_key))
-                  }
-                >
-                  {driveSaving ? 'Salvando...' : 'Salvar'}
-                </Button>
-              </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <Button id="drive-cancel" variant="ghost" onClick={() => setShowDriveForm(false)}>
+                Cancelar
+              </Button>
+              <Button
+                id="drive-save"
+                onClick={handleDriveSave}
+                disabled={
+                  driveSaving ||
+                  !driveForm.name ||
+                  !driveForm.bucket ||
+                  (!editDrive && (!driveForm.access_key || !driveForm.secret_key))
+                }
+              >
+                {driveSaving ? 'Salvando...' : 'Salvar'}
+              </Button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <ConfirmDialog
-          open={confirmDelete !== null}
-          title="Excluir drive"
-          message={
-            confirmDelete
-              ? `Excluir o drive "${confirmDelete.name}"? Gravações associadas voltarão a ser apagadas.`
-              : ''
-          }
-          onConfirm={() => confirmDelete && handleDriveDelete(confirmDelete)}
-          onCancel={() => setConfirmDelete(null)}
-          danger
-        />
-      </div>
-    </Layout>
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Excluir drive"
+        message={
+          confirmDelete
+            ? `Excluir o drive "${confirmDelete.name}"? Gravações associadas voltarão a ser apagadas.`
+            : ''
+        }
+        onConfirm={() => confirmDelete && handleDriveDelete(confirmDelete)}
+        onCancel={() => setConfirmDelete(null)}
+        danger
+      />
+    </SettingsLayout>
   )
 }

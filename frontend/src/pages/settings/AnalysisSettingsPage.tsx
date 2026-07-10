@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import Layout from '../../components/Layout'
+import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import BboxCanvas, { type BboxRect } from '../../components/BboxCanvas'
 import ConfirmDialog from '../../components/ConfirmDialog'
@@ -607,721 +607,714 @@ export default function AnalysisSettingsPage() {
   }
 
   return (
-    <Layout id="analysis-settings-page" footerId="analysis-settings-footer" contentClassName="p-6">
-      <div id="analysis-settings-content" className="page-content space-y-4">
-        <div className="space-y-6">
-          <PageHeader
-            title="Análise de vídeo"
-            subtitle="Serviço YOLO para detecção de objetos em gravações. Cada chunk MP4 é analisado após ser fechado."
-          />
+    <SettingsLayout id="analysis-settings-page" footerId="analysis-settings-footer">
+      <div className="space-y-6">
+        <PageHeader
+          title="Análise de vídeo"
+          subtitle="Serviço YOLO para detecção de objetos em gravações. Cada chunk MP4 é analisado após ser fechado."
+        />
 
-          <form
-            onSubmit={handleSave}
-            className="bg-surface-2 rounded-lg border border-border divide-y divide-border"
-          >
-            <div className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Ativar análise</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Habilita o envio de gravações para o serviço YOLO
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCfg((c) => ({ ...c, enabled: !c.enabled }))}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${cfg.enabled ? 'bg-primary' : 'bg-surface-2'}`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cfg.enabled ? 'translate-x-6' : 'translate-x-1'}`}
-                />
-              </button>
+        <form
+          onSubmit={handleSave}
+          className="bg-surface-2 rounded-lg border border-border divide-y divide-border"
+        >
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Ativar análise</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Habilita o envio de gravações para o serviço YOLO
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setCfg((c) => ({ ...c, enabled: !c.enabled }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${cfg.enabled ? 'bg-primary' : 'bg-surface-2'}`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cfg.enabled ? 'translate-x-6' : 'translate-x-1'}`}
+              />
+            </button>
+          </div>
 
-            <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">
-                    URL do serviço
-                  </label>
-                  <input
-                    type="url"
-                    className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring"
-                    placeholder="http://yolo:8001"
-                    value={cfg.service_url}
-                    onChange={(e) => setCfg((c) => ({ ...c, service_url: e.target.value }))}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Endereço do container YOLO (ex: <code>http://yolo:8001</code>)
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">
-                    Modelo
-                  </label>
-                  {serviceOffline ? (
-                    <div className="w-full bg-surface-2 text-amber-400 text-sm rounded px-3 py-2 border border-amber-600">
-                      Serviço YOLO offline — configure a URL e verifique se o container está rodando
-                    </div>
-                  ) : serviceModels === null ? (
-                    <div className="w-full bg-surface-2 text-muted-foreground text-sm rounded px-3 py-2 border border-border">
-                      Carregando modelos...
-                    </div>
-                  ) : (
-                    <>
-                      <select
-                        className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring"
-                        value={cfg.model}
-                        onChange={(e) => setCfg((c) => ({ ...c, model: e.target.value }))}
-                      >
-                        {cfg.has_custom_model &&
-                          (() => {
-                            const base = cfg.model.startsWith('custom+')
-                              ? cfg.model.slice('custom+'.length)
-                              : cfg.model === 'custom'
-                                ? 'yolov8n'
-                                : cfg.model
-                            const combinedValue = `custom+${base}`
-                            return (
-                              <optgroup label="Custom">
-                                <option value="custom">custom ✓ (treinado)</option>
-                                <option value={combinedValue}>custom + {base}</option>
-                              </optgroup>
-                            )
-                          })()}
-                        {Array.from(
-                          new Set(serviceModels.filter((m) => m.inference).map((m) => m.group)),
-                        ).map((group) => (
-                          <optgroup key={group} label={group}>
-                            {serviceModels
-                              .filter((m) => m.group === group && m.inference)
-                              .map((m) => (
-                                <option key={m.name} value={m.name}>
-                                  {m.name}
-                                </option>
-                              ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        n = mais rápido · x = mais preciso
-                      </p>
-                    </>
-                  )}
-                </div>
+          <div className="p-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  URL do serviço
+                </label>
+                <input
+                  type="url"
+                  className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring"
+                  placeholder="http://yolo:8001"
+                  value={cfg.service_url}
+                  onChange={(e) => setCfg((c) => ({ ...c, service_url: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Endereço do container YOLO (ex: <code>http://yolo:8001</code>)
+                </p>
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Limiar de confiança ({(cfg.confidence_threshold * 100).toFixed(0)}%)
+                  Modelo
                 </label>
-                <input
-                  type="range"
-                  min={0.1}
-                  max={0.9}
-                  step={0.05}
-                  className="w-full accent-primary"
-                  value={cfg.confidence_threshold}
-                  onChange={(e) =>
-                    setCfg((c) => ({ ...c, confidence_threshold: Number(e.target.value) }))
-                  }
-                />
-                <div className="flex justify-between text-xs text-muted-foreground mt-0.5">
-                  <span>10%</span>
-                  <span>90%</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 flex items-center justify-between">
-              {error && <p className="text-sm text-red-400">{error}</p>}
-              {saved && <p className="text-sm text-green-400">Salvo</p>}
-              {!error && !saved && <span />}
-              <Button id="analysis-save" type="submit" disabled={saving}>
-                {saving ? 'Salvando...' : 'Salvar'}
-              </Button>
-            </div>
-          </form>
-
-          <div className="bg-surface-2 rounded-lg border border-border p-4">
-            <h4 className="text-sm font-medium text-foreground mb-2">Como usar</h4>
-            <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-              <li>
-                Suba o serviço YOLO:{' '}
-                <code className="bg-surface-2 px-1 rounded">
-                  docker compose --profile yolo up -d
-                </code>
-              </li>
-              <li>
-                Configure a URL acima (padrão:{' '}
-                <code className="bg-surface-2 px-1 rounded">http://yolo:8001</code>)
-              </li>
-              <li>
-                Ative a análise global e, se necessário, por câmera em Configurações → Câmeras →
-                Análise
-              </li>
-              <li>
-                Na próxima limpeza do storage, as gravações concluídas serão analisadas
-                automaticamente
-              </li>
-            </ol>
-          </div>
-
-          <ReanalyzePanel />
-
-          <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
-            <div className="p-4">
-              <h4 className="text-sm font-semibold text-foreground mb-1">Fine-tuning</h4>
-              <p className="text-xs text-muted-foreground">
-                Treina um modelo personalizado usando os snapshots que você anotou nos eventos de
-                movimento. O modelo gerado (
-                <code className="bg-surface-2 px-1 rounded">custom.pt</code>) fica disponível no
-                seletor acima.
-              </p>
-            </div>
-
-            {modelNoFinetune && (
-              <div className="px-4 py-2 bg-amber-900/40 border-b border-amber-700 text-amber-300 text-xs">
-                O modelo <strong>{activeBase}</strong> não suporta fine-tuning na GPU disponível.
-                Selecione um modelo menor (ex: yolov8n, yolo11n).
-              </div>
-            )}
-            <div className="p-4 space-y-3">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-0.5">
-                  <p className="text-sm text-foreground">
-                    {annCount === null ? '…' : annCount} bounding box{annCount !== 1 ? 'es' : ''}
-                    {' · '}
-                    {labelCount === null ? '…' : labelCount} evento{labelCount !== 1 ? 's' : ''}{' '}
-                    rotulado{labelCount !== 1 ? 's' : ''}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Bounding boxes + labels de texto são usados no treino
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  disabled={
-                    (!annCount && !labelCount) ||
-                    ftStatus?.status === 'running' ||
-                    ftStatus?.status === 'pending' ||
-                    modelNoFinetune
-                  }
-                  onClick={handleStartFinetune}
-                  className="bg-violet-600 hover:bg-violet-500 text-white shrink-0"
-                >
-                  Treinar agora
-                </Button>
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="text-xs text-muted-foreground shrink-0">Épocas</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={200}
-                  value={epochs}
-                  onChange={(e) =>
-                    setEpochs(Math.min(200, Math.max(1, Number(e.target.value) || 20)))
-                  }
-                  className="w-20 bg-surface-2 text-foreground text-sm rounded px-2 py-1 border border-border focus:outline-none focus:border-ring"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Mais épocas = aprende melhor, mas demora mais e pode decorar exemplos
-                  (overfitting) com poucos dados. Para &lt; 200 exemplos, 20–50 épocas costuma ser o
-                  ideal.
-                </p>
-              </div>
-            </div>
-
-            {ftStatus && (
-              <div className="p-4 space-y-2">
-                {(ftStatus.status === 'running' || ftStatus.status === 'pending') && (
+                {serviceOffline ? (
+                  <div className="w-full bg-surface-2 text-amber-400 text-sm rounded px-3 py-2 border border-amber-600">
+                    Serviço YOLO offline — configure a URL e verifique se o container está rodando
+                  </div>
+                ) : serviceModels === null ? (
+                  <div className="w-full bg-surface-2 text-muted-foreground text-sm rounded px-3 py-2 border border-border">
+                    Carregando modelos...
+                  </div>
+                ) : (
                   <>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>
-                        {ftStatus.status === 'pending'
-                          ? 'Iniciando…'
-                          : `Época ${ftStatus.epoch} / ${ftStatus.total_epochs}`}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <span>
-                          {ftStatus.status === 'running'
-                            ? `${Math.round((ftStatus.epoch / ftStatus.total_epochs) * 100)}%`
-                            : ''}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleCancelFinetune}
-                          className="px-2 py-0.5 text-xs bg-surface-2 hover:bg-red-900/60 text-muted-foreground hover:text-red-300 border border-border hover:border-red-700/50 rounded transition-colors"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                    <div className="w-full bg-surface-2 rounded-full h-2">
-                      <div
-                        className="bg-violet-500 h-2 rounded-full transition-all"
-                        style={{
-                          width: `${Math.round((ftStatus.epoch / ftStatus.total_epochs) * 100)}%`,
-                        }}
-                      />
-                    </div>
+                    <select
+                      className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring"
+                      value={cfg.model}
+                      onChange={(e) => setCfg((c) => ({ ...c, model: e.target.value }))}
+                    >
+                      {cfg.has_custom_model &&
+                        (() => {
+                          const base = cfg.model.startsWith('custom+')
+                            ? cfg.model.slice('custom+'.length)
+                            : cfg.model === 'custom'
+                              ? 'yolov8n'
+                              : cfg.model
+                          const combinedValue = `custom+${base}`
+                          return (
+                            <optgroup label="Custom">
+                              <option value="custom">custom ✓ (treinado)</option>
+                              <option value={combinedValue}>custom + {base}</option>
+                            </optgroup>
+                          )
+                        })()}
+                      {Array.from(
+                        new Set(serviceModels.filter((m) => m.inference).map((m) => m.group)),
+                      ).map((group) => (
+                        <optgroup key={group} label={group}>
+                          {serviceModels
+                            .filter((m) => m.group === group && m.inference)
+                            .map((m) => (
+                              <option key={m.name} value={m.name}>
+                                {m.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      n = mais rápido · x = mais preciso
+                    </p>
                   </>
                 )}
-                {ftStatus.status === 'done' && (
-                  <p className="text-sm text-green-400">
-                    Treino concluído. Modelo salvo como{' '}
-                    <code className="bg-surface-2 px-1 rounded">custom</code>.
-                  </p>
-                )}
-                {ftStatus.status === 'error' && (
-                  <p className="text-sm text-red-400">
-                    {ftError || ftStatus.error || 'Erro no treino'}
-                  </p>
-                )}
               </div>
-            )}
+            </div>
 
-            {ftError && !ftStatus && (
-              <div className="p-4">
-                <p className="text-sm text-red-400">{ftError}</p>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                Limiar de confiança ({(cfg.confidence_threshold * 100).toFixed(0)}%)
+              </label>
+              <input
+                type="range"
+                min={0.1}
+                max={0.9}
+                step={0.05}
+                className="w-full accent-primary"
+                value={cfg.confidence_threshold}
+                onChange={(e) =>
+                  setCfg((c) => ({ ...c, confidence_threshold: Number(e.target.value) }))
+                }
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-0.5">
+                <span>10%</span>
+                <span>90%</span>
               </div>
-            )}
+            </div>
           </div>
-          <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
-            <div className="p-4 flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <h4 className="text-sm font-semibold text-foreground mb-1">Rotular eventos</h4>
+
+          <div className="p-4 flex items-center justify-between">
+            {error && <p className="text-sm text-red-400">{error}</p>}
+            {saved && <p className="text-sm text-green-400">Salvo</p>}
+            {!error && !saved && <span />}
+            <Button id="analysis-save" type="submit" disabled={saving}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </div>
+        </form>
+
+        <div className="bg-surface-2 rounded-lg border border-border p-4">
+          <h4 className="text-sm font-medium text-foreground mb-2">Como usar</h4>
+          <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+            <li>
+              Suba o serviço YOLO:{' '}
+              <code className="bg-surface-2 px-1 rounded">docker compose --profile yolo up -d</code>
+            </li>
+            <li>
+              Configure a URL acima (padrão:{' '}
+              <code className="bg-surface-2 px-1 rounded">http://yolo:8001</code>)
+            </li>
+            <li>
+              Ative a análise global e, se necessário, por câmera em Configurações → Câmeras →
+              Análise
+            </li>
+            <li>
+              Na próxima limpeza do storage, as gravações concluídas serão analisadas
+              automaticamente
+            </li>
+          </ol>
+        </div>
+
+        <ReanalyzePanel />
+
+        <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
+          <div className="p-4">
+            <h4 className="text-sm font-semibold text-foreground mb-1">Fine-tuning</h4>
+            <p className="text-xs text-muted-foreground">
+              Treina um modelo personalizado usando os snapshots que você anotou nos eventos de
+              movimento. O modelo gerado (
+              <code className="bg-surface-2 px-1 rounded">custom.pt</code>) fica disponível no
+              seletor acima.
+            </p>
+          </div>
+
+          {modelNoFinetune && (
+            <div className="px-4 py-2 bg-amber-900/40 border-b border-amber-700 text-amber-300 text-xs">
+              O modelo <strong>{activeBase}</strong> não suporta fine-tuning na GPU disponível.
+              Selecione um modelo menor (ex: yolov8n, yolo11n).
+            </div>
+          )}
+          <div className="p-4 space-y-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-0.5">
+                <p className="text-sm text-foreground">
+                  {annCount === null ? '…' : annCount} bounding box{annCount !== 1 ? 'es' : ''}
+                  {' · '}
+                  {labelCount === null ? '…' : labelCount} evento{labelCount !== 1 ? 's' : ''}{' '}
+                  rotulado{labelCount !== 1 ? 's' : ''}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  Atribua labels de texto aos eventos de movimento para curadoria do dataset de
-                  treino.
+                  Bounding boxes + labels de texto são usados no treino
                 </p>
               </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <select
-                  className="bg-surface-2 text-foreground text-sm rounded px-3 py-1.5 border border-border focus:outline-none focus:border-ring"
-                  value={labelCamID}
-                  onChange={(e) => {
-                    setLabelCamID(e.target.value)
-                    setLabelPage(1)
-                    setLabelEvents(null)
-                    clearSelection()
-                  }}
-                >
-                  <option value="">Selecionar câmera…</option>
-                  {cameras.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  placeholder="Buscar label…"
-                  value={labelSearch}
-                  onChange={(e) => {
-                    setLabelSearch(e.target.value)
-                    setLabelPage(1)
-                    clearSelection()
-                  }}
-                  className="bg-surface-2 text-foreground text-sm rounded px-3 py-1.5 border border-border focus:outline-none focus:border-ring w-40"
-                />
-                {!showDismissed && (
-                  <label
-                    className={`flex items-center gap-1.5 text-xs cursor-pointer select-none ${labelSearch ? 'text-muted-foreground cursor-not-allowed' : 'text-muted-foreground'}`}
-                  >
-                    <input
-                      type="checkbox"
-                      className="accent-primary"
-                      checked={unlabeledOnly && !labelSearch}
-                      disabled={!!labelSearch}
-                      onChange={(e) => {
-                        setUnlabeledOnly(e.target.checked)
-                        setLabelPage(1)
-                        setLabelEvents(null)
-                        clearSelection()
+              <Button
+                type="button"
+                disabled={
+                  (!annCount && !labelCount) ||
+                  ftStatus?.status === 'running' ||
+                  ftStatus?.status === 'pending' ||
+                  modelNoFinetune
+                }
+                onClick={handleStartFinetune}
+                className="bg-violet-600 hover:bg-violet-500 text-white shrink-0"
+              >
+                Treinar agora
+              </Button>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-xs text-muted-foreground shrink-0">Épocas</label>
+              <input
+                type="number"
+                min={1}
+                max={200}
+                value={epochs}
+                onChange={(e) =>
+                  setEpochs(Math.min(200, Math.max(1, Number(e.target.value) || 20)))
+                }
+                className="w-20 bg-surface-2 text-foreground text-sm rounded px-2 py-1 border border-border focus:outline-none focus:border-ring"
+              />
+              <p className="text-xs text-muted-foreground">
+                Mais épocas = aprende melhor, mas demora mais e pode decorar exemplos (overfitting)
+                com poucos dados. Para &lt; 200 exemplos, 20–50 épocas costuma ser o ideal.
+              </p>
+            </div>
+          </div>
+
+          {ftStatus && (
+            <div className="p-4 space-y-2">
+              {(ftStatus.status === 'running' || ftStatus.status === 'pending') && (
+                <>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      {ftStatus.status === 'pending'
+                        ? 'Iniciando…'
+                        : `Época ${ftStatus.epoch} / ${ftStatus.total_epochs}`}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span>
+                        {ftStatus.status === 'running'
+                          ? `${Math.round((ftStatus.epoch / ftStatus.total_epochs) * 100)}%`
+                          : ''}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCancelFinetune}
+                        className="px-2 py-0.5 text-xs bg-surface-2 hover:bg-red-900/60 text-muted-foreground hover:text-red-300 border border-border hover:border-red-700/50 rounded transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                  <div className="w-full bg-surface-2 rounded-full h-2">
+                    <div
+                      className="bg-violet-500 h-2 rounded-full transition-all"
+                      style={{
+                        width: `${Math.round((ftStatus.epoch / ftStatus.total_epochs) * 100)}%`,
                       }}
                     />
-                    Sem label
-                  </label>
-                )}
-                <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none text-muted-foreground">
+                  </div>
+                </>
+              )}
+              {ftStatus.status === 'done' && (
+                <p className="text-sm text-green-400">
+                  Treino concluído. Modelo salvo como{' '}
+                  <code className="bg-surface-2 px-1 rounded">custom</code>.
+                </p>
+              )}
+              {ftStatus.status === 'error' && (
+                <p className="text-sm text-red-400">
+                  {ftError || ftStatus.error || 'Erro no treino'}
+                </p>
+              )}
+            </div>
+          )}
+
+          {ftError && !ftStatus && (
+            <div className="p-4">
+              <p className="text-sm text-red-400">{ftError}</p>
+            </div>
+          )}
+        </div>
+        <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
+          <div className="p-4 flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h4 className="text-sm font-semibold text-foreground mb-1">Rotular eventos</h4>
+              <p className="text-xs text-muted-foreground">
+                Atribua labels de texto aos eventos de movimento para curadoria do dataset de
+                treino.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <select
+                className="bg-surface-2 text-foreground text-sm rounded px-3 py-1.5 border border-border focus:outline-none focus:border-ring"
+                value={labelCamID}
+                onChange={(e) => {
+                  setLabelCamID(e.target.value)
+                  setLabelPage(1)
+                  setLabelEvents(null)
+                  clearSelection()
+                }}
+              >
+                <option value="">Selecionar câmera…</option>
+                {cameras.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="Buscar label…"
+                value={labelSearch}
+                onChange={(e) => {
+                  setLabelSearch(e.target.value)
+                  setLabelPage(1)
+                  clearSelection()
+                }}
+                className="bg-surface-2 text-foreground text-sm rounded px-3 py-1.5 border border-border focus:outline-none focus:border-ring w-40"
+              />
+              {!showDismissed && (
+                <label
+                  className={`flex items-center gap-1.5 text-xs cursor-pointer select-none ${labelSearch ? 'text-muted-foreground cursor-not-allowed' : 'text-muted-foreground'}`}
+                >
                   <input
                     type="checkbox"
-                    className="accent-amber-500"
-                    checked={showDismissed}
+                    className="accent-primary"
+                    checked={unlabeledOnly && !labelSearch}
+                    disabled={!!labelSearch}
                     onChange={(e) => {
-                      setShowDismissed(e.target.checked)
+                      setUnlabeledOnly(e.target.checked)
                       setLabelPage(1)
                       setLabelEvents(null)
                       clearSelection()
                     }}
                   />
-                  Ignorados
+                  Sem label
                 </label>
-              </div>
+              )}
+              <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="accent-amber-500"
+                  checked={showDismissed}
+                  onChange={(e) => {
+                    setShowDismissed(e.target.checked)
+                    setLabelPage(1)
+                    setLabelEvents(null)
+                    clearSelection()
+                  }}
+                />
+                Ignorados
+              </label>
             </div>
-
-            {labelCamID && (
-              <div>
-                {labelLoading && (
-                  <div className="p-6 text-center text-xs text-muted-foreground">Carregando…</div>
-                )}
-                {!labelLoading && labelEvents?.length === 0 && (
-                  <div className="p-6 text-center text-xs text-muted-foreground">
-                    {showDismissed
-                      ? 'Nenhum evento ignorado.'
-                      : unlabeledOnly
-                        ? 'Nenhum evento sem label.'
-                        : 'Nenhum evento encontrado.'}
-                  </div>
-                )}
-                {!labelLoading && (labelEvents?.length ?? 0) > 0 && (
-                  <>
-                    <div className="flex items-center gap-3 px-4 py-2 bg-surface/40 border-b border-border text-xs text-muted-foreground">
-                      <label className="flex items-center gap-1.5 text-muted-foreground">
-                        Por página:
-                        <select
-                          className="bg-surface-2 text-foreground text-xs rounded px-1.5 py-0.5 border border-border focus:outline-none focus:border-ring"
-                          value={labelLimit}
-                          onChange={(e) => {
-                            setLabelLimit(Number(e.target.value))
-                            setLabelPage(1)
-                            clearSelection()
-                          }}
-                        >
-                          {PAGE_SIZE_OPTIONS.map((n) => (
-                            <option key={n} value={n}>
-                              {n}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          className="accent-primary"
-                          checked={
-                            (labelEvents?.length ?? 0) > 0 &&
-                            labelEvents!.every((e) => selected.has(e.id))
-                          }
-                          onChange={(e) =>
-                            e.target.checked ? selectAllOnPage() : clearSelection()
-                          }
-                        />
-                        Selecionar todos da página
-                      </label>
-                      {selected.size > 0 && (
-                        <span className="text-primary">
-                          {selected.size} selecionado{selected.size !== 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </div>
-                    {selected.size > 0 && (
-                      <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-primary/10 border-b border-primary/30 sticky top-0 z-10">
-                        <input
-                          type="text"
-                          placeholder="label para aplicar em lote…"
-                          value={bulkLabel}
-                          onChange={(e) => setBulkLabel(e.target.value)}
-                          className="flex-1 min-w-[10rem] bg-surface-2 text-foreground text-sm rounded px-2 py-1 border border-border focus:outline-none focus:border-ring"
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={bulkBusy}
-                          onClick={() => setBulkConfirm({ action: 'label', label: bulkLabel })}
-                        >
-                          Aplicar label
-                        </Button>
-                        {!showDismissed && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={bulkBusy}
-                            onClick={() => setBulkConfirm({ action: 'dismiss' })}
-                            className="bg-amber-700 hover:bg-amber-600 text-white"
-                          >
-                            Ignorar
-                          </Button>
-                        )}
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={bulkBusy}
-                          onClick={clearSelection}
-                        >
-                          Limpar
-                        </Button>
-                        {bulkError && <span className="text-xs text-red-400">{bulkError}</span>}
-                      </div>
-                    )}
-                    <ul className="divide-y divide-border">
-                      {labelEvents!.map((ev) => {
-                        const state = labelSaveState[ev.id]
-                        const borderCls =
-                          state === 'saved'
-                            ? 'border-green-500'
-                            : state === 'error'
-                              ? 'border-red-500'
-                              : 'border-border'
-                        const isSelected = selected.has(ev.id)
-                        return (
-                          <li
-                            key={ev.id}
-                            className={`flex items-center gap-3 px-4 py-2 ${isSelected ? 'bg-primary/10' : ''}`}
-                          >
-                            <input
-                              type="checkbox"
-                              className="accent-primary flex-shrink-0"
-                              checked={isSelected}
-                              onChange={() => toggleSelect(ev.id)}
-                            />
-                            {ev.frame ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openZoomModal(
-                                    frameURL(
-                                      labelCamID,
-                                      ev.time,
-                                      ev.frame!,
-                                      eventsLoadedAtRef.current,
-                                    ),
-                                    ev.id,
-                                    labelInputs[ev.id] ?? ev.label ?? '',
-                                  )
-                                }
-                                className="flex-shrink-0 rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring hover:opacity-80 transition-opacity"
-                              >
-                                <img
-                                  src={frameURL(
-                                    labelCamID,
-                                    ev.time,
-                                    ev.frame,
-                                    eventsLoadedAtRef.current,
-                                  )}
-                                  className="w-40 h-24 object-cover bg-surface"
-                                  alt=""
-                                />
-                              </button>
-                            ) : (
-                              <div className="w-40 h-24 rounded bg-surface flex-shrink-0 flex items-center justify-center text-muted-foreground text-xs">
-                                sem frame
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-muted-foreground mb-1">
-                                {new Date(ev.time).toLocaleString()}
-                                <span className="ml-2 text-muted-foreground">
-                                  score: {ev.score.toFixed(2)}
-                                </span>
-                              </p>
-                              <input
-                                type="text"
-                                placeholder="label…"
-                                value={labelInputs[ev.id] ?? ''}
-                                onChange={(e) =>
-                                  setLabelInputs((s) => ({ ...s, [ev.id]: e.target.value }))
-                                }
-                                onBlur={() => handleLabelBlur(ev.id)}
-                                className={`w-full bg-surface-2 text-foreground text-sm rounded px-2 py-1 border ${borderCls} focus:outline-none focus:border-ring transition-colors`}
-                              />
-                            </div>
-                            {!showDismissed && (
-                              <button
-                                type="button"
-                                onClick={() => setRowDismissConfirm(ev)}
-                                title="Ignorar este evento"
-                                className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-amber-400 hover:bg-amber-500/10 rounded transition-colors"
-                              >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  className="w-4 h-4"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M6 6l12 12M6 18L18 6"
-                                  />
-                                </svg>
-                              </button>
-                            )}
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </>
-                )}
-
-                {labelTotal > labelLimit && (
-                  <div className="p-3 flex items-center justify-between border-t border-border">
-                    <span className="text-xs text-muted-foreground">
-                      {labelTotal} eventos · página {labelPage} de{' '}
-                      {Math.ceil(labelTotal / labelLimit)}
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setLabelPage((p) => Math.max(1, p - 1))
-                          setLabelEvents(null)
-                          clearSelection()
-                        }}
-                        disabled={labelPage === 1}
-                        className="px-3 py-1 text-xs bg-surface-2 hover:bg-accent text-foreground rounded disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        ← anterior
-                      </button>
-                      <button
-                        onClick={() => {
-                          setLabelPage((p) => p + 1)
-                          setLabelEvents(null)
-                          clearSelection()
-                        }}
-                        disabled={labelPage >= Math.ceil(labelTotal / labelLimit)}
-                        className="px-3 py-1 text-xs bg-surface-2 hover:bg-accent text-foreground rounded disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        próxima →
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
-        </div>
 
-        {zoomEvent && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-            onClick={() => closeZoomModal()}
-          >
-            <div className="flex flex-col gap-3 items-center" onClick={(e) => e.stopPropagation()}>
-              <div
-                className="relative rounded overflow-hidden shadow-2xl"
-                style={{ maxWidth: '90vw', maxHeight: '75vh' }}
-              >
-                <img
-                  src={zoomEvent.src}
-                  className="block max-w-full max-h-full"
-                  alt=""
-                  draggable={false}
-                />
-                <BboxCanvas
-                  box={annBox ?? (annSaveOk ? null : existingAnn)}
-                  onChange={handleAnnBoxChange}
-                  readonly={annSaveOk}
-                  className="absolute inset-0 w-full h-full select-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 w-full max-w-md">
-                {annSaveOk && <span className="text-xs text-emerald-400">Anotação salva</span>}
-                {!annSaveOk && annBox && annBox.w > 0.01 && annBox.h > 0.01 && (
-                  <>
-                    <input
-                      type="text"
-                      placeholder="label da região…"
-                      value={annLabel}
-                      onChange={(e) => setAnnLabel(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && saveAnnotation()}
-                      autoFocus
-                      className="flex-1 bg-surface-2 text-foreground text-sm rounded px-3 py-1.5 border border-border focus:outline-none focus:border-emerald-500"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={saveAnnotation}
-                      disabled={annSaving}
-                      className="bg-emerald-700 hover:bg-emerald-600 text-white"
-                    >
-                      {annSaving ? 'Salvando...' : 'Salvar'}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setAnnBox(null)}>
-                      Cancelar
-                    </Button>
-                  </>
-                )}
-                {!annSaveOk && !annBox && existingAnn && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-2">
-                    {existingAnnLabel ? (
-                      <>
-                        <span className="font-medium text-foreground">{existingAnnLabel}</span> ·
-                        Arraste para substituir
-                      </>
-                    ) : (
-                      'Região salva · Arraste para substituir'
+          {labelCamID && (
+            <div>
+              {labelLoading && (
+                <div className="p-6 text-center text-xs text-muted-foreground">Carregando…</div>
+              )}
+              {!labelLoading && labelEvents?.length === 0 && (
+                <div className="p-6 text-center text-xs text-muted-foreground">
+                  {showDismissed
+                    ? 'Nenhum evento ignorado.'
+                    : unlabeledOnly
+                      ? 'Nenhum evento sem label.'
+                      : 'Nenhum evento encontrado.'}
+                </div>
+              )}
+              {!labelLoading && (labelEvents?.length ?? 0) > 0 && (
+                <>
+                  <div className="flex items-center gap-3 px-4 py-2 bg-surface/40 border-b border-border text-xs text-muted-foreground">
+                    <label className="flex items-center gap-1.5 text-muted-foreground">
+                      Por página:
+                      <select
+                        className="bg-surface-2 text-foreground text-xs rounded px-1.5 py-0.5 border border-border focus:outline-none focus:border-ring"
+                        value={labelLimit}
+                        onChange={(e) => {
+                          setLabelLimit(Number(e.target.value))
+                          setLabelPage(1)
+                          clearSelection()
+                        }}
+                      >
+                        {PAGE_SIZE_OPTIONS.map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="accent-primary"
+                        checked={
+                          (labelEvents?.length ?? 0) > 0 &&
+                          labelEvents!.every((e) => selected.has(e.id))
+                        }
+                        onChange={(e) => (e.target.checked ? selectAllOnPage() : clearSelection())}
+                      />
+                      Selecionar todos da página
+                    </label>
+                    {selected.size > 0 && (
+                      <span className="text-primary">
+                        {selected.size} selecionado{selected.size !== 1 ? 's' : ''}
+                      </span>
                     )}
-                    {existingAnnId && (
+                  </div>
+                  {selected.size > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-primary/10 border-b border-primary/30 sticky top-0 z-10">
+                      <input
+                        type="text"
+                        placeholder="label para aplicar em lote…"
+                        value={bulkLabel}
+                        onChange={(e) => setBulkLabel(e.target.value)}
+                        className="flex-1 min-w-[10rem] bg-surface-2 text-foreground text-sm rounded px-2 py-1 border border-border focus:outline-none focus:border-ring"
+                      />
                       <Button
+                        type="button"
+                        size="sm"
+                        disabled={bulkBusy}
+                        onClick={() => setBulkConfirm({ action: 'label', label: bulkLabel })}
+                      >
+                        Aplicar label
+                      </Button>
+                      {!showDismissed && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={bulkBusy}
+                          onClick={() => setBulkConfirm({ action: 'dismiss' })}
+                          className="bg-amber-700 hover:bg-amber-600 text-white"
+                        >
+                          Ignorar
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
                         size="sm"
                         variant="outline"
-                        onClick={deleteAnnotation}
-                        className="h-auto py-0.5 text-destructive hover:text-destructive"
+                        disabled={bulkBusy}
+                        onClick={clearSelection}
                       >
-                        Excluir anotação
+                        Limpar
                       </Button>
-                    )}
-                  </span>
-                )}
-                {!annSaveOk && !annBox && !existingAnn && (
+                      {bulkError && <span className="text-xs text-red-400">{bulkError}</span>}
+                    </div>
+                  )}
+                  <ul className="divide-y divide-border">
+                    {labelEvents!.map((ev) => {
+                      const state = labelSaveState[ev.id]
+                      const borderCls =
+                        state === 'saved'
+                          ? 'border-green-500'
+                          : state === 'error'
+                            ? 'border-red-500'
+                            : 'border-border'
+                      const isSelected = selected.has(ev.id)
+                      return (
+                        <li
+                          key={ev.id}
+                          className={`flex items-center gap-3 px-4 py-2 ${isSelected ? 'bg-primary/10' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="accent-primary flex-shrink-0"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(ev.id)}
+                          />
+                          {ev.frame ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openZoomModal(
+                                  frameURL(
+                                    labelCamID,
+                                    ev.time,
+                                    ev.frame!,
+                                    eventsLoadedAtRef.current,
+                                  ),
+                                  ev.id,
+                                  labelInputs[ev.id] ?? ev.label ?? '',
+                                )
+                              }
+                              className="flex-shrink-0 rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring hover:opacity-80 transition-opacity"
+                            >
+                              <img
+                                src={frameURL(
+                                  labelCamID,
+                                  ev.time,
+                                  ev.frame,
+                                  eventsLoadedAtRef.current,
+                                )}
+                                className="w-40 h-24 object-cover bg-surface"
+                                alt=""
+                              />
+                            </button>
+                          ) : (
+                            <div className="w-40 h-24 rounded bg-surface flex-shrink-0 flex items-center justify-center text-muted-foreground text-xs">
+                              sem frame
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-muted-foreground mb-1">
+                              {new Date(ev.time).toLocaleString()}
+                              <span className="ml-2 text-muted-foreground">
+                                score: {ev.score.toFixed(2)}
+                              </span>
+                            </p>
+                            <input
+                              type="text"
+                              placeholder="label…"
+                              value={labelInputs[ev.id] ?? ''}
+                              onChange={(e) =>
+                                setLabelInputs((s) => ({ ...s, [ev.id]: e.target.value }))
+                              }
+                              onBlur={() => handleLabelBlur(ev.id)}
+                              className={`w-full bg-surface-2 text-foreground text-sm rounded px-2 py-1 border ${borderCls} focus:outline-none focus:border-ring transition-colors`}
+                            />
+                          </div>
+                          {!showDismissed && (
+                            <button
+                              type="button"
+                              onClick={() => setRowDismissConfirm(ev)}
+                              title="Ignorar este evento"
+                              className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-amber-400 hover:bg-amber-500/10 rounded transition-colors"
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                className="w-4 h-4"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M6 6l12 12M6 18L18 6"
+                                />
+                              </svg>
+                            </button>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </>
+              )}
+
+              {labelTotal > labelLimit && (
+                <div className="p-3 flex items-center justify-between border-t border-border">
                   <span className="text-xs text-muted-foreground">
-                    Arraste para marcar · mova · redimensione · rotacione
+                    {labelTotal} eventos · página {labelPage} de{' '}
+                    {Math.ceil(labelTotal / labelLimit)}
                   </span>
-                )}
-                <button
-                  onClick={() => closeZoomModal()}
-                  className="ml-auto px-3 py-1.5 text-sm bg-surface-2 hover:bg-accent text-foreground rounded"
-                >
-                  Fechar
-                </button>
-              </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setLabelPage((p) => Math.max(1, p - 1))
+                        setLabelEvents(null)
+                        clearSelection()
+                      }}
+                      disabled={labelPage === 1}
+                      className="px-3 py-1 text-xs bg-surface-2 hover:bg-accent text-foreground rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      ← anterior
+                    </button>
+                    <button
+                      onClick={() => {
+                        setLabelPage((p) => p + 1)
+                        setLabelEvents(null)
+                        clearSelection()
+                      }}
+                      disabled={labelPage >= Math.ceil(labelTotal / labelLimit)}
+                      className="px-3 py-1 text-xs bg-surface-2 hover:bg-accent text-foreground rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      próxima →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {zoomEvent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => closeZoomModal()}
+        >
+          <div className="flex flex-col gap-3 items-center" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="relative rounded overflow-hidden shadow-2xl"
+              style={{ maxWidth: '90vw', maxHeight: '75vh' }}
+            >
+              <img
+                src={zoomEvent.src}
+                className="block max-w-full max-h-full"
+                alt=""
+                draggable={false}
+              />
+              <BboxCanvas
+                box={annBox ?? (annSaveOk ? null : existingAnn)}
+                onChange={handleAnnBoxChange}
+                readonly={annSaveOk}
+                className="absolute inset-0 w-full h-full select-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full max-w-md">
+              {annSaveOk && <span className="text-xs text-emerald-400">Anotação salva</span>}
+              {!annSaveOk && annBox && annBox.w > 0.01 && annBox.h > 0.01 && (
+                <>
+                  <input
+                    type="text"
+                    placeholder="label da região…"
+                    value={annLabel}
+                    onChange={(e) => setAnnLabel(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && saveAnnotation()}
+                    autoFocus
+                    className="flex-1 bg-surface-2 text-foreground text-sm rounded px-3 py-1.5 border border-border focus:outline-none focus:border-emerald-500"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={saveAnnotation}
+                    disabled={annSaving}
+                    className="bg-emerald-700 hover:bg-emerald-600 text-white"
+                  >
+                    {annSaving ? 'Salvando...' : 'Salvar'}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setAnnBox(null)}>
+                    Cancelar
+                  </Button>
+                </>
+              )}
+              {!annSaveOk && !annBox && existingAnn && (
+                <span className="text-xs text-muted-foreground flex items-center gap-2">
+                  {existingAnnLabel ? (
+                    <>
+                      <span className="font-medium text-foreground">{existingAnnLabel}</span> ·
+                      Arraste para substituir
+                    </>
+                  ) : (
+                    'Região salva · Arraste para substituir'
+                  )}
+                  {existingAnnId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={deleteAnnotation}
+                      className="h-auto py-0.5 text-destructive hover:text-destructive"
+                    >
+                      Excluir anotação
+                    </Button>
+                  )}
+                </span>
+              )}
+              {!annSaveOk && !annBox && !existingAnn && (
+                <span className="text-xs text-muted-foreground">
+                  Arraste para marcar · mova · redimensione · rotacione
+                </span>
+              )}
+              <button
+                onClick={() => closeZoomModal()}
+                className="ml-auto px-3 py-1.5 text-sm bg-surface-2 hover:bg-accent text-foreground rounded"
+              >
+                Fechar
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <ConfirmDialog
-          open={bulkConfirm?.action === 'dismiss'}
-          title="Ignorar eventos"
-          message={`Ignorar ${selected.size} evento${selected.size !== 1 ? 's' : ''}? Eles não aparecerão mais na lista de rotulagem.`}
-          confirmLabel={bulkBusy ? 'Ignorando…' : 'Ignorar'}
-          onConfirm={executeBulkDismiss}
-          onCancel={() => {
-            if (!bulkBusy) setBulkConfirm(null)
-          }}
-        />
-        <ConfirmDialog
-          open={!!rowDismissConfirm}
-          title="Ignorar evento"
-          message={
-            rowDismissConfirm
-              ? `Ignorar o evento de ${new Date(rowDismissConfirm.time).toLocaleString()}? Ele não aparecerá mais na lista de rotulagem.`
-              : ''
-          }
-          confirmLabel={rowDismissBusy ? 'Ignorando…' : 'Ignorar'}
-          onConfirm={executeRowDismiss}
-          onCancel={() => {
-            if (!rowDismissBusy) setRowDismissConfirm(null)
-          }}
-        />
-        <ConfirmDialog
-          open={bulkConfirm?.action === 'label'}
-          title={bulkLabel ? 'Aplicar label' : 'Remover label'}
-          message={
-            bulkLabel
-              ? `Aplicar label "${bulkLabel}" em ${selected.size} evento${selected.size !== 1 ? 's' : ''}?`
-              : `Remover label de ${selected.size} evento${selected.size !== 1 ? 's' : ''}?`
-          }
-          confirmLabel={bulkBusy ? 'Aplicando…' : 'Aplicar'}
-          onConfirm={executeBulkLabel}
-          onCancel={() => {
-            if (!bulkBusy) setBulkConfirm(null)
-          }}
-        />
-      </div>
-    </Layout>
+      <ConfirmDialog
+        open={bulkConfirm?.action === 'dismiss'}
+        title="Ignorar eventos"
+        message={`Ignorar ${selected.size} evento${selected.size !== 1 ? 's' : ''}? Eles não aparecerão mais na lista de rotulagem.`}
+        confirmLabel={bulkBusy ? 'Ignorando…' : 'Ignorar'}
+        onConfirm={executeBulkDismiss}
+        onCancel={() => {
+          if (!bulkBusy) setBulkConfirm(null)
+        }}
+      />
+      <ConfirmDialog
+        open={!!rowDismissConfirm}
+        title="Ignorar evento"
+        message={
+          rowDismissConfirm
+            ? `Ignorar o evento de ${new Date(rowDismissConfirm.time).toLocaleString()}? Ele não aparecerá mais na lista de rotulagem.`
+            : ''
+        }
+        confirmLabel={rowDismissBusy ? 'Ignorando…' : 'Ignorar'}
+        onConfirm={executeRowDismiss}
+        onCancel={() => {
+          if (!rowDismissBusy) setRowDismissConfirm(null)
+        }}
+      />
+      <ConfirmDialog
+        open={bulkConfirm?.action === 'label'}
+        title={bulkLabel ? 'Aplicar label' : 'Remover label'}
+        message={
+          bulkLabel
+            ? `Aplicar label "${bulkLabel}" em ${selected.size} evento${selected.size !== 1 ? 's' : ''}?`
+            : `Remover label de ${selected.size} evento${selected.size !== 1 ? 's' : ''}?`
+        }
+        confirmLabel={bulkBusy ? 'Aplicando…' : 'Aplicar'}
+        onConfirm={executeBulkLabel}
+        onCancel={() => {
+          if (!bulkBusy) setBulkConfirm(null)
+        }}
+      />
+    </SettingsLayout>
   )
 }
