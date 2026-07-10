@@ -335,7 +335,29 @@ func (s *Server) updateDailyPeak(cameraID string, ev motion.Event) {
 	}
 }
 
+// CORS liberado em /api/*: a autenticação é sempre bearer token explícito
+// (header ou ?token=, nunca cookie), então não há superfície de CSRF — um
+// site de terceiros não consegue anexar automaticamente o token do usuário.
+// É o que já sustenta "qualquer app externo consegue fazer tudo que a
+// interface faz" (docs/api.md) — um cliente externo hospedado em outro
+// origin (ex.: um PWA) precisa desses headers pra sequer conseguir chamar
+// POST /api/auth/login. /stream/, /recordings/ e a SPA continuam
+// same-origin only.
+func setCORSHeaders(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/api/") {
+		setCORSHeaders(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+
 	lw := &loggingResponseWriter{ResponseWriter: w, code: http.StatusOK}
 	start := time.Now()
 	s.mux.ServeHTTP(lw, r)
