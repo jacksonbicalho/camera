@@ -42,6 +42,17 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/cameras
 curl "http://localhost:8080/api/cameras?token=$TOKEN"
 ```
 
+### CORS
+
+Todas as rotas `/api/*` respondem com `Access-Control-Allow-Origin: *` (e tratam o
+preflight `OPTIONS`), então um app hospedado em qualquer outro origin (ex.: um PWA
+servido à parte do servidor `os-camera`) consegue chamar `fetch`/`XHR` normalmente.
+Isso é seguro porque a autenticação é sempre bearer token explícito — nunca cookie
+— então não há superfície de CSRF: um site de terceiros não tem como anexar
+automaticamente o token do usuário numa requisição forjada. `/stream/`,
+`/recordings/` e a SPA não têm CORS (não precisam — são consumidos same-origin
+pelo frontend embutido).
+
 ### ⚠️ Tokens em apps externos
 
 **O segredo que assina o JWT é gerado aleatoriamente a cada boot do servidor.** Sem
