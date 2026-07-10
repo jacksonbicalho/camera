@@ -64,4 +64,23 @@ describe('SystemSettingsPage', () => {
       expect(document.body.textContent).toContain('America/Sao_Paulo')
     })
   })
+
+  it('mostra a tab-bar Sistema/Estatísticas com a aba Configuração ativa', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(settings) }),
+      ),
+    )
+    render(
+      <MemoryRouter initialEntries={['/settings/system']}>
+        <SystemSettingsPage />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      const configTab = document.querySelector('a[href="/settings/system"]')
+      expect(configTab?.getAttribute('aria-current')).toBe('page')
+      expect(document.querySelector('a[href="/settings/stats"]')).not.toBeNull()
+    })
+  })
 })
