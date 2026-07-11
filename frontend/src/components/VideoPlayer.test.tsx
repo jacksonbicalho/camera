@@ -462,6 +462,36 @@ describe('VideoPlayer', () => {
     expect(document.getElementById('p-zoom-reset')).toBeNull()
   })
 
+  it('rodapé de controles é sempre visível (não mais só no hover) e theme-aware — sem cor fixa/data-on-video', async () => {
+    render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+    await waitFor(() => {
+      expect(document.getElementById('p-controls')).not.toBeNull()
+    })
+    const controls = document.getElementById('p-controls')!
+    expect(controls.className).not.toMatch(/opacity-0|group-hover/)
+    expect(controls.hasAttribute('data-on-video')).toBe(false)
+    expect(controls.className).not.toMatch(/bg-black|text-white|from-black/)
+    // O container theme-aware do rodapé é o PlayerFooter — bg-surface/text-foreground.
+    const footer = controls.closest('[class*="bg-surface"]')
+    expect(footer).not.toBeNull()
+  })
+
+  it('footerExtra: conteúdo extra da página (ex.: reprodução contínua/calendário do HistoryPage) aparece dentro do rodapé', async () => {
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('a.mp4', 0, Infinity)]}
+        footerExtra={<div id="p-footer-extra-content">extra do rodapé</div>}
+      />,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('p-controls')).not.toBeNull()
+    })
+    const extra = document.getElementById('p-footer-extra-content')
+    expect(extra).not.toBeNull()
+    expect(document.getElementById('p-controls')?.contains(extra)).toBe(true)
+  })
+
   it('overlay: conteúdo extra da página aparece por cima, inclusive sem segmentos (aditivo)', () => {
     render(
       <VideoPlayer

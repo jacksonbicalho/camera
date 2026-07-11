@@ -341,6 +341,25 @@ describe('HistoryPage', () => {
     expect(document.getElementById('history-player-zoom-reset')).toBeNull()
   })
 
+  it('reprodução contínua e o calendário vivem no rodapé do player, não mais no card de gravações', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-player-controls')).not.toBeNull()
+    })
+    const footer = document.getElementById('history-player-controls')!
+    const toggle = document.getElementById('history-continuous-toggle')
+    const picker = document.querySelector('[data-testid="history-datepicker"]')
+    expect(toggle).not.toBeNull()
+    expect(picker).not.toBeNull()
+    expect(footer.contains(toggle)).toBe(true)
+    expect(footer.contains(picker)).toBe(true)
+    // #history-recordings continua existindo (cabeçalho "Gravações · N" + tira de cards),
+    // mas não é mais o pai do switch/calendário.
+    const recordings = document.getElementById('history-recordings')
+    expect(recordings?.contains(toggle)).toBe(false)
+    expect(recordings?.contains(picker)).toBe(false)
+  })
+
   it('clicar num card do filmstrip troca a gravação em reprodução', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {

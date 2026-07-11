@@ -95,12 +95,13 @@ describe('VideoBrowserPage — estrutura visual', () => {
     )
   })
 
-  it('marca a barra de controles com data-on-video (branca sobre o vídeo no modo claro)', async () => {
+  it('rodapé de controles é sempre visível e theme-aware (sem data-on-video/cor fixa — rodapé, não overlay sobre o vídeo)', async () => {
     renderAt('/recording/cam1/1')
     await waitFor(() => {
       const controls = document.getElementById('video-browser-controls')
       expect(controls).toBeTruthy()
-      expect(controls!.hasAttribute('data-on-video')).toBe(true)
+      expect(controls!.hasAttribute('data-on-video')).toBe(false)
+      expect(controls!.className).toContain('bg-surface')
     })
   })
 
