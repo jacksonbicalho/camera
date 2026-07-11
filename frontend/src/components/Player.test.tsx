@@ -201,6 +201,39 @@ describe('Player', () => {
     expect(document.getElementById('p3-loading')).toBeNull()
   })
 
+  it('footerTrailing: renderiza dentro do rodapé, como último elemento (depois de mudo/tela cheia)', async () => {
+    render(
+      <Player
+        id="p1"
+        src="/stream/cam1/index.m3u8"
+        title="Corredor de entrada"
+        controls
+        footerTrailing={<span id="p1-tabs">tabs</span>}
+      />,
+    )
+    await flush()
+    const footer = document.getElementById('p1-footer')!
+    const tabs = document.getElementById('p1-tabs')!
+    expect(footer.contains(tabs)).toBe(true)
+    const actions = Array.from(footer.querySelectorAll('button, #p1-tabs'))
+    expect(actions[actions.length - 1]).toBe(tabs)
+  })
+
+  it('footerTrailing: renderiza mesmo sem controls (sem mudo/tela cheia)', async () => {
+    render(
+      <Player
+        id="p1"
+        src="/stream/cam1/index.m3u8"
+        title="Corredor de entrada"
+        footerTrailing={<span id="p1-tabs">tabs</span>}
+      />,
+    )
+    await flush()
+    expect(document.getElementById('p1-footer')?.contains(document.getElementById('p1-tabs'))).toBe(
+      true,
+    )
+  })
+
   it('mostra loading até o <video> ter um frame (transport="hls") — manifest parsear não basta', async () => {
     render(<Player id="p4" src="/stream/cam1/index.m3u8" cameraId="cam1" transport="hls" />)
     await flush()

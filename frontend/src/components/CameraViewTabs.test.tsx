@@ -82,9 +82,9 @@ describe('CameraViewTabs', () => {
     )
   })
 
-  it('trilha com altura fixa (h-8, igual ao line-height do título) e rótulos que preenchem essa altura — evita o desalinhamento vertical com o título do cabeçalho', () => {
+  it('trilha com altura fixa (h-7, um pouco menor que os botões h-8 do rodapé do player) e rótulos que preenchem essa altura', () => {
     renderTabs('live')
-    expect(document.getElementById('camera-view-tabs')?.className).toContain('h-8')
+    expect(document.getElementById('camera-view-tabs')?.className).toContain('h-7')
     expect(document.getElementById('camera-tab-live')?.className).toContain('h-full')
     expect(document.getElementById('camera-tab-history')?.className).toContain('h-full')
   })

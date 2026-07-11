@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import PageHeader from './PageHeader'
-import CameraViewTabs from './CameraViewTabs'
 
 interface PlayerBadgesProps {
   idPrefix: string
@@ -28,22 +27,19 @@ function PlayerBadges({ idPrefix, recordingEnabled }: PlayerBadgesProps) {
 interface CameraStageHeaderProps {
   /** Prefixo estável dos ids (`live`, `history`, ...). */
   idPrefix: string
-  cameraId: string
   cameraName: string
-  active: 'live' | 'history'
   recordingEnabled?: boolean
   /** O player (Player/<video>) renderizado logo abaixo do cabeçalho. */
   children: ReactNode
 }
 
-// CameraStageHeader — cabeçalho (nome + badge + tabs Ao vivo/Histórico) compartilhado
-// entre LivePage e HistoryPage, seguido do player. Sem botão de tela cheia próprio —
-// o Player (ao vivo) e o <video controls> (Histórico) já têm o deles.
+// CameraStageHeader — cabeçalho (nome + badge REC) compartilhado entre LivePage e
+// HistoryPage, seguido do player. As tabs Ao vivo/Histórico (CameraViewTabs) vivem no
+// rodapé do player (footerTrailing/footerEnd), não mais aqui. Sem botão de tela cheia
+// próprio — o Player (ao vivo) e o VideoPlayer (Histórico) já têm o deles.
 export default function CameraStageHeader({
   idPrefix,
-  cameraId,
   cameraName,
-  active,
   recordingEnabled,
   children,
 }: CameraStageHeaderProps) {
@@ -58,7 +54,6 @@ export default function CameraStageHeader({
               <PlayerBadges idPrefix={idPrefix} recordingEnabled={recordingEnabled} />
             </span>
           }
-          actions={<CameraViewTabs cameraId={cameraId} active={active} />}
         />
       </div>
       {children}

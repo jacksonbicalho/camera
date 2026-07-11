@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
@@ -39,6 +40,7 @@ vi.mock('../components/Player', () => ({
     transport?: string
     title?: string
     controls?: boolean
+    footerTrailing?: ReactNode
   }) => (
     <div
       data-testid="hls"
@@ -47,7 +49,9 @@ vi.mock('../components/Player', () => ({
       data-transport={props.transport}
       data-title={props.title}
       data-controls={props.controls ? 'true' : 'false'}
-    />
+    >
+      <div data-testid="hls-footer-trailing">{props.footerTrailing}</div>
+    </div>
   ),
 }))
 
@@ -174,6 +178,18 @@ describe('LivePage', () => {
     const hls = screen.getByTestId('hls')
     expect(hls.getAttribute('data-title')).toBe('Entrada')
     expect(hls.getAttribute('data-controls')).toBe('true')
+  })
+
+  it('tabs Ao vivo/Histórico vão pro rodapé do Player (footerTrailing), não pro cabeçalho', async () => {
+    renderAt('/live/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
+    })
+    const trailing = screen.getByTestId('hls-footer-trailing')
+    expect(trailing.contains(document.getElementById('camera-view-tabs'))).toBe(true)
+    expect(
+      document.getElementById('live-header')?.contains(document.getElementById('camera-view-tabs')),
+    ).toBe(false)
   })
 
   it('câmera inexistente → bloco de erro #live-error, sem player', async () => {

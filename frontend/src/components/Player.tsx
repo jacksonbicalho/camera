@@ -25,6 +25,9 @@ interface PlayerProps {
   /** Overlay extra dentro da área do vídeo (ex.: badge "AO VIVO"), posicionável via
    * `position: absolute` — o div do vídeo já é o `relative` que ancora. */
   children?: ReactNode
+  /** Conteúdo extra no rodapé, depois dos botões de mudo/tela cheia — sempre o último à
+   * direita (ex.: CameraViewTabs do LivePage). Requer `title` (mesmo requisito do rodapé). */
+  footerTrailing?: ReactNode
 }
 
 // Player — player de live enxuto para as páginas novas (estrangulamento):
@@ -42,6 +45,7 @@ export default function Player({
   title,
   controls = false,
   children,
+  footerTrailing,
 }: PlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -337,6 +341,7 @@ export default function Player({
               </button>
             </>
           )}
+          {footerTrailing}
         </PlayerFooter>
       )}
     </div>

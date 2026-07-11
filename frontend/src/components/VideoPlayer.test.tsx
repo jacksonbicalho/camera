@@ -492,6 +492,78 @@ describe('VideoPlayer', () => {
     expect(document.getElementById('p-controls')?.contains(extra)).toBe(true)
   })
 
+  it('fullscreenPosition="afterSpeed": botão de tela cheia fica entre a velocidade e o footerExtra (uso do HistoryPage)', async () => {
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('a.mp4', 0, Infinity)]}
+        fullscreenPosition="afterSpeed"
+        footerExtra={<button id="p-continuous">continua</button>}
+      />,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('p-fullscreen')).not.toBeNull()
+    })
+    const speed = document.getElementById('p-speed')!
+    const fullscreen = document.getElementById('p-fullscreen')!
+    const continuous = document.getElementById('p-continuous')!
+    expect(
+      speed.compareDocumentPosition(fullscreen) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      fullscreen.compareDocumentPosition(continuous) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('fullscreenPosition padrão ("trailing"): botão de tela cheia continua no fim da linha (uso do VideoBrowserPage)', async () => {
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('a.mp4', 0, Infinity)]}
+        footerExtra={<button id="p-continuous">continua</button>}
+      />,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('p-fullscreen')).not.toBeNull()
+    })
+    const continuous = document.getElementById('p-continuous')!
+    const fullscreen = document.getElementById('p-fullscreen')!
+    expect(
+      continuous.compareDocumentPosition(fullscreen) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('footerEnd: renderiza dentro do rodapé, depois do botão de tela cheia (último elemento)', async () => {
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('a.mp4', 0, Infinity)]}
+        footerEnd={<span id="p-tabs">tabs</span>}
+      />,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('p-fullscreen')).not.toBeNull()
+    })
+    const controls = document.getElementById('p-controls')!
+    const fullscreen = document.getElementById('p-fullscreen')!
+    const tabs = document.getElementById('p-tabs')!
+    expect(controls.contains(tabs)).toBe(true)
+    const position = fullscreen.compareDocumentPosition(tabs)
+    expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('footerEnd: renderiza mesmo sem segmentos (junto do emptyMessage)', () => {
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[]}
+        emptyMessage="Sem gravações."
+        footerEnd={<span id="p-tabs">tabs</span>}
+      />,
+    )
+    expect(document.getElementById('p-tabs')).not.toBeNull()
+  })
+
   it('overlay: conteúdo extra da página aparece por cima, inclusive sem segmentos (aditivo)', () => {
     render(
       <VideoPlayer

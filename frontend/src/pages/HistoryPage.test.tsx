@@ -174,7 +174,7 @@ afterEach(() => {
 })
 
 describe('HistoryPage', () => {
-  it('header com nome da câmera, badge GRAVANDO (sem AO VIVO) e tabs (Ao vivo → /live)', async () => {
+  it('header com nome da câmera e badge GRAVANDO (sem AO VIVO, sem tabs — foram pro rodapé do player)', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
       expect(document.getElementById('history-header')?.textContent).toContain(
@@ -183,8 +183,42 @@ describe('HistoryPage', () => {
     })
     expect(document.getElementById('history-badge-recording')).not.toBeNull()
     expect(document.getElementById('history-badge-live')).toBeNull()
+    expect(
+      document
+        .getElementById('history-header')
+        ?.contains(document.getElementById('camera-view-tabs')),
+    ).toBe(false)
+  })
+
+  it('tabs Ao vivo/Histórico (Ao vivo → /live) ficam no rodapé do player, como último elemento (depois da tela cheia)', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-player-controls')).not.toBeNull()
+    })
     expect(document.getElementById('camera-tab-history')?.getAttribute('aria-current')).toBe('page')
     expect(document.getElementById('camera-tab-live')?.getAttribute('href')).toBe('/live/cam1')
+    const controls = document.getElementById('history-player-controls')!
+    const fullscreen = document.getElementById('history-player-fullscreen')!
+    const tabs = document.getElementById('camera-view-tabs')!
+    expect(controls.contains(tabs)).toBe(true)
+    const position = fullscreen.compareDocumentPosition(tabs)
+    expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('botão de tela cheia fica entre a velocidade e o switch de reprodução contínua', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-player-fullscreen')).not.toBeNull()
+    })
+    const speed = document.getElementById('history-player-speed')!
+    const fullscreen = document.getElementById('history-player-fullscreen')!
+    const continuous = document.getElementById('history-continuous-toggle')!
+    expect(
+      speed.compareDocumentPosition(fullscreen) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      fullscreen.compareDocumentPosition(continuous) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 
   it('conteúdo usa a largura padrão compartilhada (.page-content — mesma largura de Ao vivo/Reprodução)', async () => {

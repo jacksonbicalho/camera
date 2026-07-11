@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import CameraStageHeader from '../components/CameraStageHeader'
+import CameraViewTabs from '../components/CameraViewTabs'
 import DatePicker from '../components/DatePicker'
 import { Loader2, Play } from '../components/Icons'
 import VideoPlayer, { type VideoPlayerSegment } from '../components/VideoPlayer'
@@ -515,9 +516,7 @@ export default function HistoryPage() {
         {camera && (
           <CameraStageHeader
             idPrefix="history"
-            cameraId={camera.id}
             cameraName={camera.name}
-            active="history"
             recordingEnabled={camera.recording_enabled}
           >
             <VideoPlayer
@@ -528,6 +527,9 @@ export default function HistoryPage() {
               // contínuo), "N / M" não corresponde a nada que o usuário reconheça (não é
               // "parte 2 de 5 de UMA gravação", é "a 2ª de 5 gravações distintas na lista").
               segmentCounter={false}
+              // Tela cheia entre velocidade e reprodução contínua (não no fim da linha, como
+              // no VideoBrowserPage) — pedido do navigator, específico do Histórico.
+              fullscreenPosition="afterSpeed"
               emptyMessage="Sem gravações nesse dia."
               onLoadedData={() => setVideoLoading(false)}
               onError={() => {
@@ -588,6 +590,7 @@ export default function HistoryPage() {
                   openUp
                 />
               }
+              footerEnd={<CameraViewTabs cameraId={camera.id} active="history" />}
               overlay={
                 <>
                   {videoError ? (
