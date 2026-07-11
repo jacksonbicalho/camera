@@ -536,6 +536,58 @@ export default function HistoryPage() {
               }}
               onPlayingChange={setPlaying}
               onSegmentChange={handleSegmentChange}
+              footerExtra={
+                <>
+                  <button
+                    id="history-continuous-toggle"
+                    type="button"
+                    role="switch"
+                    onClick={toggleContinuous}
+                    disabled={recordings.length === 0}
+                    aria-checked={continuousRecordings != null}
+                    className="flex items-center gap-1.5 disabled:opacity-40"
+                  >
+                    <span
+                      className={`inline-flex h-5 w-14 shrink-0 items-center rounded-full border-2 transition-colors ${
+                        continuousRecordings != null
+                          ? 'justify-end border-primary'
+                          : 'justify-start border-faint'
+                      }`}
+                    >
+                      <span
+                        className={`-my-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 bg-background transition-colors ${
+                          continuousRecordings != null
+                            ? 'border-primary text-primary'
+                            : 'border-faint text-faint'
+                        }`}
+                      >
+                        <Play className="ml-0.5 h-3 w-3" />
+                      </span>
+                    </span>
+                    <span
+                      className={`whitespace-nowrap text-caption font-medium transition-colors ${
+                        continuousRecordings != null ? 'text-primary' : 'text-faint'
+                      }`}
+                    >
+                      Reprodução contínua
+                    </span>
+                  </button>
+                  {/* Divisor explícito (não `divide-x`) — o reset de borda do <button> zera
+                      `border-left-width` do utilitário `divide-x`, então ele não aparecia. */}
+                  <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
+                </>
+              }
+              footerTrailing={
+                <DatePicker
+                  id="history-date-picker"
+                  value={selectedDate ?? new Date()}
+                  onChange={setSelectedDate}
+                  disableFuture
+                  availableDays={availableDays}
+                  align="right"
+                  openUp
+                />
+              }
               overlay={
                 <>
                   {videoError ? (
@@ -576,57 +628,9 @@ export default function HistoryPage() {
         {camera && (
           <div id="history-recordings" className="rounded-lg border border-border p-2">
             <div className="mb-1.5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <p className="whitespace-nowrap text-caption font-medium uppercase tracking-wide text-muted">
-                  {dayTotal ? `Gravações · ${dayTotal}` : 'Gravações'}
-                </p>
-                {/* Divisor explícito (não `divide-x`) — o reset de borda do <button> zera
-                    `border-left-width` do utilitário `divide-x`, então ele não aparecia. */}
-                <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
-                <button
-                  id="history-continuous-toggle"
-                  type="button"
-                  role="switch"
-                  onClick={toggleContinuous}
-                  disabled={recordings.length === 0}
-                  aria-checked={continuousRecordings != null}
-                  className="flex items-center gap-1.5 disabled:opacity-40"
-                >
-                  <span
-                    className={`inline-flex h-5 w-14 shrink-0 items-center rounded-full border-2 transition-colors ${
-                      continuousRecordings != null
-                        ? 'justify-end border-primary'
-                        : 'justify-start border-faint'
-                    }`}
-                  >
-                    <span
-                      className={`-my-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 bg-background transition-colors ${
-                        continuousRecordings != null
-                          ? 'border-primary text-primary'
-                          : 'border-faint text-faint'
-                      }`}
-                    >
-                      <Play className="ml-0.5 h-3 w-3" />
-                    </span>
-                  </span>
-                  <span
-                    className={`whitespace-nowrap text-caption font-medium transition-colors ${
-                      continuousRecordings != null ? 'text-primary' : 'text-faint'
-                    }`}
-                  >
-                    Reprodução contínua
-                  </span>
-                </button>
-              </div>
-              <DatePicker
-                id="history-date-picker"
-                value={selectedDate ?? new Date()}
-                onChange={setSelectedDate}
-                disableFuture
-                availableDays={availableDays}
-                align="right"
-                openUp
-              />
+              <p className="whitespace-nowrap text-caption font-medium uppercase tracking-wide text-muted">
+                {dayTotal ? `Gravações · ${dayTotal}` : 'Gravações'}
+              </p>
             </div>
             {recordings.length > 0 && (
               <div

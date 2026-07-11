@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Play, Pause, Repeat, Maximize, VolumeX, Volume2, Gauge } from './Icons'
 import PlayerControlsOverlay from './PlayerControlsOverlay'
+import PlayerFooter from './PlayerFooter'
 import { usePlayerZoom } from '../hooks/usePlayerZoom'
 import {
   segmentDuration,
@@ -66,6 +67,15 @@ interface VideoPlayerProps {
   // Conteúdo extra sobreposto ao player (loading/erro/avisos específicos da página) —
   // renderizado por cima de tudo, sempre, independente do estado interno (aditivo).
   overlay?: ReactNode
+  // Conteúdo extra na MESMA linha de controles do rodapé, entre a velocidade e o tempo —
+  // extensão específica da página (ex.: switch de reprodução contínua do HistoryPage), sem
+  // o motor genérico precisar conhecer esse conceito. Mesmo espírito do `overlay`, mas
+  // dentro do rodapé em vez de sobreposto ao vídeo.
+  footerExtra?: ReactNode
+  // Conteúdo extra alinhado à direita da linha de controles, logo antes do botão de tela
+  // cheia (ex.: calendário do HistoryPage) — ponto de extensão irmão do `footerExtra`, só
+  // que ancorado no fim da linha em vez de no meio.
+  footerTrailing?: ReactNode
 }
 
 // VideoPlayer — motor de reprodução de N segmentos MP4 em sequência (double-buffering,
@@ -88,6 +98,8 @@ export default function VideoPlayer({
   onSegmentChange,
   segmentCounter = true,
   overlay,
+  footerExtra,
+  footerTrailing,
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const seekBarRef = useRef<HTMLDivElement>(null)
@@ -456,191 +468,213 @@ export default function VideoPlayer({
   const hasSegments = segments.length > 0
 
   return (
-    <div
-      id={idPrefix}
-      ref={bindContainer}
-      onPointerDown={zoomEnabled ? zoom.onPointerDown : undefined}
-      onPointerMove={zoomEnabled ? zoom.onPointerMove : undefined}
-      onPointerUp={zoomEnabled ? zoom.onPointerUp : undefined}
-      data-on-video
-      className={`group relative w-full overflow-hidden rounded-lg border border-border bg-black shadow-sm aspect-video${
-        zoomEnabled && zoom.isZoomed ? ' cursor-grab' : ''
-      }`}
-    >
-      {hasSegments ? (
-        <>
-          {[0, 1].map((i) => (
-            <video
-              key={i}
-              id={i === 0 ? `${idPrefix}-video` : `${idPrefix}-video-b`}
-              ref={(el) => {
-                elsRef.current[i] = el
-              }}
-              muted={muted}
-              playsInline
-              preload="auto"
-              // Transição sem piscada: os DOIS ficam pintados (opacity-1) e a troca é só
-              // por z-index — ver comentário original no VideoBrowserPage (removido daqui
-              // por brevidade, motivo documentado no cabeçalho do arquivo).
-              className={`absolute inset-0 h-full w-full ${
-                activeEl === i ? 'z-10' : 'z-0 pointer-events-none'
-              }`}
-              onClick={togglePlay}
-              onLoadedMetadata={() => onMeta(i)}
-              onLoadedData={() => {
-                if (i === activeRef.current) onLoadedData?.()
-              }}
-              onTimeUpdate={() => onTimeUpdate(i)}
-              onEnded={() => onEnded(i)}
-              onPlay={() => {
-                if (i === activeRef.current) setPlayingIntent(true)
-              }}
-              onPause={() => {
-                if (i === activeRef.current) setPlayingIntent(false)
-              }}
-              onError={() => {
-                if (i === activeRef.current) onError?.()
-              }}
-            />
-          ))}
+    <div className="flex h-full flex-col">
+      <div
+        id={idPrefix}
+        ref={bindContainer}
+        onPointerDown={zoomEnabled ? zoom.onPointerDown : undefined}
+        onPointerMove={zoomEnabled ? zoom.onPointerMove : undefined}
+        onPointerUp={zoomEnabled ? zoom.onPointerUp : undefined}
+        data-on-video
+        className={`group relative w-full overflow-hidden rounded-lg border border-border bg-black shadow-sm aspect-video${
+          zoomEnabled && zoom.isZoomed ? ' cursor-grab' : ''
+        }`}
+      >
+        {hasSegments ? (
+          <>
+            {[0, 1].map((i) => (
+              <video
+                key={i}
+                id={i === 0 ? `${idPrefix}-video` : `${idPrefix}-video-b`}
+                ref={(el) => {
+                  elsRef.current[i] = el
+                }}
+                muted={muted}
+                playsInline
+                preload="auto"
+                // Transição sem piscada: os DOIS ficam pintados (opacity-1) e a troca é só
+                // por z-index — ver comentário original no VideoBrowserPage (removido daqui
+                // por brevidade, motivo documentado no cabeçalho do arquivo).
+                className={`absolute inset-0 h-full w-full ${
+                  activeEl === i ? 'z-10' : 'z-0 pointer-events-none'
+                }`}
+                onClick={togglePlay}
+                onLoadedMetadata={() => onMeta(i)}
+                onLoadedData={() => {
+                  if (i === activeRef.current) onLoadedData?.()
+                }}
+                onTimeUpdate={() => onTimeUpdate(i)}
+                onEnded={() => onEnded(i)}
+                onPlay={() => {
+                  if (i === activeRef.current) setPlayingIntent(true)
+                }}
+                onPause={() => {
+                  if (i === activeRef.current) setPlayingIntent(false)
+                }}
+                onError={() => {
+                  if (i === activeRef.current) onError?.()
+                }}
+              />
+            ))}
 
-          {zoomEnabled && <PlayerControlsOverlay id={idPrefix} zoom={zoom} />}
+            {zoomEnabled && <PlayerControlsOverlay id={idPrefix} zoom={zoom} />}
+          </>
+        ) : (
+          emptyMessage && (
+            <div className="flex h-full items-center justify-center text-body text-muted">
+              {emptyMessage}
+            </div>
+          )
+        )}
+        {overlay}
+      </div>
 
-          {/* Rodapé de controles ÚNICO — persiste através da troca de segmentos. */}
-          <div
-            id={`${idPrefix}-controls`}
-            data-on-video
-            className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-1 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-6 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
-          >
-            <div
-              id={`${idPrefix}-seek`}
-              ref={seekBarRef}
-              onPointerDown={onSeekDown}
-              onPointerMove={onSeekMove}
-              onPointerUp={onSeekUp}
-              className="relative flex h-3 cursor-pointer items-center"
-              role="slider"
-              aria-label="Progresso da reprodução"
-              aria-valuemin={0}
-              aria-valuemax={Math.round(total)}
-              aria-valuenow={Math.round(pos)}
-            >
-              <div className="h-1 w-full rounded-full bg-white/25">
+      {(hasSegments || footerExtra || footerTrailing) && (
+        // Rodapé de controles ÚNICO — persiste através da troca de segmentos. Sempre
+        // visível (não mais um overlay hover sobre o vídeo) e theme-aware, mesmo tratamento
+        // do rodapé do Ao vivo (PlayerFooter) — nada de cor fixa tipo bg-black/text-white.
+        // `footerExtra` (ex.: reprodução contínua do HistoryPage) renderiza mesmo sem
+        // segmentos — o controle em si (ex.: toggle desabilitado) ainda deve aparecer.
+        <PlayerFooter id={`${idPrefix}-controls`}>
+          {hasSegments && (
+            <div className="flex flex-col gap-1 px-3 py-2">
+              <div
+                id={`${idPrefix}-seek`}
+                ref={seekBarRef}
+                onPointerDown={onSeekDown}
+                onPointerMove={onSeekMove}
+                onPointerUp={onSeekUp}
+                className="relative flex h-3 cursor-pointer items-center"
+                role="slider"
+                aria-label="Progresso da reprodução"
+                aria-valuemin={0}
+                aria-valuemax={Math.round(total)}
+                aria-valuenow={Math.round(pos)}
+              >
+                <div className="h-1 w-full rounded-full bg-foreground/15">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${total > 0 ? (pos / total) * 100 : 0}%` }}
+                  />
+                </div>
                 <div
-                  className="h-full rounded-full bg-primary"
-                  style={{ width: `${total > 0 ? (pos / total) * 100 : 0}%` }}
+                  className="absolute h-3 w-3 -translate-x-1/2 rounded-full bg-primary shadow"
+                  style={{ left: `${total > 0 ? (pos / total) * 100 : 0}%` }}
                 />
               </div>
-              <div
-                className="absolute h-3 w-3 -translate-x-1/2 rounded-full bg-primary shadow"
-                style={{ left: `${total > 0 ? (pos / total) * 100 : 0}%` }}
-              />
-            </div>
-            <div className="flex items-center gap-3 text-white">
-              <button
-                id={`${idPrefix}-playpause`}
-                type="button"
-                onClick={togglePlay}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
-                aria-label={playing ? 'Pausar' : 'Reproduzir'}
-              >
-                {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              </button>
-              {repeat && (
+              <div className="flex items-center gap-3">
                 <button
-                  id={`${idPrefix}-repeat`}
+                  id={`${idPrefix}-playpause`}
                   type="button"
-                  onClick={toggleRepeat}
-                  className={`flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15 ${
-                    repeatOn ? 'text-primary' : ''
-                  }`}
-                  aria-label="Repetir"
-                  aria-pressed={repeatOn}
+                  onClick={togglePlay}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  aria-label={playing ? 'Pausar' : 'Reproduzir'}
                 >
-                  <Repeat className="h-4 w-4" />
+                  {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                 </button>
-              )}
-              <button
-                id={`${idPrefix}-mute`}
-                type="button"
-                onClick={toggleMute}
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15"
-                aria-label={muted ? 'Ativar som' : 'Mudo'}
-              >
-                {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              </button>
-              <div ref={speedMenuRef} className="relative">
-                <button
-                  id={`${idPrefix}-speed`}
-                  type="button"
-                  onClick={() => setSpeedMenuOpen((v) => !v)}
-                  className={`flex h-8 min-w-8 items-center justify-center gap-0.5 rounded-full px-1.5 hover:bg-white/15 ${
-                    playbackRate !== 1 ? 'text-primary' : ''
-                  }`}
-                  aria-haspopup="listbox"
-                  aria-expanded={speedMenuOpen}
-                  aria-label="Velocidade de reprodução"
-                >
-                  <Gauge className="h-4 w-4" />
-                  <span className="text-caption tabular-nums">{playbackRate}x</span>
-                </button>
-                {speedMenuOpen && (
-                  <div
-                    id={`${idPrefix}-speed-menu`}
-                    role="listbox"
-                    aria-label="Velocidade de reprodução"
-                    className="absolute bottom-full left-1/2 z-30 mb-2 flex -translate-x-1/2 flex-col overflow-hidden rounded-lg border border-white/15 bg-black/90 py-1 shadow-lg"
+                {repeat && (
+                  <button
+                    id={`${idPrefix}-repeat`}
+                    type="button"
+                    onClick={toggleRepeat}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-2 ${
+                      repeatOn ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    aria-label="Repetir"
+                    aria-pressed={repeatOn}
                   >
-                    {SUPPORTED_PLAYBACK_RATES.map((rate) => (
-                      <button
-                        key={rate}
-                        id={`${idPrefix}-speed-${rate}`}
-                        type="button"
-                        role="option"
-                        aria-selected={rate === playbackRate}
-                        onClick={() => selectPlaybackRate(rate)}
-                        className={`px-4 py-1 text-left text-caption tabular-nums hover:bg-white/15 ${
-                          rate === playbackRate ? 'text-primary' : 'text-white'
-                        }`}
-                      >
-                        {rate}x
-                      </button>
-                    ))}
-                  </div>
+                    <Repeat className="h-4 w-4" />
+                  </button>
                 )}
-              </div>
-              <span className="text-caption tabular-nums text-white/80">
-                {formatClock(pos)} / {formatClock(total)}
-              </span>
-              {segmentCounter && segments.length > 1 && (
-                <span
-                  id={`${idPrefix}-segment`}
-                  aria-label="Segmento atual"
-                  className="text-caption tabular-nums text-white/60"
+                <button
+                  id={`${idPrefix}-mute`}
+                  type="button"
+                  onClick={toggleMute}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  aria-label={muted ? 'Ativar som' : 'Mudo'}
                 >
-                  {curSeg + 1} / {segments.length}
+                  {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                </button>
+                <div ref={speedMenuRef} className="relative">
+                  <button
+                    id={`${idPrefix}-speed`}
+                    type="button"
+                    onClick={() => setSpeedMenuOpen((v) => !v)}
+                    className={`flex h-8 min-w-8 items-center justify-center gap-0.5 rounded-full px-1.5 hover:bg-surface-2 ${
+                      playbackRate !== 1
+                        ? 'text-primary'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    aria-haspopup="listbox"
+                    aria-expanded={speedMenuOpen}
+                    aria-label="Velocidade de reprodução"
+                  >
+                    <Gauge className="h-4 w-4" />
+                    <span className="text-caption tabular-nums">{playbackRate}x</span>
+                  </button>
+                  {speedMenuOpen && (
+                    <div
+                      id={`${idPrefix}-speed-menu`}
+                      role="listbox"
+                      aria-label="Velocidade de reprodução"
+                      className="absolute bottom-full left-1/2 z-30 mb-2 flex -translate-x-1/2 flex-col overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-lg"
+                    >
+                      {SUPPORTED_PLAYBACK_RATES.map((rate) => (
+                        <button
+                          key={rate}
+                          id={`${idPrefix}-speed-${rate}`}
+                          type="button"
+                          role="option"
+                          aria-selected={rate === playbackRate}
+                          onClick={() => selectPlaybackRate(rate)}
+                          className={`px-4 py-1 text-left text-caption tabular-nums hover:bg-surface-2 ${
+                            rate === playbackRate ? 'text-primary' : 'text-foreground'
+                          }`}
+                        >
+                          {rate}x
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {footerExtra}
+                <span className="text-caption tabular-nums text-muted-foreground">
+                  {formatClock(pos)} / {formatClock(total)}
                 </span>
-              )}
-              <button
-                id={`${idPrefix}-fullscreen`}
-                type="button"
-                onClick={toggleFullscreen}
-                className="ml-auto flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15"
-                aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-              >
-                <Maximize className="h-4 w-4" />
-              </button>
+                {segmentCounter && segments.length > 1 && (
+                  <span
+                    id={`${idPrefix}-segment`}
+                    aria-label="Segmento atual"
+                    className="text-caption tabular-nums text-faint"
+                  >
+                    {curSeg + 1} / {segments.length}
+                  </span>
+                )}
+                {footerTrailing && (
+                  <div className="ml-auto flex items-center gap-3">{footerTrailing}</div>
+                )}
+                <button
+                  id={`${idPrefix}-fullscreen`}
+                  type="button"
+                  onClick={toggleFullscreen}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground${footerTrailing ? '' : ' ml-auto'}`}
+                  aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+                >
+                  <Maximize className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-          </div>
-        </>
-      ) : (
-        emptyMessage && (
-          <div className="flex h-full items-center justify-center text-body text-muted">
-            {emptyMessage}
-          </div>
-        )
+          )}
+          {!hasSegments && (footerExtra || footerTrailing) && (
+            <div className="flex items-center gap-3 px-3 py-2">
+              {footerExtra}
+              {footerTrailing && (
+                <div className="ml-auto flex items-center gap-3">{footerTrailing}</div>
+              )}
+            </div>
+          )}
+        </PlayerFooter>
       )}
-      {overlay}
     </div>
   )
 }
