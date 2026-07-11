@@ -1,4 +1,4 @@
-const CACHE_NAME = 'os-camera-pwa-v1'
+const CACHE_NAME = 'os-camera-pwa-v3'
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,6 +6,8 @@ const APP_SHELL = [
   './css/app.css',
   './js/api.js',
   './js/app.js',
+  './js/calendar.js',
+  './js/format.js',
   './icons/icon.svg',
 ]
 
