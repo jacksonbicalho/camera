@@ -33,12 +33,20 @@ vi.mock('../contexts/NotificationContext', () => ({
 
 // Player faz negociação WebRTC/HLS no mount — stub para inspecionar as props.
 vi.mock('../components/Player', () => ({
-  default: (props: { src?: string; cameraId?: string; transport?: string }) => (
+  default: (props: {
+    src?: string
+    cameraId?: string
+    transport?: string
+    title?: string
+    controls?: boolean
+  }) => (
     <div
       data-testid="hls"
       data-src={props.src}
       data-camera={props.cameraId}
       data-transport={props.transport}
+      data-title={props.title}
+      data-controls={props.controls ? 'true' : 'false'}
     />
   ),
 }))
@@ -150,12 +158,22 @@ describe('LivePage', () => {
     expect(recording.querySelector('span')?.className).toContain('animate-pulse')
   })
 
-  it('sem botão de tela cheia no cabeçalho — o Player tem o próprio (canto)', async () => {
+  it('sem botão de tela cheia no cabeçalho — fica no rodapé do próprio Player', async () => {
     renderAt('/live/cam1')
     await waitFor(() => {
       expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
     })
     expect(document.getElementById('live-fullscreen-toggle')).toBeNull()
+  })
+
+  it('passa o nome da câmera (title) e controls para o Player — rodapé com mudo/tela cheia', async () => {
+    renderAt('/live/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
+    })
+    const hls = screen.getByTestId('hls')
+    expect(hls.getAttribute('data-title')).toBe('Entrada')
+    expect(hls.getAttribute('data-controls')).toBe('true')
   })
 
   it('câmera inexistente → bloco de erro #live-error, sem player', async () => {

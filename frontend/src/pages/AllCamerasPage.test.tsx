@@ -34,12 +34,26 @@ vi.mock('../contexts/NotificationContext', () => ({
 }))
 
 vi.mock('../components/Player', () => ({
-  default: (props: { src?: string; cameraId?: string; transport?: string }) => (
+  default: (props: {
+    id?: string
+    src?: string
+    cameraId?: string
+    transport?: string
+    title?: string
+    controls?: boolean
+    children?: import('react').ReactNode
+  }) => (
     <div
       data-testid={`player-${props.cameraId}`}
+      data-id={props.id}
       data-src={props.src}
       data-transport={props.transport}
-    />
+      data-title={props.title}
+      data-controls={props.controls ? 'true' : 'false'}
+    >
+      {props.title}
+      {props.children}
+    </div>
   ),
 }))
 
@@ -80,7 +94,7 @@ describe('AllCamerasPage — grid de câmeras ao vivo', () => {
     { id: 'cam2', name: 'Quintal', live_transport: 'hls' },
   ]
 
-  it('usa a largura padrão compartilhada (.page-content) e o título via PageHeader ("Todas as câmeras")', async () => {
+  it('título via PageHeader ("Todas as câmeras")', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })),
@@ -89,8 +103,42 @@ describe('AllCamerasPage — grid de câmeras ao vivo', () => {
     await waitFor(() => {
       expect(document.getElementById('all-cameras-content')).not.toBeNull()
     })
-    expect(document.getElementById('all-cameras-content')?.className).toContain('page-content')
     expect(document.getElementById('all-cameras-header')?.textContent).toContain('Todas as câmeras')
+  })
+
+  it('conteúdo usa a largura toda (sem o cap de .page-content) — grid de câmeras aproveita telas largas', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })),
+    )
+    renderAt('/')
+    await waitFor(() => {
+      expect(document.getElementById('all-cameras-content')).not.toBeNull()
+    })
+    const content = document.getElementById('all-cameras-content')!
+    expect(content.className).not.toContain('page-content')
+    expect(content.className).not.toMatch(/max-w-/)
+    expect(content.className).toContain('w-full')
+  })
+
+  it('grid preenche a altura disponível via flex (não um min-height fixo em vh — fica muito vazio em telas altas)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })),
+    )
+    renderAt('/')
+    await waitFor(() => {
+      expect(document.getElementById('all-cameras-grid')).not.toBeNull()
+    })
+    const content = document.getElementById('all-cameras-content')!
+    const grid = document.getElementById('all-cameras-grid')!
+    expect(content.className).toContain('flex')
+    expect(content.className).toContain('flex-1')
+    expect(content.className).toContain('min-h-0')
+    expect(content.className).toContain('flex-col')
+    expect(grid.className).toContain('flex-1')
+    expect(grid.className).toContain('min-h-0')
+    expect(grid.className).not.toMatch(/min-h-\[/)
   })
 
   it.each([
@@ -145,6 +193,45 @@ describe('AllCamerasPage — grid de câmeras ao vivo', () => {
     await waitFor(() => {
       expect(document.getElementById('test-location')!.textContent).toBe('/live/cam2')
     })
+  })
+
+  it('card não é mais um <button> (não pode aninhar os botões do rodapé) — usa role="button" + teclado', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })),
+    )
+    renderAt('/')
+    await waitFor(() => {
+      expect(document.getElementById('all-cameras-card-cam2')).not.toBeNull()
+    })
+    const card = document.getElementById('all-cameras-card-cam2')!
+    expect(card.tagName).not.toBe('BUTTON')
+    expect(card.getAttribute('role')).toBe('button')
+    expect(card.getAttribute('tabIndex')).toBe('0')
+
+    fireEvent.keyDown(card, { key: 'Enter' })
+    await waitFor(() => {
+      expect(document.getElementById('test-location')!.textContent).toBe('/live/cam2')
+    })
+  })
+
+  it('cada card passa id único, title (nome) e controls ao Player, com o badge "AO VIVO" como children', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })),
+    )
+    renderAt('/')
+    await waitFor(() => {
+      expect(document.getElementById('all-cameras-card-cam1')).not.toBeNull()
+    })
+    const player1 = document.querySelector('[data-testid="player-cam1"]')!
+    const player2 = document.querySelector('[data-testid="player-cam2"]')!
+    expect(player1.getAttribute('data-id')).toBe('player-cam1')
+    expect(player2.getAttribute('data-id')).toBe('player-cam2')
+    expect(player1.getAttribute('data-id')).not.toBe(player2.getAttribute('data-id'))
+    expect(player1.getAttribute('data-title')).toBe('Corredor')
+    expect(player1.getAttribute('data-controls')).toBe('true')
+    expect(player1.textContent).toContain('AO VIVO')
   })
 
   it('lista vazia + admin redireciona para /settings/cameras/new', async () => {

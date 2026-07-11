@@ -48,8 +48,12 @@ export default function AllCamerasPage() {
   }, [navigate])
 
   return (
-    <Layout id="all-cameras-page" footerId="all-cameras-footer" contentClassName="p-6">
-      <div id="all-cameras-content" className="page-content space-y-4">
+    <Layout
+      id="all-cameras-page"
+      footerId="all-cameras-footer"
+      contentClassName="flex flex-col p-6"
+    >
+      <div id="all-cameras-content" className="flex w-full flex-1 min-h-0 flex-col space-y-4">
         <PageHeader id="all-cameras-header" title="Todas as câmeras" />
         {cameras.length === 0 ? (
           <p id="all-cameras-empty" className="text-faint text-body">
@@ -58,36 +62,40 @@ export default function AllCamerasPage() {
         ) : (
           <div
             id="all-cameras-grid"
-            className="grid min-h-[70vh] auto-rows-fr gap-4"
+            className="grid flex-1 min-h-0 auto-rows-fr gap-4"
             style={{
               gridTemplateColumns: `repeat(${gridColumns(cameras.length)}, minmax(0, 1fr))`,
             }}
           >
             {cameras.map((cam) => (
-              <button
+              <div
                 key={cam.id}
                 id={`all-cameras-card-${cam.id}`}
+                role="button"
+                tabIndex={0}
                 onClick={() => navigate(`/live/${cam.id}`)}
-                className="group flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface text-left transition-colors hover:border-primary"
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return
+                  e.preventDefault()
+                  navigate(`/live/${cam.id}`)
+                }}
+                className="group flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface text-left transition-colors hover:border-primary cursor-pointer"
               >
-                <div className="relative min-h-0 flex-1">
-                  <Player
-                    src={`/stream/${cam.id}/index.m3u8`}
-                    className="absolute inset-0 h-full w-full object-cover bg-black pointer-events-none"
-                    containerClassName="absolute inset-0 h-full w-full pointer-events-none"
-                    cameraId={cam.id}
-                    transport={cam.live_transport}
-                  />
-                  <span className="absolute top-2 left-2 bg-danger text-white text-caption px-2 py-0.5 rounded font-medium">
+                <Player
+                  id={`player-${cam.id}`}
+                  src={`/stream/${cam.id}/index.m3u8`}
+                  className="absolute inset-0 h-full w-full object-cover bg-black pointer-events-none"
+                  containerClassName="relative min-h-0 flex-1 pointer-events-none"
+                  cameraId={cam.id}
+                  transport={cam.live_transport}
+                  title={cam.name}
+                  controls
+                >
+                  <span className="absolute top-2 left-2 bg-danger text-white text-caption px-2 py-0.5 rounded font-medium pointer-events-none">
                     AO VIVO
                   </span>
-                </div>
-                <div className="shrink-0 px-3 py-2">
-                  <p className="text-body font-medium text-foreground group-hover:text-foreground truncate">
-                    {cam.name}
-                  </p>
-                </div>
-              </button>
+                </Player>
+              </div>
             ))}
           </div>
         )}

@@ -17,11 +17,14 @@ func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-// fakeSource emits synthetic H.264 RTP packets until the context is cancelled,
-// standing in for a real RTSP stream so tests need no camera or network.
+// fakeSource emits synthetic RTP packets (H.264-shaped or otherwise — the
+// payload doesn't matter to Publisher, which just forwards bytes) until the
+// context is cancelled, standing in for a real RTSP/ffmpeg source so tests
+// need no camera, network, or ffmpeg binary.
 type fakeSource struct {
 	mu       sync.Mutex
 	returned bool
+	payload  []byte
 }
 
 func (f *fakeSource) ReadRTP(ctx context.Context, onPacket func(*rtp.Packet)) error {
@@ -30,6 +33,10 @@ func (f *fakeSource) ReadRTP(ctx context.Context, onPacket func(*rtp.Packet)) er
 		f.returned = true
 		f.mu.Unlock()
 	}()
+	payload := f.payload
+	if payload == nil {
+		payload = []byte{0x00, 0x00, 0x01, 0x65, 0x00}
+	}
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	var seq uint16
@@ -46,7 +53,7 @@ func (f *fakeSource) ReadRTP(ctx context.Context, onPacket func(*rtp.Packet)) er
 					SequenceNumber: seq,
 					Timestamp:      uint32(seq) * 3000,
 				},
-				Payload: []byte{0x00, 0x00, 0x01, 0x65, 0x00},
+				Payload: payload,
 			})
 		}
 	}
@@ -58,9 +65,10 @@ func (f *fakeSource) hasReturned() bool {
 	return f.returned
 }
 
-// newViewer creates a recvonly video PeerConnection (the browser side) with a
-// fully-gathered offer, ready to hand to Publisher.Negotiate.
-func newViewer(t *testing.T) (*webrtc.PeerConnection, webrtc.SessionDescription) {
+// newViewer creates a recvonly PeerConnection (the browser side) with a
+// fully-gathered offer, ready to hand to Publisher.Negotiate. withAudio also
+// offers a recvonly audio transceiver, mirroring Player.tsx.
+func newViewer(t *testing.T, withAudio bool) (*webrtc.PeerConnection, webrtc.SessionDescription) {
 	t.Helper()
 	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
@@ -68,7 +76,13 @@ func newViewer(t *testing.T) (*webrtc.PeerConnection, webrtc.SessionDescription)
 	}
 	if _, err := pc.AddTransceiverFromKind(webrtc.RTPCodecTypeVideo,
 		webrtc.RTPTransceiverInit{Direction: webrtc.RTPTransceiverDirectionRecvonly}); err != nil {
-		t.Fatalf("add transceiver: %v", err)
+		t.Fatalf("add video transceiver: %v", err)
+	}
+	if withAudio {
+		if _, err := pc.AddTransceiverFromKind(webrtc.RTPCodecTypeAudio,
+			webrtc.RTPTransceiverInit{Direction: webrtc.RTPTransceiverDirectionRecvonly}); err != nil {
+			t.Fatalf("add audio transceiver: %v", err)
+		}
 	}
 	offer, err := pc.CreateOffer(nil)
 	if err != nil {
@@ -83,7 +97,7 @@ func newViewer(t *testing.T) (*webrtc.PeerConnection, webrtc.SessionDescription)
 }
 
 func TestPublisherNegotiatesAndForwardsRTP(t *testing.T) {
-	pub, err := NewPublisher("cam1", &fakeSource{}, discardLogger())
+	pub, err := NewPublisher("cam1", &fakeSource{}, nil, AudioFormat{}, discardLogger())
 	if err != nil {
 		t.Fatalf("new publisher: %v", err)
 	}
@@ -91,7 +105,7 @@ func TestPublisherNegotiatesAndForwardsRTP(t *testing.T) {
 	defer cancel()
 	go pub.Run(ctx, time.Second)
 
-	client, offer := newViewer(t)
+	client, offer := newViewer(t, false)
 	defer client.Close()
 
 	gotRTP := make(chan struct{}, 1)
@@ -127,7 +141,7 @@ func TestPublisherNegotiatesAndForwardsRTP(t *testing.T) {
 
 func TestPublisherClosesSessionAndSourceOnCancel(t *testing.T) {
 	src := &fakeSource{}
-	pub, err := NewPublisher("cam1", src, discardLogger())
+	pub, err := NewPublisher("cam1", src, nil, AudioFormat{}, discardLogger())
 	if err != nil {
 		t.Fatalf("new publisher: %v", err)
 	}
@@ -135,7 +149,7 @@ func TestPublisherClosesSessionAndSourceOnCancel(t *testing.T) {
 	done := make(chan struct{})
 	go func() { pub.Run(ctx, time.Second); close(done) }()
 
-	client, offer := newViewer(t)
+	client, offer := newViewer(t, false)
 	defer client.Close()
 	answer, err := pub.Negotiate(offer)
 	if err != nil {
@@ -160,5 +174,123 @@ func TestPublisherClosesSessionAndSourceOnCancel(t *testing.T) {
 	}
 	if pub.Sessions() != 0 {
 		t.Fatalf("expected 0 sessions after cancel, got %d", pub.Sessions())
+	}
+}
+
+func TestPublisherWithG711AudioAnnouncesAndForwardsAudioRTP(t *testing.T) {
+	audioSrc := &fakeSource{payload: []byte{0xaa, 0xbb, 0xcc, 0xdd}}
+	pub, err := NewPublisher("cam1", &fakeSource{}, audioSrc, AudioFormat{Present: true, MULaw: false}, discardLogger())
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go pub.Run(ctx, time.Second)
+
+	client, offer := newViewer(t, true)
+	defer client.Close()
+
+	gotAudio := make(chan struct{}, 1)
+	client.OnTrack(func(tr *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+		if tr.Kind() != webrtc.RTPCodecTypeAudio {
+			return
+		}
+		for {
+			if _, _, err := tr.ReadRTP(); err != nil {
+				return
+			}
+			select {
+			case gotAudio <- struct{}{}:
+			default:
+			}
+		}
+	})
+
+	answer, err := pub.Negotiate(offer)
+	if err != nil {
+		t.Fatalf("negotiate: %v", err)
+	}
+	if !strings.Contains(strings.ToLower(answer.SDP), "pcma") {
+		t.Fatalf("answer SDP missing pcma codec:\n%s", answer.SDP)
+	}
+	if err := client.SetRemoteDescription(answer); err != nil {
+		t.Fatalf("set remote description: %v", err)
+	}
+
+	select {
+	case <-gotAudio:
+	case <-time.After(15 * time.Second):
+		t.Fatal("did not receive forwarded audio RTP within timeout")
+	}
+}
+
+func TestPublisherWithTranscodedAudioAnnouncesOpus(t *testing.T) {
+	audioSrc := &fakeSource{payload: []byte{0x01, 0x02, 0x03}}
+	pub, err := NewPublisher("cam1", &fakeSource{}, audioSrc, AudioFormat{Present: true, Transcode: true}, discardLogger())
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go pub.Run(ctx, time.Second)
+
+	client, offer := newViewer(t, true)
+	defer client.Close()
+
+	gotAudio := make(chan struct{}, 1)
+	client.OnTrack(func(tr *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+		if tr.Kind() != webrtc.RTPCodecTypeAudio {
+			return
+		}
+		for {
+			if _, _, err := tr.ReadRTP(); err != nil {
+				return
+			}
+			select {
+			case gotAudio <- struct{}{}:
+			default:
+			}
+		}
+	})
+
+	answer, err := pub.Negotiate(offer)
+	if err != nil {
+		t.Fatalf("negotiate: %v", err)
+	}
+	if !strings.Contains(strings.ToLower(answer.SDP), "opus") {
+		t.Fatalf("answer SDP missing opus codec:\n%s", answer.SDP)
+	}
+	if err := client.SetRemoteDescription(answer); err != nil {
+		t.Fatalf("set remote description: %v", err)
+	}
+
+	select {
+	case <-gotAudio:
+	case <-time.After(15 * time.Second):
+		t.Fatal("did not receive forwarded audio RTP within timeout")
+	}
+}
+
+func TestPublisherWithoutAudioStillNegotiatesWhenViewerOffersAudio(t *testing.T) {
+	pub, err := NewPublisher("cam1", &fakeSource{}, nil, AudioFormat{}, discardLogger())
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go pub.Run(ctx, time.Second)
+
+	client, offer := newViewer(t, true)
+	defer client.Close()
+
+	answer, err := pub.Negotiate(offer)
+	if err != nil {
+		t.Fatalf("negotiate: %v", err)
+	}
+	if err := client.SetRemoteDescription(answer); err != nil {
+		t.Fatalf("set remote description: %v", err)
+	}
+	if pub.Sessions() != 1 {
+		t.Fatalf("expected 1 session after negotiate, got %d", pub.Sessions())
 	}
 }
