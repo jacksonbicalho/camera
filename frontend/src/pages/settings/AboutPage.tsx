@@ -3,6 +3,7 @@ import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import SettingsSection from '../../components/SettingsSection'
 import ReleaseNotesMarkdown from '../../components/ReleaseNotesMarkdown'
+import { Button } from '../../components/ui/button'
 import { useAbout, type AboutInfo } from '../../hooks/useSettings'
 import { useUpdates } from '../../hooks/useUpdates'
 import { getRole } from '../../auth'
@@ -61,14 +62,16 @@ function UpdatesSection() {
           )}
 
           {status.apply_mode === 'self-replace' && (
-            <button
+            <Button
               id="update-apply-button"
+              variant="default"
+              size="sm"
               onClick={onApply}
               disabled={applying}
-              className="mt-4 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-on-primary disabled:opacity-50"
+              className="mt-4"
             >
               {applying ? 'Atualizando…' : 'Atualizar agora'}
-            </button>
+            </Button>
           )}
 
           {status.apply_mode === 'docker' && (

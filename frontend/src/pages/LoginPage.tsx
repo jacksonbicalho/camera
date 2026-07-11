@@ -78,13 +78,14 @@ export default function LoginPage() {
               <Label htmlFor="login-password" className="text-muted-foreground">
                 Senha
               </Label>
-              <button
+              <Button
                 type="button"
+                variant="link"
                 onClick={() => setShowPassword((v) => !v)}
-                className="text-xs text-primary hover:underline"
+                className="h-auto p-0 text-xs"
               >
                 {showPassword ? 'Ocultar' : 'Mostrar'}
-              </button>
+              </Button>
             </div>
             <Input
               id="login-password"

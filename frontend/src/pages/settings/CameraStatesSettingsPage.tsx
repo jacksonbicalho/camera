@@ -529,13 +529,14 @@ function ClassifierHistory({
   return (
     <div id="state-history">
       <div className="mb-4">
-        <button
+        <Button
           id="state-history-back"
+          variant="link"
           onClick={onBack}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
         >
           ← Voltar
-        </button>
+        </Button>
         <h3 className="text-sm font-medium text-foreground mt-1">Histórico — {classifier.name}</h3>
       </div>
 

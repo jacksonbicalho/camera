@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import DatePicker from '../components/DatePicker'
+import { Button } from '../components/ui/button'
 import { authHeaders, onUnauthorized, getToken } from '../auth'
 import { resolveEventRecordingUrl } from '../lib/eventNavigation'
 
@@ -474,13 +475,14 @@ export default function RecordingsPage() {
 
         {hasMore && view === 'moments' && (
           <div className="flex justify-center mt-4">
-            <button
+            <Button
               id="recordings-load-more"
+              variant="secondary"
+              size="sm"
               onClick={() => setPage((p) => p + 1)}
-              className="px-3 py-1.5 rounded text-xs bg-surface-2 text-muted hover:text-foreground transition-colors"
             >
               Carregar mais
-            </button>
+            </Button>
           </div>
         )}
       </div>

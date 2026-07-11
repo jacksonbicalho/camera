@@ -254,27 +254,30 @@ export default function MotionNotificationsBell({ showLabel }: { showLabel: bool
               <div className="border-t border-border px-3 py-2 flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Alertas do sistema</span>
                 {browserPermission === 'denied' ? (
-                  <button
+                  <Button
+                    variant="link"
                     onClick={enableBrowserNotifications}
-                    className="text-xs text-red-400 hover:text-red-300 transition-colors cursor-pointer"
+                    className="h-auto p-0 text-xs text-red-400 hover:text-red-300"
                     title="Permissão negada — tentar"
                   >
                     Permissão negada
-                  </button>
+                  </Button>
                 ) : browserEnabled ? (
-                  <button
+                  <Button
+                    variant="link"
                     onClick={disableBrowserNotifications}
-                    className="text-xs text-primary hover:text-primary/80 transition-colors"
+                    className="h-auto p-0 text-xs text-primary hover:text-primary/80"
                   >
                     Desativar
-                  </button>
+                  </Button>
                 ) : (
-                  <button
+                  <Button
+                    variant="link"
                     onClick={enableBrowserNotifications}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
                   >
                     Ativar
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
