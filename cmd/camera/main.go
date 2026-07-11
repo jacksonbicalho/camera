@@ -296,7 +296,22 @@ func main() {
 		// preference forces HLS by skipping the publisher. Cameras without a
 		// publisher make the front fall back to HLS. Uses the main RTSP URL.
 		if live.ShouldPublish(stream.VideoCodec, cam.EffectiveLiveTransport()) {
-			pub, err := live.NewPublisher(cam.ID, live.NewRTSPSource(cam.RTSPURL, slog), slog)
+			audioFmt, err := live.ProbeAudio(camCtx, cam.RTSPURL)
+			if err != nil {
+				slog.Warn("live: audio probe failed, continuing without audio", "camera", cam.ID, "error", err)
+			}
+			// G.711 is repackaged as-is (RTSPAudioSource, zero CPU); anything
+			// else (AAC and friends — the common case on IP cameras) needs a
+			// real transcode to Opus (TranscodeAudioSource, spawns ffmpeg) for
+			// WebRTC browsers to play it at all.
+			var audioSource live.Source
+			switch {
+			case audioFmt.Present && audioFmt.Transcode:
+				audioSource = live.NewTranscodeAudioSource(cam.RTSPURL, commander, slog)
+			case audioFmt.Present:
+				audioSource = live.NewRTSPAudioSource(cam.RTSPURL, slog)
+			}
+			pub, err := live.NewPublisher(cam.ID, live.NewRTSPSource(cam.RTSPURL, slog), audioSource, audioFmt, slog)
 			if err != nil {
 				slog.Error("live: failed to create webrtc publisher", "camera", cam.ID, "error", err)
 			} else {

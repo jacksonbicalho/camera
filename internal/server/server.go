@@ -809,6 +809,7 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		HasAudio             *bool       `json:"has_audio"`
 		Width                int         `json:"width,omitempty"`
 		Height               int         `json:"height,omitempty"`
+		LiveTransport        string      `json:"live_transport"`
 		Motion               *motionInfo `json:"motion"`
 		MotionThreshold      float64     `json:"motion_threshold"`
 		PlaybackLeadSeconds  int         `json:"playback_lead_seconds"`
@@ -870,6 +871,7 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 			HasAudio:             c.HasAudio,
 			Width:                c.Width,
 			Height:               c.Height,
+			LiveTransport:        c.EffectiveLiveTransport(),
 			Motion:               motion,
 			MotionThreshold:      mc.Threshold,
 			PlaybackLeadSeconds:  lead,

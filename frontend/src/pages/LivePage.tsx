@@ -76,7 +76,7 @@ export default function LivePage() {
             <div
               id="live-player"
               data-on-video
-              className="relative w-full overflow-hidden rounded-lg border border-border bg-black shadow-sm aspect-video"
+              className="relative w-full overflow-hidden rounded-lg border border-border bg-black shadow-sm"
             >
               <Player
                 id="live-player-video"
@@ -84,8 +84,10 @@ export default function LivePage() {
                 cameraId={camera.id}
                 transport={camera.live_transport}
                 muted
-                className="w-full h-full"
-                containerClassName="w-full h-full"
+                title={camera.name}
+                controls
+                className="w-full aspect-video"
+                containerClassName="w-full"
               />
             </div>
           </CameraStageHeader>

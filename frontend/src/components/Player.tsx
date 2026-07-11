@@ -1,20 +1,30 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type HlsType from 'hls.js'
 import { getToken } from '../auth'
 import { negotiateWebRTC } from '../lib/webrtc'
 import { usePlayerZoom } from '../hooks/usePlayerZoom'
-import { Loader2, Play } from './Icons'
+import { Loader2, Maximize, Play, Volume2, VolumeX } from './Icons'
 import PlayerControlsOverlay from './PlayerControlsOverlay'
+import PlayerFooter from './PlayerFooter'
 import { retryPlan } from './playerRetry'
 
 interface PlayerProps {
   src: string
   cameraId?: string
   transport?: string
+  /** Estado inicial do áudio — depois disso o usuário controla via botão de mudo no rodapé. */
   muted?: boolean
   id?: string
   className?: string
   containerClassName?: string
+  /** Nome da câmera exibido no rodapé (PlayerFooter). Sem título, sem rodapé. */
+  title?: string
+  /** Mostra os botões de mudo/tela cheia no rodapé (requer `title`). Default false — usado
+   * pelo Ao vivo; o preview do AllCamerasPage não é interativo. */
+  controls?: boolean
+  /** Overlay extra dentro da área do vídeo (ex.: badge "AO VIVO"), posicionável via
+   * `position: absolute` — o div do vídeo já é o `relative` que ancora. */
+  children?: ReactNode
 }
 
 // Player — player de live enxuto para as páginas novas (estrangulamento):
@@ -29,11 +39,15 @@ export default function Player({
   id = 'player-video',
   className,
   containerClassName,
+  title,
+  controls = false,
+  children,
 }: PlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const hlsRef = useRef<HlsType | null>(null)
-  const mutedRef = useRef(muted)
+  const [isMuted, setIsMuted] = useState(muted)
+  const mutedRef = useRef(isMuted)
   const attemptRef = useRef(0)
   const retryRef = useRef<(() => void) | null>(null)
   const [playBlocked, setPlayBlocked] = useState(false)
@@ -144,6 +158,10 @@ export default function Player({
           if (stream) v.srcObject = stream
         }
         conn.addTransceiver('video', { direction: 'recvonly' })
+        // Offering audio even when the camera has none is harmless — the
+        // server just answers that m-line as inactive; it's required upfront
+        // because the answerer can't add an audio m-line the offer never had.
+        conn.addTransceiver('audio', { direction: 'recvonly' })
 
         try {
           await negotiateWebRTC(cameraId, conn, { token: getToken() ?? undefined })
@@ -200,9 +218,11 @@ export default function Player({
   }, [src, cameraId, transport])
 
   useEffect(() => {
-    mutedRef.current = muted
-    if (videoRef.current) videoRef.current.muted = muted
-  }, [muted])
+    mutedRef.current = isMuted
+    if (videoRef.current) videoRef.current.muted = isMuted
+  }, [isMuted])
+
+  const toggleMute = useCallback(() => setIsMuted((m) => !m), [])
 
   // Retry com backoff + teto: em erro fatal reagenda o setup com atraso crescente;
   // atingido o teto de tentativas, mostra "Sem sinal" em vez de martelar.
@@ -229,60 +249,96 @@ export default function Player({
   }
 
   return (
-    <div
-      ref={setContainer}
-      onPointerDown={zoom.onPointerDown}
-      onPointerMove={zoom.onPointerMove}
-      onPointerUp={zoom.onPointerUp}
-      className={`group relative overflow-hidden${zoom.isZoomed ? ' cursor-grab' : ''}${containerClassName ? ` ${containerClassName}` : ''}`}
-    >
-      <video
-        id={id}
-        ref={videoRef}
-        className={className}
-        autoPlay
-        muted
-        playsInline
-        onLoadedData={() => setConnecting(false)}
-      />
+    <div className="flex h-full flex-col">
+      <div
+        ref={setContainer}
+        onPointerDown={zoom.onPointerDown}
+        onPointerMove={zoom.onPointerMove}
+        onPointerUp={zoom.onPointerUp}
+        className={`group relative overflow-hidden${zoom.isZoomed ? ' cursor-grab' : ''}${containerClassName ? ` ${containerClassName}` : ''}`}
+      >
+        <video
+          id={id}
+          ref={videoRef}
+          className={className}
+          autoPlay
+          muted
+          playsInline
+          onLoadedData={() => setConnecting(false)}
+        />
 
-      <PlayerControlsOverlay id={id} zoom={zoom} onToggleFullscreen={toggleFullscreen} />
+        <PlayerControlsOverlay id={id} zoom={zoom} />
+        {children}
 
-      {noSignal ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-white">
-          <span className="text-body">Sem sinal</span>
-          <button
-            onClick={restart}
-            className="rounded bg-white/15 px-3 py-1 text-caption hover:bg-white/25"
-            aria-label="Tentar de novo"
+        {noSignal ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-white">
+            <span className="text-body">Sem sinal</span>
+            <button
+              onClick={restart}
+              className="rounded bg-white/15 px-3 py-1 text-caption hover:bg-white/25"
+              aria-label="Tentar de novo"
+            >
+              Tentar de novo
+            </button>
+          </div>
+        ) : fatalError ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+            <Loader2 className="w-8 h-8 text-white/70 animate-spin" />
+          </div>
+        ) : connecting ? (
+          <div
+            id={`${id}-loading`}
+            className="absolute inset-0 flex items-center justify-center bg-black/70"
           >
-            Tentar de novo
+            <Loader2 className="w-8 h-8 text-white/70 animate-spin" />
+          </div>
+        ) : playBlocked ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              videoRef.current?.play().catch(() => {})
+              setPlayBlocked(false)
+            }}
+            className="absolute inset-0 flex items-center justify-center bg-black/50 hover:bg-black/40 transition-colors"
+            aria-label="Reproduzir"
+          >
+            <Play className="w-12 h-12 text-white/80 fill-current" />
           </button>
-        </div>
-      ) : fatalError ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-          <Loader2 className="w-8 h-8 text-white/70 animate-spin" />
-        </div>
-      ) : connecting ? (
-        <div
-          id={`${id}-loading`}
-          className="absolute inset-0 flex items-center justify-center bg-black/70"
-        >
-          <Loader2 className="w-8 h-8 text-white/70 animate-spin" />
-        </div>
-      ) : playBlocked ? (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            videoRef.current?.play().catch(() => {})
-            setPlayBlocked(false)
-          }}
-          className="absolute inset-0 flex items-center justify-center bg-black/50 hover:bg-black/40 transition-colors"
-          aria-label="Reproduzir"
-        >
-          <Play className="w-12 h-12 text-white/80 fill-current" />
-        </button>
-      ) : null}
+        ) : null}
+      </div>
+
+      {title && (
+        <PlayerFooter id={`${id}-footer`} title={title}>
+          {controls && (
+            <>
+              <button
+                id={`${id}-mute`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleMute()
+                }}
+                aria-label={isMuted ? 'Ativar som' : 'Mudo'}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+              >
+                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              </button>
+              <button
+                id={`${id}-fullscreen`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleFullscreen()
+                }}
+                aria-label="Tela cheia"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+              >
+                <Maximize className="h-4 w-4" />
+              </button>
+            </>
+          )}
+        </PlayerFooter>
+      )}
     </div>
   )
 }

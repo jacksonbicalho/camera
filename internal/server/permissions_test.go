@@ -113,6 +113,51 @@ func TestGetCamerasFiltersForViewer(t *testing.T) {
 	}
 }
 
+// TestGetCamerasIncludesLiveTransport garante que GET /api/cameras devolve
+// live_transport — sem isso, LivePage/AllCamerasPage (que buscam a lista de
+// câmeras por aqui, não por /api/settings) sempre recebem transport=undefined
+// e tentam WebRTC mesmo em câmeras forçadas para "hls" (bug encontrado ao
+// investigar áudio: a preferência era ignorada, só corrigia via fallback 409).
+func TestGetCamerasIncludesLiveTransport(t *testing.T) {
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "admin_user", "adminpw", "admin", false); err != nil {
+		t.Fatalf("criar admin: %v", err)
+	}
+	cameras := []config.CameraConfig{
+		{ID: "cam1", RTSPURL: "rtsp://fake1", LiveTransport: "hls"},
+		{ID: "cam2", RTSPURL: "rtsp://fake2"},
+	}
+	for _, cam := range cameras {
+		if _, err := db.CreateCamera(database, cam, nil); err != nil {
+			t.Fatalf("seed camera %q: %v", cam.ID, err)
+		}
+	}
+	srv := server.NewServer(config.ServerConfig{}, "UTC", cameras, discardLogger(), nil).
+		WithDB(database)
+	adminToken := loginAndGetToken(t, srv, "admin_user", "adminpw")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cameras", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var list []map[string]any
+	json.NewDecoder(w.Body).Decode(&list)
+	byID := make(map[string]map[string]any, len(list))
+	for _, c := range list {
+		byID[c["id"].(string)] = c
+	}
+	if got := byID["cam1"]["live_transport"]; got != "hls" {
+		t.Errorf("cam1: expected live_transport=hls, got %v", got)
+	}
+	if got := byID["cam2"]["live_transport"]; got != "auto" {
+		t.Errorf("cam2 (sem preferência explícita): expected live_transport=auto (default), got %v", got)
+	}
+}
+
 func TestGetCamerasReturnsAllForAdmin(t *testing.T) {
 	srv, adminToken, _ := setupRolesServer(t)
 
