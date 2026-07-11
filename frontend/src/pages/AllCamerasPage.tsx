@@ -79,7 +79,7 @@ export default function AllCamerasPage() {
                   e.preventDefault()
                   navigate(`/live/${cam.id}`)
                 }}
-                className="group flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface text-left transition-colors hover:border-primary cursor-pointer"
+                className="group flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface text-left transition-colors cursor-pointer"
               >
                 <Player
                   id={`player-${cam.id}`}

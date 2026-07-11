@@ -76,6 +76,17 @@ interface VideoPlayerProps {
   // cheia (ex.: calendário do HistoryPage) — ponto de extensão irmão do `footerExtra`, só
   // que ancorado no fim da linha em vez de no meio.
   footerTrailing?: ReactNode
+  // Conteúdo extra depois do botão de tela cheia — sempre o ÚLTIMO elemento da linha de
+  // controles (ex.: CameraViewTabs do HistoryPage). Não precisa de `ml-auto` próprio: anda
+  // no fluxo normal logo após o fullscreen, e o `ml-auto` de `footerTrailing` (ou do próprio
+  // fullscreen, quando `footerTrailing` está ausente) já empurra o grupo inteiro pra direita.
+  footerEnd?: ReactNode
+  // Posição do botão de tela cheia na linha de controles. `trailing` (default) — perto do
+  // fim da linha, mesmo lugar de sempre (uso do VideoBrowserPage, sem footerExtra/footerEnd,
+  // onde o `ml-auto` do próprio botão o empurra pro fim). `afterSpeed` — logo depois do
+  // dropdown de velocidade, antes do `footerExtra` (uso do HistoryPage: entre velocidade e
+  // o switch de reprodução contínua).
+  fullscreenPosition?: 'trailing' | 'afterSpeed'
 }
 
 // VideoPlayer — motor de reprodução de N segmentos MP4 em sequência (double-buffering,
@@ -100,6 +111,8 @@ export default function VideoPlayer({
   overlay,
   footerExtra,
   footerTrailing,
+  footerEnd,
+  fullscreenPosition = 'trailing',
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const seekBarRef = useRef<HTMLDivElement>(null)
@@ -467,6 +480,20 @@ export default function VideoPlayer({
 
   const hasSegments = segments.length > 0
 
+  const fullscreenButton = (
+    <button
+      id={`${idPrefix}-fullscreen`}
+      type="button"
+      onClick={toggleFullscreen}
+      className={`flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground${
+        fullscreenPosition === 'trailing' && !footerTrailing ? ' ml-auto' : ''
+      }`}
+      aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+    >
+      <Maximize className="h-4 w-4" />
+    </button>
+  )
+
   return (
     <div className="flex h-full flex-col">
       <div
@@ -529,7 +556,7 @@ export default function VideoPlayer({
         {overlay}
       </div>
 
-      {(hasSegments || footerExtra || footerTrailing) && (
+      {(hasSegments || footerExtra || footerTrailing || footerEnd) && (
         // Rodapé de controles ÚNICO — persiste através da troca de segmentos. Sempre
         // visível (não mais um overlay hover sobre o vídeo) e theme-aware, mesmo tratamento
         // do rodapé do Ao vivo (PlayerFooter) — nada de cor fixa tipo bg-black/text-white.
@@ -637,6 +664,7 @@ export default function VideoPlayer({
                     </div>
                   )}
                 </div>
+                {fullscreenPosition === 'afterSpeed' && fullscreenButton}
                 {footerExtra}
                 <span className="text-caption tabular-nums text-muted-foreground">
                   {formatClock(pos)} / {formatClock(total)}
@@ -653,24 +681,18 @@ export default function VideoPlayer({
                 {footerTrailing && (
                   <div className="ml-auto flex items-center gap-3">{footerTrailing}</div>
                 )}
-                <button
-                  id={`${idPrefix}-fullscreen`}
-                  type="button"
-                  onClick={toggleFullscreen}
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground${footerTrailing ? '' : ' ml-auto'}`}
-                  aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-                >
-                  <Maximize className="h-4 w-4" />
-                </button>
+                {fullscreenPosition === 'trailing' && fullscreenButton}
+                {footerEnd}
               </div>
             </div>
           )}
-          {!hasSegments && (footerExtra || footerTrailing) && (
+          {!hasSegments && (footerExtra || footerTrailing || footerEnd) && (
             <div className="flex items-center gap-3 px-3 py-2">
               {footerExtra}
               {footerTrailing && (
                 <div className="ml-auto flex items-center gap-3">{footerTrailing}</div>
               )}
+              {footerEnd}
             </div>
           )}
         </PlayerFooter>

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { authHeaders, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import CameraStageHeader from '../components/CameraStageHeader'
+import CameraViewTabs from '../components/CameraViewTabs'
 import Player from '../components/Player'
 
 interface Camera {
@@ -68,9 +69,7 @@ export default function LivePage() {
         {camera && (
           <CameraStageHeader
             idPrefix="live"
-            cameraId={camera.id}
             cameraName={camera.name}
-            active="live"
             recordingEnabled={camera.recording_enabled}
           >
             <div
@@ -88,6 +87,7 @@ export default function LivePage() {
                 controls
                 className="w-full aspect-video"
                 containerClassName="w-full"
+                footerTrailing={<CameraViewTabs cameraId={camera.id} active="live" />}
               />
             </div>
           </CameraStageHeader>

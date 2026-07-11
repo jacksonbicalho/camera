@@ -180,6 +180,20 @@ describe('AllCamerasPage — grid de câmeras ao vivo', () => {
     expect(player1.getAttribute('data-transport')).toBe('auto')
   })
 
+  it('hover no card não muda a cor da borda (sem hover:border-primary)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })),
+    )
+    renderAt('/')
+    await waitFor(() => {
+      expect(document.getElementById('all-cameras-card-cam1')).not.toBeNull()
+    })
+    expect(document.getElementById('all-cameras-card-cam1')?.className).not.toContain(
+      'hover:border-primary',
+    )
+  })
+
   it('clicar num card navega para /live/{id} (rota nova, não mais /camera/live/:id)', async () => {
     vi.stubGlobal(
       'fetch',
