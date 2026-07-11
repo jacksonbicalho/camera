@@ -845,13 +845,15 @@ export default function AnalysisSettingsPage() {
                           ? `${Math.round((ftStatus.epoch / ftStatus.total_epochs) * 100)}%`
                           : ''}
                       </span>
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={handleCancelFinetune}
-                        className="px-2 py-0.5 text-xs bg-surface-2 hover:bg-red-900/60 text-muted-foreground hover:text-red-300 border border-border hover:border-red-700/50 rounded transition-colors"
+                        className="h-auto px-2 py-0.5 text-xs hover:border-red-700/50 hover:bg-red-900/60 hover:text-red-300"
                       >
                         Cancelar
-                      </button>
+                      </Button>
                     </div>
                   </div>
                   <div className="w-full bg-surface-2 rounded-full h-2">
@@ -1159,28 +1161,30 @@ export default function AnalysisSettingsPage() {
                     {Math.ceil(labelTotal / labelLimit)}
                   </span>
                   <div className="flex gap-2">
-                    <button
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => {
                         setLabelPage((p) => Math.max(1, p - 1))
                         setLabelEvents(null)
                         clearSelection()
                       }}
                       disabled={labelPage === 1}
-                      className="px-3 py-1 text-xs bg-surface-2 hover:bg-accent text-foreground rounded disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       ← anterior
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => {
                         setLabelPage((p) => p + 1)
                         setLabelEvents(null)
                         clearSelection()
                       }}
                       disabled={labelPage >= Math.ceil(labelTotal / labelLimit)}
-                      className="px-3 py-1 text-xs bg-surface-2 hover:bg-accent text-foreground rounded disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       próxima →
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -1266,12 +1270,14 @@ export default function AnalysisSettingsPage() {
                   Arraste para marcar · mova · redimensione · rotacione
                 </span>
               )}
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => closeZoomModal()}
-                className="ml-auto px-3 py-1.5 text-sm bg-surface-2 hover:bg-accent text-foreground rounded"
+                className="ml-auto"
               >
                 Fechar
-              </button>
+              </Button>
             </div>
           </div>
         </div>
