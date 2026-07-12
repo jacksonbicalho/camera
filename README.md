@@ -35,7 +35,6 @@ Sistema de monitoramento residencial via RTSP. Um único binário estático grav
 | [Armazenamento](docs/storage.md) | Retenção, limpeza e limites de disco |
 | [Usuários](docs/users.md) | Papéis, permissões e autenticação |
 | [Análise de vídeo](docs/analysis.md) | Serviço YOLO, GPU, fine-tuning e modelos disponíveis |
-| [API HTTP](docs/api.md) | Integração de apps externos: autenticação, papéis, SSE, WebRTC/HLS ([spec OpenAPI](api/openapi.yaml)) |
 
 ---
 
