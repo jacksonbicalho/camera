@@ -4,8 +4,7 @@ import "net/http"
 
 // authLevel is the access each route requires. Keeping it as data (instead of
 // hand-wrapping every registration in a middleware) lets routes() derive the
-// middleware and lets the OpenAPI guard assert the spec documents the same
-// access the server actually enforces.
+// middleware from a single declarative table.
 type authLevel int
 
 const (
@@ -59,9 +58,7 @@ func (s *Server) guard(rt route) http.HandlerFunc {
 	return rt.handler
 }
 
-// routeTable is the single source of truth for the /api surface. It is also
-// read by the OpenAPI guard (openapi_test.go), so a route added here without a
-// matching entry in api/openapi.yaml fails the build.
+// routeTable is the single source of truth for the /api surface.
 //
 // Prefix-mounted file handlers (/stream/, /recordings/) and the SPA fallback
 // are not http.HandlerFunc and stay in routes().

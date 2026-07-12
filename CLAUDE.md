@@ -182,13 +182,11 @@ Modelos pré-baixados na imagem: `yolov8n` e `yolo11n`. Com GPU RTX 3050 (4GB VR
 | `internal/logger` | `stdout`: JSON em stdout. `file`: um arquivo por nível (`debug.log`, `info.log`, `warn.log`, `error.log`) no diretório configurado, cada um com **rotação** via `gopkg.in/natefinch/lumberjack.v2`. Knobs no `camera.yaml` seção `log:` (`max_size_mb`, `max_age_days`, `max_backups`, `compress`); defaults 50 MB / 30 dias / 10 arquivos / gzip on, aplicados via accessors `…OrDefault()` em `config.LogConfig` (ponteiros distinguem ausente de `0`=ilimitado). Rotação só vale para `output: file`. |
 | `frontend/` | SPA React/Vite/Tailwind embutida via `go:embed all:dist`. `ChangePasswordPage` — tela obrigatória no primeiro login; bloqueia acesso ao restante da UI enquanto `must_change_password=true` no JWT. |
 
-### Superfície da API (contrato + guard anti-drift)
+### Superfície da API
 
 A **fonte de verdade das rotas** é `internal/server/routes.go` → `routeTable()`: uma tabela declarativa de `route{method, path, auth, handler}`. O `routes()` itera essa tabela e aplica o middleware **derivado do `authLevel`** (`authPublic`/`authChangePassword`/`authFull`/`authAdmin`/`authCamera` → `guard()`), em vez de embrulhar cada rota à mão. Só os mounts por prefixo (`/stream/`, `/recordings/`) e o `spaHandler` ficam fora da tabela (são `http.Handler`, não `http.HandlerFunc`).
 
-O **contrato** vive em [`api/openapi.yaml`](api/openapi.yaml) (OpenAPI 3.1) e o **guia de integração** em [`docs/api.md`](docs/api.md). `internal/server/openapi_test.go` é o **guard**: compara a `routeTable()` com a spec nos dois sentidos (rota sem doc, path sem rota) e confere que o `x-auth` de cada operação bate com o `authLevel` real. **Adicionar/alterar rota sem atualizar o `openapi.yaml` quebra o build** — é assim que a doc não envelhece. O `security` da raiz do documento é herdado por toda operação; endpoints públicos declaram `security: []` explicitamente.
-
-Erros da API são `text/plain` (via `http.Error`), não um envelope JSON — a spec documenta isso, e clientes devem programar contra o status.
+Erros da API são `text/plain` (via `http.Error`), não um envelope JSON — clientes devem programar contra o status, não contra o texto do erro.
 
 ### Autenticação
 
@@ -225,7 +223,7 @@ O diretório `amostras/` (listado no `.gitignore`) é reservado para arquivos qu
 
 - **Decisões de fluxo se registram neste `CLAUDE.md`** — ele é a fonte canônica. A memória do Claude é só atalho/ponteiro: nunca deixe uma regra de workflow apenas na memória.
 - **Ao adicionar ou alterar qualquer funcionalidade**, revise este `CLAUDE.md` e atualize as seções afetadas.
-- **Ao adicionar, remover ou mudar o acesso de uma rota**, atualize `internal/server/routes.go` (a tabela) **e** `api/openapi.yaml` (path, método, `x-auth`, `security`) — o guard `openapi_test.go` quebra o build se esquecer. Endpoint com comportamento novo relevante pro integrador (SSE, status especial como o `409` do WebRTC) também merece nota em `docs/api.md`.
+- **Ao adicionar, remover ou mudar o acesso de uma rota**, atualize `internal/server/routes.go` (a tabela).
 - **Ao adicionar ou alterar qualquer campo de configuração**, atualize `camera.yaml.example` com o novo campo, valor de exemplo e comentário com a variável de ambiente correspondente (se houver).
 
 ## Convenções de teste
