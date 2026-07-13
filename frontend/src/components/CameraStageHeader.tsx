@@ -29,6 +29,10 @@ interface CameraStageHeaderProps {
   idPrefix: string
   cameraName: string
   recordingEnabled?: boolean
+  /** Título fixo da página (ex.: "Histórico"). Quando omitido, o título é o
+   *  nome da câmera — comportamento padrão, usado pelo Ao vivo. Quando
+   *  informado, o nome da câmera (+ badge) migra pro subtítulo. */
+  pageTitle?: string
   /** O player (Player/<video>) renderizado logo abaixo do cabeçalho. */
   children: ReactNode
 }
@@ -41,19 +45,31 @@ export default function CameraStageHeader({
   idPrefix,
   cameraName,
   recordingEnabled,
+  pageTitle,
   children,
 }: CameraStageHeaderProps) {
+  const cameraLine = (
+    <span className="flex items-center gap-2">
+      {cameraName}
+      <PlayerBadges idPrefix={idPrefix} recordingEnabled={recordingEnabled} />
+    </span>
+  )
   return (
     <>
-      <div id={`${idPrefix}-header`} className="mb-2">
+      {/* mx-auto + max-w-[92.75rem]: mesmo idioma de centralização do
+          `.page-content` (mx-auto w-full max-w-[80rem]), com o cap ajustado à
+          largura intrínseca do bloco de duas colunas do Histórico
+          (history-main 72rem + history-recordings-list 20rem + gap-3 0.75rem
+          = 92.75rem) — sem isso, o título ficava flush na borda esquerda
+          enquanto esse bloco se autocentraliza (lg:justify-center) em telas
+          largas. No Ao vivo, que envolve o CameraStageHeader inteiro em
+          `.page-content` (cap 80rem, mais estreito), esse cap nunca chega a
+          restringir nada — zero mudança visual ali. */}
+      <div id={`${idPrefix}-header`} className="mx-auto w-full max-w-[92.75rem] mb-2">
         <PageHeader
           className="items-center mb-0"
-          title={
-            <span className="flex items-center gap-2">
-              {cameraName}
-              <PlayerBadges idPrefix={idPrefix} recordingEnabled={recordingEnabled} />
-            </span>
-          }
+          title={pageTitle ?? cameraLine}
+          subtitle={pageTitle ? cameraLine : undefined}
         />
       </div>
       {children}

@@ -34,8 +34,8 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
 fi
 
-desc=$(echo "$branch" | sed 's|^[^/]*/||' | tr '-' '_')
-story=$(ls stories/*.md 2>/dev/null | grep -i "$desc" | tail -1)
+. "$ROOT/scripts/lib/story.sh"
+story=$(resolve_story "" 2>/dev/null) || story=""
 [ -z "$story" ] && { echo "❌ Story não encontrada para a branch: $branch"; exit 1; }
 grep -qE '^-? *\[x\] Aprovado' "$story" \
     || { echo "❌ Story não aprovada ([x] Aprovado): $(basename "$story")"; exit 1; }
