@@ -9,8 +9,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 branch=$(git rev-parse --abbrev-ref HEAD)
-desc=$(echo "$branch" | sed 's|^[^/]*/||' | tr '-' '_')
-story=$(ls stories/*.md 2>/dev/null | grep -i "$desc" | tail -1)
+. "$ROOT/scripts/lib/story.sh"
+story=$(resolve_story "" 2>/dev/null) || story=""
 [ -z "$story" ] && { echo "❌ Story não encontrada para a branch: $branch"; exit 1; }
 
 grep -qE '^-? *\[x\] Aprovado' "$story" \
