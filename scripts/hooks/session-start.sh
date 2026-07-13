@@ -6,16 +6,15 @@
 
 guardrails=$(cat <<'EOF'
 GUARDRAILS DO FLUXO (os-camera) — leia antes de agir:
-
-→ LEIA `docs/workflow.md` no início da sessão — é o fluxo completo (branches, CI, ciclo por história, scripts, release). O resumo abaixo é só a rede de segurança.
-
-1. Toda história começa por /story (story file + branch a partir de develop). Nada de código/teste sem isso.
-2. GATE DE REVISÃO: NÃO implemente (nem red phase) antes de `[x] História revisada` na story — monitore com `scripts/await-review.sh`.
-3. TDD red → green → refactor. Rode testes via `bash scripts/check.sh` (nunca `docker run ... node` nem `go test` crus).
-4. CRITÉRIOS DE ACEITAÇÃO: o driver NÃO os marca. Só o `scripts/check.sh` marca o 1º (verdes). Os demais E o `[x] Aprovado` são do NAVIGATOR via `scripts/story-approval.sh`. Preencha `## Revisão` SEM tocar nos checkboxes.
-5. GATE DE APROVAÇÃO: nenhum commit antes de `[x] Aprovado`. Commit via `scripts/commit.sh`.
-6. Após aprovação: `scripts/push-pr.sh` orquestra push + PR (base develop) + CI + merge — direto, SEM perguntar. Story file e branch só somem quando a história fica `[✓]` no release file. Só o corte de release (`develop → master`) depende do navigator.
-7. `master` e `develop` são protegidos: nunca commit/push direto.
+→ LEIA `docs/workflow.md` no início da sessão — é o fluxo completo (análise, tickets, review automatizado, testes funcionais, release). O resumo abaixo é só a rede de segurança.
+GATES HUMANOS — SÓ TRÊS: G1 análise aprovada · G2 história revisada · G3 release. Entre G2 e G3, NENHUM prompt ao navigator (única exceção: circuit breaker do code review após 3 iterações).
+1. Demanda nova começa por /analyze → analysis/*.md. GATE G1: nada de story/branch/código antes de `[x] Análise aprovada` — monitore com `scripts/await-gate.sh analise <arquivo>`.
+2. /story cria story JÁ decomposta em tickets (T1..Tn) + branch de develop + 1 cenário funcional por CA em tests/functional/. GATE G2: nem red phase antes de `[x] História revisada` — `scripts/await-gate.sh revisao`.
+3. Por ticket: TDD red → green → refactor. Testes via `bash scripts/check.sh` (nunca `go test`/`node` crus).
+4. CODE REVIEW É DO SUBAGENT, NÃO DO NAVIGATOR: ao fim do TDD do ticket, invoque o subagent `code-reviewer` com o diff. CHANGES_REQUESTED → corrija blocker/major e re-invoque (máx. 3x; estourou → escale). APPROVED → `scripts/record-review.sh <Tn> <iter>` ANTES do commit — o hook de commit conta reviews: 1 APPROVED autoriza 1 commit.
+5. CHECKBOXES: o driver NÃO marca CAs nem gates à mão. CA1 = check.sh; demais CAs = `scripts/functional-check.sh`; Review = record-review.sh; `[x] Aprovado` = `scripts/finalize-story.sh`. Humano marca só: Análise aprovada e História revisada.
+6. Fim dos tickets: `functional-check.sh` → `finalize-story.sh` → commit final se houver → `scripts/push-pr.sh` (push+PR base develop+CI+merge) — direto, SEM perguntar. Story/branch só somem com `[✓]` no release file.
+7. `master` e `develop` são protegidos: nunca commit/push direto. Só o corte de release (`develop → master`, /release-pr) depende do navigator (G3).
 EOF
 )
 

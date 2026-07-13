@@ -8,6 +8,7 @@ frontend/dist/
 frontend/node_modules/
 .mcp.json
 stories/
+analysis/
 releases/
 motion_zones.json
 amostras/

@@ -1,4 +1,31 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(sudo dockerd)",
+      "Bash(sudo dockerd --iptables=false)",
+      "Bash(dmesg)",
+      "Read(//usr/local/share/**)",
+      "Read(//var/run/**)",
+      "Bash(sudo which dockerd)",
+      "Read(//tmp/**)",
+      "Bash(grep *)",
+      "Bash(git status *)",
+      "Bash(git branch *)",
+      "Bash(bash scripts/await-gate.sh*)",
+      "Bash(git fetch *)",
+      "Bash(bash scripts/record-review.sh*)",
+      "Bash(bash scripts/functional-check.sh*)",
+      "Bash(bash scripts/finalize-story.sh*)",
+      "Bash(bash scripts/check.sh*)",
+      "Bash(bash scripts/frontend-check.sh*)",
+      "Bash(git log *)",
+      "Bash(sort *)",
+      "Bash(find *)",
+      "Bash(gofmt -l *)",
+      "Bash(git diff *)",
+      "Bash(awk *)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {

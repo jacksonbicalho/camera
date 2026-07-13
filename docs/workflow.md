@@ -1,14 +1,36 @@
 # Fluxo de trabalho — desenvolvimento e publicação
 
-> Fluxo completo do projeto (XP/TDD, branches, CI, ciclo por história com gates, scripts, release).
+> Fluxo completo do projeto (XP/TDD, análise, tickets, code review automatizado, testes funcionais, branches, CI, release).
 > Referenciado pelo `CLAUDE.md` e lido no início da sessão (hook `session-start`).
 
-O desenvolvimento segue **XP (Extreme Programming)** com **TDD red → green → refactor**:
+O desenvolvimento segue **XP (Extreme Programming)** com **TDD red → green → refactor**, com **3 gates humanos** — o resto do ciclo roda sozinho:
 
-- O **navigator** (usuário) define a história, revisa o código e aprova cada etapa.
-- O **driver** (Claude) implementa, sempre guiado pelos testes.
+- O **navigator** (usuário) aprova a análise, aprova a história (com seus tickets e testes funcionais) e libera o release.
+- O **driver** (Claude) investiga, planeja, implementa, revisa (via subagent) e publica — sem interromper o navigator entre os gates.
+
+```mermaid
+flowchart TD
+    A["1. /analyze<br/>Análise técnica automática"] --> G1["Gate 1 — você aprova análise"]
+    G1 --> B["2. /story + 3. tickets<br/>História e decomposição"]
+    B --> G2["Gate 2 — você aprova tickets"]
+    G2 --> C["4. Implementação TDD<br/>red, green, refactor por ticket"]
+    C --> D["5-6. Code review (subagent)<br/>Ajustes em loop, sem você"]
+    D -.-> C
+    D --> E["7. Testes funcionais<br/>Um cenário por critério"]
+    E --> G3["Gate 3 — você libera release"]
+```
 
 > ⚠️ **`master` e `develop` são protegidos.** Push direto é bloqueado em ambos. Features entram via PR para `develop`; o PR `develop → master` acontece apenas no momento de release. Nunca commite ou force-push diretamente em nenhum dos dois.
+
+### Gates humanos (únicos pontos de interação do navigator)
+
+| Gate | Onde | O que o navigator faz |
+|------|------|------------------------|
+| **G1 — Análise aprovada** | `analysis/*.md` → `[x] Análise aprovada` | Aprova a *direção* (problema + solução escolhida) |
+| **G2 — História revisada** | `stories/*.md` → `[x] História revisada` | Aprova story **e tickets** (e os cenários funcionais) de uma vez |
+| **G3 — Release** | `/release-pr` + aprovação do PR develop→master | Libera o corte de release |
+
+**Tudo entre G2 e G3 roda sozinho:** implementação, code review (subagent), ajustes, testes funcionais, commit, push, PR, merge em develop. Zero prompts — a única exceção é o *circuit breaker* do code review (3 iterações sem `APPROVED` num ticket escalam ao navigator).
 
 ### Estratégia de branches
 
@@ -61,52 +83,147 @@ gh api repos/{owner}/{repo}/branches/develop/protection \
 EOF
 ```
 
-### Fluxo por história
+### Fluxo por demanda
 
-> ⚠️ **OBRIGATÓRIO:** Antes de escrever qualquer linha de código ou teste, o driver DEVE criar o arquivo de história E abrir a branch (use `/story`). Sem exceção — nem para bugs simples, nem para "pequenas correções".
+> ⚠️ **OBRIGATÓRIO:** Antes de escrever qualquer linha de código ou teste, o driver DEVE passar por `/analyze` (quando a demanda tiver trade-offs reais) e por `/story` (story file + branch). Sem exceção — nem para bugs simples, nem para "pequenas correções" (nesses casos a análise pode ser breve, mas existe).
 
-1. Criar `stories/YYYYMMDDHHmm_<descricao>.md` e abrir uma branch a partir de `develop`: `git checkout -b <tipo>/<descricao-curta> develop`. Se a história cobrir mais de um assunto independente, questionar o navigator antes de continuar — histórias devem ser pequenas e focadas. O 1º Critério de Aceitação é **sempre** `- [] Backend e frontend verdes (auto: scripts/check.sh)` (sem "se aplicável").
-2. **Revisão da história (antes de implementar).** A história inclui o campo `- [] História revisada`. O driver **preenche o plano COMPLETO antes** (Contexto + Solução **nunca em branco**: investiga e escreve arquivos/abordagem/decisões de escopo), apresenta e **aguarda o navigator marcar `[x] História revisada`** — monitorando o arquivo da story em background (grep case-insensitive). **Nenhuma linha de código ou teste antes disso.**
+```
+demanda livre
+   │
+   ▼
+/analyze ──► analysis/YYYYMMDDHHmm_<slug>.md
+   │              (problema, opções, decisão, impacto)
+   ▼
+[G1] navigator marca [x] Análise aprovada        ◄── scripts/await-gate.sh analise
+   │
+   ▼
+/story ──► stories/YYYYMMDDHHmm_<slug>.md + branch
+   │         story JÁ decomposta em tickets T1..Tn
+   │         + 1 cenário funcional por critério (tests/functional/)
+   ▼
+[G2] navigator marca [x] História revisada       ◄── scripts/await-gate.sh revisao
+   │
+   ▼  (loop por ticket, sem interação)
+┌─────────────────────────────────────────────┐
+│ para cada ticket Tn:                         │
+│   red → green → refactor (TDD)               │
+│   bash scripts/check.sh                      │
+│   invoca subagent code-reviewer              │
+│   ├─ CHANGES_REQUESTED → corrige → re-invoca │
+│   │   (máx. 3 iterações; estoura → escala    │
+│   │    ao navigator)                         │
+│   └─ APPROVED → scripts/record-review.sh Tn  │
+└─────────────────────────────────────────────┘
+   │
+   ▼
+bash scripts/functional-check.sh   → roda cenários, marca CAs [x]
+bash scripts/finalize-story.sh     → se tudo verde: marca [x] Aprovado
+   │
+   ▼
+scripts/commit.sh → scripts/push-pr.sh   (inalterados: push+PR+CI+merge)
+   │
+   ▼
+[G3] /release-pr quando o navigator liberar (inalterado)
+```
 
-   > ⚠️ **O driver NÃO inicia o red phase enquanto `História revisada` não estiver `[x]`.** O navigator revisa o plano (Contexto/Solução/Critérios) primeiro; só então a implementação começa.
+1. **`/analyze <demanda>`** investiga o código (nunca pergunta o que o código já responde), resolve ambiguidade genuína via `AskUserQuestion` **antes** de escrever, e produz `analysis/YYYYMMDDHHmm_<slug>.md` (Problema/Investigação/Opções/Decisão recomendada/Impacto). Roda `scripts/await-gate.sh analise <arquivo>` em background e, ao abrir, segue direto para `/story` — sem perguntar nada.
+2. **`/story [análise|descrição livre]`** cria a branch a partir de `develop` e escreve a story **completa** (Contexto/Solução nunca em branco) **já decomposta em tickets** — ver estrutura abaixo — e escreve os **cenários funcionais agora** (antes do G2, para o navigator revisar junto). Roda `scripts/await-gate.sh revisao` em background.
+3. **Gate G2.** Nenhuma linha de código de produção ou teste antes de `[x] História revisada`.
+4. **Ciclo por ticket (após G2, sem nenhum prompt ao navigator):** TDD red → green → refactor → `bash scripts/check.sh` → invoca o subagent `code-reviewer` → `CHANGES_REQUESTED` (corrige blocker/major, re-invoca, máx. 3 iterações, senão escala) ou `APPROVED` (`scripts/record-review.sh <Tn> <iterações>`, então commit do ticket).
+5. **Fim dos tickets:** `bash scripts/functional-check.sh` (roda os cenários, marca os CAs) → `bash scripts/finalize-story.sh` (marca `[x] Aprovado` quando História revisada + Review APPROVED + todos os CAs estão verdes) → `scripts/commit.sh` (se houver algo pendente) → `scripts/push-pr.sh` (push + PR **sempre `--base develop`** + aguarda CI + merge quando verde). **CI vermelho:** o `push-pr.sh` propaga o erro sem mergear (PR fica aberto) — **Política A**: um fix trivial pós-`Aprovado` (deixar o CI verde) não exige nova aprovação; se o fix mexer em lógica de produção, volta pro ciclo de ticket (novo review do subagent).
+6. Atualizar o arquivo de release correspondente em `releases/`: preencher a branch e o número do PR na tabela, marcar `[~]`; o `merge-when-green.sh` marca `[~]→[✓]` ao mergear em `develop`. **Apenas o corte de release** (`develop → master`, G3) depende de autorização explícita do navigator.
 
-   > ⚠️ **Story sempre preenchida.** Contexto e Solução são escritos (investigados) **antes** da revisão — revisar um plano vazio não tem sentido. Escopo/ambiguidade se resolve no plano (AskUserQuestion **antes** da revisão), nunca depois.
+### Artefatos
 
-   > ⚠️ **Após `[x] História revisada`** implementar; O driver vai até o fim **sem perguntar nada e sem confirmar nenhum comando/execução** (check.sh, scripts, builds, git rodam direto).
+#### `analysis/YYYYMMDDHHmm_<slug>.md` (gitignored, como `stories/`)
 
-   > ⚠️ **Entre História revisada** e **Solicitação de aprovação** **NÃO SOLICITAR NADA EM PROMPT PARA O NAVIGATOR**.
+```markdown
+# Análise — <título curto>
 
+## Problema
+## Investigação
+(arquivos relevantes, comportamento atual, causa raiz)
+## Opções
+1. ... (prós/contras)
+2. ...
+## Decisão recomendada
+## Impacto
+(módulos afetados, riscos, migrações, estimativa de decomposição em tickets)
 
-3. Escrever o teste que falha (**red**) — nunca escrever código de produção sem um teste falhando antes.
-4. Implementar o mínimo para o teste passar (**green**).
-5. Refatorar se necessário, mantendo os testes verdes (**refactor**).
-6. Executar a suíte de testes (obrigatório antes de apresentar ao navigator):
-   - Backend: `go test ./...` + `go build ./...`
-   - Frontend: `yarn lint` + `yarn test --run` + `yarn build` (em `frontend/`)
-   - Nunca prosseguir se qualquer um desses falhar.
-7. Adicionar seção `## Revisão` na história e **aguardar aprovação explícita do navigator**.
+## Gate
+- [] Análise aprovada
+```
 
-   > ⚠️ **Nenhum commit pode ser feito antes de o navigator marcar `[x] Aprovado`.** O driver apresenta o resultado, o navigator revisa o código e aprova — só então o commit acontece.
+#### `stories/YYYYMMDDHHmm_<slug>.md`
 
-   > ⚠️ **O driver NÃO marca os Critérios de Aceitação.** Apenas o **1º critério** (verdes) é marcado automaticamente pelo `scripts/check.sh`. **Todos os demais critérios** e o `[x] Aprovado` são marcados pelo **navigator** via `scripts/story-approval.sh`. O driver pode preencher a seção `## Revisão`, mas **sem tocar nos checkboxes dos critérios**.
+```markdown
+# tipo(escopo): descrição curta em inglês
 
-8. Com a aprovação do navigator, o ciclo roda **direto, sem novas perguntas** — mas o driver **só segue quando TODOS os Critérios de Aceitação E `[x] Aprovado` estiverem marcados** (apenas monitorar o arquivo após pedir `scripts/story-approval.sh`): commitar (mensagem semântica) → `scripts/push-pr.sh`, que **orquestra o ciclo inteiro** — push + abre o PR (**sempre `--base develop`**, nunca `master`) + aguarda o CI + mergeia quando verde (chama o `merge-when-green.sh` internamente). A aprovação da story autoriza, de uma vez, commit + push + PR + merge-quando-verde. **CI vermelho:** o `push-pr.sh` propaga o erro sem mergear (PR fica aberto) — **Política A**: um fix trivial pós-aprovação (deixar o CI verde) não exige nova aprovação; o driver corrige, avisa o que mudou, commita e roda `push-pr.sh` de novo (idempotente: não recria o PR, só reespera o CI). Se o fix mexer em lógica de produção, volta pro navigator. Use `scripts/push-pr.sh --no-merge` para só abrir o PR sem mergear. **Apenas o corte de release** (`develop → master`) depende de autorização explícita do navigator.
-9. Atualizar o arquivo de release correspondente em `releases/`: preencher a branch e o número do PR na tabela, marcar `[~]`; o `merge-when-green.sh` marca `[~]→[✓]` ao mergear em `develop`. O **corte de release** (PR `develop → master`) é o passo que aguarda o navigator liberar.
+> Análise: analysis/YYYYMMDDHHmm_<slug>.md
 
-### Histórias
+## Contexto
+## Solução
 
-Histórias ficam em `stories/` (gitignored). O nome do arquivo usa timestamp no formato
-`YYYYMMDDHHmm_<descricao>.md` — igual às migrations de banco — garantindo ordenação
-cronológica natural ao listar o diretório.
+## Tickets
+| # | Descrição | Depende de | Status |
+|---|-----------|------------|--------|
+| T1 | ... | — | [] |
+| T2 | ... | T1 | [] |
 
-Ao iniciar uma nova história:
-- Criar o arquivo `stories/YYYYMMDDHHmm_<descricao>.md` com contexto, critérios de aceitação e notas técnicas.
-- Ao concluir a implementação, adicionar uma seção `## Revisão` no arquivo com checklist do que foi feito.
-- **Nenhum commit pode ser feito sem aprovação explícita do navigator. Só proceder com commit ou PR após o navigator marcar `[x] Aprovado` na seção Revisão.**
+### T1 — título
+Escopo, arquivos, abordagem. Critérios cobertos: CA2.
+
+## Critérios de Aceitação
+- [] CA1: Backend e frontend verdes (auto: scripts/check.sh)
+- [] CA2: <critério> (auto: tests/functional/ca2_<slug>.sh)
+- [] CA3: <critério> (auto: tests/functional/ca3_<slug>.sh)
+
+## Gates
+- [] História revisada
+- [] Review: APPROVED
+- [] Aprovado
+
+## Code Review
+(preenchido por scripts/record-review.sh)
+
+## Revisão
+(resumo do driver ao final, como hoje)
+```
+
+Regras:
+- **Todo critério de aceite tem um cenário funcional executável** em `tests/functional/caNN_<slug>.sh` (exit 0 = passou), exceto o CA1 (`scripts/check.sh`). Escrito pelo driver **antes** do G2 — o navigator revisa os cenários junto com a story.
+- `[x] Review: APPROVED` só é escrito por `record-review.sh` (todos os tickets aprovados pelo subagent).
+- `[x] Aprovado` só é escrito por `finalize-story.sh` (nunca pelo driver à mão) quando: História revisada ✓ + Review APPROVED ✓ + todos os CAs ✓. Isso mantém `commit.sh`/`push-pr.sh`/hooks funcionando sem alteração de contrato.
+
+Histórias e análises ficam em `stories/`/`analysis/` (ambos gitignored). O nome do arquivo usa timestamp no formato `YYYYMMDDHHmm_<descricao>.md` — igual às migrations de banco — garantindo ordenação cronológica natural ao listar o diretório.
+
+### Tickets
+
+- Vivem **dentro da story** (não são GitHub Issues): projeto solo, o release file já dá a visão agregada; Issues adicionariam latência e estado duplicado.
+- Um ticket = uma unidade implementável com TDD próprio, idealmente ≤ ~200 linhas de diff. Cada ticket vira **um commit** na branch da história (mensagem: `tipo(escopo): T1 — descrição`); o PR continua um por história.
+- Se durante a implementação um ticket se revelar maior que o previsto, o driver o divide (T2 → T2a/T2b) atualizando a tabela — sem novo gate.
+- Uma história com 1 ticket é válida; com mais de ~6, questione se não são duas histórias.
+
+### Code review automatizado
+
+Subagent `code-reviewer` (`.claude/agents/code-reviewer.md`): contexto limpo, só leitura (`Read, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(bash scripts/check.sh)`), lê o diff do ticket + arquivos tocados, devolve veredito estruturado. Nunca edita arquivos nem marca checkboxes.
+
+Loop por ticket:
+1. Driver termina o TDD do ticket e roda `bash scripts/check.sh`.
+2. Driver invoca o subagent passando: story, ticket, `git diff` staged/HEAD.
+3. Veredito `CHANGES_REQUESTED` → driver corrige apenas issues `blocker` e `major` (registra `minor`/`nit` na seção Code Review como follow-up) e re-invoca.
+4. Veredito `APPROVED` → `scripts/record-review.sh <Tn> <iterações>`.
+5. **Circuit breaker:** 3 iterações sem `APPROVED` → driver para, resume o impasse na seção Code Review e escala ao navigator (única exceção de interação entre G2 e G3).
+
+### Testes funcionais
+
+- `tests/functional/` (versionado). Convenção: `caNN_<slug>.sh`, executável, exit 0 = critério atendido. Pode chamar `go test -run`, `curl` contra o binário, `yarn test --testNamePattern`, etc. — o contrato é só o exit code. Ver template em `tests/functional/ca2_exemplo.sh.template`.
+- `scripts/functional-check.sh`: roda `check.sh` (marca CA1) e depois cada `caNN_*.sh` referenciado na story, marcando `[x]` no CA correspondente ao passar. Falhou → CA fica `[]` e o script sai com erro (driver corrige e re-roda; se a correção mexer em lógica, o ticket volta ao loop de review).
+- Substitui o antigo `story-approval.sh` interativo: critério verificável por máquina é marcado pela máquina. Critério genuinamente não-automatizável deve ser questionado no G1/G2 — ou vira automatizável, ou não é critério.
 
 ### Commits semânticos
 
-Formato: `<tipo>(<escopo opcional>): <descrição curta em inglês>`
+Formato: `<tipo>(<escopo opcional>): <descrição curta em inglês>` — para tickets, `<tipo>(<escopo>): Tn — <descrição>`.
 
 | Tipo | Quando usar |
 |---|---|
@@ -123,7 +240,8 @@ O fluxo acima é automatizado pelos slash commands em `.claude/commands/`:
 
 | Comando | O que faz |
 |---|---|
-| `/story <descrição livre>` | Cria story file + branch a partir de develop (passo 1 do fluxo). Passe **só a descrição**; Claude decide tipo/escopo/slug. |
+| `/analyze <demanda livre>` | Investiga e produz `analysis/*.md`; aguarda o gate G1. |
+| `/story [análise\|descrição livre]` | Cria story decomposta em tickets + branch a partir de develop; aguarda o gate G2; após G2, roda o ciclo completo até o PR. |
 | `/release-pr [vX.Y.Z]` | Valida release file e abre PR develop → master (após todas as histórias `[✓]`). |
 | `/release-tag` | Roda `./scripts/release.sh` em master após o PR de release ser mergeado. |
 
@@ -135,7 +253,7 @@ Hooks `PreToolUse` (matcher `Bash`, versionados no repo) impõem o fluxo automat
 
 | Gate | Script | Bloqueia quando |
 |---|---|---|
-| Aprovação da story | `scripts/hooks/story-approved.sh` | `git commit` em branch de história cuja story não tem `[x] Aprovado`. |
+| Aprovação por ticket | `scripts/hooks/story-approved.sh` | `git commit` em branch de história sem `[x] História revisada`, ou quando o nº de commits já feitos na branch ≥ nº de tickets com `APPROVED` registrado (modo legado: libera tudo se `[x] Aprovado` já estiver marcado). |
 | Target do PR | `scripts/hooks/pr-target.sh` | `gh pr create --base master` a partir de branch que não seja `develop`/`release/*`. |
 | Testes backend | `scripts/hooks/precommit-tests.sh` | `git commit` quando `go build ./...` ou `go test -count=1 ./...` falham. |
 
@@ -147,11 +265,13 @@ Encadeiam o fluxo por história. **Checkboxes usam `[]` para não-marcado** (e `
 
 | Script | Quem roda | O que faz |
 |---|---|---|
-| `check.sh` | Claude | "CI local": `go build`+`go test` sempre; `frontend-check.sh` se `frontend/` mudou (vs develop). Se tudo verde, marca o **1º Critério de Aceitação** da story `[x]`. |
-| `story-approval.sh` | **Navigator** (`! scripts/story-approval.sh`) | Interativo: percorre os Critérios de Aceitação, pergunta sobre cada não-marcado e marca conforme a resposta; no fim, oferece marcar `[x] Aprovado`. |
-| `await-review.sh [story]` | Claude (background) | Bloqueia até `[x] História revisada` na story (padrão ancorado, case-insensitive, imune a menções na prosa). Resolve a story pela branch atual. Usado no passo 2 do fluxo (gate de revisão antes de implementar). |
-| `await-approval.sh [story]` | Claude (background) | Bloqueia até **nenhum** Critério de Aceitação desmarcado **e** `[x] Aprovado`. Usado no passo 8 (gate final antes de commit/push/PR/merge). |
-| `commit.sh` | Claude | Commita o que está staged usando o heading `#` da story como mensagem (já é `tipo(escopo): desc`); exige `[x] Aprovado`; adiciona `Co-Authored-By`. |
+| `check.sh` | Claude | "CI local": `go build`+`go test` sempre; `frontend-check.sh` se `frontend/` mudou (vs develop). Se tudo verde, marca o **CA1** da story `[x]`. |
+| `lib/story.sh` | (lib) | `resolve_story` (story pela branch atual), `checkbox_marked`/`mark_checkbox` — compartilhados por todos os scripts abaixo. |
+| `await-gate.sh {analise\|revisao\|aprovado} [arquivo]` | Claude (background) | Bloqueia até o gate correspondente abrir (padrão ancorado, case-insensitive, imune a menções na prosa). `analise` = G1 em `analysis/*.md`; `revisao` = G2 na story; `aprovado` = modo legado (todos os CAs + `[x] Aprovado`). |
+| `record-review.sh <Tn> <iterações>` | Claude | Registra o veredito `APPROVED` do subagent `code-reviewer` na seção `## Code Review`, marca o Status do ticket na tabela, e abre `Review: APPROVED` quando todos os tickets estão `[x]`. |
+| `functional-check.sh` | Claude | Roda `check.sh` (CA1) + cada cenário `tests/functional/caNN_*.sh` referenciado na story, marcando cada CA `[x]` ao passar. |
+| `finalize-story.sh` | Claude | Marca `[x] Aprovado` automaticamente quando História revisada + Review APPROVED + todos os CAs estão verdes — nunca marcado à mão pelo driver. |
+| `commit.sh` | Claude | Commita o que está staged usando o heading `#` da story (ou `Tn — descrição` do ticket) como mensagem; exige o gate do hook `story-approved.sh`; adiciona `Co-Authored-By`. |
 | `push-pr.sh` | Claude | **Orquestra o ciclo pós-aprovação:** push + `gh pr create --base develop` + **registra a linha da história no `_next.md` com `[~]`** (idempotente por `#PR`) + aguarda o CI e mergeia (chama `merge-when-green.sh`). Só com tree limpa + story aprovada; idempotente (não recria PR; re-roda após fix). `--no-merge` só abre o PR sem mergear. CI vermelho: propaga erro sem mergear. |
 | `release-pr.sh [versão]` | Claude (via `/release-pr`) | **Corte de release:** valida o `_next.md` (todas `[✓]`) + pré-condições git (develop sincronizado, tree limpa, à frente de master), calcula a versão estimada (bump convencional) e abre o PR `develop → master`. Idempotente (PR aberto → mostra URL). **Não mergeia** (master exige aprovação humana). |
 | `release-candidate.sh` | Navigator (manual) | **Pré-release (RC) sem tocar em master:** roda a partir de `develop`, calcula a próxima versão (via `release.sh --print-next-version`) e cria/sobrescreve a tag flutuante `vX.Y.Z-rc` (`git push --force`) — dispara o mesmo `release.yml`, publicando binários + imagem Docker como pré-release do GitHub. `--dry-run` só mostra a tag; `--cleanup` remove a RC do ciclo atual. |
