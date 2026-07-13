@@ -11,14 +11,14 @@ Carregue e internalize **todo o fluxo de trabalho combinado** deste projeto ante
 2. **Releia, no `CLAUDE.md`, a seção "Fluxo de trabalho"** (resumo + **"Regras-gate inegociáveis"**) — é o ponteiro canônico que complementa o `docs/workflow.md`.
 
 3. **Confirme o entendimento** devolvendo um resumo curto (bullets) dos pontos-gate, sem reabrir discussão e sem começar tarefa nenhuma:
-   - Toda história começa por `/story` (story file + branch a partir de `develop`); nada de código/teste antes.
-   - **Gate de revisão:** não implementar (nem red phase) antes de `[x] História revisada`.
-   - TDD red → green → refactor; testes sempre via `bash scripts/check.sh` (nunca `docker run … node` nem `go test` crus).
-   - **Critérios de aceitação:** o driver não os marca — só o `check.sh` marca o 1º (verdes); os demais e `[x] Aprovado` são do navigator via `scripts/story-approval.sh`. Preencher `## Revisão` sem tocar nos checkboxes.
-   - **Gate de aprovação:** nenhum commit antes de `[x] Aprovado`; commit via `scripts/commit.sh`, depois `scripts/push-pr.sh` (push + PR base `develop` + CI + merge), direto e sem perguntar.
-   - Após `[x] História revisada`, a única interação com o navigator é o pedido de aprovação — o driver vai até o fim sem perguntar nada nem confirmar comandos.
-   - Monitorar revisão/aprovação com `scripts/await-review.sh` / `scripts/await-approval.sh` rodando em background **rastreado pelo harness** (`run_in_background`), não `nohup`.
-   - `master` e `develop` são protegidos — nunca commit/push direto; tudo via PR. O corte de release (`develop → master`, via `scripts/release-pr.sh`) só com ok explícito do navigator.
+   - Só **3 gates humanos**: G1 (Análise aprovada), G2 (História revisada), G3 (release). Entre G2 e G3, zero prompts ao navigator (exceção: circuit breaker do code review após 3 iterações).
+   - **G1:** demanda com trade-offs reais começa por `/analyze` → `analysis/*.md`; nada de story/código antes de `[x] Análise aprovada`.
+   - **G2:** `/story` cria branch a partir de `develop` + story já decomposta em tickets (T1..Tn) + 1 cenário funcional por CA em `tests/functional/`. Não implementar (nem red phase) antes de `[x] História revisada`.
+   - Por ticket, sem interação: TDD red → green → refactor → `bash scripts/check.sh` → subagent `code-reviewer` (`CHANGES_REQUESTED` corrige e re-invoca, máx. 3x; `APPROVED` → `scripts/record-review.sh <Tn> <iter>` → commit do ticket).
+   - **Checkboxes automáticos, nunca à mão:** CA1 = `check.sh`; demais CAs = `scripts/functional-check.sh`; `Review: APPROVED` = `record-review.sh`; `[x] Aprovado` = `scripts/finalize-story.sh`.
+   - Ao final: `scripts/commit.sh` (se pendente) → `scripts/push-pr.sh` (push + PR base `develop` + CI + merge), direto e sem perguntar.
+   - Monitorar gates com `scripts/await-gate.sh {analise|revisao|aprovado}` rodando em background **rastreado pelo harness** (`run_in_background`), não `nohup`.
+   - `master` e `develop` são protegidos — nunca commit/push direto; tudo via PR. **G3:** o corte de release (`develop → master`, via `scripts/release-pr.sh`) só com ok explícito do navigator.
 
 ## Restrição
 

@@ -1,69 +1,61 @@
 ---
-description: Cria story file + branch a partir de develop seguindo o fluxo XP/TDD do CLAUDE.md
-argument-hint: <descrição livre da história>
+description: Cria story decomposta em tickets a partir de uma análise aprovada + branch a partir de develop; aguarda o gate G2 (História revisada)
+argument-hint: [caminho da análise aprovada | descrição livre]
 ---
 
-Crie uma story file e branch para iniciar uma nova história, seguindo estritamente o fluxo XP/TDD descrito em CLAUDE.md.
+Entrada: $ARGUMENTS
 
-**Input do navigator:** `$ARGUMENTS` — apenas uma **descrição livre**. Você (Claude) decide tipo, escopo e descrição curta.
+Execute o **passo 2-3 do fluxo** (`docs/workflow.md`): criação de história e
+decomposição em tickets.
 
-## Passos
+Pré-condições (valide antes de qualquer coisa):
+- Se a entrada for um arquivo em `analysis/`, ele DEVE conter
+  `[x] Análise aprovada`. Sem isso, pare e peça o G1.
+- Se a entrada for descrição livre (demanda trivial que dispensa análise
+  formal), siga — mas se a investigação revelar trade-offs reais, volte e rode
+  `/analyze` primeiro.
+- Working tree limpa; `develop` sincronizado com origin.
 
-1. **Decida tipo, escopo e descrição.** A partir da descrição livre, infira:
-   - o **tipo**: `feat` (nova funcionalidade), `fix` (bug), `refactor`, `test`, `docs`, `chore` (build/config/tooling);
-   - o **escopo** (opcional): o pacote/área afetada, se óbvio (ex: `motion`, `deviceinfo`, `timeline`);
-   - uma **descrição curta** em pt-BR para o título.
-   - **Não pergunte ao navigator** — decida. Só use AskUserQuestion se a descrição for genuinamente ambígua a ponto de mudar o tipo/escopo.
+Passos:
 
-2. **Gere o slug.** Kebab-case curto a partir da descrição (max ~40 chars, sem stopwords). Ex: "bbox desalinhado no high-res" → `bbox-desalinhado-hires`.
+1. Decida `tipo` (feat/fix/refactor/chore/...), `escopo` e `slug`.
+2. Crie a branch: `git checkout -b <tipo>/<slug> develop`.
+3. Crie `stories/YYYYMMDDHHmm_<slug>.md` seguindo a estrutura do
+   `docs/workflow.md`, COMPLETA antes da revisão:
+   - `## Contexto` e `## Solução` nunca em branco (importe da análise).
+   - `## Tickets`: decomponha em unidades pequenas (alvo ≤ ~200 linhas de diff
+     cada), com tabela (`#`, Descrição, Depende de, Status `[]`) e uma seção
+     `### Tn — título` por ticket dizendo escopo, arquivos e critérios cobertos.
+     Uma história com 1 ticket é válida; com mais de ~6, questione se não são
+     duas histórias.
+   - `## Critérios de Aceitação`: CA1 é SEMPRE
+     `- [] CA1: Backend e frontend verdes (auto: scripts/check.sh)`.
+     Cada CA seguinte referencia seu cenário:
+     `- [] CAn: <critério> (auto: tests/functional/can_<slug>.sh)`.
+   - `## Gates`:
+     ```
+     - [] História revisada
+     - [] Review: APPROVED
+     - [] Aprovado
+     ```
+   - Seções vazias `## Code Review` e `## Revisão` ao final.
+4. **Escreva os cenários funcionais AGORA** — um `tests/functional/caNN_<slug>.sh`
+   executável por CA (exceto CA1), exit 0 = critério atendido. O navigator
+   revisa os cenários junto com a story: eles fazem parte do que o G2 aprova.
+   Cenário que ainda não pode passar (código não existe) deve FALHAR de forma
+   clara, não dar erro de sintaxe.
+5. Apresente a story ao navigator e rode em background:
+   `bash scripts/await-gate.sh revisao`
+6. **Gate G2:** nenhuma linha de código de produção ou teste unitário antes de
+   `[x] História revisada`.
 
-3. **Verifique pré-condições.**
-   - `git branch --show-current` deve ser `develop` (ou aceite trocar — pergunte).
-   - Working tree limpa (sem arquivos modificados rastreados).
-   - Se algo falhar, aborte e explique.
-
-4. **Sincronize develop.** `git fetch origin develop && git pull origin develop --ff-only`.
-
-5. **Crie a branch.** `git checkout -b <tipo>/<slug>` (sem escopo no nome da branch — só `<tipo>/<slug>`).
-
-6. **Crie a story file** com o **plano COMPLETO**. Em `stories/YYYYMMDDHHmm_<tipo>_<slug_underscore>.md` (timestamp via `date +%Y%m%d%H%M`, slug com `_` em vez de `-`). **Investigue antes e preencha Contexto e Solução — NUNCA deixe em branco**; o navigator revisa o plano, então o plano precisa existir, com arquivos/abordagem/decisões de escopo. O **primeiro critério é sempre o "verdes"** (auto-marcado por `scripts/check.sh`):
-
-```markdown
-# <tipo>(<escopo>): <descrição>
-
-## Contexto
-
-<o problema e o estado atual, INVESTIGADO — arquivos/funções relevantes, por que mexer>
-
-## Solução
-
-<o plano COMPLETO: arquivos a tocar, abordagem, decisões de escopo a revisar — nunca em branco>
-
-## Critérios de Aceitação
-
-- [] Backend e frontend verdes (auto: `scripts/check.sh`)
-- [] <critério 2>
-- [] <critério 3>
-
-## Revisão da história (antes de implementar)
-
-- [] História revisada
-
-## Revisão
-
-- [] Aprovado
-```
-
-7. **Reporte e aguarde a revisão da história.** Confirme branch ativa e caminho do story file. **NÃO inicie a implementação (nem o red phase).** A história precisa ser revisada pelo navigator antes: peça para ele revisar e marcar `[x] História revisada` na story. Rode **`scripts/await-review.sh` em background** (bloqueia até `[x] História revisada`) e só prossiga para o passo 8 quando ele retornar.
-
-8. **Red phase (somente após `[x] História revisada`).** Aí sim escreva o teste que falha e siga o ciclo TDD red → green → refactor do CLAUDE.md.
-
-## Restrições
-
-- NÃO comece a implementar — só prepare o ambiente.
-- NÃO commite a story file ainda (será junto com a implementação).
-- **NÃO inicie a implementação antes de o navigator marcar `[x] História revisada`.** Monitore o arquivo em background.
-- **Contexto e Solução SEMPRE preenchidos antes da revisão** — escopo/ambiguidade se resolve no plano (use AskUserQuestion *antes* da revisão, se preciso), nunca depois.
-- **Após `[x] História revisada`, a ÚNICA interação com o navigator é o pedido de aprovação.** O driver vai até o fim sem perguntar nada e **sem confirmar nenhum comando/execução** (check.sh, scripts, builds, git rodam direto).
-- Ao final, ao pedir `./scripts/story-approval.sh`, rode **`scripts/await-approval.sh` em background** e **só siga** (commit/push/PR/merge) quando ele retornar (todos os critérios E `[x] Aprovado` marcados).
-- Se o navigator pedir uma branch a partir de master ou de outra branch que não develop, confirme com AskUserQuestion antes.
+Após o G2 abrir, execute o ciclo COMPLETO sem nenhum prompt ao navigator:
+para cada ticket em ordem de dependência —
+red → green → refactor → `bash scripts/check.sh` → invocar o subagent
+`code-reviewer` (passando story, Tn e o diff) → corrigir blocker/major e
+re-invocar até `VERDICT: APPROVED` (máx. 3 iterações; estourou → escale ao
+navigator com o resumo do impasse) → `bash scripts/record-review.sh <Tn> <iter>`
+→ commit do ticket (`git add` seletivo; mensagem `tipo(escopo): Tn — descrição`;
+o hook de commit exige o gate de review OK).
+Ao final de todos os tickets: `bash scripts/functional-check.sh` →
+`bash scripts/finalize-story.sh` → `scripts/push-pr.sh`.
