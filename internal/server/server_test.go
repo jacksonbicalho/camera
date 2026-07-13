@@ -680,6 +680,107 @@ func TestRecordingsIncludesDBID(t *testing.T) {
 	}
 }
 
+// TestRecordingsBackfillsMissingDBRow cobre o chunk que o storage.Cleaner ainda não
+// sincronizou pro banco (syncRecordings roda a cada 1 minuto — um chunk recém-criado no
+// disco pode não ter linha nenhuma na tabela `recordings` ainda). Sem o backfill on-demand
+// em handleRecordings, esse chunk voltaria com `id` omitido (zero value + `omitempty`), o
+// cliente selecionaria ele sem id, e quando o sync real o inserisse pouco depois (ganhando
+// um id diferente), a seleção antiga deixaria de bater com qualquer item da lista —
+// disparando reload do player. Numa câmera com chunks de poucos segundos (bem mais rápido
+// que o sync de 1 minuto) isso repetia sem parar — bug real reportado como "player
+// piscando", independente do que o usuário estivesse fazendo.
+func TestRecordingsBackfillsMissingDBRow(t *testing.T) {
+	tmpDir := t.TempDir()
+	cameraID := "cam1"
+	dateDir := filepath.Join(tmpDir, cameraID, "2026", "05", "28")
+	if err := os.MkdirAll(dateDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Chunk no disco SEM nenhuma linha correspondente no banco — simula o intervalo entre
+	// o ffmpeg fechar o arquivo e o próximo tick do storage.Cleaner.syncRecordings. Precisa
+	// de um SUCESSOR (2º chunk, mais novo) pra deixar de ser "o mais recente" — só esse é
+	// filtrado como IsRecording (ativo) e pulado pelo backfill; o backfill se aplica ao
+	// chunk já FINALIZADO (o único visível/selecionável de verdade no HistoryPage).
+	if err := os.WriteFile(filepath.Join(dateDir, "20260528225426.mp4"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dateDir, "20260528225456.mp4"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CreateCamera(database, config.CameraConfig{ID: cameraID}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.ServerConfig{RecordingsPath: tmpDir}
+	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{{ID: cameraID}}, discardLogger(), nil).WithDB(database)
+	token := loginAndGetToken(t, srv, "admin", "pw")
+
+	get := func() (int64, string) {
+		req := httptest.NewRequest(http.MethodGet, "/api/cameras/"+cameraID+"/recordings?date=2026-05-28&page=1&limit=10", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Recordings []struct {
+				Filename    string `json:"filename"`
+				ID          int64  `json:"id"`
+				End         string `json:"end"`
+				IsRecording bool   `json:"is_recording"`
+			} `json:"recordings"`
+		}
+		json.NewDecoder(w.Body).Decode(&resp)
+		for _, r := range resp.Recordings {
+			if r.Filename == "20260528225426.mp4" {
+				if r.IsRecording {
+					t.Fatal("test setup bug: the finalized chunk was marked as still recording")
+				}
+				return r.ID, r.End
+			}
+		}
+		t.Fatal("finalized chunk not found in listing")
+		return 0, ""
+	}
+
+	firstID, firstEnd := get()
+	if firstID == 0 {
+		t.Fatal("expected the chunk to be backfilled with a non-zero id on its first listing")
+	}
+	// `end` precisa vir preenchido já na 1ª resposta (a partir do início do chunk sucessor,
+	// mesma convenção do storage.Cleaner.syncRecordings) — sem isso, o card não tem `end`
+	// nem um "próximo" chunk carregado ainda pra inferir a duração por fallback (é o mais
+	// novo da lista), e ficava sem nenhuma duração exibida (reportado pelo navigator: "a
+	// primeira [gravação] sem o tempo").
+	if firstEnd == "" {
+		t.Error("expected the backfilled chunk to already have `end` populated on its first listing")
+	}
+	if firstEnd != "2026-05-28T22:54:56Z" {
+		t.Errorf("expected end=2026-05-28T22:54:56Z (start of the successor chunk), got %q", firstEnd)
+	}
+	// Uma 2ª chamada (equivalente ao poll de 5s do HistoryPage) deve devolver o MESMO id —
+	// nunca um id novo/diferente, senão o cliente perderia a seleção e recarregaria o player.
+	if secondID, _ := get(); secondID != firstID {
+		t.Errorf("id changed between listings: first=%d second=%d", firstID, secondID)
+	}
+
+	// O chunk ATIVO (o 2º, mais recente — sem sucessor, marcado is_recording) não deve
+	// ganhar linha nenhuma no banco por esse backfill: ele nunca é selecionável no
+	// HistoryPage (filtrado no cliente), e gravar um registro provisório pra um arquivo
+	// ainda sendo escrito é desnecessário.
+	if ids, err := db.IDsByPaths(database, []string{filepath.Join(dateDir, "20260528225456.mp4")}); err != nil {
+		t.Fatal(err)
+	} else if _, ok := ids[filepath.Join(dateDir, "20260528225456.mp4")]; ok {
+		t.Error("expected the still-active chunk to NOT be backfilled into the db")
+	}
+}
+
 func TestGetRecordingByIDReturnsDetails(t *testing.T) {
 	tmpDir := t.TempDir()
 	cameraID := "cam1"

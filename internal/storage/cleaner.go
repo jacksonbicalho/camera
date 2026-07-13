@@ -211,7 +211,7 @@ func (c *Cleaner) syncRecordings() {
 			// If the moov atom is absent the file is corrupt (ffmpeg was killed
 			// mid-write). Remove the file and its DB record so it never appears
 			// in the UI as a valid recording.
-			if !chunkEnd.IsZero() && !isValidMP4(fullPath) {
+			if !chunkEnd.IsZero() && !IsValidMP4(fullPath) {
 				c.log.Warn("removing corrupt recording (moov atom missing)", "path", fullPath)
 				if err := os.Remove(fullPath); err != nil {
 					c.log.Warn("failed to remove corrupt recording", "path", fullPath, "err", err)

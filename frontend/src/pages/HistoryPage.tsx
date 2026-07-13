@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import CameraStageHeader from '../components/CameraStageHeader'
 import CameraViewTabs from '../components/CameraViewTabs'
 import DatePicker from '../components/DatePicker'
-import { Loader2, Play } from '../components/Icons'
+import { ChevronDown, Loader2, Play } from '../components/Icons'
 import VideoPlayer, { type VideoPlayerSegment } from '../components/VideoPlayer'
 import {
   loadMotionEvents,
@@ -14,7 +14,12 @@ import {
   type MotionEvent,
   type Recording,
 } from './cameraUtils'
-import { recordingCategory, type RecordingCategory } from './eventCategory'
+import {
+  matchesTimelineFilter,
+  recordingCategory,
+  type RecordingCategory,
+  type TimelineFilter,
+} from './eventCategory'
 import { RecordingsGateway } from '../lib/recordingsGateway'
 
 interface Camera {
@@ -26,11 +31,6 @@ interface Camera {
 // Janela usada só pra classificar a categoria do chunk (recordingCategory) quando
 // `end` não veio na API — mesmo fallback de tamanho usado no Filmstrip legado.
 const CHUNK_FALLBACK_MS = 5 * 60_000
-
-// Quantidade de gravações buscada por página — não o dia inteiro de uma vez (que podia
-// significar centenas de chunks). ~2x o que cabe visível num filmstrip de cards w-32 numa
-// coluna page-content; o resto carrega sob demanda ("Carregar mais").
-const PAGE_SIZE = 20
 
 const CAT_BORDER: Record<RecordingCategory, string> = {
   continua: 'border-blue-500',
@@ -80,8 +80,8 @@ const gateway = new RecordingsGateway()
 
 // HistoryPage — histórico de gravações da câmera (rota /history/:cameraId ou
 // /history/:cameraId/:recordingId). Mostra as gravações do dia selecionado (calendário via
-// DatePicker, default hoje): player tocando a selecionada + tira de cards ("GRAVAÇÕES · N")
-// pra trocar de gravação. Cabeçalho compartilhado com LivePage via CameraStageHeader (mesma
+// DatePicker, default hoje): player tocando a selecionada + lista agrupada por hora pra
+// trocar de gravação. Cabeçalho compartilhado com LivePage via CameraStageHeader (mesma
 // largura).
 //
 // URL compartilhável: com :recordingId na rota, resolve o dia da gravação via
@@ -120,21 +120,7 @@ export default function HistoryPage() {
   )
   const [availableDays, setAvailableDays] = useState<string[]>([])
   const [readyForUrlSync, setReadyForUrlSync] = useState(!initialRecordingId)
-  // Paginação do filmstrip: `recordings` acumula as páginas já carregadas (sempre em ordem
-  // cronológica DECRESCENTE — mais recente primeiro), `page` é a última página carregada,
-  // `hasMore` indica se o dia tem mais gravações além do que já foi buscado.
-  const [hasMore, setHasMore] = useState(false)
-  const [page, setPage] = useState(1)
-  const [loadingMore, setLoadingMore] = useState(false)
-  // Espelha `page` pro poll ler sem fechar sobre um valor obsoleto — sem entrar nas deps do
-  // useEffect do poll, que senão reiniciaria o intervalo a cada "Carregar mais".
-  const pageRef = useRef(1)
-  // Total REAL de gravações do dia (campo `total` da API — contagem no filesystem, não afetada
-  // por paginação), exclui a gravação em andamento (mesmo critério que já exclui `is_recording`
-  // do filmstrip). `recordings.length` NÃO serve pro contador: cresce com o que o poll/"Carregar
-  // mais" foi acumulando em tela, sem nunca refletir uma exclusão pelo `storage.Cleaner` fora da
-  // janela carregada — dava pra "a contagem chega a 22/23, recarrega a página e mostra 19".
-  const [dayTotal, setDayTotal] = useState<number | null>(null)
+  const [filter, setFilter] = useState<TimelineFilter>('todos')
   // Reprodução contínua: null = desligada; array = ligada, com o snapshot das gravações a
   // encadear (tomado no instante em que liga — ver comentário no `toggleContinuous`).
   const [continuousRecordings, setContinuousRecordings] = useState<Recording[] | null>(null)
@@ -213,47 +199,20 @@ export default function HistoryPage() {
 
     async function load() {
       const pending = pendingSelectRef.current
-      const evs = await loadMotionEvents(cameraId!, selectedDate!)
+      const [evs, recRes] = await Promise.all([
+        loadMotionEvents(cameraId!, selectedDate!),
+        loadRecordingsData(cameraId!, selectedDate!, 1, 'desc', 0),
+      ])
       if (cancelled) return
-
-      // Busca a 1ª página (mais recentes) e, só se a URL compartilhável pedir uma gravação
-      // específica que não veio nessa página, continua paginando até achar ou até acabarem
-      // as páginas (hasMore). Navegação normal (sem :recordingId pendente) para na 1ª página.
-      let currentPage = 1
-      let recs: Recording[] = []
-      let more: boolean
-      let total: number
-      let sawActive = false
-      for (;;) {
-        const recRes = await loadRecordingsData(
-          cameraId!,
-          selectedDate!,
-          currentPage,
-          'desc',
-          PAGE_SIZE,
-        )
-        if (cancelled) return
-        if (recRes === 401) {
-          onUnauthorized()
-          return
-        }
-        recs = [...recs, ...recRes.recordings.filter((r) => !r.is_recording)]
-        more = recRes.hasMore
-        total = recRes.total
-        if (recRes.recordings.some((r) => r.is_recording)) sawActive = true
-        // Sem alvo pendente (navegação normal): só a 1ª página, mesmo que hasMore — a
-        // paginação automática é só pra achar uma gravação específica vinda da URL.
-        if (pending == null) break
-        if (recs.some((r) => r.id === pending) || !more) break
-        currentPage += 1
+      if (recRes === 401) {
+        onUnauthorized()
+        return
       }
+
+      const recs = recRes.recordings.filter((r) => !r.is_recording)
 
       setRecordings(recs)
       setEvents(evs)
-      setHasMore(more)
-      setPage(currentPage)
-      pageRef.current = currentPage
-      setDayTotal(total - (sawActive ? 1 : 0))
       pendingSelectRef.current = null
       const initial =
         pending != null && recs.some((r) => r.id === pending)
@@ -272,16 +231,13 @@ export default function HistoryPage() {
     }
   }, [cameraId, selectedDate])
 
-  // Poll pra manter a lista/contador atualizados sem precisar recarregar a página (mesmo
-  // cadência do CameraPage: 5s pro dia de hoje — chunks novos terminando —, 30s pra dias
-  // passados). Re-busca TODA a janela já carregada (page*PAGE_SIZE, não só a página 1) numa
-  // chamada só — é a única forma de `mergeRecordings` enxergar uma gravação que já estava em
-  // tela e foi apagada pelo `storage.Cleaner` (retenção tende a apagar as mais antigas, que
-  // ficam justamente fora da página 1 depois de "Carregar mais"); itens além do que já foi
-  // carregado continuam preservados via `hasMore`. Nunca mexe em `selectedId`/`videoLoading`/
-  // `page` — não interrompe a reprodução nem invalida o "Carregar mais" que o usuário já
-  // clicou. `mergeRecordings` devolve a MESMA referência quando nada mudou, evitando remount
-  // do <video> (key={selected.id}) à toa.
+  // Poll pra manter a lista atualizada sem precisar recarregar a página (mesma cadência do
+  // CameraPage: 5s pro dia de hoje — chunks novos terminando —, 30s pra dias passados).
+  // Rebusca o dia INTEIRO (limit=0, hasMore sempre false) — é a única forma de
+  // `mergeRecordings` enxergar uma gravação que foi apagada pelo `storage.Cleaner` em
+  // qualquer ponto do dia (não só no fim da janela antes paginada). Nunca mexe em
+  // `selectedId`/`videoLoading` — não interrompe a reprodução. `mergeRecordings` devolve a
+  // MESMA referência quando nada mudou, evitando remount do <video> à toa.
   useEffect(() => {
     if (!cameraId || !selectedDate) return
     const today = new Date()
@@ -293,7 +249,7 @@ export default function HistoryPage() {
     const interval = setInterval(
       async () => {
         const [recRes, evs] = await Promise.all([
-          loadRecordingsData(cameraId, selectedDate, 1, 'desc', pageRef.current * PAGE_SIZE),
+          loadRecordingsData(cameraId, selectedDate, 1, 'desc', 0),
           loadMotionEvents(cameraId, selectedDate),
         ])
         if (recRes === 401) {
@@ -301,9 +257,8 @@ export default function HistoryPage() {
           return
         }
         const recs = recRes.recordings.filter((r) => !r.is_recording)
-        setRecordings((prev) => mergeRecordings(prev, recs, 'desc', recRes.hasMore))
+        setRecordings((prev) => mergeRecordings(prev, recs, 'desc', false))
         setEvents(evs)
-        setDayTotal(recRes.total - (recRes.recordings.some((r) => r.is_recording) ? 1 : 0))
       },
       isToday ? 5_000 : 30_000,
     )
@@ -346,27 +301,104 @@ export default function HistoryPage() {
     [recordings, selectedId],
   )
 
-  // `recordings` já vem em ordem decrescente (mais recente primeiro — pedido igual à exibição
-  // do filmstrip, sem precisar reverter). O "próximo cronológico" (pra inferir a duração quando
-  // `end` não veio) de um item no índice `i` é o índice ANTERIOR (`i - 1`), que é mais recente
-  // que ele nessa ordem — o mais recente de todos (índice 0) não tem "próximo".
-  const filmstripItems = useMemo(
-    () => recordings.map((rec, i) => ({ rec, duration: formatDuration(rec, recordings[i - 1]) })),
-    [recordings],
+  // `recordings` já vem em ordem decrescente (mais recente primeiro). O "próximo cronológico"
+  // (pra inferir a duração quando `end` não veio) de um item no índice `i` é o índice ANTERIOR
+  // (`i - 1`), mais recente nessa ordem — o mais recente de todos (índice 0) não tem "próximo".
+  // `recordingItems` carrega duração + categoria de cada item (pro filtro e pra lista agrupada).
+  const recordingItems = useMemo(
+    () =>
+      recordings.map((rec, i) => ({
+        rec,
+        duration: formatDuration(rec, recordings[i - 1]),
+        category: recordingCategory(rec, events, CHUNK_FALLBACK_MS),
+      })),
+    [recordings, events],
+  )
+  const filteredRecordingItems = useMemo(
+    () => recordingItems.filter((item) => matchesTimelineFilter(item.category, filter)),
+    [recordingItems, filter],
   )
 
-  // Rola o filmstrip (scroll horizontal) até o card ativo entrar em vista, centralizado —
-  // sobretudo importante ao abrir a URL compartilhável de uma gravação específica
-  // (/history/:cameraId/:recordingId): sem isso, se a gravação estiver longe no filmstrip
-  // (dia com muitos chunks), o card destacado fica fora da área visível.
+  // Agrupa por hora local (0-23) do início da gravação — cada grupo é colapsável, com
+  // contagem no cabeçalho ("18h — 12 eventos"). A ordem dos grupos (desc) e dos itens dentro
+  // de cada grupo (desc) segue a mesma ordem de `recordings`.
+  const groupsByHour = useMemo(() => {
+    const map = new Map<number, typeof filteredRecordingItems>()
+    for (const item of filteredRecordingItems) {
+      const hour = new Date(item.rec.start).getHours()
+      const list = map.get(hour)
+      if (list) list.push(item)
+      else map.set(hour, [item])
+    }
+    return [...map.entries()].sort((a, b) => b[0] - a[0])
+  }, [filteredRecordingItems])
+
+  // Grupos COLAPSADOS (o padrão é todo mundo aberto — dia normal de câmera residencial tem
+  // poucas horas com conteúdo; abrir tudo por padrão favorece escanear a lista inteira,
+  // igual ao filmstrip plano de antes, e ainda permite recolher horas que não interessam).
+  // Um grupo fechado reabre sozinho se o item ativo cair nele de novo (clique num card,
+  // deep-link da URL, avanço da reprodução contínua) — nunca esconde o item em reprodução.
+  const [closedHours, setClosedHours] = useState<Set<number>>(new Set())
+  // Ajuste durante o render (mesmo padrão de `errorForId`/`continuousResetForDate` abaixo),
+  // não useEffect+setState — reabre o grupo do item ativo se ele tiver sido fechado.
+  const activeHour = selected ? new Date(selected.start).getHours() : null
+  if (activeHour != null && closedHours.has(activeHour)) {
+    const next = new Set(closedHours)
+    next.delete(activeHour)
+    setClosedHours(next)
+  }
+  function toggleHour(hour: number) {
+    setClosedHours((prev) => {
+      const next = new Set(prev)
+      if (next.has(hour)) next.delete(hour)
+      else next.add(hour)
+      return next
+    })
+  }
+
+  // Rola a lista até o item ativo entrar em vista — sobretudo importante ao abrir a URL
+  // compartilhável de uma gravação específica (/history/:cameraId/:recordingId).
   const activeCardRef = useRef<HTMLButtonElement | null>(null)
   useEffect(() => {
     activeCardRef.current?.scrollIntoView({
       behavior: 'smooth',
-      inline: 'center',
       block: 'nearest',
     })
   }, [selectedId])
+
+  // Altura do sidebar (`history-recordings-list`) ATÉ o fundo de `history-main` (o player) —
+  // pedido do navigator. `align-items: stretch` do CSS não resolve isso sozinho: sem uma
+  // altura EXTERNA de referência (nem `history-content` nem a linha têm altura própria,
+  // ambas são "auto" de baixo pra cima), o algoritmo de flexbox usa o MAIOR conteúdo
+  // hipotético entre os dois irmãos pra decidir a altura da linha — com uma lista longa de
+  // gravações, o sidebar vira o maior, e stretch infla `history-main` (e o `h-full` interno
+  // do VideoPlayer) até o tamanho do sidebar, abrindo um vão vazio abaixo do rodapé do
+  // player (bug real, visto no navegador). `ResizeObserver` mede a altura
+  // renderizada de `history-main` e vira o teto (`maxHeight`) do sidebar via `overflow-hidden`
+  // + o miolo rolável (`history-recordings-groups`) com `min-h-0` — isso quebra o ciclo:
+  // `history-main` nunca mais depende do sidebar (a linha usa `items-start`, sem stretch), só
+  // o sidebar depende de `history-main`. `ResizeObserver` não existe no jsdom (testes) —
+  // degrada graciosamente pra sem teto (`mainHeight` fica `null`).
+  //
+  // Ref CALLBACK, não useRef+useEffect(deps: []) — `history-main` só monta depois que
+  // `camera` carrega (fetch assíncrono), então um useEffect de deps vazias rodaria ANTES do
+  // node existir (mainRef.current ainda null no 1º render) e nunca mais tentaria de novo —
+  // bug real, visto: `mainHeight` ficava `null` pra sempre, sidebar sem teto nenhum. Um ref
+  // callback dispara toda vez que o node MUDA (attach/detach), inclusive quando ele passa a
+  // existir num render posterior.
+  const [mainHeight, setMainHeight] = useState<number | null>(null)
+  const mainObserverRef = useRef<ResizeObserver | null>(null)
+  const mainRef = useCallback((el: HTMLDivElement | null) => {
+    mainObserverRef.current?.disconnect()
+    mainObserverRef.current = null
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver((entries) => {
+      const height = entries[0]?.contentRect.height
+      if (height != null) setMainHeight(height)
+    })
+    observer.observe(el)
+    mainObserverRef.current = observer
+  }, [])
 
   // singleSegments: 1 gravação = 1 segmento (modo normal, troca manual de card) —
   // referência estável (useMemo) enquanto `selected` não muda. continuousSegments: a
@@ -380,7 +412,13 @@ export default function HistoryPage() {
   const singleSegments = useMemo<VideoPlayerSegment[]>(
     () =>
       selected
-        ? [{ src: `${selected.url}?token=${getToken()}`, fromSeconds: 0, toSeconds: Infinity }]
+        ? [
+            {
+              src: `${selected.url}?token=${getToken()}`,
+              fromSeconds: 0,
+              toSeconds: Infinity,
+            },
+          ]
         : [],
     [selected],
   )
@@ -402,7 +440,11 @@ export default function HistoryPage() {
               Number.isFinite(start) && Number.isFinite(end)
                 ? Math.max(0, (end - start) / 1000)
                 : Infinity
-            return { src: `${rec.url}?token=${getToken()}`, fromSeconds: 0, toSeconds }
+            return {
+              src: `${rec.url}?token=${getToken()}`,
+              fromSeconds: 0,
+              toSeconds,
+            }
           })
         : [],
     [continuousRecordings],
@@ -412,10 +454,20 @@ export default function HistoryPage() {
   // onSegmentChange (VideoPlayer) dispara com o índice do segmento ativo a cada transição —
   // mapeia de volta pro id da gravação via ref (callback com deps vazias = identidade
   // estável; se não fosse estável, mudaria a cada render de HistoryPage e isso cascatearia
-  // pro VideoPlayer reiniciar o motor à toa, ver comentário acima). `setSelectedId` já
-  // dispara o efeito de sync de URL existente — não precisa de lógica de URL nova aqui.
+  // pro VideoPlayer reiniciar o motor à toa, ver comentário do efeito de `segments` em
+  // VideoPlayer.tsx). `useLayoutEffect`, não `useEffect`: o VideoPlayer é filho e roda seus
+  // PASSIVE effects (useEffect) só depois que TODOS os layout effects (useLayoutEffect) da
+  // árvore — filhos E pais — já comitaram (React sincroniza a fase de layout inteira antes
+  // de agendar a fase passiva); um `useEffect` aqui rodaria como passive effect, na mesma
+  // fase e DEPOIS do passive effect do VideoPlayer que troca de segmento (React descarrega
+  // effects de baixo pra cima dentro da MESMA fase) — o ref ficava um render atrasado quando
+  // lido por aquele efeito, mapeando de volta pra gravação errada e revertendo a troca: loop
+  // de render que só aparecia ao clicar num card, nunca na carga inicial. `useLayoutEffect`
+  // termina antes da fase passiva começar, garantindo o ref fresco a tempo.
   const activeRecordingsRef = useRef<Recording[]>([])
-  activeRecordingsRef.current = continuousRecordings ?? (selected ? [selected] : [])
+  useLayoutEffect(() => {
+    activeRecordingsRef.current = continuousRecordings ?? (selected ? [selected] : [])
+  })
   const handleSegmentChange = useCallback((index: number) => {
     const rec = activeRecordingsRef.current[index]
     if (rec) setSelectedId((id) => (id === rec.id ? id : rec.id))
@@ -441,16 +493,14 @@ export default function HistoryPage() {
   }
 
   function selectRecording(id: number) {
-    // Com o modo contínuo ligado, clicar num card RE-ANCORA a sequência nele (mantém
+    const switching = id !== selectedId
+    // Com o modo contínuo ligado, clicar num item RE-ANCORA a sequência nele (mantém
     // ligado) em vez de desligar — é assim que se pula pra outro ponto do dia sem sair do
     // modo: a partir de agora encadeia as mais novas que `id`, na ordem "id, id+1, id+2...".
     if (continuousRecordings != null) {
       setContinuousRecordings(buildContinuousSequence(recordings, id))
     }
-    // Clicar no card já ativo não é uma troca de verdade: `key={selected.id}` não muda, o
-    // <video> não remonta, e "onLoadedData" não dispara de novo — sem esse guard,
-    // `videoLoading` ficava travado em `true` até o usuário clicar noutro card.
-    if (id === selectedId) return
+    if (!switching) return
     setSelectedId(id)
     setVideoLoading(true)
   }
@@ -466,45 +516,20 @@ export default function HistoryPage() {
     )
   }
 
-  // "Carregar mais" — busca a próxima página (mais antiga) sob demanda e concatena no fim do
-  // filmstrip (que já está em ordem decrescente, então a página nova continua a sequência).
-  // Filtra por id pra não duplicar se, por azar, sobrepuser algo que o poll já trouxe.
-  async function loadMore() {
-    if (!cameraId || !selectedDate || loadingMore || !hasMore) return
-    setLoadingMore(true)
-    try {
-      const nextPage = page + 1
-      const recRes = await loadRecordingsData(cameraId, selectedDate, nextPage, 'desc', PAGE_SIZE)
-      if (recRes === 401) {
-        onUnauthorized()
-        return
-      }
-      const newRecs = recRes.recordings.filter((r) => !r.is_recording)
-      setRecordings((prev) => {
-        const existing = new Set(prev.map((r) => r.id))
-        return [...prev, ...newRecs.filter((r) => !existing.has(r.id))]
-      })
-      setHasMore(recRes.hasMore)
-      setPage(nextPage)
-      pageRef.current = nextPage
-      setDayTotal(recRes.total - (recRes.recordings.some((r) => r.is_recording) ? 1 : 0))
-    } finally {
-      setLoadingMore(false)
-    }
-  }
-
   return (
     <Layout id="history-page" footerId="history-footer" contentClassName="p-6">
-      {/* .page-content: MESMA largura de Ao vivo/Reprodução (largura das páginas é padrão —
-          antes cada página tinha seu próprio max-w-* divergente). Histórico tem o filmstrip
-          abaixo do player, então soma mais altura que as outras duas — os espaçamentos abaixo
-          (space-y-2, margens do bloco de gravações, cards do filmstrip em h-16 em vez de h-20)
-          foram enxugados ao máximo pra ajudar a caber sem scroll (medido: mesmo com o dia
-          vazio, sem filmstrip nenhum, Histórico já soma ~50px a mais que Ao vivo em 1366×768 só
-          com o bloco "Gravações"/calendário — com o filmstrip real a diferença é maior). Ainda
-          assim pode rolar em viewports baixas — normal pra uma página com mais conteúdo vertical
-          que as outras, não um bug de layout a "consertar" estreitando o player ou a página. */}
-      <div id="history-content" className="page-content space-y-2">
+      {/* Exceção intencional ao padrão `.page-content` (ver CLAUDE.md "Largura do conteúdo"):
+          Histórico é de duas colunas — player à esquerda (`history-main`, largura
+          capada pra não virar um vídeo gigante), lista de gravações à direita
+          (`history-recordings-list`, largura fixa). Junto, as duas colunas usam quase toda a
+          largura da viewport, diferente das páginas de player único (Ao vivo/Reprodução) que
+          continuam capadas em `.page-content`. Empilha em coluna única abaixo do breakpoint
+          `lg`.
+          O título (`history-header`, dentro do `CameraStageHeader`) fica FORA da linha de
+          duas colunas — só o `children` do `CameraStageHeader` (o `<div>` logo abaixo) entra
+          nela — pra que o TOPO do sidebar (`history-recordings-list`) alinhe com o topo do
+          PLAYER, não com o topo do título. */}
+      <div id="history-content" className="flex w-full flex-col gap-3">
         {error && (
           <div
             id="history-error"
@@ -519,183 +544,251 @@ export default function HistoryPage() {
             cameraName={camera.name}
             recordingEnabled={camera.recording_enabled}
           >
-            <VideoPlayer
-              idPrefix="history-player"
-              segments={segments}
-              // O contador "N / M" é específico do clipe de UM evento (VideoBrowserPage,
-              // `:motionId` explícito na URL) — no Histórico, mesmo com >1 segmento (modo
-              // contínuo), "N / M" não corresponde a nada que o usuário reconheça (não é
-              // "parte 2 de 5 de UMA gravação", é "a 2ª de 5 gravações distintas na lista").
-              segmentCounter={false}
-              // Tela cheia entre velocidade e reprodução contínua (não no fim da linha, como
-              // no VideoBrowserPage) — pedido do navigator, específico do Histórico.
-              fullscreenPosition="afterSpeed"
-              emptyMessage="Sem gravações nesse dia."
-              onLoadedData={() => setVideoLoading(false)}
-              onError={() => {
-                setVideoLoading(false)
-                setVideoError(true)
-              }}
-              onPlayingChange={setPlaying}
-              onSegmentChange={handleSegmentChange}
-              footerExtra={
-                <>
-                  <button
-                    id="history-continuous-toggle"
-                    type="button"
-                    role="switch"
-                    onClick={toggleContinuous}
-                    disabled={recordings.length === 0}
-                    aria-checked={continuousRecordings != null}
-                    className="flex items-center gap-1.5 disabled:opacity-40"
-                  >
-                    <span
-                      className={`inline-flex h-5 w-14 shrink-0 items-center rounded-full border-2 transition-colors ${
-                        continuousRecordings != null
-                          ? 'justify-end border-primary'
-                          : 'justify-start border-faint'
-                      }`}
-                    >
-                      <span
-                        className={`-my-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 bg-background transition-colors ${
-                          continuousRecordings != null
-                            ? 'border-primary text-primary'
-                            : 'border-faint text-faint'
-                        }`}
-                      >
-                        <Play className="ml-0.5 h-3 w-3" />
-                      </span>
-                    </span>
-                    <span
-                      className={`whitespace-nowrap text-caption font-medium transition-colors ${
-                        continuousRecordings != null ? 'text-primary' : 'text-faint'
-                      }`}
-                    >
-                      Reprodução contínua
-                    </span>
-                  </button>
-                  {/* Divisor explícito (não `divide-x`) — o reset de borda do <button> zera
-                      `border-left-width` do utilitário `divide-x`, então ele não aparecia. */}
-                  <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
-                </>
-              }
-              footerTrailing={
-                <DatePicker
-                  id="history-date-picker"
-                  value={selectedDate ?? new Date()}
-                  onChange={setSelectedDate}
-                  disableFuture
-                  availableDays={availableDays}
-                  align="right"
-                  openUp
-                />
-              }
-              footerEnd={<CameraViewTabs cameraId={camera.id} active="history" />}
-              overlay={
-                <>
-                  {videoError ? (
-                    <div
-                      id="history-player-error"
-                      className="absolute inset-0 flex items-center justify-center bg-black/70 text-body text-danger"
-                    >
-                      Não foi possível carregar a gravação.
-                    </div>
-                  ) : (
-                    videoLoading && (
-                      <div
-                        id="history-player-loading"
-                        className="absolute inset-0 flex items-center justify-center bg-black/70"
-                      >
-                        <Loader2 className="h-8 w-8 animate-spin text-white/70" />
-                      </div>
-                    )
-                  )}
-                  {recordingNotFound && (
-                    // Overlay (não um branch exclusivo do ternário acima): assim, uma vez
-                    // montado, é exibido garantidamente por cima do que já estiver no player
-                    // (vídeo ou "Sem gravações"), independente de qual carregamento
-                    // (câmera/gravações) terminou primeiro — ver comentário no useEffect do
-                    // timer de dismiss.
-                    <div
-                      id="history-recording-not-found"
-                      className="absolute inset-0 flex items-center justify-center bg-black text-body text-danger"
-                    >
-                      Gravação não encontrada.
-                    </div>
-                  )}
-                </>
-              }
-            />
-          </CameraStageHeader>
-        )}
-        {camera && (
-          <div id="history-recordings" className="rounded-lg border border-border p-2">
-            <div className="mb-1.5 flex items-center justify-between">
-              <p className="whitespace-nowrap text-caption font-medium uppercase tracking-wide text-muted">
-                {dayTotal ? `Gravações · ${dayTotal}` : 'Gravações'}
-              </p>
-            </div>
-            {recordings.length > 0 && (
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-center">
               <div
-                id="history-recordings-list"
-                className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-surface-2"
+                ref={mainRef}
+                id="history-main"
+                className="flex min-w-0 flex-1 flex-col gap-2 lg:max-w-[72rem]"
               >
-                {filmstripItems.map(({ rec, duration }) => {
-                  const cat = recordingCategory(rec, events, CHUNK_FALLBACK_MS)
-                  const active = rec.id === selectedId
-                  // Ativo: fundo na cor de destaque do usuário (mesma convenção do item ativo
-                  // da sidebar) + borda cheia (em vez da cor de categoria) + pisca (box-shadow,
-                  // keyframe já usado no Filmstrip legado) enquanto o vídeo está tocando de
-                  // verdade — só "selecionado" (pausado) não pisca. Cards inativos mantêm a
-                  // cor de categoria intacta (informação real, não deve ser ofuscada).
-                  const blinkStyle =
-                    active && playing
-                      ? { animation: 'filmstrip-blink 1.1s ease-in-out infinite' }
-                      : undefined
-                  return (
-                    <button
-                      key={rec.id}
-                      id={`history-recording-${rec.id}`}
-                      ref={active ? activeCardRef : undefined}
-                      type="button"
-                      onClick={() => selectRecording(rec.id)}
-                      aria-current={active ? 'true' : undefined}
-                      style={blinkStyle}
-                      className={`relative flex h-16 w-32 shrink-0 flex-col justify-between rounded border-2 p-1.5 text-left transition-colors ${
-                        active ? 'border-primary bg-primary/15' : `bg-surface-2 ${CAT_BORDER[cat]}`
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <Play className="h-4 w-4 text-muted-foreground" />
-                        {duration && (
-                          <span className="rounded bg-foreground/10 px-1 text-caption text-foreground">
-                            {duration}
+                <VideoPlayer
+                  idPrefix="history-player"
+                  segments={segments}
+                  // O contador "N / M" é específico do clipe de UM evento (VideoBrowserPage,
+                  // `:motionId` explícito na URL) — no Histórico, mesmo com >1 segmento (modo
+                  // contínuo), "N / M" não corresponde a nada que o usuário reconheça (não é
+                  // "parte 2 de 5 de UMA gravação", é "a 2ª de 5 gravações distintas na lista").
+                  segmentCounter={false}
+                  // Tela cheia entre velocidade e reprodução contínua (não no fim da linha, como
+                  // no VideoBrowserPage) — pedido do navigator, específico do Histórico.
+                  fullscreenPosition="afterSpeed"
+                  emptyMessage="Sem gravações nesse dia."
+                  onLoadedData={() => setVideoLoading(false)}
+                  onError={() => {
+                    setVideoLoading(false)
+                    setVideoError(true)
+                  }}
+                  onPlayingChange={setPlaying}
+                  onSegmentChange={handleSegmentChange}
+                  footerExtra={
+                    <>
+                      <button
+                        id="history-continuous-toggle"
+                        type="button"
+                        role="switch"
+                        onClick={toggleContinuous}
+                        disabled={recordings.length === 0}
+                        aria-checked={continuousRecordings != null}
+                        className="flex items-center gap-1.5 disabled:opacity-40"
+                      >
+                        <span
+                          className={`inline-flex h-5 w-14 shrink-0 items-center rounded-full border-2 transition-colors ${
+                            continuousRecordings != null
+                              ? 'justify-end border-primary'
+                              : 'justify-start border-faint'
+                          }`}
+                        >
+                          <span
+                            className={`-my-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 bg-background transition-colors ${
+                              continuousRecordings != null
+                                ? 'border-primary text-primary'
+                                : 'border-faint text-faint'
+                            }`}
+                          >
+                            <Play className="ml-0.5 h-3 w-3" />
                           </span>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-caption font-medium tabular-nums text-foreground">
-                          {formatClockTime(rec.start)}
-                        </p>
-                        <p className="text-caption capitalize text-muted">{cat}</p>
-                      </div>
-                    </button>
-                  )
-                })}
-                {hasMore && (
-                  <button
-                    id="history-load-more"
-                    type="button"
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    className="flex h-16 w-24 shrink-0 flex-col items-center justify-center gap-1 rounded border-2 border-dashed border-border text-caption text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
-                  >
-                    {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Carregar mais'}
-                  </button>
-                )}
+                        </span>
+                        <span
+                          className={`whitespace-nowrap text-caption font-medium transition-colors ${
+                            continuousRecordings != null ? 'text-primary' : 'text-faint'
+                          }`}
+                        >
+                          Reprodução contínua
+                        </span>
+                      </button>
+                      {/* Divisor explícito (não `divide-x`) — o reset de borda do <button> zera
+                      `border-left-width` do utilitário `divide-x`, então ele não aparecia. */}
+                      <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
+                    </>
+                  }
+                  // O calendário saiu daqui pro topo do `history-recordings-list` (pedido do
+                  // navigator) — sem `footerTrailing`, o `ml-auto` que empurrava
+                  // `footerEnd`/`fullscreenButton` pra ponta direita da linha some junto (ver
+                  // comentário da prop em VideoPlayer.tsx); reaplicado direto no wrapper do
+                  // `footerEnd` abaixo pra manter as abas Ao vivo/Histórico coladas na direita.
+                  footerEnd={
+                    <div className="ml-auto flex items-center gap-3">
+                      <CameraViewTabs cameraId={camera.id} active="history" />
+                    </div>
+                  }
+                  overlay={
+                    <>
+                      {videoError ? (
+                        <div
+                          id="history-player-error"
+                          className="absolute inset-0 flex items-center justify-center bg-black/70 text-body text-danger"
+                        >
+                          Não foi possível carregar a gravação.
+                        </div>
+                      ) : (
+                        videoLoading && (
+                          <div
+                            id="history-player-loading"
+                            className="absolute inset-0 flex items-center justify-center bg-black/70"
+                          >
+                            <Loader2 className="h-8 w-8 animate-spin text-white/70" />
+                          </div>
+                        )
+                      )}
+                      {recordingNotFound && (
+                        // Overlay (não um branch exclusivo do ternário acima): assim, uma vez
+                        // montado, é exibido garantidamente por cima do que já estiver no player
+                        // (vídeo ou "Sem gravações"), independente de qual carregamento
+                        // (câmera/gravações) terminou primeiro — ver comentário no useEffect do
+                        // timer de dismiss.
+                        <div
+                          id="history-recording-not-found"
+                          className="absolute inset-0 flex items-center justify-center bg-black text-body text-danger"
+                        >
+                          Gravação não encontrada.
+                        </div>
+                      )}
+                    </>
+                  }
+                />
               </div>
-            )}
-          </div>
+              {/* Sidebar — sibling de `history-main` dentro da MESMA linha; por estar dentro
+                do `children` do `CameraStageHeader` junto com `history-main`, o topo alinha
+                com o topo do PLAYER (o título fica fora dessa linha — ver comentário acima).
+                Largura fixa (`lg:w-80`) + `lg:shrink-0`; a altura vem do `mainHeight` medido
+                via ResizeObserver (ver comentário acima) — como `history-main` termina no
+                rodapé do player, o sidebar se estica até ali. Visível sempre que
+                `camera && selectedDate` (NÃO `recordingItems.length > 0`) — o calendário
+                precisa continuar acessível MESMO num dia sem gravação nenhuma, pra dar pro
+                usuário trocar de dia; só os chips de filtro (sem sentido sem nada pra
+                filtrar) e a lista ficam condicionados a `recordingItems.length > 0` dentro do
+                box. */}
+              {selectedDate && (
+                <div
+                  id="history-recordings-list"
+                  className="flex w-full flex-col gap-1.5 overflow-hidden rounded-lg border border-border p-2 lg:w-80 lg:shrink-0"
+                  style={mainHeight != null ? { maxHeight: mainHeight } : undefined}
+                >
+                  <div className="flex items-center justify-end">
+                    <DatePicker
+                      id="history-date-picker"
+                      value={selectedDate}
+                      onChange={setSelectedDate}
+                      disableFuture
+                      availableDays={availableDays}
+                      align="right"
+                    />
+                  </div>
+                  {recordingItems.length > 0 && (
+                    <>
+                      <div id="history-filter-chips" className="flex items-center gap-1.5">
+                        {(
+                          [
+                            { value: 'todos', label: 'Tudo' },
+                            { value: 'movimento', label: 'Movimento' },
+                            { value: 'continua', label: 'Contínua' },
+                          ] as const
+                        ).map((chip) => (
+                          <button
+                            key={chip.value}
+                            id={`history-filter-${chip.value}`}
+                            type="button"
+                            onClick={() => setFilter(chip.value)}
+                            aria-pressed={filter === chip.value}
+                            className={`rounded-full border px-3 py-1 text-caption font-medium transition-colors ${
+                              filter === chip.value
+                                ? 'border-primary bg-primary/15 text-primary'
+                                : 'border-border text-muted hover:text-foreground'
+                            }`}
+                          >
+                            {chip.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div
+                        id="history-recordings-groups"
+                        className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
+                      >
+                        {groupsByHour.length === 0 && (
+                          <div className="px-2 py-4 text-center text-caption text-muted">
+                            Nenhuma gravação com esse filtro.
+                          </div>
+                        )}
+                        {groupsByHour.map(([hour, items]) => {
+                          const isOpen = !closedHours.has(hour)
+                          return (
+                            <div key={hour} className="rounded border border-border">
+                              <button
+                                id={`history-hour-group-${hour}`}
+                                type="button"
+                                onClick={() => toggleHour(hour)}
+                                aria-expanded={isOpen}
+                                className="flex w-full items-center justify-between px-2 py-1.5 text-caption font-medium text-muted hover:text-foreground"
+                              >
+                                <span>
+                                  {String(hour).padStart(2, '0')}h — {items.length}{' '}
+                                  {items.length === 1 ? 'evento' : 'eventos'}
+                                </span>
+                                <ChevronDown
+                                  className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                                />
+                              </button>
+                              {isOpen && (
+                                <div className="flex flex-col gap-1 border-t border-border p-1.5">
+                                  {items.map(({ rec, duration, category: cat }) => {
+                                    const active = rec.id === selectedId
+                                    const blinkStyle =
+                                      active && playing
+                                        ? { animation: 'filmstrip-blink 1.1s ease-in-out infinite' }
+                                        : undefined
+                                    return (
+                                      <button
+                                        key={rec.id}
+                                        id={`history-recording-${rec.id}`}
+                                        ref={active ? activeCardRef : undefined}
+                                        type="button"
+                                        onClick={() => selectRecording(rec.id)}
+                                        aria-current={active ? 'true' : undefined}
+                                        style={blinkStyle}
+                                        className={`flex items-center justify-between rounded border-2 px-2 py-1 text-left transition-colors ${
+                                          active
+                                            ? 'border-primary bg-primary/15'
+                                            : `bg-surface-2 ${CAT_BORDER[cat]}`
+                                        }`}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          <Play className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                          <span className="text-caption font-medium tabular-nums text-foreground">
+                                            {formatClockTime(rec.start)}
+                                          </span>
+                                          <span className="text-caption capitalize text-muted">
+                                            {cat}
+                                          </span>
+                                        </span>
+                                        {duration && (
+                                          <span className="rounded bg-foreground/10 px-1 text-caption text-foreground">
+                                            {duration}
+                                          </span>
+                                        )}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </CameraStageHeader>
         )}
       </div>
     </Layout>

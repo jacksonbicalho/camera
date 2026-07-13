@@ -934,6 +934,7 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 		Detections  []recordingDetection `json:"detections,omitempty"`
 		mtime       time.Time            // not serialized; used to detect active recording
 		path        string               // not serialized; used for DB has_motion lookup
+		startTime   time.Time            // not serialized; used to backfill the DB row on demand
 	}
 
 	var all []recording
@@ -959,11 +960,12 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			all = append(all, recording{
-				Filename: e.Name(),
-				Start:    ts.UTC().Format(time.RFC3339),
-				URL:      "/recordings/" + id + "/" + utcDay.Format("2006/01/02") + "/" + e.Name(),
-				mtime:    info.ModTime(),
-				path:     filepath.Join(dir, e.Name()),
+				Filename:  e.Name(),
+				Start:     ts.UTC().Format(time.RFC3339),
+				URL:       "/recordings/" + id + "/" + utcDay.Format("2006/01/02") + "/" + e.Name(),
+				mtime:     info.ModTime(),
+				path:      filepath.Join(dir, e.Name()),
+				startTime: ts,
 			})
 		}
 	}
@@ -978,7 +980,14 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 				latest = i
 			}
 		}
-		if time.Since(all[latest].mtime) < 30*time.Second {
+		// mtime<30s é o sinal barato (não abre o arquivo); só sonda o átomo moov
+		// (storage.IsValidMP4 — mais caro, abre e lê o arquivo) quando o mtime sozinho já
+		// não classificou como em andamento. Cobre o caso em que o chunk ativo (`-f
+		// segment` do ffmpeg só fecha/grava o moov na rotação) ainda não foi finalizado
+		// mesmo com mtime>30s (ex.: segmento mais longo que o normal) — sem esse reforço
+		// esse chunk aparecia como "pronto" pro cliente, mas tocar/extrair frame dele
+		// falhava sempre (duração nunca resolvia — "piscando", bug real reportado).
+		if time.Since(all[latest].mtime) < 30*time.Second || !storage.IsValidMP4(all[latest].path) {
 			all[latest].IsRecording = true
 		}
 	}
@@ -995,10 +1004,65 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		if idsByPath, err := db.IDsByPaths(s.db, paths); err == nil {
-			for i := range all {
-				all[i].ID = idsByPath[all[i].path]
+		idsByPath, err := db.IDsByPaths(s.db, paths)
+		if err != nil {
+			idsByPath = nil
+		}
+		// Um chunk recém-criado no disco pode ainda não ter sido sincronizado pro banco
+		// (storage.Cleaner.syncRecordings roda a cada 1 minuto) — sem uma linha na tabela
+		// `recordings`, `IDsByPaths` não devolve nada pra ele e `all[i].ID` ficaria no zero
+		// value (campo omitido no JSON por `omitempty`). O cliente seleciona esse chunk sem
+		// id nenhum e, quando o sync o insere de verdade pouco depois (ganhando um id real),
+		// a seleção anterior deixa de bater com qualquer item da lista — dispara a troca pra
+		// "gravação apagada" (HistoryPage) e recarrega o player do zero. Numa câmera com
+		// chunks de poucos segundos (girando bem mais rápido que o intervalo de 1 minuto do
+		// sync) isso repete sem parar, e pareceu "piscar" independente do que o usuário
+		// estivesse fazendo (bug real reportado). Insere na hora (idempotente, INSERT OR
+		// IGNORE) qualquer chunk FINALIZADO ainda sem linha — todo chunk visível ao usuário
+		// (nunca o `IsRecording`, que o cliente já filtra e nunca fica selecionável) já nasce
+		// com um ID permanente antes de ser exposto pela API, então nunca muda depois. Pular
+		// o chunk ativo evita gravar no banco um registro provisório pra um arquivo que
+		// ainda está sendo escrito (pode nem terminar de fechar direito).
+		missing := false
+		for i := range all {
+			if all[i].IsRecording {
+				continue
 			}
+			if _, ok := idsByPath[all[i].path]; ok {
+				continue
+			}
+			missing = true
+			// chunkEnd = início do próximo chunk cronológico (mesma convenção de
+			// syncRecordings) — sem isso, a linha nasceria com `ended_at` em aberto e o
+			// `end` do JSON ficaria vazio; pro chunk mais novo da lista (sem duration por
+			// `next` também, já que não há nenhum outro depois dele nessa página) a duração
+			// não aparecia de jeito nenhum no card (reportado pelo navigator: "o primeiro
+			// [item] sem o tempo").
+			var chunkEnd time.Time
+			for j := range all {
+				if !all[j].startTime.After(all[i].startTime) {
+					continue
+				}
+				if chunkEnd.IsZero() || all[j].startTime.Before(chunkEnd) {
+					chunkEnd = all[j].startTime
+				}
+			}
+			if err := db.InsertRecording(s.db, db.Recording{
+				CameraID:  id,
+				StartedAt: all[i].startTime,
+				EndedAt:   chunkEnd,
+				Path:      all[i].path,
+			}); err != nil {
+				s.log.Warn("recordings: failed to backfill db row", "path", all[i].path, "error", err)
+			}
+		}
+		if missing {
+			if refreshed, err := db.IDsByPaths(s.db, paths); err == nil {
+				idsByPath = refreshed
+			}
+		}
+		for i := range all {
+			all[i].ID = idsByPath[all[i].path]
 		}
 		// end = ended_at real (só chunks finalizados; o chunk em gravação fica sem).
 		if endedByPath, err := db.EndedAtByPaths(s.db, paths); err == nil {
@@ -1100,10 +1164,12 @@ func (s *Server) handleRecordingByID(w http.ResponseWriter, r *http.Request) {
 	}
 	url := "/recordings/" + filepath.ToSlash(rel)
 
-	// Check if this is the actively-recording file (mtime < 30s).
+	// Check if this is the actively-recording file (mtime < 30s) — ou, mesmo com mtime
+	// mais velho, ainda sem o átomo moov (chunk ativo/corrompido, nunca finalizado — ver
+	// mesmo reforço em handleRecordings acima).
 	isRecording := false
 	if info, err := os.Stat(rec.Path); err == nil {
-		isRecording = time.Since(info.ModTime()) < 30*time.Second
+		isRecording = time.Since(info.ModTime()) < 30*time.Second || !storage.IsValidMP4(rec.Path)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -7,12 +7,23 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"camera/internal/storage"
 )
 
 // findChunkForTime acha o chunk de gravação que cobre o instante t (o último que
 // começa em t ou antes, no dia UTC de t) e o offset em segundos dentro dele.
 // Usado para extrair um frame LIMPO do MP4 (a gravação não tem as anotações de
 // movimento que ficam nos _motion.jpg).
+//
+// Pula candidatos ainda sem o átomo moov (`storage.IsValidMP4`) — o chunk ATIVO (ffmpeg
+// ainda escrevendo, `-f segment` só fecha/finaliza o arquivo na rotação) aparece no
+// `os.ReadDir` como qualquer outro, mas não é extraível: `ffmpeg -i` não consegue nem
+// sondar duração/streams sem o moov, e a extração falhava sempre que `t` caía dentro da
+// janela do segmento em andamento — intermitente por natureza (dependia de `t` cair no
+// chunk que acabou de fechar vs. no que ainda está aberto). Sem candidato válido cobrindo
+// `t` de verdade, cai pro chunk fechado mais recente ANTES dele (ainda útil como preview
+// aproximado) em vez de simplesmente falhar.
 func findChunkForTime(recordingsPath, cameraID string, t time.Time) (path string, offsetSeconds float64, ok bool) {
 	dir := filepath.Join(recordingsPath, cameraID, t.UTC().Format("2006/01/02"))
 	entries, err := os.ReadDir(dir)
@@ -29,8 +40,12 @@ func findChunkForTime(recordingsPath, cameraID string, t time.Time) (path string
 			continue
 		}
 		if !ts.After(t) && ts.After(bestStart) {
+			candidate := filepath.Join(dir, e.Name())
+			if !storage.IsValidMP4(candidate) {
+				continue
+			}
 			bestStart = ts
-			path = filepath.Join(dir, e.Name())
+			path = candidate
 		}
 	}
 	if path == "" {

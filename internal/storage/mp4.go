@@ -6,10 +6,10 @@ import (
 	"os"
 )
 
-// isValidMP4 reports whether the file at path contains a moov atom,
+// IsValidMP4 reports whether the file at path contains a moov atom,
 // which indicates a properly closed MP4. It only reads atom headers
 // and seeks past payloads, so it is O(number of top-level atoms).
-func isValidMP4(path string) bool {
+func IsValidMP4(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
 		return false

@@ -592,10 +592,32 @@ func takeSnapshot(ctx context.Context, rtspURL string) ([]byte, error) {
 // extractFrame extrai um frame LIMPO (JPEG) de um MP4 no offset dado — a gravação
 // não tem as anotações de movimento dos _motion.jpg. `-ss` antes do `-i` faz seek
 // rápido por keyframe.
+//
+// `offsetSeconds` vem de `findChunkForTime`, que não conhece a duração REAL do chunk
+// (só o horário de início) — um bucket da timeline de 24h cobre uma janela fixa (5 min
+// por padrão) mesmo quando a gravação coberta por ele dura só alguns segundos, então
+// qualquer ponto do bucket depois do fim real do chunk pede um offset além da duração
+// do arquivo. `-ss` além do fim não é erro de argumento: o ffmpeg roda, não encontra
+// frame nenhum e sai com "Output file is empty" (frame=0, stdout vazio) — reproduzido
+// manualmente com um MP4 de teste. Sem fallback, isso virava "frame extraction failed"
+// toda vez que o usuário passava o mouse num trecho do heatmap mais largo que a
+// gravação real por baixo (comum: qualquer chunk com menos de 5 min). Reexecuta com
+// `-sseof -1` (1s antes do fim do arquivo, sem depender de conhecer a duração) só
+// quando a 1ª tentativa não produz nenhum byte — dá o último frame disponível em vez
+// de falhar; hover MUITO além do fim real (chunk antigo, gap grande) ainda mostra algo
+// coerente (o fim daquele chunk) em vez de nada.
 func extractFrame(ctx context.Context, path string, offsetSeconds float64) ([]byte, error) {
+	data, err := runExtractFrame(ctx, "-ss", fmt.Sprintf("%.3f", offsetSeconds), path)
+	if err == nil && len(data) > 0 {
+		return data, nil
+	}
+	return runExtractFrame(ctx, "-sseof", "-1", path)
+}
+
+func runExtractFrame(ctx context.Context, seekFlag, seekValue, path string) ([]byte, error) {
 	cmd := osexec.CommandContext(ctx,
 		"ffmpeg",
-		"-ss", fmt.Sprintf("%.3f", offsetSeconds),
+		seekFlag, seekValue,
 		"-i", path,
 		"-frames:v", "1",
 		"-f", "image2",

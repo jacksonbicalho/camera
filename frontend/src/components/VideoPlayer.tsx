@@ -358,12 +358,11 @@ export default function VideoPlayer({
     else c.requestFullscreen?.().catch(() => {})
   }, [])
 
-  // seekGlobal posiciona o clipe numa posição global (arraste da barra). Se o segmento
-  // alvo já está no elemento ativo, só ajusta o currentTime; senão carrega o alvo (seek
-  // manual pode piscar — é ação do usuário) e re-pré-carrega o vizinho.
-  const seekGlobal = useCallback(
+  // applySeekNow faz o trabalho de fato: se o segmento alvo já está no elemento ativo, só
+  // ajusta o currentTime; senão carrega o alvo (seek manual pode piscar — é ação do
+  // usuário) e re-pré-carrega o vizinho.
+  const applySeekNow = useCallback(
     (p: number) => {
-      setPos(p)
       const { index, localOffset } = locate(durationsRef.current, p)
       const seg = segmentsRef.current[index]
       if (!seg) return
@@ -381,6 +380,62 @@ export default function VideoPlayer({
       }
     },
     [loadInto, setCurSegTracked],
+  )
+
+  // seekGlobal posiciona o clipe numa posição global (arraste da barra de progresso própria)
+  // — chamado a cada pixel de movimento durante um arraste (dezenas de vezes por segundo).
+  // Dentro do MESMO segmento isso vira
+  // `el.currentTime = X` a cada chamada: um seek BACKWARD (arrastar da direita pra esquerda,
+  // tempo decrescente) custa mais pro decoder que um forward (precisa voltar pro keyframe
+  // anterior e decodificar pra frente até o alvo, em vez de só continuar decodificando os
+  // próximos frames) — as gravações são copiadas do stream da câmera sem reencode
+  // (`internal/recorder`, `-c copy`), então o intervalo de keyframe é o da própria câmera,
+  // fora do nosso controle. Um throttle por TEMPO fixo (ex.: 1x por `requestAnimationFrame`,
+  // ~60/s) não é suficiente: numa gravação com keyframe distante, um único seek backward já
+  // pode levar bem mais que 16ms pra resolver (mais ainda num Raspberry Pi — hardware
+  // suportado, ver `make rpi`), e pedir o PRÓXIMO seek antes do anterior terminar força o
+  // decoder a abortar/reiniciar repetidamente — pisca em QUALQUER ponto da timeline
+  // (reportado pelo navigator), não só perto de fronteira de gravação. Em vez de um
+  // intervalo fixo, espera o elemento ativo sinalizar `el.seeking === false` (seek anterior
+  // resolvido) antes de aplicar o próximo — ritmo ditado pelo PRÓPRIO decoder, nunca mais
+  // rápido do que ele consegue de fato acompanhar, em vez de um teto arbitrário. A posição
+  // VISUAL (`pos`, barra/playhead) continua atualizando a cada chamada, instantânea — só o
+  // seek de fato no `<video>` espera; a última posição pendente é a que vale (as
+  // intermediárias, superadas antes de aplicar, são descartadas).
+  const pendingSeekPosRef = useRef<number | null>(null)
+  const seekPollRef = useRef<number | null>(null)
+  // Ref pro próprio `attemptSeek` — chamado recursivamente (via requestAnimationFrame) de
+  // dentro do seu próprio corpo pra reagendar a tentativa; referenciar a função direto
+  // criaria um self-reference antes da declaração terminar (`const attemptSeek = useCallback
+  // (() => { ...attemptSeek... })`), barrado pelo eslint (react-hooks/immutability). Indireção
+  // via ref evita isso sem mudar o comportamento.
+  const attemptSeekRef = useRef<() => void>(() => {})
+  const attemptSeek = useCallback(() => {
+    seekPollRef.current = null
+    const target = pendingSeekPosRef.current
+    if (target == null) return
+    const el = elsRef.current[activeRef.current]
+    if (el?.seeking) {
+      // Seek anterior ainda em andamento — tenta de novo no próximo frame, sem descartar
+      // `target` (pode já ter sido superado por uma chamada mais recente até lá).
+      seekPollRef.current = requestAnimationFrame(() => attemptSeekRef.current())
+      return
+    }
+    pendingSeekPosRef.current = null
+    applySeekNow(target)
+  }, [applySeekNow])
+  // Mantém o ref fresco num efeito próprio (não durante o render — `react-hooks/refs` barra
+  // mutar refs no corpo do render).
+  useEffect(() => {
+    attemptSeekRef.current = attemptSeek
+  }, [attemptSeek])
+  const seekGlobal = useCallback(
+    (p: number) => {
+      setPos(p)
+      pendingSeekPosRef.current = p
+      if (seekPollRef.current == null) seekPollRef.current = requestAnimationFrame(attemptSeek)
+    },
+    [attemptSeek],
   )
 
   // Barra de progresso própria (div): fração pela posição do ponteiro sobre o track.

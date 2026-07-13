@@ -6,6 +6,7 @@ import {
   recordingCategory,
   eventCardLines,
   firstEventInChunk,
+  matchesTimelineFilter,
 } from './eventCategory'
 
 describe('recordingCategory', () => {
@@ -150,5 +151,26 @@ describe('filterEventsByCategory', () => {
   })
   it('filtra por estados (transições kind=state)', () => {
     expect(filterEventsByCategory(evs, 'estados').map((e) => e.id)).toEqual([5])
+  })
+})
+
+describe('matchesTimelineFilter', () => {
+  it('"todos" casa com qualquer categoria', () => {
+    expect(matchesTimelineFilter('continua', 'todos')).toBe(true)
+    expect(matchesTimelineFilter('movimento', 'todos')).toBe(true)
+    expect(matchesTimelineFilter('pessoa', 'todos')).toBe(true)
+    expect(matchesTimelineFilter('estados', 'todos')).toBe(true)
+  })
+  it('"continua" só casa com a categoria continua', () => {
+    expect(matchesTimelineFilter('continua', 'continua')).toBe(true)
+    expect(matchesTimelineFilter('movimento', 'continua')).toBe(false)
+    expect(matchesTimelineFilter('pessoa', 'continua')).toBe(false)
+  })
+  it('"movimento" casa com QUALQUER categoria de evento (não só a literal "movimento") — dicotomia mais grossa que EventFilter', () => {
+    expect(matchesTimelineFilter('movimento', 'movimento')).toBe(true)
+    expect(matchesTimelineFilter('pessoa', 'movimento')).toBe(true)
+    expect(matchesTimelineFilter('ia', 'movimento')).toBe(true)
+    expect(matchesTimelineFilter('estados', 'movimento')).toBe(true)
+    expect(matchesTimelineFilter('continua', 'movimento')).toBe(false)
   })
 })

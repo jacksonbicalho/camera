@@ -1,10 +1,35 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import VideoPlayer, { type VideoPlayerSegment } from './VideoPlayer'
 
 afterEach(() => {
   cleanup()
 })
+
+// Mocka a barra de progresso com uma largura fixa (jsdom/happy-dom não faz layout de
+// verdade) — permite converter uma posição de arraste desejada (segundos) num `clientX`
+// determinístico: fraction = segundos/total, clientX = fraction * BAR_WIDTH.
+const BAR_WIDTH = 1000
+function mockSeekBar() {
+  const original = Element.prototype.getBoundingClientRect
+  Element.prototype.getBoundingClientRect = vi.fn(() => ({
+    left: 0,
+    right: BAR_WIDTH,
+    width: BAR_WIDTH,
+    top: 0,
+    bottom: 12,
+    height: 12,
+    x: 0,
+    y: 0,
+    toJSON: () => {},
+  }))
+  return () => {
+    Element.prototype.getBoundingClientRect = original
+  }
+}
+function clientXFor(seconds: number, total: number): number {
+  return (seconds / total) * BAR_WIDTH
+}
 
 function seg(src: string, fromSeconds: number, toSeconds: number): VideoPlayerSegment {
   return { src, fromSeconds, toSeconds }
@@ -574,5 +599,143 @@ describe('VideoPlayer', () => {
       />,
     )
     expect(document.getElementById('p-extra')).not.toBeNull()
+  })
+
+  it('arraste da barra de progresso dentro do MESMO segmento: só ajusta currentTime — sem recarregar/remontar o <video>', async () => {
+    const restoreBar = mockSeekBar()
+    try {
+      render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+      await waitFor(() => {
+        expect(document.getElementById('p-video')).not.toBeNull()
+      })
+      const a = document.getElementById('p-video') as HTMLVideoElement
+      act(() => {
+        fireLoadedMetadata(a, 20)
+      })
+      const srcBefore = a.getAttribute('src')
+      Object.defineProperty(a, 'currentTime', { value: 0, writable: true, configurable: true })
+
+      const seekBar = document.getElementById('p-seek')!
+      await act(async () => {
+        fireEvent.pointerDown(seekBar, { clientX: clientXFor(12, 20), pointerId: 1 })
+        // O seek de fato no <video> é jogado pra requestAnimationFrame (throttle contra
+        // seek storm ao arrastar) — a posição visual (`pos`) é síncrona, mas o
+        // `currentTime` só é aplicado no próximo frame.
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+      })
+
+      expect(a.currentTime).toBe(12)
+      expect(a.getAttribute('src')).toBe(srcBefore) // não recarregou/remontou
+    } finally {
+      restoreBar()
+    }
+  })
+
+  it('arraste rápido da barra de progresso só aplica currentTime UMA vez por frame — não pede seek mais rápido do que o decoder consegue acompanhar (reportado pelo navigator: vídeo "pisca" arrastando rápido, sobretudo pra trás)', async () => {
+    const restoreBar = mockSeekBar()
+    try {
+      render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+      await waitFor(() => {
+        expect(document.getElementById('p-video')).not.toBeNull()
+      })
+      const a = document.getElementById('p-video') as HTMLVideoElement
+      act(() => {
+        fireLoadedMetadata(a, 20)
+      })
+      let currentTimeSets = 0
+      let currentTimeValue = 0
+      Object.defineProperty(a, 'currentTime', {
+        configurable: true,
+        get: () => currentTimeValue,
+        set: (v: number) => {
+          currentTimeValue = v
+          currentTimeSets += 1
+        },
+      })
+
+      // Várias posições "no mesmo frame" (arraste rápido, dezenas de pointermove antes do
+      // browser pintar) — só a ÚLTIMA posição deve resultar num currentTime real.
+      const seekBar = document.getElementById('p-seek')!
+      act(() => {
+        fireEvent.pointerDown(seekBar, { clientX: clientXFor(5, 20), pointerId: 1 })
+        fireEvent.pointerMove(seekBar, { clientX: clientXFor(8, 20), pointerId: 1 })
+        fireEvent.pointerMove(seekBar, { clientX: clientXFor(11, 20), pointerId: 1 })
+        fireEvent.pointerMove(seekBar, { clientX: clientXFor(14, 20), pointerId: 1 })
+      })
+      expect(currentTimeSets).toBe(0) // nada aplicado ainda — só no próximo frame
+
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+      })
+
+      expect(currentTimeSets).toBe(1) // só UM seek de fato aplicado no <video>
+      expect(currentTimeValue).toBe(14) // com a posição mais recente, não a 1ª
+    } finally {
+      restoreBar()
+    }
+  })
+
+  it('arraste da barra de progresso espera o <video> sair de "seeking" antes de aplicar o próximo — não força um novo seek enquanto o decoder ainda está resolvendo o anterior (ritmo ditado pelo decoder, não por um intervalo fixo)', async () => {
+    const restoreBar = mockSeekBar()
+    try {
+      render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+      await waitFor(() => {
+        expect(document.getElementById('p-video')).not.toBeNull()
+      })
+      const a = document.getElementById('p-video') as HTMLVideoElement
+      act(() => {
+        fireLoadedMetadata(a, 20)
+      })
+      let currentTimeSets = 0
+      let currentTimeValue = 0
+      let seekingValue = false
+      Object.defineProperty(a, 'currentTime', {
+        configurable: true,
+        get: () => currentTimeValue,
+        set: (v: number) => {
+          currentTimeValue = v
+          currentTimeSets += 1
+        },
+      })
+      Object.defineProperty(a, 'seeking', {
+        configurable: true,
+        get: () => seekingValue,
+      })
+
+      const seekBar = document.getElementById('p-seek')!
+      // 1º seek aplica no próximo frame (nada em andamento ainda).
+      act(() => {
+        fireEvent.pointerDown(seekBar, { clientX: clientXFor(5, 20), pointerId: 1 })
+      })
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+      })
+      expect(currentTimeSets).toBe(1)
+      expect(currentTimeValue).toBe(5)
+
+      // Decoder "ainda resolvendo" o seek anterior (simula um seek backward custoso, ex.:
+      // keyframe distante) — o arraste continua, mas não deve forçar outro currentTime.
+      seekingValue = true
+      act(() => {
+        fireEvent.pointerMove(seekBar, { clientX: clientXFor(2, 20), pointerId: 1 }) // arraste indo pra trás
+      })
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+      })
+      expect(currentTimeSets).toBe(1) // nenhum novo seek aplicado — ainda "seeking"
+
+      act(() => {
+        fireEvent.pointerMove(seekBar, { clientX: clientXFor(1, 20), pointerId: 1 }) // mais uma posição chega
+      })
+      seekingValue = false // decoder finalmente resolveu o seek anterior
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+      })
+      expect(currentTimeSets).toBe(2) // aplica agora, com a posição mais recente
+      expect(currentTimeValue).toBe(1)
+    } finally {
+      restoreBar()
+    }
   })
 })
