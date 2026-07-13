@@ -76,9 +76,12 @@ else
 fi
 
 # ── marca o 1º Critério de Aceitação da story ───────────────────────────────
-branch=$(git rev-parse --abbrev-ref HEAD)
-desc=$(echo "$branch" | sed 's|^[^/]*/||' | tr '-' '_')
-story=$(ls stories/*.md 2>/dev/null | grep -i "$desc" | tail -1)
+# resolve_story (lib/story.sh) é a MESMA lógica usada por functional-check.sh/
+# record-review.sh/etc.: casa o slug exato da branch (sem normalizar `-`→`_`)
+# contra `stories/*_<slug>.md`. Manter as duas heurísticas em sync evita que
+# check.sh e o resto do pipeline discordem sobre qual story é a atual.
+. "$ROOT/scripts/lib/story.sh"
+story=$(resolve_story "" 2>/dev/null) || story=""
 if [ -z "$story" ]; then
     echo "✅ tudo verde (nenhuma story encontrada para marcar)"
     exit 0

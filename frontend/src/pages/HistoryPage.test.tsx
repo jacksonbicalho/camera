@@ -191,6 +191,44 @@ describe('HistoryPage', () => {
     ).toBe(false)
   })
 
+  it('CA2: título fixo da página é "Histórico", independente da câmera', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.querySelector('#history-header h2')).not.toBeNull()
+    })
+    const title = document.querySelector('#history-header h2')!
+    expect(title.textContent?.trim()).toBe('Histórico')
+  })
+
+  it('CA3: subtítulo da página mostra o nome da câmera (com o badge de gravação)', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-badge-recording')).not.toBeNull()
+    })
+    const header = document.getElementById('history-header')!
+    const title = header.querySelector('h2')!
+    // O nome da câmera não pode aparecer dentro do título (esse agora é fixo,
+    // "Histórico") — só no subtítulo, junto do badge.
+    expect(title.textContent).not.toContain('Corredor de entrada')
+    expect(header.textContent).toContain('Corredor de entrada')
+    const badge = document.getElementById('history-badge-recording')!
+    expect(title.contains(badge)).toBe(false)
+  })
+
+  it('CA4: título alinha com a largura do conteúdo abaixo (mesmo cap/centralização das duas colunas)', async () => {
+    renderAt('/history/cam1')
+    await waitFor(() => {
+      expect(document.getElementById('history-header')).not.toBeNull()
+    })
+    // Largura intrínseca de history-main (lg:max-w-[72rem]) + history-recordings-list
+    // (lg:w-80 = 20rem) + gap-3 (0.75rem) da linha = 92.75rem — o wrapper do título
+    // precisa do MESMO cap + mx-auto pra alinhar com o bloco de duas colunas em telas
+    // largas (ver analysis/202607131109_history-page-title.md).
+    const header = document.getElementById('history-header')!
+    expect(header.className).toContain('mx-auto')
+    expect(header.className).toContain('max-w-[92.75rem]')
+  })
+
   it('tabs Ao vivo/Histórico (Ao vivo → /live) ficam no rodapé do player, como último elemento (depois da tela cheia)', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
