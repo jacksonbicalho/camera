@@ -21,3 +21,6 @@ __pycache__/
 
 # env
 .env
+
+# Claude Code — overrides locais de permissão (settings.json é versionado)
+.claude/settings.local.json

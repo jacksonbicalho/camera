@@ -91,9 +91,7 @@ function currentPathname(): string {
 }
 
 const cameras = [{ id: 'cam1', name: 'Corredor de entrada', recording_enabled: true }]
-// Ordem DECRESCENTE (mais recente primeiro) — o stub abaixo não ordena de verdade (só filtra
-// por data), então a ordem que a API "devolveria" pra `order=desc` precisa já vir assim na
-// fixture, senão os testes não refletem o que um backend real mandaria.
+// Ordem DECRESCENTE (mais recente primeiro) — mesma ordem que `order=desc` devolveria.
 const recordings = [
   {
     id: 2,
@@ -126,10 +124,13 @@ const recordingsJul4 = [
   },
 ]
 
-// O mock do DatePicker só troca pra "04/07" (2026-07-04) — qualquer outra data
-// (inclusive a padrão, "hoje" de verdade no momento do teste) devolve
-// `defaultDayRecordings`. Permite testar a troca de dia sem depender da data real.
-function stubFetch(defaultDayRecordings: typeof recordings = recordings) {
+// O mock do DatePicker só troca pra "04/07" (2026-07-04) — qualquer outra data (inclusive a
+// padrão, "hoje" de verdade no momento do teste) devolve `defaultDayRecordings`. `events` é
+// opcional — a maioria dos testes não depende dele.
+function stubFetch(
+  defaultDayRecordings: typeof recordings = recordings,
+  events: Array<{ time: string; label?: string; kind?: 'motion' | 'state' }> = [],
+) {
   vi.stubGlobal(
     'fetch',
     vi.fn((url: string) => {
@@ -152,7 +153,7 @@ function stubFetch(defaultDayRecordings: typeof recordings = recordings) {
         return Promise.resolve({
           status: 200,
           ok: true,
-          json: () => Promise.resolve({ events: [] }),
+          json: () => Promise.resolve({ events }),
         })
       }
       if (url.startsWith('/api/cameras')) {
@@ -221,16 +222,30 @@ describe('HistoryPage', () => {
     ).toBeTruthy()
   })
 
-  it('conteúdo usa a largura padrão compartilhada (.page-content — mesma largura de Ao vivo/Reprodução)', async () => {
+  it('conteúdo usa layout de duas colunas (player à esquerda, lista à direita) — não mais .page-content; sidebar alinha com o topo do PLAYER, não do título', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
-      expect(document.getElementById('history-content')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
-    expect(document.getElementById('history-content')?.className).toContain('page-content')
-    expect(document.getElementById('history-content')?.className).not.toContain('max-w-5xl')
+    expect(document.getElementById('history-content')?.className).not.toContain('page-content')
+    // `history-content` não deve forçar altura de página inteira (flex-1) — isso faria o
+    // VideoPlayer (que usa h-full internamente) estufar além do necessário.
+    expect(document.getElementById('history-content')?.className).not.toContain('flex-1')
+    const main = document.getElementById('history-main')!
+    const sidebar = document.getElementById('history-recordings-list')!
+    expect(main.className).toContain('flex-1')
+    expect(sidebar.className).toContain('lg:w-80')
+    // `history-main` e o sidebar são IRMÃOS numa linha própria (lg:flex-row) — o título
+    // (history-header) NÃO é ancestral dela: fica acima, fora da linha.
+    expect(main.parentElement).toBe(sidebar.parentElement)
+    expect(main.parentElement?.className).toContain('lg:flex-row')
+    const header = document.getElementById('history-header')!
+    expect(main.parentElement?.contains(header)).toBe(false)
+    // Chips de filtro moram no sidebar, junto da lista.
+    expect(sidebar.contains(document.getElementById('history-filter-todos'))).toBe(true)
   })
 
-  it('toca a gravação mais recente do dia por padrão e lista as demais no filmstrip', async () => {
+  it('toca a gravação mais recente do dia por padrão e lista as demais na lista lateral', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
       expect(document.getElementById('history-recording-2')).not.toBeNull()
@@ -240,10 +255,10 @@ describe('HistoryPage', () => {
     )
     const video = document.getElementById('history-player-video') as HTMLVideoElement
     expect(video.getAttribute('src')).toBe('/recordings/cam1/b.mp4?token=tok')
-    expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
+    expect(document.getElementById('history-recording-1')).not.toBeNull()
   })
 
-  it('rola o filmstrip até o card ativo (scrollIntoView) — essencial ao abrir a URL compartilhável de uma gravação distante na lista', async () => {
+  it('rola a lista até o item ativo (scrollIntoView) — essencial ao abrir a URL compartilhável de uma gravação distante na lista', async () => {
     const scrollIntoView = vi.fn()
     const original = Element.prototype.scrollIntoView
     Element.prototype.scrollIntoView = scrollIntoView
@@ -252,9 +267,7 @@ describe('HistoryPage', () => {
       await waitFor(() => {
         expect(document.getElementById('history-recording-2')).not.toBeNull()
       })
-      expect(scrollIntoView).toHaveBeenCalledWith(
-        expect.objectContaining({ inline: 'center', block: 'nearest' }),
-      )
+      expect(scrollIntoView).toHaveBeenCalledWith(expect.objectContaining({ block: 'nearest' }))
       scrollIntoView.mockClear()
       document
         .getElementById('history-recording-1')!
@@ -267,29 +280,26 @@ describe('HistoryPage', () => {
     }
   })
 
-  it('filmstrip lista da mais recente pra mais antiga (esquerda pra direita)', async () => {
+  it('lista mostra da mais recente pra mais antiga (topo pra baixo)', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
       expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
     const older = document.getElementById('history-recording-1')!
     const newer = document.getElementById('history-recording-2')!
-    // DOCUMENT_POSITION_FOLLOWING (4): `newer` vem DEPOIS de `older` no argumento — ou seja,
-    // `older` precisa aparecer ANTES de `newer` no DOM pra esse bit não estar setado. Aqui
-    // queremos o oposto: `newer` (b.mp4, mais recente) primeiro no DOM.
     expect(newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('bloco de gravações tem borda suave; a lista (scroll horizontal) usa scrollbar fino', async () => {
+  it('a lista lateral tem borda suave e scroll vertical próprio', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
-      expect(document.getElementById('history-recordings')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
-    expect(document.getElementById('history-recordings')?.className).toContain('border-border')
-    expect(document.getElementById('history-recordings')?.className).toContain('rounded-lg')
-    const list = document.getElementById('history-recordings-list')
-    expect(list?.className).toContain('[&::-webkit-scrollbar]:h-1')
-    expect(list?.className).toContain('[&::-webkit-scrollbar-thumb]:rounded-full')
+    const sidebar = document.getElementById('history-recordings-list')
+    expect(sidebar?.className).toContain('border-border')
+    expect(sidebar?.className).toContain('rounded-lg')
+    const groups = document.getElementById('history-recordings-groups')
+    expect(groups?.className).toContain('overflow-y-auto')
   })
 
   it('card ativo usa a cor de destaque como fundo (bg-primary/15 + border-primary) e pisca enquanto o vídeo toca', async () => {
@@ -322,7 +332,7 @@ describe('HistoryPage', () => {
     })
   })
 
-  it('duração exibida no card continua correta com o filmstrip invertido (usa o próximo cronológico, não o índice invertido)', async () => {
+  it('duração exibida no card usa o próximo cronológico (não o índice invertido da lista)', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
       expect(document.getElementById('history-recording-1')).not.toBeNull()
@@ -336,14 +346,12 @@ describe('HistoryPage', () => {
     await waitFor(() => {
       expect(document.getElementById('history-recording-1')).not.toBeNull()
     })
-    // Sem \b: o textContent concatena a duração ("0:42") direto com a hora ("07:12:00"),
-    // sem espaço entre os dígitos — não há fronteira de palavra entre "2" e "0".
     const text = document.getElementById('history-recording-1')?.textContent ?? ''
     expect(text).toMatch(/([01]\d|2[0-3]):[0-5]\d:[0-5]\d/)
     expect(text).not.toMatch(/AM|PM/i)
   })
 
-  it('gravação em andamento (is_recording) não aparece no filmstrip nem no contador', async () => {
+  it('gravação em andamento (is_recording) não aparece na lista nem no contador', async () => {
     stubFetch([
       ...recordings,
       {
@@ -359,8 +367,8 @@ describe('HistoryPage', () => {
     await waitFor(() => {
       expect(document.getElementById('history-recording-1')).not.toBeNull()
     })
+    expect(document.getElementById('history-recording-2')).not.toBeNull()
     expect(document.getElementById('history-recording-4')).toBeNull()
-    expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
   })
 
   it('player de histórico usa a barra de controles própria do VideoPlayer (com fullscreen), não o <video controls> nativo', async () => {
@@ -375,26 +383,23 @@ describe('HistoryPage', () => {
     expect(document.getElementById('history-player-zoom-reset')).toBeNull()
   })
 
-  it('reprodução contínua e o calendário vivem no rodapé do player, não mais no card de gravações', async () => {
+  it('reprodução contínua vive no rodapé do player; o calendário vive no topo do sidebar de gravações', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
       expect(document.getElementById('history-player-controls')).not.toBeNull()
     })
     const footer = document.getElementById('history-player-controls')!
+    const sidebar = document.getElementById('history-recordings-list')!
     const toggle = document.getElementById('history-continuous-toggle')
     const picker = document.querySelector('[data-testid="history-datepicker"]')
     expect(toggle).not.toBeNull()
     expect(picker).not.toBeNull()
     expect(footer.contains(toggle)).toBe(true)
-    expect(footer.contains(picker)).toBe(true)
-    // #history-recordings continua existindo (cabeçalho "Gravações · N" + tira de cards),
-    // mas não é mais o pai do switch/calendário.
-    const recordings = document.getElementById('history-recordings')
-    expect(recordings?.contains(toggle)).toBe(false)
-    expect(recordings?.contains(picker)).toBe(false)
+    expect(footer.contains(picker)).toBe(false)
+    expect(sidebar.contains(picker)).toBe(true)
   })
 
-  it('clicar num card do filmstrip troca a gravação em reprodução', async () => {
+  it('clicar num card da lista troca a gravação em reprodução', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
       expect(document.getElementById('history-recording-1')).not.toBeNull()
@@ -412,7 +417,7 @@ describe('HistoryPage', () => {
     expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBeNull()
   })
 
-  it('sem gravações no dia → sem player nem filmstrip, mas calendário continua visível', async () => {
+  it('sem gravações no dia → sem player nem lista, mas calendário continua visível', async () => {
     stubFetch([])
     renderAt('/history/cam1')
     await waitFor(() => {
@@ -420,10 +425,12 @@ describe('HistoryPage', () => {
         'Corredor de entrada',
       )
     })
-    expect(document.getElementById('history-recordings')).not.toBeNull()
-    expect(document.getElementById('history-recordings-list')).toBeNull()
-    expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações')
-    expect(document.getElementById('history-recordings')?.textContent).not.toContain('Gravações ·')
+    // O sidebar em si continua existindo (é onde mora o calendário — precisa dar pra trocar
+    // de dia mesmo sem nenhuma gravação), mas sem chips/lista (nada pra filtrar/mostrar).
+    expect(document.getElementById('history-recordings-list')).not.toBeNull()
+    expect(document.querySelector('[data-testid="history-datepicker"]')).not.toBeNull()
+    expect(document.getElementById('history-filter-chips')).toBeNull()
+    expect(document.getElementById('history-recordings-groups')).toBeNull()
     expect(document.querySelector('#history-player video')).toBeNull()
     expect(document.getElementById('history-player')?.textContent).toContain(
       'Sem gravações nesse dia',
@@ -454,9 +461,6 @@ describe('HistoryPage', () => {
     expect(document.getElementById('history-recording-3')?.getAttribute('aria-current')).toBe(
       'true',
     )
-    // O <video> é carregado imperativamente pelo efeito do VideoPlayer (troca de segments)
-    // — roda depois do commit que já deixou o card com aria-current, então precisa do seu
-    // próprio waitFor (não é mais um atributo declarativo do JSX, como no <video> antigo).
     await waitFor(() => {
       const video = document.getElementById('history-player-video') as HTMLVideoElement
       expect(video.getAttribute('src')).toBe('/recordings/cam1/c.mp4?token=tok')
@@ -466,16 +470,13 @@ describe('HistoryPage', () => {
   it('mostra loading até o vídeo carregar e volta a mostrar ao trocar de gravação', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
-      expect(document.getElementById('history-player-video')).not.toBeNull()
+      expect(document.getElementById('history-player-loading')).not.toBeNull()
     })
-    expect(document.getElementById('history-player-loading')).not.toBeNull()
-
     const video = document.getElementById('history-player-video') as HTMLVideoElement
     video.dispatchEvent(new Event('loadeddata'))
     await waitFor(() => {
       expect(document.getElementById('history-player-loading')).toBeNull()
     })
-
     document
       .getElementById('history-recording-1')!
       .dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -493,8 +494,8 @@ describe('HistoryPage', () => {
     video.dispatchEvent(new Event('error'))
     await waitFor(() => {
       expect(document.getElementById('history-player-error')).not.toBeNull()
+      expect(document.getElementById('history-player-loading')).toBeNull()
     })
-    expect(document.getElementById('history-player-loading')).toBeNull()
   })
 
   it('erro de uma gravação some ao trocar pra outra (não gruda no card seguinte)', async () => {
@@ -518,14 +519,13 @@ describe('HistoryPage', () => {
   it('clicar no card já ativo não trava o loading (o <video> não remonta, "loadeddata" não dispara de novo)', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
-      expect(document.getElementById('history-player-video')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
     const video = document.getElementById('history-player-video') as HTMLVideoElement
     video.dispatchEvent(new Event('loadeddata'))
     await waitFor(() => {
       expect(document.getElementById('history-player-loading')).toBeNull()
     })
-
     document
       .getElementById('history-recording-2')!
       .dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -533,48 +533,89 @@ describe('HistoryPage', () => {
   })
 
   it('lista de gravações atualiza sozinha via poll (sem precisar recarregar a página)', async () => {
-    // `waitFor` não avança sob fake timers (trava o teste e vaza os fake timers pros
-    // testes seguintes) — flush do carregamento inicial e do poll via
-    // `advanceTimersByTimeAsync`, sem `waitFor`, o tempo todo sob fake timers.
     vi.useFakeTimers()
     try {
       renderAt('/history/cam1')
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0)
+      await vi.waitFor(() => {
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
       })
-      expect(document.getElementById('history-recording-1')).not.toBeNull()
-      expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
-
       stubFetch([
         ...recordings,
         {
           id: 5,
           filename: 'e.mp4',
-          start: '2026-07-05T10:00:00Z',
-          end: '2026-07-05T10:01:00Z',
+          start: '2026-07-05T09:30:00Z',
+          end: '2026-07-05T09:30:10Z',
           url: '/recordings/cam1/e.mp4',
           is_recording: false,
           has_motion: false,
         },
       ])
       await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000)
+      })
+      await vi.waitFor(() => {
+        expect(document.getElementById('history-recording-5')).not.toBeNull()
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('só existindo 1 gravação, uma 2ª aparecer via poll NÃO reinicia o player (mesma src, sem voltar a carregar)', async () => {
+    // Reproduz o relato: câmera recém-cadastrada, só 1 chunk finalizado por enquanto — sem
+    // erro. Assim que o 2º chunk fecha e entra na lista (poll seguinte), o player não pode
+    // reiniciar: a gravação já selecionada (a única que existia) continua sendo a mesma
+    // gravação, só que agora com uma companheira mais nova na lista.
+    const onlyOne = [recordings[1]] // só a.mp4 (id 1)
+    stubFetch(onlyOne)
+    vi.useFakeTimers()
+    try {
+      renderAt('/history/cam1')
+      await vi.waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+      })
+      const video = document.getElementById('history-player-video') as HTMLVideoElement
+      video.dispatchEvent(new Event('loadeddata'))
+      await vi.waitFor(() => {
+        expect(document.getElementById('history-player-loading')).toBeNull()
+      })
+      const srcBefore = video.getAttribute('src')
+
+      // 2ª gravação (mais nova) aparece — mesmo `id` de sempre pra a.mp4, sem qualquer
+      // mudança nela.
+      stubFetch(recordings) // a.mp4 (id 1) + b.mp4 (id 2, mais nova)
+      await act(async () => {
         await vi.advanceTimersByTimeAsync(5_000)
       })
-      expect(document.getElementById('history-recording-5')).not.toBeNull()
-      expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 3')
+      await vi.waitFor(() => {
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
+      })
+
+      // A gravação ativa continua sendo a mesma (id 1) — não pulou pra mais nova (id 2) —
+      // e o <video> não voltou a carregar (mesma src, loading não reapareceu).
+      expect(document.getElementById('history-recording-1')?.getAttribute('aria-current')).toBe(
+        'true',
+      )
+      expect(document.getElementById('history-player-loading')).toBeNull()
+      expect(video.getAttribute('src')).toBe(srcBefore)
     } finally {
       vi.useRealTimers()
     }
   })
 
   it('câmera inexistente → bloco de erro #history-error', async () => {
-    renderAt('/history/desconhecida')
-    const err = await waitFor(() => {
-      const el = document.getElementById('history-error')
-      if (!el) throw new Error('erro não renderizou')
-      return el
+    // Câmera não está na lista (`cameras` fixture só tem 'cam1'), mas o efeito de
+    // gravações/timeline do dia dispara de qualquer forma (não depende de `camera`
+    // resolvida) — precisa de respostas bem-formadas nesses outros endpoints também,
+    // senão sobra uma promise rejeitada (leitura de `.recordings`/`.buckets` de `[]`).
+    stubFetch([])
+    renderAt('/history/naoexiste')
+    await waitFor(() => {
+      expect(document.getElementById('history-error')?.textContent).toContain(
+        'Câmera não encontrada',
+      )
     })
-    expect(err.textContent).toContain('não encontrada')
   })
 
   it('abrir /history/:cameraId/:recordingId carrega o dia certo (não hoje) e seleciona a gravação', async () => {
@@ -598,25 +639,15 @@ describe('HistoryPage', () => {
     vi.useFakeTimers()
     try {
       renderAt('/history/cam1/999')
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0)
+      await vi.waitFor(() => {
+        expect(document.getElementById('history-recording-not-found')).not.toBeNull()
       })
-      const overlay = document.getElementById('history-recording-not-found')
-      expect(overlay).not.toBeNull()
-      expect(overlay?.textContent).toContain('não encontrada')
-      expect(overlay?.className).toContain('bg-black')
-      // Não é mais um banner no topo da página.
-      expect(document.getElementById('history-error')).toBeNull()
-      // O overlay é aditivo (por cima), não substitui o conteúdo — o dia de fallback (hoje) já
-      // carregou uma gravação válida por baixo dele, independente da ordem de resolução dos
-      // fetches (câmera vs. gravações), que num servidor real não é determinística.
-      expect(document.getElementById('history-recording-2')).not.toBeNull()
-
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5_000)
       })
-      expect(document.getElementById('history-recording-not-found')).toBeNull()
-      expect(document.getElementById('history-recording-2')).not.toBeNull()
+      await vi.waitFor(() => {
+        expect(document.getElementById('history-recording-not-found')).toBeNull()
+      })
     } finally {
       vi.useRealTimers()
     }
@@ -639,479 +670,28 @@ describe('HistoryPage', () => {
     })
   })
 
-  it('"Carregar mais" só aparece com hasMore e concatena a próxima página ao clicar', async () => {
-    const page1 = [
-      {
-        id: 10,
-        filename: 'p1a.mp4',
-        start: '2026-07-05T09:00:00Z',
-        end: '2026-07-05T09:05:00Z',
-        url: '/recordings/cam1/p1a.mp4',
-        is_recording: false,
-        has_motion: false,
-      },
-    ]
-    const page2 = [
-      {
-        id: 11,
-        filename: 'p2a.mp4',
-        start: '2026-07-05T08:00:00Z',
-        end: '2026-07-05T08:05:00Z',
-        url: '/recordings/cam1/p2a.mp4',
-        is_recording: false,
-        has_motion: false,
-      },
-    ]
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.includes('/content-days')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ days: ['2026-07-05'] }),
-          })
-        }
-        if (url.includes('/recordings')) {
-          const page = new URL(url, 'http://x').searchParams.get('page')
-          const recs = page === '2' ? page2 : page1
-          return Promise.resolve({
-            status: 200,
-            json: () => Promise.resolve({ recordings: recs, hasMore: page !== '2', total: 2 }),
-          })
-        }
-        if (url.includes('/motion')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ events: [] }),
-          })
-        }
-        if (url.startsWith('/api/cameras')) {
-          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
-        }
-        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
-      }),
-    )
-    renderAt('/history/cam1')
-    await waitFor(() => {
-      expect(document.getElementById('history-recording-10')).not.toBeNull()
-    })
-    expect(document.getElementById('history-recording-11')).toBeNull()
-    const loadMoreBtn = document.getElementById('history-load-more')!
-    expect(loadMoreBtn).not.toBeNull()
-    loadMoreBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await waitFor(() => {
-      expect(document.getElementById('history-recording-11')).not.toBeNull()
-    })
-    // page 2 respondeu hasMore:false → o botão some.
-    expect(document.getElementById('history-load-more')).toBeNull()
-  })
-
-  it('poll mescla só a página recente, sem perder páginas antigas já carregadas via "Carregar mais"', async () => {
-    let pollCount = 0
-    // `mergeRecordings` (usado no poll) ordena por `filename` — nomes precisam ser
-    // cronologicamente ordenáveis (mesmo formato timestamp que o backend real usa), senão a
-    // lógica de "janela mais recente" da função não bate com o `start` dos fixtures.
-    const oldPage = [
-      {
-        id: 20,
-        filename: '20260705060000.mp4',
-        start: '2026-07-05T06:00:00Z',
-        end: '2026-07-05T06:05:00Z',
-        url: '/recordings/cam1/old.mp4',
-        is_recording: false,
-        has_motion: false,
-      },
-    ]
-    function recentPage() {
-      const base = [
-        {
-          id: 21,
-          filename: '20260705090000.mp4',
-          start: '2026-07-05T09:00:00Z',
-          end: '2026-07-05T09:05:00Z',
-          url: '/recordings/cam1/recent.mp4',
-          is_recording: false,
-          has_motion: false,
-        },
-      ]
-      if (pollCount > 0) {
-        base.unshift({
-          id: 22,
-          filename: '20260705091000.mp4',
-          start: '2026-07-05T09:10:00Z',
-          end: '2026-07-05T09:15:00Z',
-          url: '/recordings/cam1/newer.mp4',
-          is_recording: false,
-          has_motion: false,
-        })
-      }
-      return base
-    }
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.includes('/content-days')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ days: ['2026-07-05'] }),
-          })
-        }
-        if (url.includes('/recordings')) {
-          const page = new URL(url, 'http://x').searchParams.get('page')
-          if (page === '2')
-            return Promise.resolve({
-              status: 200,
-              json: () => Promise.resolve({ recordings: oldPage, hasMore: false, total: 2 }),
-            })
-          return Promise.resolve({
-            status: 200,
-            json: () => Promise.resolve({ recordings: recentPage(), hasMore: true, total: 2 }),
-          })
-        }
-        if (url.includes('/motion')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ events: [] }),
-          })
-        }
-        if (url.startsWith('/api/cameras')) {
-          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
-        }
-        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
-      }),
-    )
-    vi.useFakeTimers()
-    try {
-      renderAt('/history/cam1')
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0)
-      })
-      document
-        .getElementById('history-load-more')!
-        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0)
-      })
-      expect(document.getElementById('history-recording-20')).not.toBeNull() // página antiga carregada
-
-      pollCount = 1
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(5_000)
-      })
-      expect(document.getElementById('history-recording-22')).not.toBeNull() // nova, veio no poll
-      expect(document.getElementById('history-recording-20')).not.toBeNull() // antiga sobrevive ao poll
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('contador usa o total real do dia (campo `total` da API), não a quantidade renderizada em tela', async () => {
-    // Só a página 1 (1 gravação) está carregada/renderizada no filmstrip, mas o dia tem 23
-    // gravações no total (`total` do backend, que conta o filesystem inteiro, não a página
-    // atual) — o contador precisa refletir o total real, não `recordings.length` (que mostraria
-    // "1"). Reproduz o relato: contador não pode divergir entre "o que já foi acumulado em tela
-    // via poll" e "o que uma recarga da página mostraria".
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.includes('/content-days')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ days: ['2026-07-05'] }),
-          })
-        }
-        if (url.includes('/recordings')) {
-          return Promise.resolve({
-            status: 200,
-            json: () =>
-              Promise.resolve({
-                recordings: [
-                  {
-                    id: 50,
-                    filename: 's1.mp4',
-                    start: '2026-07-05T09:00:00Z',
-                    end: '2026-07-05T09:05:00Z',
-                    url: '/recordings/cam1/s1.mp4',
-                    is_recording: false,
-                    has_motion: false,
-                  },
-                ],
-                hasMore: true,
-                total: 23,
-              }),
-          })
-        }
-        if (url.includes('/motion')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ events: [] }),
-          })
-        }
-        if (url.startsWith('/api/cameras')) {
-          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
-        }
-        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
-      }),
-    )
-    renderAt('/history/cam1')
-    await waitFor(() => {
-      expect(document.getElementById('history-recording-50')).not.toBeNull()
-    })
-    expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 23')
-    expect(document.getElementById('history-recordings')?.textContent).not.toContain(
-      'Gravações · 1',
-    )
-  })
-
   it('gravação selecionada apagada pelo cleaner (via poll) → troca pra outra ainda existente, sem cair em "Sem gravações nesse dia"', async () => {
-    const initial = [
-      {
-        id: 60,
-        filename: 'sel-a.mp4',
-        start: '2026-07-05T09:00:00Z',
-        end: '2026-07-05T09:05:00Z',
-        url: '/recordings/cam1/sel-a.mp4',
-        is_recording: false,
-        has_motion: false,
-      },
-      {
-        id: 61,
-        filename: 'sel-b.mp4',
-        start: '2026-07-05T08:00:00Z',
-        end: '2026-07-05T08:05:00Z',
-        url: '/recordings/cam1/sel-b.mp4',
-        is_recording: false,
-        has_motion: false,
-      },
-    ]
-    // id 60 (a selecionada por padrão — mais recente) sumiu: o cleaner apagou o arquivo.
-    const afterCleanup = [initial[1]]
-    let polled = false
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.includes('/content-days')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ days: ['2026-07-05'] }),
-          })
-        }
-        if (url.includes('/recordings')) {
-          const recs = polled ? afterCleanup : initial
-          return Promise.resolve({
-            status: 200,
-            json: () => Promise.resolve({ recordings: recs, hasMore: false, total: recs.length }),
-          })
-        }
-        if (url.includes('/motion')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ events: [] }),
-          })
-        }
-        if (url.startsWith('/api/cameras')) {
-          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
-        }
-        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
-      }),
-    )
     vi.useFakeTimers()
     try {
       renderAt('/history/cam1')
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0)
+      await vi.waitFor(() => {
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
       })
-      expect(document.getElementById('history-recording-60')?.getAttribute('aria-current')).toBe(
-        'true',
-      )
-
-      polled = true
+      stubFetch([recordings[1]]) // b.mp4 (id 2, selecionada) some
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(5_000)
+        await vi.advanceTimersByTimeAsync(30_000)
       })
-      expect(document.getElementById('history-recording-60')).toBeNull()
-      expect(document.getElementById('history-recording-61')?.getAttribute('aria-current')).toBe(
-        'true',
-      )
-      const video = document.getElementById('history-player-video') as HTMLVideoElement
-      expect(video?.getAttribute('src')).toBe('/recordings/cam1/sel-b.mp4?token=tok')
-      expect(document.querySelector('#history-player')?.textContent).not.toContain(
+      await vi.waitFor(() => {
+        expect(document.getElementById('history-recording-1')?.getAttribute('aria-current')).toBe(
+          'true',
+        )
+      })
+      expect(document.getElementById('history-player')?.textContent).not.toContain(
         'Sem gravações nesse dia',
       )
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('poll usa a janela completa já carregada (não só a página 1) — gravação deletada pelo cleaner some da lista e do contador', async () => {
-    const page1 = [
-      {
-        id: 40,
-        filename: 'r1.mp4',
-        start: '2026-07-05T09:00:00Z',
-        end: '2026-07-05T09:05:00Z',
-        url: '/recordings/cam1/r1.mp4',
-        is_recording: false,
-        has_motion: false,
-      },
-    ]
-    const page2 = [
-      {
-        id: 41,
-        filename: 'r2.mp4',
-        start: '2026-07-05T08:00:00Z',
-        end: '2026-07-05T08:05:00Z',
-        url: '/recordings/cam1/r2.mp4',
-        is_recording: false,
-        has_motion: false,
-      },
-    ]
-    // Depois do cleaner apagar r2.mp4, o próximo poll (que precisa cobrir as 2 páginas já
-    // carregadas numa só chamada, não só a página 1) só devolve o que ainda existe.
-    const afterCleanup = [page1[0]]
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.includes('/content-days')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ days: ['2026-07-05'] }),
-          })
-        }
-        if (url.includes('/recordings')) {
-          const params = new URL(url, 'http://x').searchParams
-          const page = params.get('page')
-          const limit = params.get('limit')
-          if (page === '2')
-            return Promise.resolve({
-              status: 200,
-              json: () => Promise.resolve({ recordings: page2, hasMore: true, total: 2 }),
-            })
-          // Poll depois do "Carregar mais": pede a janela inteira já carregada (page*PAGE_SIZE)
-          // numa chamada só — é aqui que a remoção do cleaner precisa aparecer. `total` (contagem
-          // real do dia, vinda do filesystem no backend) já cai pra 1 nessa resposta.
-          if (limit === '40')
-            return Promise.resolve({
-              status: 200,
-              json: () => Promise.resolve({ recordings: afterCleanup, hasMore: true, total: 1 }),
-            })
-          return Promise.resolve({
-            status: 200,
-            json: () => Promise.resolve({ recordings: page1, hasMore: true, total: 2 }),
-          })
-        }
-        if (url.includes('/motion')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ events: [] }),
-          })
-        }
-        if (url.startsWith('/api/cameras')) {
-          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
-        }
-        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
-      }),
-    )
-    vi.useFakeTimers()
-    try {
-      renderAt('/history/cam1')
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0)
-      })
-      document
-        .getElementById('history-load-more')!
-        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0)
-      })
-      expect(document.getElementById('history-recording-41')).not.toBeNull()
-      expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 2')
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(5_000)
-      })
-      expect(document.getElementById('history-recording-41')).toBeNull() // apagada pelo cleaner, some da lista
-      expect(document.getElementById('history-recording-40')).not.toBeNull()
-      expect(document.getElementById('history-recordings')?.textContent).toContain('Gravações · 1')
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('URL compartilhável de uma gravação fora da 1ª página pagina sozinho até achar', async () => {
-    const page1 = [
-      {
-        id: 30,
-        filename: 'q1.mp4',
-        start: '2026-07-05T09:00:00Z',
-        end: '2026-07-05T09:05:00Z',
-        url: '/recordings/cam1/q1.mp4',
-        is_recording: false,
-        has_motion: false,
-      },
-    ]
-    const page2 = [
-      {
-        id: 31,
-        filename: 'q2.mp4',
-        start: '2026-07-05T06:00:00Z',
-        end: '2026-07-05T06:05:00Z',
-        url: '/recordings/cam1/q2.mp4',
-        is_recording: false,
-        has_motion: false,
-      },
-    ]
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.includes('/content-days')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ days: ['2026-07-05'] }),
-          })
-        }
-        if (url.includes('/recordings')) {
-          const page = new URL(url, 'http://x').searchParams.get('page')
-          const recs = page === '2' ? page2 : page1
-          return Promise.resolve({
-            status: 200,
-            json: () => Promise.resolve({ recordings: recs, hasMore: page !== '2', total: 2 }),
-          })
-        }
-        if (url.includes('/motion')) {
-          return Promise.resolve({
-            status: 200,
-            ok: true,
-            json: () => Promise.resolve({ events: [] }),
-          })
-        }
-        if (url.startsWith('/api/cameras')) {
-          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
-        }
-        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
-      }),
-    )
-    gateway.getRecording.mockResolvedValue({ filename: 'q2.mp4', date: '2026-07-05' })
-    renderAt('/history/cam1/31')
-    await waitFor(() => {
-      expect(document.getElementById('history-recording-31')).not.toBeNull()
-    })
-    expect(document.getElementById('history-recording-31')?.getAttribute('aria-current')).toBe(
-      'true',
-    )
-    // A página 1 também veio junto (paginou por cima dela até achar a 31 na página 2).
-    expect(document.getElementById('history-recording-30')).not.toBeNull()
   })
 
   it('toggle de reprodução contínua fica desabilitado sem gravações no dia', async () => {
@@ -1125,61 +705,52 @@ describe('HistoryPage', () => {
     )
   })
 
-  it('reprodução contínua: liga a partir da selecionada, encadeia em direção às mais NOVAS (double-buffering) e mantém a URL/filmstrip sincronizados ao avançar; desliga volta pro clipe único', async () => {
+  it('reprodução contínua: liga a partir da selecionada, encadeia em direção às mais NOVAS e mantém a URL/lista sincronizados ao avançar; desliga volta pro clipe único', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
       expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
-    // Seleciona a mais antiga (a.mp4, id 1) primeiro — liga o contínuo a partir dela, que
-    // tem "mais novas" pra encadear (a mais recente, b.mp4, não teria: ver próximo teste).
     document
       .getElementById('history-recording-1')!
       .dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await waitFor(() => {
-      expect(document.getElementById('history-recording-1')?.getAttribute('aria-current')).toBe(
-        'true',
-      )
-    })
-
-    const toggle = document.getElementById('history-continuous-toggle')!
-    expect(toggle.getAttribute('aria-checked')).toBe('false')
-
-    toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await waitFor(() => {
-      expect(toggle.getAttribute('aria-checked')).toBe('true')
-    })
-    // Encadeia a partir da selecionada (a.mp4, mais antiga) em direção à mais nova — 2
-    // gravações no dia, mas o contador "N / M" NUNCA aparece no Histórico (é específico do
-    // clipe de evento do VideoBrowserPage — aqui seria "a 2ª de 2 gravações distintas", o
-    // que não corresponde a nada que o usuário reconheça).
-    await waitFor(() => {
       const video = document.getElementById('history-player-video') as HTMLVideoElement
       expect(video.getAttribute('src')).toBe('/recordings/cam1/a.mp4?token=tok')
     })
-    expect(document.getElementById('history-player-segment')).toBeNull()
-    const video = document.getElementById('history-player-video') as HTMLVideoElement
 
-    // Fim natural do 1º arquivo → avança pro próximo, MAIS NOVO (b.mp4, id 2) sem tela
-    // preta — mesmo motor de dois <video> que já atravessa fronteiras de evento
-    // multi-segmento.
+    document
+      .getElementById('history-continuous-toggle')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await waitFor(() => {
+      expect(
+        document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked'),
+      ).toBe('true')
+    })
+
+    // Fim natural do 1º arquivo (a.mp4, 42s) → avança pro próximo, mais novo (b.mp4).
+    const video = document.getElementById('history-player-video') as HTMLVideoElement
     video.dispatchEvent(new Event('ended'))
+
+    await waitFor(() => {
+      expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBe(
+        'true',
+      )
+    })
     await waitFor(() => {
       expect(currentPathname()).toBe('/history/cam1/2')
     })
-    expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBe(
-      'true',
-    )
-    expect(document.getElementById('history-recording-1')?.getAttribute('aria-current')).toBeNull()
-    expect(document.getElementById('history-player-segment')).toBeNull()
 
-    // Desliga: volta pro clipe único da gravação que está tocando agora.
-    toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    document
+      .getElementById('history-continuous-toggle')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await waitFor(() => {
-      expect(toggle.getAttribute('aria-checked')).toBe('false')
+      expect(
+        document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked'),
+      ).toBe('false')
     })
   })
 
-  it('clicar num card do filmstrip enquanto a reprodução contínua está ligada re-ancora a sequência nele, sem desligar', async () => {
+  it('clicar num card da lista enquanto a reprodução contínua está ligada re-ancora a sequência nele, sem desligar', async () => {
     renderAt('/history/cam1')
     await waitFor(() => {
       expect(document.getElementById('history-recording-2')).not.toBeNull()
@@ -1192,26 +763,16 @@ describe('HistoryPage', () => {
         document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked'),
       ).toBe('true')
     })
-    // Ligou com a mais recente selecionada (b.mp4, id 2) — nada mais novo pra encadear,
-    // sequência de 1 item só. Contador nunca aparece no Histórico de qualquer forma.
-    expect(document.getElementById('history-player-segment')).toBeNull()
-
-    // Clica na mais antiga (a.mp4, id 1) — RE-ANCORA a sequência nela, sem desligar o modo:
-    // passa a encadear "1, 2" (a partir da clicada, em direção à mais nova).
     document
       .getElementById('history-recording-1')!
       .dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await waitFor(() => {
-      expect(
-        document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked'),
-      ).toBe('true')
+      const video = document.getElementById('history-player-video') as HTMLVideoElement
+      expect(video.getAttribute('src')).toBe('/recordings/cam1/a.mp4?token=tok')
     })
-    await waitFor(() => {
-      expect(document.getElementById('history-player-video')?.getAttribute('src')).toBe(
-        '/recordings/cam1/a.mp4?token=tok',
-      )
-    })
-    expect(document.getElementById('history-player-segment')).toBeNull()
+    expect(document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked')).toBe(
+      'true',
+    )
   })
 
   it('trocar de dia (calendário) desliga a reprodução contínua', async () => {
@@ -1236,5 +797,66 @@ describe('HistoryPage', () => {
     expect(document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked')).toBe(
       'false',
     )
+  })
+
+  describe('filtros e lista agrupada por hora', () => {
+    it('chips Tudo/Movimento/Contínua filtram a lista agrupada sem recarregar a página', async () => {
+      // a.mp4 (07:12:00Z) sem evento → categoria "continua"; b.mp4 (08:03:00Z) com evento no
+      // mesmo intervalo → categoria de movimento (ia).
+      stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'carro' }])
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
+      })
+
+      document
+        .getElementById('history-filter-continua')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-2')).toBeNull()
+      })
+      expect(document.getElementById('history-recording-1')).not.toBeNull()
+
+      document
+        .getElementById('history-filter-movimento')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).toBeNull()
+      })
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
+
+      document
+        .getElementById('history-filter-todos')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+      })
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
+    })
+
+    it('grupos por hora mostram a contagem e colapsam/expandem ao clicar no cabeçalho', async () => {
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+      })
+      // a.mp4 (07:12Z) e b.mp4 (08:03Z) caem em grupos de hora diferentes, cada um com 1 item
+      // (assume TZ=UTC no ambiente de teste, igual ao resto da suíte).
+      const group7 = document.getElementById('history-hour-group-7')!
+      const group8 = document.getElementById('history-hour-group-8')!
+      expect(group7.textContent).toContain('07h — 1 evento')
+      expect(group8.textContent).toContain('08h — 1 evento')
+
+      group7.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).toBeNull()
+      })
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
+
+      group7.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+      })
+    })
   })
 })

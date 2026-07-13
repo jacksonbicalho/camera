@@ -104,3 +104,21 @@ export function filterEventsByCategory<T extends Pick<MotionEvent, 'label' | 'ki
   if (filter === 'todos') return events
   return events.filter((ev) => eventCategory(ev) === filter)
 }
+
+// Filtro da timeline de 24h (chips "Tudo/Movimento/Contínua" do Histórico) — dicotomia
+// mais grossa que EventFilter (tem evento vs. não tem), não as 4 categorias finas do
+// painel de eventos.
+export type TimelineFilter = 'todos' | 'movimento' | 'continua'
+
+// matchesTimelineFilter resolve se `category` bate com o filtro simples da timeline de
+// 24h: "movimento" casa com QUALQUER categoria de evento (movimento/pessoa/ia/estados),
+// não só a literal "movimento" — a timeline não distingue tipo de evento, só "tem
+// movimento" vs. "só contínua".
+export function matchesTimelineFilter(
+  category: RecordingCategory,
+  filter: TimelineFilter,
+): boolean {
+  if (filter === 'todos') return true
+  if (filter === 'continua') return category === 'continua'
+  return category !== 'continua'
+}

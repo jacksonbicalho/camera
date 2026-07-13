@@ -26,7 +26,7 @@ func TestIsValidMP4_ValidFile(t *testing.T) {
 	if err := os.WriteFile(path, minimalValidMP4(), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if !isValidMP4(path) {
+	if !IsValidMP4(path) {
 		t.Error("expected valid MP4 to return true")
 	}
 }
@@ -36,7 +36,7 @@ func TestIsValidMP4_CorruptFile_RandomBytes(t *testing.T) {
 	if err := os.WriteFile(path, []byte("this is not an mp4 file"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if isValidMP4(path) {
+	if IsValidMP4(path) {
 		t.Error("expected corrupt file (random bytes) to return false")
 	}
 }
@@ -46,13 +46,13 @@ func TestIsValidMP4_EmptyFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte{}, 0644); err != nil {
 		t.Fatal(err)
 	}
-	if isValidMP4(path) {
+	if IsValidMP4(path) {
 		t.Error("expected empty file to return false")
 	}
 }
 
 func TestIsValidMP4_MissingFile(t *testing.T) {
-	if isValidMP4(filepath.Join(t.TempDir(), "nonexistent.mp4")) {
+	if IsValidMP4(filepath.Join(t.TempDir(), "nonexistent.mp4")) {
 		t.Error("expected missing file to return false")
 	}
 }
@@ -69,7 +69,7 @@ func TestIsValidMP4_NoMoovAtom(t *testing.T) {
 	if err := os.WriteFile(path, b, 0644); err != nil {
 		t.Fatal(err)
 	}
-	if isValidMP4(path) {
+	if IsValidMP4(path) {
 		t.Error("expected file without moov atom to return false")
 	}
 }
@@ -93,7 +93,7 @@ func TestIsValidMP4_ExtendedSizeAtom(t *testing.T) {
 	if err := os.WriteFile(path, b, 0644); err != nil {
 		t.Fatal(err)
 	}
-	if !isValidMP4(path) {
+	if !IsValidMP4(path) {
 		t.Error("expected MP4 with extended-size ftyp atom to return true")
 	}
 }
