@@ -4,17 +4,18 @@
 # --network host, portável. Orquestrado por scripts/e2e.sh.
 #
 # x-fixture-env: ids/credenciais do fixture semeado — ÚNICA declaração destes
-# valores no repo. `camera` os repassa pro seed via docker-entrypoint.sh (flags
-# -admin-user/-camera-id/etc., e2e/seed/main.go); `playwright` os expõe aos
-# specs (fallback quando ausentes, para rodar fora do compose também
-# funcionar). Sem o anchor, os mesmos valores precisariam ser copiados nos
-# dois blocos `environment:` abaixo, com risco de divergirem.
+# valores no repo (os defaults abaixo; ver e2e/.env.example pra sobrescrever
+# sem editar este arquivo). `camera` os repassa pro seed via
+# docker-entrypoint.sh (flags -admin-user/-camera-id/etc., e2e/seed/main.go);
+# `playwright` os expõe aos specs (fallback quando ausentes, para rodar fora
+# do compose também funcionar). Sem o anchor, os mesmos valores precisariam
+# ser copiados nos dois blocos `environment:` abaixo, com risco de divergirem.
 x-fixture-env: &fixture-env
-  E2E_ADMIN_USER: admin
-  E2E_ADMIN_PASS: e2e-password-123
-  E2E_CAMERA_ID: e2e00000-0000-4000-8000-000000000001
-  E2E_VIEWER_USER: viewer
-  E2E_VIEWER_PASS: e2e-viewer-password-123
+  E2E_ADMIN_USER: ${E2E_ADMIN_USER:-admin}
+  E2E_ADMIN_PASS: ${E2E_ADMIN_PASS:-e2e-password-123}
+  E2E_CAMERA_ID: ${E2E_CAMERA_ID:-e2e00000-0000-4000-8000-000000000001}
+  E2E_VIEWER_USER: ${E2E_VIEWER_USER:-viewer}
+  E2E_VIEWER_PASS: ${E2E_VIEWER_PASS:-e2e-viewer-password-123}
 
 services:
   camera:
@@ -49,6 +50,13 @@ services:
       # recording_id=1 não vem do anchor: é sempre a 1ª linha inserida num
       # banco novo (autoincrement), não um valor configurável do seed.
       E2E_RECORDING_ID: '1'
+      # Overrides opcionais de e2e/playwright.config.ts — ${VAR:-default}
+      # lê do ambiente do host ou de um e2e/.env (não versionado; ver
+      # e2e/.env.example), sem precisar editar este arquivo pra depurar
+      # localmente (ex: `E2E_VIDEO=on bash scripts/e2e.sh`).
+      E2E_REPORTER: ${E2E_REPORTER:-list}
+      E2E_SCREENSHOT: ${E2E_SCREENSHOT:-only-on-failure}
+      E2E_VIDEO: ${E2E_VIDEO:-off}
     command: >
       sh -c "bun install &&
              bunx playwright install --with-deps chromium &&
