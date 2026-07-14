@@ -27,6 +27,12 @@ const (
 	adminPass = "e2e-password-123"
 	cameraID  = "e2e00000-0000-4000-8000-000000000001"
 
+	// viewerUser tem acesso concedido só à câmera do fixture — usado pelo
+	// cenário e2e que cobre o papel viewer (acesso restrito), em vez de só
+	// admin.
+	viewerUser = "viewer"
+	viewerPass = "e2e-viewer-password-123"
+
 	// keepForeverMinutes desliga a purga de retenção (100 anos) para o
 	// Cleaner nunca apagar o fixture durante a vida do container.
 	keepForeverMinutes = "52560000"
@@ -47,6 +53,8 @@ type fixtureInfo struct {
 	RecordingID int64  `json:"recording_id"`
 	AdminUser   string `json:"admin_user"`
 	AdminPass   string `json:"admin_pass"`
+	ViewerUser  string `json:"viewer_user"`
+	ViewerPass  string `json:"viewer_pass"`
 	Port        int    `json:"port"`
 }
 
@@ -79,6 +87,9 @@ func main() {
 	_, err = db.CreateUser(database, adminUser, adminPass, "admin", false)
 	must(err, "criar admin")
 
+	viewerID, err := db.CreateUser(database, viewerUser, viewerPass, "viewer", false)
+	must(err, "criar viewer")
+
 	must(db.SetConfig(database, "storage.with_motion_minutes", keepForeverMinutes), "desligar retenção (motion)")
 	must(db.SetConfig(database, "storage.without_motion_minutes", keepForeverMinutes), "desligar retenção (sem motion)")
 
@@ -92,6 +103,7 @@ func main() {
 		RecordingEnabled: true,
 	}, nil)
 	must(err, "criar câmera")
+	must(db.SetUserCameras(database, viewerID, []string{cameraID}), "conceder câmera ao viewer")
 
 	must(seedRecordings(database, storagePath, *recordings), "semear gravações")
 
@@ -105,6 +117,8 @@ func main() {
 		RecordingID: recordingID,
 		AdminUser:   adminUser,
 		AdminPass:   adminPass,
+		ViewerUser:  viewerUser,
+		ViewerPass:  viewerPass,
 		Port:        *port,
 	}
 	must(json.NewEncoder(os.Stdout).Encode(info), "codificar saída JSON")

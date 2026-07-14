@@ -36,6 +36,8 @@ services:
       E2E_RECORDING_ID: '1'
       E2E_ADMIN_USER: admin
       E2E_ADMIN_PASS: e2e-password-123
+      E2E_VIEWER_USER: viewer
+      E2E_VIEWER_PASS: e2e-viewer-password-123
     command: >
       sh -c "bun install &&
              bunx playwright install --with-deps chromium &&
