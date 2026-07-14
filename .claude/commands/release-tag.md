@@ -18,7 +18,7 @@ Cria a tag de release executando o script `./scripts/release.sh`, após o PR `re
 
 4. **Crie a tag.** Se confirmado: `echo "s" | ./scripts/release.sh`.
 
-5. **Atualize o release file.** Edite `releases/*_vX.Y.Z.md` adicionando ao final:
+5. **Atualize o release file.** Edite `work_progress/releases/*_vX.Y.Z.md` adicionando ao final:
 
 ```markdown
 

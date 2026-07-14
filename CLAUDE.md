@@ -12,7 +12,7 @@ O fluxo completo de **desenvolvimento e publicação** — XP/TDD, análise (`/a
 
 **Regras-gate inegociáveis (resumo — detalhe em `docs/workflow.md`):** só **3 gates humanos** — entre eles, o ciclo roda sozinho, sem prompts.
 - `master` e `develop` são protegidos — nunca commit/push direto; tudo via PR.
-- **G1 — Análise aprovada:** demanda com trade-offs reais começa por `/analyze` (`analysis/*.md`, investigado, nunca em branco); nada de story/código antes de `[x] Análise aprovada`.
+- **G1 — Análise aprovada:** demanda com trade-offs reais começa por `/analyze` (`work_progress/analysis/*.md`, investigado, nunca em branco); nada de story/código antes de `[x] Análise aprovada`.
 - **G2 — História revisada:** `/story` cria a branch (a partir de `develop`) e a story **já decomposta em tickets** (T1..Tn) + 1 cenário funcional por critério em `tests/functional/`, tudo preenchido antes da revisão. Não implemente (nem red phase) antes de `[x] História revisada` na story.
 - **Entre G2 e G3, zero prompts ao navigator** (única exceção: circuit breaker do code review após 3 iterações sem `APPROVED`). Por ticket: TDD red → green → refactor → `scripts/check.sh` → subagent `code-reviewer` (`CHANGES_REQUESTED` corrige e re-invoca; `APPROVED` → `scripts/record-review.sh` → commit do ticket).
 - **Checkboxes automáticos, nunca marcados à mão pelo driver:** CA1 = `scripts/check.sh`; demais CAs = `scripts/functional-check.sh`; `Review: APPROVED` = `scripts/record-review.sh`; `[x] Aprovado` = `scripts/finalize-story.sh` (só quando História revisada + Review APPROVED + todos os CAs estão verdes).
@@ -143,6 +143,16 @@ O padrão de **override files** mantém `services/yolo/docker-compose.yml` unive
 
 Modelos pré-baixados na imagem: `yolov8n` e `yolo11n`. Com GPU RTX 3050 (4GB VRAM): fine-tuning viável para variantes `n` e `s`; variantes `l` e `x` causam OOM no treino (inferência funciona). Ver `docs/analysis.md` para documentação completa.
 
+### Testes e2e (`e2e/`)
+
+Suíte Playwright ponta-a-ponta, **independente do resto do projeto**: pacote próprio (`package.json`/`tsconfig.json`/`eslint.config.js`/`.prettierrc`, gerenciado só por **bun** — o `frontend/` continua em yarn, sem relação) e **Docker-only** — tanto o servidor sob teste quanto o Playwright rodam em container, sem exigir Go/Node/bun no host além do Docker.
+
+- `e2e/seed/` — programa Go standalone (`go build ./e2e/seed`) que gera um **fixture determinístico** direto via `internal/db`/`internal/config` (sem RTSP real). O dado (`Fixture`, `e2e/seed/fixture.go`) é separado de como é materializado (`applyFixture`): `Fixture{Users []FixtureUser; Cameras []FixtureCamera}` — `FixtureCamera` **embute** `config.CameraConfig` (`yaml:",inline"`, reaproveita as tags yaml que esse struct já tinha) + `Recordings int` (nº de gravações contíguas, `recordingSlots`/`schedule_test.go`) + `Events []FixtureMotionEvent` (referencia uma gravação da própria câmera por índice cronológico — `RecordingIndex`/`OffsetSeconds` — nunca um instante solto; `Score`/`Label`/`BboxX/Y/W/H` viram um `db.MotionEvent`). `defaultFixture(...)` é o fixture usado por `scripts/e2e.sh` (sem `-fixture`): 1 admin, 1 **viewer com acesso concedido só à 1ª câmera** (`db.SetUserCameras` — cobre o cenário de acesso restrito) e uma **2ª câmera nunca concedida** (cenário negativo — viewer tenta acessá-la e recebe "câmera não encontrada", já que `GET /api/cameras` filtra a lista por usuário). `-fixture <arquivo.yaml>` (opcional) troca o default por um arquivo no mesmo formato — útil pra câmeras com configs diversas ou eventos de movimento com label/bbox, que não escalariam como flag por dimensão (ver exemplo em `e2e/seed/fixtures/motion-example.yaml`). Cada gravação é uma cópia de um MP4 de amostra embutido (`sample.mp4`, via `go:embed`). Escreve o `camera.yaml` de bootstrap com caminhos **absolutos** (`cmd/camera` resolve `DBPath`/`Storage.Path` relativos ao CWD do processo, não ao diretório do yaml) e imprime os ids gerados em JSON (1º admin/viewer/câmeras do Fixture, mesma convenção de sempre). Ids/credenciais do fixture default (`-admin-user`, `-admin-pass`, `-camera-id`, `-admin-only-camera-id`, `-viewer-user`, `-viewer-pass`) são **flags**, não constantes — os defaults só valem quando a flag é omitida; quem efetivamente os define é o `docker-compose.yml` (ver abaixo), pra não duplicar os mesmos literais no código Go.
+- Novo stage `e2e` no `Dockerfile` raiz (+`e2e-builder`, build nativo sem cross-compile) builda `camera`+`seed` numa imagem mínima com `ffmpeg`+`curl`; `e2e/docker-entrypoint.sh` repassa `E2E_ADMIN_USER`/`E2E_ADMIN_PASS`/`E2E_CAMERA_ID`/`E2E_ADMIN_ONLY_CAMERA_ID`/`E2E_VIEWER_USER`/`E2E_VIEWER_PASS` do ambiente como flags do seed (sem fallback aqui de propósito — ver `e2e/.env.example`), semeia o fixture num dir efêmero e sobe o servidor já apontado pra ele.
+- `e2e/docker-compose.yml` — dois serviços numa rede só do compose (sem porta publicada no host): `camera` (build do stage `e2e`, healthcheck via `curl` em `/api/config`) e `playwright` (imagem `oven/bun:1`, instala os browsers na hora — `bunx playwright install --with-deps chromium` —, roda `bunx playwright test` contra `http://camera:8099`). Ids/credenciais do fixture (câmera com UUID fixo, `recording_id=1`) chegam aos dois serviços via um anchor YAML único (`x-fixture-env`, mesclado com `<<:` no `environment:` de cada serviço) — **única declaração** desses valores no repo, com sintaxe `${VAR:-default}` pra permitir override via `e2e/.env` (ver `e2e/.env.example`) sem editar o compose. As opções do Playwright (`reporter`/`screenshot`/`video`, `e2e/playwright.config.ts`) são configuráveis do mesmo jeito, só no serviço `playwright`.
+- `scripts/e2e.sh` — orquestrador estático (`docker compose up --build --abort-on-container-exit --exit-code-from playwright`, teardown via `trap`), mesmo padrão de `scripts/frontend-check.sh`/`scripts/yolo-check.sh`. Rodado por um job dedicado no CI (`.github/workflows/ci.yml`, job `e2e`), **bloqueante em todo PR** (sem filtro de path) — deliberadamente enxuto (specs de smoke pro papel admin e um cenário de acesso restrito pro papel viewer, não escala/performance), já que `scripts/merge-when-green.sh` espera todos os check-runs antes de mergear.
+- `scripts/e2e.sh` gera `e2e/playwright-report/` (HTML, gitignored). `scripts/e2e-report.sh [porta]` sobe um container `oven/bun:1` (mesma imagem do serviço `playwright`) rodando `bunx playwright show-report --host 0.0.0.0`, com a porta publicada no host (default `9323`, diferente do compose principal que não publica porta nenhuma) — só pra essa visualização pontual, sem exigir bun no host.
+
 ## Arquitetura
 
 ### Binários
@@ -220,9 +230,14 @@ Todas seguem o prefixo `OS_CAMERA_`.
 
 `smtp.*` é configuração de conexão (`internal/config.SMTPConfig`); o envio em si é feito por `internal/email` (ver tabela de pacotes internos acima).
 
-## Diretório `amostras/`
+## Diretório `work_progress/`
 
-O diretório `amostras/` (listado no `.gitignore`) é reservado para arquivos que o navigator coloca para análise contextual — screenshots, logs, dumps de banco, exemplos de vídeo ou qualquer artefato que ajude a diagnosticar um problema. Claude deve inspecionar o conteúdo desse diretório quando o navigator mencionar que colocou algo lá, ou quando precisar de evidência concreta para uma investigação.
+Diretório único (gitignored: `work_progress/`) que agrupa todo o estado de trabalho não versionado do fluxo — cada um dos quatro subdiretórios abaixo mantém seu próprio propósito e convenções, só a raiz mudou:
+
+- `work_progress/analysis/` — análises da fase G1 (`/analyze`), ver "Fluxo de trabalho" acima e `docs/workflow.md`.
+- `work_progress/stories/` — a história atual decomposta em tickets (fase G2, `/story`), idem.
+- `work_progress/releases/` — planejamento/corte de release (`_next.md` e releases publicadas), idem.
+- `work_progress/amostras/` — reservado para arquivos que o navigator coloca para análise contextual — screenshots, logs, dumps de banco, exemplos de vídeo ou qualquer artefato que ajude a diagnosticar um problema. Claude deve inspecionar o conteúdo desse diretório quando o navigator mencionar que colocou algo lá, ou quando precisar de evidência concreta para uma investigação.
 
 ## Manutenção contínua
 

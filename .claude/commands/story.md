@@ -9,7 +9,7 @@ Execute o **passo 2-3 do fluxo** (`docs/workflow.md`): criação de história e
 decomposição em tickets.
 
 Pré-condições (valide antes de qualquer coisa):
-- Se a entrada for um arquivo em `analysis/`, ele DEVE conter
+- Se a entrada for um arquivo em `work_progress/analysis/`, ele DEVE conter
   `[x] Análise aprovada`. Sem isso, pare e peça o G1.
 - Se a entrada for descrição livre (demanda trivial que dispensa análise
   formal), siga — mas se a investigação revelar trade-offs reais, volte e rode
@@ -20,7 +20,7 @@ Passos:
 
 1. Decida `tipo` (feat/fix/refactor/chore/...), `escopo` e `slug`.
 2. Crie a branch: `git checkout -b <tipo>/<slug> develop`.
-3. Crie `stories/YYYYMMDDHHmm_<slug>.md` seguindo a estrutura do
+3. Crie `work_progress/stories/YYYYMMDDHHmm_<slug>.md` seguindo a estrutura do
    `docs/workflow.md`, COMPLETA antes da revisão:
    - `## Contexto` e `## Solução` nunca em branco (importe da análise).
    - `## Tickets`: decomponha em unidades pequenas (alvo ≤ ~200 linhas de diff

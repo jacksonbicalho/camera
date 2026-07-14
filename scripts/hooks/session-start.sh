@@ -8,7 +8,7 @@ guardrails=$(cat <<'EOF'
 GUARDRAILS DO FLUXO (os-camera) — leia antes de agir:
 → LEIA `docs/workflow.md` no início da sessão — é o fluxo completo (análise, tickets, review automatizado, testes funcionais, release). O resumo abaixo é só a rede de segurança.
 GATES HUMANOS — SÓ TRÊS: G1 análise aprovada · G2 história revisada · G3 release. Entre G2 e G3, NENHUM prompt ao navigator (única exceção: circuit breaker do code review após 3 iterações).
-1. Demanda nova começa por /analyze → analysis/*.md. GATE G1: nada de story/branch/código antes de `[x] Análise aprovada` — monitore com `scripts/await-gate.sh analise <arquivo>`.
+1. Demanda nova começa por /analyze → work_progress/analysis/*.md. GATE G1: nada de story/branch/código antes de `[x] Análise aprovada` — monitore com `scripts/await-gate.sh analise <arquivo>`.
 2. /story cria story JÁ decomposta em tickets (T1..Tn) + branch de develop + 1 cenário funcional por CA em tests/functional/. GATE G2: nem red phase antes de `[x] História revisada` — `scripts/await-gate.sh revisao`.
 3. Por ticket: TDD red → green → refactor. Testes via `bash scripts/check.sh` (nunca `go test`/`node` crus).
 4. CODE REVIEW É DO SUBAGENT, NÃO DO NAVIGATOR: ao fim do TDD do ticket, invoque o subagent `code-reviewer` com o diff. CHANGES_REQUESTED → corrija blocker/major e re-invoque (máx. 3x; estourou → escale). APPROVED → `scripts/record-review.sh <Tn> <iter>` ANTES do commit — o hook de commit conta reviews: 1 APPROVED autoriza 1 commit.

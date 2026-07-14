@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Rotaciona o arquivo de planejamento de release no corte de uma versão.
 #
-# Opera apenas sobre a pasta releases/ (sem git/gh) — testável em diretório
+# Opera apenas sobre a pasta work_progress/releases/ (sem git/gh) — testável em diretório
 # temporário via RELEASES_DIR. Chamado pelo release-tag.sh após a release
 # publicar, com a versão recém-criada.
 #
@@ -17,7 +17,7 @@ version="${1:-}"
 [ -z "$version" ] && { echo "Uso: rotate-release-next.sh <version>" >&2; exit 2; }
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RELEASES_DIR="${RELEASES_DIR:-$ROOT/releases}"
+RELEASES_DIR="${RELEASES_DIR:-$ROOT/work_progress/releases}"
 mkdir -p "$RELEASES_DIR"
 
 today="$(date +%Y%m%d)"

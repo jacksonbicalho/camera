@@ -74,7 +74,7 @@ MERGE_SHA="$(git rev-parse --short HEAD)"
 # Seleciona pelo conteúdo (funciona com `_next.md` e com `_vX.Y.Z.md`).
 REL_NOTE="release file não atualizado"
 MARKED=0
-RF="$(grep -lF "#${PR} " releases/*.md 2>/dev/null | head -1 || true)"
+RF="$(grep -lF "#${PR} " work_progress/releases/*.md 2>/dev/null | head -1 || true)"
 if [[ -n "$RF" ]]; then
     sed -i "/#${PR} /s/\[~\]/[✓]/" "$RF"
     REL_NOTE="$(basename "$RF"): #${PR} → [✓]"
@@ -91,7 +91,7 @@ if [[ "$MARKED" -eq 1 ]]; then
         git branch -D "$HEAD" >/dev/null 2>&1 && BRANCH_NOTE="branch ${HEAD} deletada"
     fi
     desc=$(echo "$HEAD" | sed 's|^[^/]*/||' | tr '-' '_')
-    story=$(ls stories/*.md 2>/dev/null | grep -i "$desc" | tail -1 || true)
+    story=$(ls work_progress/stories/*.md 2>/dev/null | grep -i "$desc" | tail -1 || true)
     [[ -n "$story" ]] && rm -f "$story" && STORY_NOTE=" | story removido ($(basename "$story"))"
 fi
 

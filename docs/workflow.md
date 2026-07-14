@@ -26,8 +26,8 @@ flowchart TD
 
 | Gate | Onde | O que o navigator faz |
 |------|------|------------------------|
-| **G1 — Análise aprovada** | `analysis/*.md` → `[x] Análise aprovada` | Aprova a *direção* (problema + solução escolhida) |
-| **G2 — História revisada** | `stories/*.md` → `[x] História revisada` | Aprova story **e tickets** (e os cenários funcionais) de uma vez |
+| **G1 — Análise aprovada** | `work_progress/analysis/*.md` → `[x] Análise aprovada` | Aprova a *direção* (problema + solução escolhida) |
+| **G2 — História revisada** | `work_progress/stories/*.md` → `[x] História revisada` | Aprova story **e tickets** (e os cenários funcionais) de uma vez |
 | **G3 — Release** | `/release-pr` + aprovação do PR develop→master | Libera o corte de release |
 
 **Tudo entre G2 e G3 roda sozinho:** implementação, code review (subagent), ajustes, testes funcionais, commit, push, PR, merge em develop. Zero prompts — a única exceção é o *circuit breaker* do code review (3 iterações sem `APPROVED` num ticket escalam ao navigator).
@@ -91,13 +91,13 @@ EOF
 demanda livre
    │
    ▼
-/analyze ──► analysis/YYYYMMDDHHmm_<slug>.md
+/analyze ──► work_progress/analysis/YYYYMMDDHHmm_<slug>.md
    │              (problema, opções, decisão, impacto)
    ▼
 [G1] navigator marca [x] Análise aprovada        ◄── scripts/await-gate.sh analise
    │
    ▼
-/story ──► stories/YYYYMMDDHHmm_<slug>.md + branch
+/story ──► work_progress/stories/YYYYMMDDHHmm_<slug>.md + branch
    │         story JÁ decomposta em tickets T1..Tn
    │         + 1 cenário funcional por critério (tests/functional/)
    ▼
@@ -126,16 +126,16 @@ scripts/commit.sh → scripts/push-pr.sh   (inalterados: push+PR+CI+merge)
 [G3] /release-pr quando o navigator liberar (inalterado)
 ```
 
-1. **`/analyze <demanda>`** investiga o código (nunca pergunta o que o código já responde), resolve ambiguidade genuína via `AskUserQuestion` **antes** de escrever, e produz `analysis/YYYYMMDDHHmm_<slug>.md` (Problema/Investigação/Opções/Decisão recomendada/Impacto). Roda `scripts/await-gate.sh analise <arquivo>` em background e, ao abrir, segue direto para `/story` — sem perguntar nada.
+1. **`/analyze <demanda>`** investiga o código (nunca pergunta o que o código já responde), resolve ambiguidade genuína via `AskUserQuestion` **antes** de escrever, e produz `work_progress/analysis/YYYYMMDDHHmm_<slug>.md` (Problema/Investigação/Opções/Decisão recomendada/Impacto). Roda `scripts/await-gate.sh analise <arquivo>` em background e, ao abrir, segue direto para `/story` — sem perguntar nada.
 2. **`/story [análise|descrição livre]`** cria a branch a partir de `develop` e escreve a story **completa** (Contexto/Solução nunca em branco) **já decomposta em tickets** — ver estrutura abaixo — e escreve os **cenários funcionais agora** (antes do G2, para o navigator revisar junto). Roda `scripts/await-gate.sh revisao` em background.
 3. **Gate G2.** Nenhuma linha de código de produção ou teste antes de `[x] História revisada`.
 4. **Ciclo por ticket (após G2, sem nenhum prompt ao navigator):** TDD red → green → refactor → `bash scripts/check.sh` → invoca o subagent `code-reviewer` → `CHANGES_REQUESTED` (corrige blocker/major, re-invoca, máx. 3 iterações, senão escala) ou `APPROVED` (`scripts/record-review.sh <Tn> <iterações>`, então commit do ticket).
 5. **Fim dos tickets:** `bash scripts/functional-check.sh` (roda os cenários, marca os CAs) → `bash scripts/finalize-story.sh` (marca `[x] Aprovado` quando História revisada + Review APPROVED + todos os CAs estão verdes) → `scripts/commit.sh` (se houver algo pendente) → `scripts/push-pr.sh` (push + PR **sempre `--base develop`** + aguarda CI + merge quando verde). **CI vermelho:** o `push-pr.sh` propaga o erro sem mergear (PR fica aberto) — **Política A**: um fix trivial pós-`Aprovado` (deixar o CI verde) não exige nova aprovação; se o fix mexer em lógica de produção, volta pro ciclo de ticket (novo review do subagent).
-6. Atualizar o arquivo de release correspondente em `releases/`: preencher a branch e o número do PR na tabela, marcar `[~]`; o `merge-when-green.sh` marca `[~]→[✓]` ao mergear em `develop`. **Apenas o corte de release** (`develop → master`, G3) depende de autorização explícita do navigator.
+6. Atualizar o arquivo de release correspondente em `work_progress/releases/`: preencher a branch e o número do PR na tabela, marcar `[~]`; o `merge-when-green.sh` marca `[~]→[✓]` ao mergear em `develop`. **Apenas o corte de release** (`develop → master`, G3) depende de autorização explícita do navigator.
 
 ### Artefatos
 
-#### `analysis/YYYYMMDDHHmm_<slug>.md` (gitignored, como `stories/`)
+#### `work_progress/analysis/YYYYMMDDHHmm_<slug>.md` (gitignored, como `work_progress/stories/`)
 
 ```markdown
 # Análise — <título curto>
@@ -154,12 +154,12 @@ scripts/commit.sh → scripts/push-pr.sh   (inalterados: push+PR+CI+merge)
 - [] Análise aprovada
 ```
 
-#### `stories/YYYYMMDDHHmm_<slug>.md`
+#### `work_progress/stories/YYYYMMDDHHmm_<slug>.md`
 
 ```markdown
 # tipo(escopo): descrição curta em inglês
 
-> Análise: analysis/YYYYMMDDHHmm_<slug>.md
+> Análise: work_progress/analysis/YYYYMMDDHHmm_<slug>.md
 
 ## Contexto
 ## Solução
@@ -195,7 +195,7 @@ Regras:
 - `[x] Review: APPROVED` só é escrito por `record-review.sh` (todos os tickets aprovados pelo subagent).
 - `[x] Aprovado` só é escrito por `finalize-story.sh` (nunca pelo driver à mão) quando: História revisada ✓ + Review APPROVED ✓ + todos os CAs ✓. Isso mantém `commit.sh`/`push-pr.sh`/hooks funcionando sem alteração de contrato.
 
-Histórias e análises ficam em `stories/`/`analysis/` (ambos gitignored). O nome do arquivo usa timestamp no formato `YYYYMMDDHHmm_<descricao>.md` — igual às migrations de banco — garantindo ordenação cronológica natural ao listar o diretório.
+Histórias e análises ficam em `work_progress/stories/`/`work_progress/analysis/` (subdiretórios do diretório único `work_progress/`, gitignored — ver `CLAUDE.md`). O nome do arquivo usa timestamp no formato `YYYYMMDDHHmm_<descricao>.md` — igual às migrations de banco — garantindo ordenação cronológica natural ao listar o diretório.
 
 ### Tickets
 
@@ -240,7 +240,7 @@ O fluxo acima é automatizado pelos slash commands em `.claude/commands/`:
 
 | Comando | O que faz |
 |---|---|
-| `/analyze <demanda livre>` | Investiga e produz `analysis/*.md`; aguarda o gate G1. |
+| `/analyze <demanda livre>` | Investiga e produz `work_progress/analysis/*.md`; aguarda o gate G1. |
 | `/story [análise\|descrição livre]` | Cria story decomposta em tickets + branch a partir de develop; aguarda o gate G2; após G2, roda o ciclo completo até o PR. |
 | `/release-pr [vX.Y.Z]` | Valida release file e abre PR develop → master (após todas as histórias `[✓]`). |
 | `/release-tag` | Roda `./scripts/release.sh` em master após o PR de release ser mergeado. |
@@ -267,7 +267,7 @@ Encadeiam o fluxo por história. **Checkboxes usam `[]` para não-marcado** (e `
 |---|---|---|
 | `check.sh` | Claude | "CI local": `go build`+`go test` sempre; `frontend-check.sh` se `frontend/` mudou (vs develop). Se tudo verde, marca o **CA1** da story `[x]`. |
 | `lib/story.sh` | (lib) | `resolve_story` (story pela branch atual), `checkbox_marked`/`mark_checkbox` — compartilhados por todos os scripts abaixo. |
-| `await-gate.sh {analise\|revisao\|aprovado} [arquivo]` | Claude (background) | Bloqueia até o gate correspondente abrir (padrão ancorado, case-insensitive, imune a menções na prosa). `analise` = G1 em `analysis/*.md`; `revisao` = G2 na story; `aprovado` = modo legado (todos os CAs + `[x] Aprovado`). |
+| `await-gate.sh {analise\|revisao\|aprovado} [arquivo]` | Claude (background) | Bloqueia até o gate correspondente abrir (padrão ancorado, case-insensitive, imune a menções na prosa). `analise` = G1 em `work_progress/analysis/*.md`; `revisao` = G2 na story; `aprovado` = modo legado (todos os CAs + `[x] Aprovado`). |
 | `record-review.sh <Tn> <iterações>` | Claude | Registra o veredito `APPROVED` do subagent `code-reviewer` na seção `## Code Review`, marca o Status do ticket na tabela, e abre `Review: APPROVED` quando todos os tickets estão `[x]`. |
 | `functional-check.sh` | Claude | Roda `check.sh` (CA1) + cada cenário `tests/functional/caNN_*.sh` referenciado na story, marcando cada CA `[x]` ao passar. |
 | `finalize-story.sh` | Claude | Marca `[x] Aprovado` automaticamente quando História revisada + Review APPROVED + todos os CAs estão verdes — nunca marcado à mão pelo driver. |
@@ -280,11 +280,11 @@ Encadeiam o fluxo por história. **Checkboxes usam `[]` para não-marcado** (e `
 
 `scripts/merge-when-green.sh <PR#>` colapsa o ciclo pós-PR numa única invocação (economia de tokens): aguarda o CI em silêncio, mergeia em `develop`, sincroniza o branch local e marca `[~]→[✓]` na linha do PR no release file que a contém (busca por conteúdo — funciona com `_next.md` e `_vX.Y.Z.md`). **Só remove o story file e deleta a branch da história QUANDO a marcação `[✓]` teve sucesso** — se a linha não existir no release file, preserva branch e story (nada se perde). Imprime só o resumo. **Recusa** PRs com base `master` (releases são aprovadas à mão) e é idempotente em PR já mergeado. É a primitiva chamada pelo `push-pr.sh` ao final, mas também pode ser invocada avulsa (ex.: retomar após um fix de CI num PR já aberto).
 
-> ⚠️ **Limpeza gated em `[✓]`:** o story file (`stories/`) e a branch da história só são apagados quando a história está `[✓]` no release file. Como o `push-pr.sh` registra a linha com `[~]` ao abrir o PR e o `merge-when-green.sh` a marca `[✓]` ao mergear, isso roda sozinho — o driver **não edita mais o `_next.md` à mão**.
+> ⚠️ **Limpeza gated em `[✓]`:** o story file (`work_progress/stories/`) e a branch da história só são apagados quando a história está `[✓]` no release file. Como o `push-pr.sh` registra a linha com `[~]` ao abrir o PR e o `merge-when-green.sh` a marca `[✓]` ao mergear, isso roda sozinho — o driver **não edita mais o `_next.md` à mão**.
 
 `scripts/release-tag.sh [--dry-run]` colapsa o **corte de release** (após o PR develop→master já mergeado): cria/envia a tag via `release.sh` (confirmação automática), aguarda o workflow Release publicar **em silêncio** (poll de `gh release view`), mergeia `master→develop` (passo pós-tag), **rotaciona o release file** (chama `rotate-release-next.sh`) e imprime uma linha (`RELEASED <versão> | assets: N | develop sincronizado | release file rotacionado`). `--dry-run` só mostra a versão que sairia. Substitui o ciclo manual com `gh run watch`.
 
-`scripts/rotate-release-next.sh <version>` opera só sobre `releases/` (sem git/gh; testável via `RELEASES_DIR`): no corte, **(a)** carimba o `*_next.md` atual com `Publicada: <version>` e o renomeia para `<timestamp>_<version>.md` (cada arquivo = uma release publicada) e **(b)** cria um novo `<agora>_next.md` com `Base: <version>` (a recém-publicada) no topo. Chamado pelo `release-tag.sh`.
+`scripts/rotate-release-next.sh <version>` opera só sobre `work_progress/releases/` (sem git/gh; testável via `RELEASES_DIR`): no corte, **(a)** carimba o `*_next.md` atual com `Publicada: <version>` e o renomeia para `<timestamp>_<version>.md` (cada arquivo = uma release publicada) e **(b)** cria um novo `<agora>_next.md` com `Base: <version>` (a recém-publicada) no topo. Chamado pelo `release-tag.sh`.
 
 ### Release
 
@@ -319,12 +319,12 @@ curl -LO https://github.com/jacksonbicalho/os-camera/releases/download/v1.4.0-rc
 docker pull jacksonbicalho/os-camera:1.4.0-rc
 ```
 
-#### Planejamento de release (releases/)
+#### Planejamento de release (work_progress/releases/)
 
-`releases/` (gitignored) agrupa histórias em uma release antes de mergeá-las.
+`work_progress/releases/` (gitignored) agrupa histórias em uma release antes de mergeá-las.
 
 **Fluxo:**
-1. O arquivo de planejamento se chama **`releases/YYYYMMDDHHmm_next.md`** (sem versão — o bump só é conhecido no corte). As histórias planejadas entram nele. No corte, o `rotate-release-next.sh` (via `release-tag.sh`) carimba esse `_next.md` com a versão publicada, renomeia para `<timestamp>_<version>.md` e abre um `_next.md` novo já com `Base: <version>` no topo. **Nunca nomear o arquivo de planejamento com a versão na frente.**
+1. O arquivo de planejamento se chama **`work_progress/releases/YYYYMMDDHHmm_next.md`** (sem versão — o bump só é conhecido no corte). As histórias planejadas entram nele. No corte, o `rotate-release-next.sh` (via `release-tag.sh`) carimba esse `_next.md` com a versão publicada, renomeia para `<timestamp>_<version>.md` e abre um `_next.md` novo já com `Base: <version>` no topo. **Nunca nomear o arquivo de planejamento com a versão na frente.**
 2. Ao concluir cada história, preencher branch e PR na tabela e marcar `[~]` (aguardando aprovação no GitHub — PR targeta `develop`).
 3. Após aprovação no GitHub, marcar `[x]`.
 4. Quando todas estiverem `[x]`, o navigator diz **"pode mergear a release"** — Claude itera a lista, mergeia cada PR em `develop` em sequência, deleta a branch local (`git branch -d <branch>`) e marca `[✓]`. O GitHub deleta a branch remota automaticamente após o merge (setting "Automatically delete head branches" ativo).

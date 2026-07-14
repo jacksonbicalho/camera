@@ -1,0 +1,51 @@
+# Exemplo de -fixture pro e2e/seed — não usado por scripts/e2e.sh (que segue
+# o fixture default, montado a partir das flags -admin-user/-camera-id/etc.
+# em e2e/seed/fixture.go). Serve de referência pro formato e como ponto de
+# partida pra specs que precisem de eventos de movimento com label/bbox ou
+# câmeras com configs divergentes — algo que as flags não expressam.
+#
+# Uso: ./seed -out <dir> -fixture e2e/seed/fixtures/motion-example.yaml
+
+users:
+  - username: admin
+    password: e2e-password-123
+    role: admin
+  - username: viewer
+    password: e2e-viewer-password-123
+    role: viewer
+    cameras: ['e2e00000-0000-4000-8000-000000000001']
+
+cameras:
+  - id: e2e00000-0000-4000-8000-000000000001
+    name: E2E Cam
+    rtsp_url: rtsp://fixture/stream
+    video_codec: h264
+    hls_video_mode: auto
+    record_video_mode: copy
+    recording_enabled: true
+    recordings: 5
+    events:
+      # Evento sem pessoa — MotionCategory (internal/db/reports.go) resolve
+      # label vazio como "movimento".
+      - recording_index: 1
+        offset_seconds: 30
+        score: 0.6
+      # Evento com pessoa detectada — label casando "pessoa|person" vira a
+      # categoria "pessoa" (ver internal/db/reports.go).
+      - recording_index: 3
+        offset_seconds: 45
+        score: 0.9
+        label: person
+        bbox_x: 0.35
+        bbox_y: 0.2
+        bbox_w: 0.3
+        bbox_h: 0.5
+
+  # 2ª câmera, nunca concedida ao viewer (mesmo papel do fixture default).
+  - id: e2e00000-0000-4000-8000-000000000002
+    name: E2E Cam (admin only)
+    rtsp_url: rtsp://fixture/admin-only-stream
+    video_codec: h264
+    hls_video_mode: auto
+    record_video_mode: copy
+    recording_enabled: false

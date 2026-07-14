@@ -14,13 +14,13 @@ info() { printf '\033[1;34m==> \033[0m%s\n' "$*"; }
 # --- 1. localizar o release file ---
 arg="${1:-}"
 if [ -z "$arg" ]; then
-    RF="$(ls -1 releases/*_next.md 2>/dev/null | tail -1)"
-    [ -n "$RF" ] || err "Nenhum releases/*_next.md encontrado."
+    RF="$(ls -1 work_progress/releases/*_next.md 2>/dev/null | tail -1)"
+    [ -n "$RF" ] || err "Nenhum work_progress/releases/*_next.md encontrado."
 elif [ -f "$arg" ]; then
     RF="$arg"
 else
-    RF="$(ls -1 releases/*_"${arg}".md 2>/dev/null | tail -1)"
-    [ -n "$RF" ] || err "Release file para '$arg' não encontrado em releases/."
+    RF="$(ls -1 work_progress/releases/*_"${arg}".md 2>/dev/null | tail -1)"
+    [ -n "$RF" ] || err "Release file para '$arg' não encontrado em work_progress/releases/."
 fi
 info "Release file: $RF"
 

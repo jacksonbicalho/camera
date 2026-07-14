@@ -12,7 +12,7 @@ Abre o PR de release de `develop` para `master`. Toda a lógica vive em
    ```bash
    bash scripts/release-pr.sh $ARGUMENTS
    ```
-   Ele: localiza o `releases/*_next.md` (ou o arquivo/versão do argumento), valida que
+   Ele: localiza o `work_progress/releases/*_next.md` (ou o arquivo/versão do argumento), valida que
    **todas** as histórias estão `[✓]`, checa as pré-condições git (develop sincronizado,
    tree limpa, à frente de master), calcula a versão estimada (bump convencional) e abre o
    PR `develop → master` com o corpo listando os PRs. Se já houver PR aberto, imprime a URL
