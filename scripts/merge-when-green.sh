@@ -90,8 +90,14 @@ if [[ "$MARKED" -eq 1 ]]; then
     if git show-ref --verify --quiet "refs/heads/${HEAD}"; then
         git branch -D "$HEAD" >/dev/null 2>&1 && BRANCH_NOTE="branch ${HEAD} deletada"
     fi
-    desc=$(echo "$HEAD" | sed 's|^[^/]*/||' | tr '-' '_')
-    story=$(ls work_progress/stories/*.md 2>/dev/null | grep -i "$desc" | tail -1 || true)
+    # Mesma convenção de resolve_story (scripts/lib/story.sh): slug direto da
+    # branch, SEM normalizar hífen→underscore — o nome do arquivo usa o
+    # mesmo slug da branch, hífens inclusive (ex.: branch
+    # test/e2e-playwright-harness ↔ stories/*_e2e-playwright-harness.md). A
+    # normalização antiga quebrava esse match sempre que o slug tinha hífen
+    # (bug real, confirmado: arquivo da story ficava órfão após o merge).
+    slug=${HEAD#*/}
+    story=$(ls work_progress/stories/*_"${slug}".md 2>/dev/null | tail -1 || true)
     [[ -n "$story" ]] && rm -f "$story" && STORY_NOTE=" | story removido ($(basename "$story"))"
 fi
 
