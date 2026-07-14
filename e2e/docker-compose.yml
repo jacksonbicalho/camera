@@ -1,0 +1,45 @@
+# Harness e2e — tudo em Docker. Dois serviços numa rede compartilhada: o
+# servidor (imagem `e2e` do Dockerfile raiz, que semeia o fixture e sobe) e o
+# Playwright, que o alcança pelo nome do serviço (http://camera:8099) — sem
+# --network host, portável. Orquestrado por scripts/e2e.sh.
+services:
+  camera:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: e2e
+    environment:
+      E2E_RECORDINGS: "5"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8099/api/config"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Roda o pacote e2e/ (T3) com bun — mesma imagem usada pelo check de
+  # tooling (tests/functional/ca4_e2e-tooling.sh), instala os browsers do
+  # Playwright na hora (cache em volume nomeado entre execuções).
+  playwright:
+    image: oven/bun:1
+    depends_on:
+      camera:
+        condition: service_healthy
+    working_dir: /e2e
+    volumes:
+      - ./:/e2e
+      - e2e-bun-cache:/root/.bun/install/cache
+    environment:
+      E2E_BASE_URL: http://camera:8099
+      # Ids fixos do fixture (câmera com UUID fixo; recording_id=1 — 1ª
+      # linha inserida num banco novo a cada execução).
+      E2E_CAMERA_ID: e2e00000-0000-4000-8000-000000000001
+      E2E_RECORDING_ID: "1"
+      E2E_ADMIN_USER: admin
+      E2E_ADMIN_PASS: e2e-password-123
+    command: >
+      sh -c "bun install &&
+             bunx playwright install --with-deps chromium &&
+             bunx playwright test"
+
+volumes:
+  e2e-bun-cache:
