@@ -73,7 +73,7 @@ fi
 
 # Registra a história no release file _next (idempotente por #PR) com status [~].
 # O merge-when-green.sh marca [~]→[✓] ao mergear — e só então remove story/branch.
-rf="$(ls -t releases/*_next.md 2>/dev/null | head -1 || true)"
+rf="$(ls -t work_progress/releases/*_next.md 2>/dev/null | head -1 || true)"
 if [ -n "$rf" ] && ! grep -qF "#${prnum} " "$rf"; then
     printf '| [~]    | %s | `%s` | #%s |\n' "$title" "$branch" "$prnum" >> "$rf"
     echo "ℹ️ release file: #$prnum registrado [~] em $(basename "$rf")"

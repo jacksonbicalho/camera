@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
+    "report": "playwright show-report",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

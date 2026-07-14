@@ -1,8 +1,8 @@
 #!/bin/sh
 # Lib compartilhada: resolve o arquivo da story pela branch atual.
 # Uso: . scripts/lib/story.sh; story="$(resolve_story [caminho-explicito])"
-# Convenção: branch <tipo>/<slug> ↔ stories/YYYYMMDDHHmm_<slug>.md
-# Fallback: story mais recente em stories/ (nome com timestamp ordena sozinho).
+# Convenção: branch <tipo>/<slug> ↔ work_progress/stories/YYYYMMDDHHmm_<slug>.md
+# Fallback: story mais recente em work_progress/stories/ (nome com timestamp ordena sozinho).
 
 # Locale: padrões com acentos quebram em locale C; força UTF-8 quando possível
 if locale -a 2>/dev/null | grep -qi 'C.utf-\?8'; then
@@ -17,13 +17,13 @@ resolve_story() {
   branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || branch=""
   slug=${branch#*/}
   if [ -n "$slug" ] && [ "$slug" != "$branch" ]; then
-    match=$(ls stories/*_"$slug".md 2>/dev/null | tail -n 1)
+    match=$(ls work_progress/stories/*_"$slug".md 2>/dev/null | tail -n 1)
     if [ -n "$match" ]; then
       printf '%s\n' "$match"
       return 0
     fi
   fi
-  latest=$(ls stories/*.md 2>/dev/null | tail -n 1)
+  latest=$(ls work_progress/stories/*.md 2>/dev/null | tail -n 1)
   if [ -n "$latest" ]; then
     printf '%s\n' "$latest"
     return 0

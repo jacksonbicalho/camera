@@ -7,11 +7,8 @@ dist/
 frontend/dist/
 frontend/node_modules/
 .mcp.json
-stories/
-analysis/
-releases/
+work_progress/
 motion_zones.json
-amostras/
 .cache/
 
 # Python (serviço YOLO)

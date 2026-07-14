@@ -1,5 +1,5 @@
 ---
-description: Fase de Análise — investiga a demanda e produz analysis/*.md; aguarda o gate G1 (Análise aprovada)
+description: Fase de Análise — investiga a demanda e produz work_progress/analysis/*.md; aguarda o gate G1 (Análise aprovada)
 argument-hint: <descrição livre da demanda>
 ---
 
@@ -13,7 +13,7 @@ Execute a **fase de Análise** (passo 1 do fluxo, `docs/workflow.md`):
 2. Se a demanda for genuinamente ambígua (duas interpretações levariam a
    soluções diferentes), use AskUserQuestion AGORA — ambiguidade se resolve na
    análise, nunca depois do G1.
-3. Crie `analysis/YYYYMMDDHHmm_<slug>.md` (timestamp atual, slug curto em
+3. Crie `work_progress/analysis/YYYYMMDDHHmm_<slug>.md` (timestamp atual, slug curto em
    kebab-case) com exatamente esta estrutura:
 
    ```markdown
@@ -40,6 +40,6 @@ Execute a **fase de Análise** (passo 1 do fluxo, `docs/workflow.md`):
    análise como entrada.
 
 Restrições:
-- Não commite nada nesta fase (analysis/ é gitignored).
+- Não commite nada nesta fase (work_progress/analysis/ é gitignored).
 - Trabalhe a partir de `develop` atualizado; se a working tree estiver suja,
   avise e pare.
