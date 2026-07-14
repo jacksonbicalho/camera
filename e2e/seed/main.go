@@ -22,16 +22,18 @@ import (
 	"camera/internal/db"
 )
 
+// defaultAdminUser..defaultViewerPass são os defaults das flags -admin-user/
+// -camera-id/etc. abaixo — usados quando o seed roda sem elas (fora do
+// compose, à mão). e2e/docker-compose.yml repassa esses mesmos valores como
+// E2E_ADMIN_USER/... tanto pro serviço `camera` (docker-entrypoint.sh, que os
+// vira flags do seed) quanto pro `playwright` (fallback nos specs) — uma
+// mudança só precisa ser replicada no docker-compose.yml, nunca aqui.
 const (
-	adminUser = "admin"
-	adminPass = "e2e-password-123"
-	cameraID  = "e2e00000-0000-4000-8000-000000000001"
-
-	// viewerUser tem acesso concedido só à câmera do fixture — usado pelo
-	// cenário e2e que cobre o papel viewer (acesso restrito), em vez de só
-	// admin.
-	viewerUser = "viewer"
-	viewerPass = "e2e-viewer-password-123"
+	defaultAdminUser  = "admin"
+	defaultAdminPass  = "e2e-password-123"
+	defaultCameraID   = "e2e00000-0000-4000-8000-000000000001"
+	defaultViewerUser = "viewer"
+	defaultViewerPass = "e2e-viewer-password-123"
 
 	// keepForeverMinutes desliga a purga de retenção (100 anos) para o
 	// Cleaner nunca apagar o fixture durante a vida do container.
@@ -62,6 +64,11 @@ func main() {
 	out := flag.String("out", "", "diretório de saída do fixture (obrigatório)")
 	port := flag.Int("port", 8099, "porta gravada no camera.yaml gerado")
 	recordings := flag.Int("recordings", 5, "número de gravações a semear")
+	adminUser := flag.String("admin-user", defaultAdminUser, "username do admin semeado")
+	adminPass := flag.String("admin-pass", defaultAdminPass, "senha do admin semeado")
+	cameraID := flag.String("camera-id", defaultCameraID, "id da câmera semeada")
+	viewerUser := flag.String("viewer-user", defaultViewerUser, "username do viewer semeado")
+	viewerPass := flag.String("viewer-pass", defaultViewerPass, "senha do viewer semeado")
 	flag.Parse()
 
 	if *out == "" {
@@ -84,17 +91,17 @@ func main() {
 	must(err, "abrir db")
 	defer database.Close()
 
-	_, err = db.CreateUser(database, adminUser, adminPass, "admin", false)
+	_, err = db.CreateUser(database, *adminUser, *adminPass, "admin", false)
 	must(err, "criar admin")
 
-	viewerID, err := db.CreateUser(database, viewerUser, viewerPass, "viewer", false)
+	viewerID, err := db.CreateUser(database, *viewerUser, *viewerPass, "viewer", false)
 	must(err, "criar viewer")
 
 	must(db.SetConfig(database, "storage.with_motion_minutes", keepForeverMinutes), "desligar retenção (motion)")
 	must(db.SetConfig(database, "storage.without_motion_minutes", keepForeverMinutes), "desligar retenção (sem motion)")
 
 	_, err = db.CreateCamera(database, config.CameraConfig{
-		ID:               cameraID,
+		ID:               *cameraID,
 		Name:             "E2E Cam",
 		RTSPURL:          "rtsp://fixture/stream",
 		VideoCodec:       "h264",
@@ -103,22 +110,22 @@ func main() {
 		RecordingEnabled: true,
 	}, nil)
 	must(err, "criar câmera")
-	must(db.SetUserCameras(database, viewerID, []string{cameraID}), "conceder câmera ao viewer")
+	must(db.SetUserCameras(database, viewerID, []string{*cameraID}), "conceder câmera ao viewer")
 
-	must(seedRecordings(database, storagePath, *recordings), "semear gravações")
+	must(seedRecordings(database, storagePath, *recordings, *cameraID), "semear gravações")
 
-	must(writeCameraYAML(filepath.Join(outDir, "camera.yaml"), *port, dbPath, storagePath), "escrever camera.yaml")
+	must(writeCameraYAML(filepath.Join(outDir, "camera.yaml"), *port, dbPath, storagePath, *adminUser, *adminPass), "escrever camera.yaml")
 
-	recordingID, err := firstRecordingID(database)
+	recordingID, err := firstRecordingID(database, *cameraID)
 	must(err, "buscar id da 1ª gravação")
 
 	info := fixtureInfo{
-		CameraID:    cameraID,
+		CameraID:    *cameraID,
 		RecordingID: recordingID,
-		AdminUser:   adminUser,
-		AdminPass:   adminPass,
-		ViewerUser:  viewerUser,
-		ViewerPass:  viewerPass,
+		AdminUser:   *adminUser,
+		AdminPass:   *adminPass,
+		ViewerUser:  *viewerUser,
+		ViewerPass:  *viewerPass,
 		Port:        *port,
 	}
 	must(json.NewEncoder(os.Stdout).Encode(info), "codificar saída JSON")
@@ -127,7 +134,7 @@ func main() {
 // seedRecordings grava os arquivos .mp4 no layout esperado pelo servidor
 // ({storage}/{camera_id}/{YYYY/MM/DD}/{YYYYMMDDHHmmss}.mp4, UTC) e insere a
 // linha correspondente em `recordings`.
-func seedRecordings(database *db.DB, storagePath string, n int) error {
+func seedRecordings(database *db.DB, storagePath string, n int, cameraID string) error {
 	slots := recordingSlots(n, time.Now(), recordingSpacing)
 	for _, slot := range slots {
 		dir := filepath.Join(storagePath, cameraID, slot.Start.Format("2006/01/02"))
@@ -157,7 +164,7 @@ func seedRecordings(database *db.DB, storagePath string, n int) error {
 
 // firstRecordingID devolve o id da gravação mais antiga da câmera do
 // fixture — usado como referência estável pelos specs Playwright.
-func firstRecordingID(database *db.DB) (int64, error) {
+func firstRecordingID(database *db.DB, cameraID string) (int64, error) {
 	var id int64
 	err := database.QueryRow(
 		`SELECT id FROM recordings WHERE camera_id = ? ORDER BY started_at ASC LIMIT 1`,
@@ -173,7 +180,7 @@ func firstRecordingID(database *db.DB) (int64, error) {
 // porque cmd/camera resolve DBPath/Storage.Path relativos ao CWD do
 // processo, não ao diretório do próprio camera.yaml — o servidor real pode
 // rodar de um CWD diferente (ex.: dentro do container e2e).
-func writeCameraYAML(path string, port int, dbPath, storagePath string) error {
+func writeCameraYAML(path string, port int, dbPath, storagePath, adminUser, adminPass string) error {
 	cfg := config.Config{
 		DBPath:   dbPath,
 		Timezone: "UTC",
