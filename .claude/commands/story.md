@@ -1,5 +1,5 @@
 ---
-description: Cria story decomposta em tickets a partir de uma análise aprovada + branch a partir de develop; aguarda o gate G2 (História revisada)
+description: Cria story decomposta em tickets a partir de uma análise aprovada; aguarda o gate G2 (História revisada) e só então cria a branch a partir de develop
 argument-hint: [caminho da análise aprovada | descrição livre]
 ---
 
@@ -16,11 +16,12 @@ Pré-condições (valide antes de qualquer coisa):
   `/analyze` primeiro.
 - Working tree limpa; `develop` sincronizado com origin.
 
-Passos:
+Passos (ainda em `develop` — **a branch só nasce depois do G2**, ver abaixo;
+`work_progress/stories/` é gitignored, então rascunhar a story aqui não
+suja `develop` nem exige commit nenhum):
 
 1. Decida `tipo` (feat/fix/refactor/chore/...), `escopo` e `slug`.
-2. Crie a branch: `git checkout -b <tipo>/<slug> develop`.
-3. Crie `work_progress/stories/YYYYMMDDHHmm_<slug>.md` seguindo a estrutura do
+2. Crie `work_progress/stories/YYYYMMDDHHmm_<slug>.md` seguindo a estrutura do
    `docs/workflow.md`, COMPLETA antes da revisão:
    - `## Contexto` e `## Solução` nunca em branco (importe da análise).
    - `## Tickets`: decomponha em unidades pequenas (alvo ≤ ~200 linhas de diff
@@ -39,18 +40,27 @@ Passos:
      - [] Aprovado
      ```
    - Seções vazias `## Code Review` e `## Revisão` ao final.
-4. **Escreva os cenários funcionais AGORA** — um `tests/functional/caNN_<slug>.sh`
+3. **Escreva os cenários funcionais AGORA** — um `tests/functional/caNN_<slug>.sh`
    executável por CA (exceto CA1), exit 0 = critério atendido. O navigator
    revisa os cenários junto com a story: eles fazem parte do que o G2 aprova.
    Cenário que ainda não pode passar (código não existe) deve FALHAR de forma
-   clara, não dar erro de sintaxe.
-5. Apresente a story ao navigator e rode em background:
+   clara, não dar erro de sintaxe. Esses arquivos SÃO versionados, mas ainda
+   NÃO existe branch nem commit — ficam como untracked em `develop` até o
+   passo 7 abaixo (nenhum problema: `develop` só é protegido contra
+   commit/push direto, não contra arquivos soltos no working tree).
+4. Apresente a story ao navigator e rode em background:
    `bash scripts/await-gate.sh revisao`
-6. **Gate G2:** nenhuma linha de código de produção ou teste unitário antes de
-   `[x] História revisada`.
+5. **Gate G2:** nenhuma branch nova, linha de código de produção ou teste
+   unitário antes de `[x] História revisada`. Se a revisão pedir mudanças
+   na story, edite o arquivo e mantenha o `await-gate.sh` rodando — ainda
+   sem branch, sem custo de abandonar nada.
 
-Após o G2 abrir, execute o ciclo COMPLETO sem nenhum prompt ao navigator:
-para cada ticket em ordem de dependência —
+Após o G2 abrir:
+
+6. **Só agora crie a branch** (sincronize `develop` de novo antes, caso a
+   revisão tenha demorado): `git checkout -b <tipo>/<slug> develop`.
+7. Execute o ciclo COMPLETO sem nenhum prompt ao navigator: para cada
+   ticket em ordem de dependência —
 red → green → refactor → `bash scripts/check.sh` → invocar o subagent
 `code-reviewer` (passando story, Tn e o diff) → corrigir blocker/major e
 re-invocar até `VERDICT: APPROVED` (máx. 3 iterações; estourou → escale ao

@@ -85,7 +85,7 @@ EOF
 
 ### Fluxo por demanda
 
-> ⚠️ **OBRIGATÓRIO:** Antes de escrever qualquer linha de código ou teste, o driver DEVE passar por `/analyze` (quando a demanda tiver trade-offs reais) e por `/story` (story file + branch). Sem exceção — nem para bugs simples, nem para "pequenas correções" (nesses casos a análise pode ser breve, mas existe).
+> ⚠️ **OBRIGATÓRIO:** Antes de escrever qualquer linha de código ou teste, o driver DEVE passar por `/analyze` (quando a demanda tiver trade-offs reais) e por `/story` (story file revisada no G2, branch só depois). Sem exceção — nem para bugs simples, nem para "pequenas correções" (nesses casos a análise pode ser breve, mas existe).
 
 ```
 demanda livre
@@ -97,11 +97,14 @@ demanda livre
 [G1] navigator marca [x] Análise aprovada        ◄── scripts/await-gate.sh analise
    │
    ▼
-/story ──► work_progress/stories/YYYYMMDDHHmm_<slug>.md + branch
+/story ──► work_progress/stories/YYYYMMDDHHmm_<slug>.md   (ainda em develop, sem branch)
    │         story JÁ decomposta em tickets T1..Tn
    │         + 1 cenário funcional por critério (tests/functional/)
    ▼
 [G2] navigator marca [x] História revisada       ◄── scripts/await-gate.sh revisao
+   │
+   ▼
+git checkout -b <tipo>/<slug> develop   (branch só nasce AGORA, pós-G2)
    │
    ▼  (loop por ticket, sem interação)
 ┌─────────────────────────────────────────────┐
@@ -127,11 +130,12 @@ scripts/commit.sh → scripts/push-pr.sh   (inalterados: push+PR+CI+merge)
 ```
 
 1. **`/analyze <demanda>`** investiga o código (nunca pergunta o que o código já responde), resolve ambiguidade genuína via `AskUserQuestion` **antes** de escrever, e produz `work_progress/analysis/YYYYMMDDHHmm_<slug>.md` (Problema/Investigação/Opções/Decisão recomendada/Impacto). Roda `scripts/await-gate.sh analise <arquivo>` em background e, ao abrir, segue direto para `/story` — sem perguntar nada.
-2. **`/story [análise|descrição livre]`** cria a branch a partir de `develop` e escreve a story **completa** (Contexto/Solução nunca em branco) **já decomposta em tickets** — ver estrutura abaixo — e escreve os **cenários funcionais agora** (antes do G2, para o navigator revisar junto). Roda `scripts/await-gate.sh revisao` em background.
-3. **Gate G2.** Nenhuma linha de código de produção ou teste antes de `[x] História revisada`.
-4. **Ciclo por ticket (após G2, sem nenhum prompt ao navigator):** TDD red → green → refactor → `bash scripts/check.sh` → invoca o subagent `code-reviewer` → `CHANGES_REQUESTED` (corrige blocker/major, re-invoca, máx. 3 iterações, senão escala) ou `APPROVED` (`scripts/record-review.sh <Tn> <iterações>`, então commit do ticket).
-5. **Fim dos tickets:** `bash scripts/functional-check.sh` (roda os cenários, marca os CAs) → `bash scripts/finalize-story.sh` (marca `[x] Aprovado` quando História revisada + Review APPROVED + todos os CAs estão verdes) → `scripts/commit.sh` (se houver algo pendente) → `scripts/push-pr.sh` (push + PR **sempre `--base develop`** + aguarda CI + merge quando verde). **CI vermelho:** o `push-pr.sh` propaga o erro sem mergear (PR fica aberto) — **Política A**: um fix trivial pós-`Aprovado` (deixar o CI verde) não exige nova aprovação; se o fix mexer em lógica de produção, volta pro ciclo de ticket (novo review do subagent).
-6. Atualizar o arquivo de release correspondente em `work_progress/releases/`: preencher a branch e o número do PR na tabela, marcar `[~]`; o `merge-when-green.sh` marca `[~]→[✓]` ao mergear em `develop`. **Apenas o corte de release** (`develop → master`, G3) depende de autorização explícita do navigator.
+2. **`/story [análise|descrição livre]`** escreve a story **completa** (Contexto/Solução nunca em branco) **já decomposta em tickets** — ver estrutura abaixo — e escreve os **cenários funcionais agora** (antes do G2, para o navigator revisar junto), tudo ainda em `develop` — **sem criar branch nenhuma** (`work_progress/stories/` é gitignored; os cenários funcionais ficam untracked até o commit do 1º ticket). Roda `scripts/await-gate.sh revisao` em background.
+3. **Gate G2.** Nenhuma branch nova, linha de código de produção ou teste antes de `[x] História revisada` — evita o custo de abandonar uma branch se a revisão pedir mudanças grandes na story.
+4. **Só então:** `git checkout -b <tipo>/<slug> develop` (sincronizado de novo, caso a revisão tenha demorado).
+5. **Ciclo por ticket (sem nenhum prompt ao navigator):** TDD red → green → refactor → `bash scripts/check.sh` → invoca o subagent `code-reviewer` → `CHANGES_REQUESTED` (corrige blocker/major, re-invoca, máx. 3 iterações, senão escala) ou `APPROVED` (`scripts/record-review.sh <Tn> <iterações>`, então commit do ticket).
+6. **Fim dos tickets:** `bash scripts/functional-check.sh` (roda os cenários, marca os CAs) → `bash scripts/finalize-story.sh` (marca `[x] Aprovado` quando História revisada + Review APPROVED + todos os CAs estão verdes) → `scripts/commit.sh` (se houver algo pendente) → `scripts/push-pr.sh` (push + PR **sempre `--base develop`** + aguarda CI + merge quando verde). **CI vermelho:** o `push-pr.sh` propaga o erro sem mergear (PR fica aberto) — **Política A**: um fix trivial pós-`Aprovado` (deixar o CI verde) não exige nova aprovação; se o fix mexer em lógica de produção, volta pro ciclo de ticket (novo review do subagent).
+7. Atualizar o arquivo de release correspondente em `work_progress/releases/`: preencher a branch e o número do PR na tabela, marcar `[~]`; o `merge-when-green.sh` marca `[~]→[✓]` ao mergear em `develop`. **Apenas o corte de release** (`develop → master`, G3) depende de autorização explícita do navigator.
 
 ### Artefatos
 
@@ -241,7 +245,7 @@ O fluxo acima é automatizado pelos slash commands em `.claude/commands/`:
 | Comando | O que faz |
 |---|---|
 | `/analyze <demanda livre>` | Investiga e produz `work_progress/analysis/*.md`; aguarda o gate G1. |
-| `/story [análise\|descrição livre]` | Cria story decomposta em tickets + branch a partir de develop; aguarda o gate G2; após G2, roda o ciclo completo até o PR. |
+| `/story [análise\|descrição livre]` | Cria story decomposta em tickets (ainda em `develop`, sem branch); aguarda o gate G2; após G2, cria a branch a partir de `develop` e roda o ciclo completo até o PR. |
 | `/release-pr [vX.Y.Z]` | Valida release file e abre PR develop → master (após todas as histórias `[✓]`). |
 | `/release-tag` | Roda `./scripts/release.sh` em master após o PR de release ser mergeado. |
 
