@@ -143,6 +143,15 @@ O padrão de **override files** mantém `services/yolo/docker-compose.yml` unive
 
 Modelos pré-baixados na imagem: `yolov8n` e `yolo11n`. Com GPU RTX 3050 (4GB VRAM): fine-tuning viável para variantes `n` e `s`; variantes `l` e `x` causam OOM no treino (inferência funciona). Ver `docs/analysis.md` para documentação completa.
 
+### Testes e2e (`e2e/`)
+
+Suíte Playwright ponta-a-ponta, **independente do resto do projeto**: pacote próprio (`package.json`/`tsconfig.json`/`eslint.config.js`/`.prettierrc`, gerenciado só por **bun** — o `frontend/` continua em yarn, sem relação) e **Docker-only** — tanto o servidor sob teste quanto o Playwright rodam em container, sem exigir Go/Node/bun no host além do Docker.
+
+- `e2e/seed/` — programa Go standalone (`go build ./e2e/seed`) que gera um **fixture determinístico** direto via `internal/db`/`internal/config` (sem RTSP real): DB SQLite migrado, admin já liberado, 1 câmera e N gravações contíguas (`recordingSlots`, testado em `schedule_test.go`) com cópias de um MP4 de amostra embutido (`sample.mp4`, via `go:embed`). Escreve o `camera.yaml` de bootstrap com caminhos **absolutos** (`cmd/camera` resolve `DBPath`/`Storage.Path` relativos ao CWD do processo, não ao diretório do yaml) e imprime os ids gerados em JSON.
+- Novo stage `e2e` no `Dockerfile` raiz (+`e2e-builder`, build nativo sem cross-compile) builda `camera`+`seed` numa imagem mínima com `ffmpeg`+`curl`; `e2e/docker-entrypoint.sh` semeia o fixture num dir efêmero e sobe o servidor já apontado pra ele.
+- `e2e/docker-compose.yml` — dois serviços numa rede só do compose (sem porta publicada no host): `camera` (build do stage `e2e`, healthcheck via `curl` em `/api/config`) e `playwright` (imagem `oven/bun:1`, instala os browsers na hora — `bunx playwright install --with-deps chromium` —, roda `bunx playwright test` contra `http://camera:8099`). Ids/credenciais do fixture (câmera com UUID fixo, `recording_id=1`) chegam ao spec via env vars.
+- `scripts/e2e.sh` — orquestrador estático (`docker compose up --build --abort-on-container-exit --exit-code-from playwright`, teardown via `trap`), mesmo padrão de `scripts/frontend-check.sh`/`scripts/yolo-check.sh`. Rodado por um job dedicado no CI (`.github/workflows/ci.yml`, job `e2e`), **bloqueante em todo PR** (sem filtro de path) — deliberadamente enxuto (specs de smoke, não de escala/performance), já que `scripts/merge-when-green.sh` espera todos os check-runs antes de mergear.
+
 ## Arquitetura
 
 ### Binários

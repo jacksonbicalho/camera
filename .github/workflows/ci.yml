@@ -99,3 +99,17 @@ jobs:
 
       - name: Test
         run: cd services/yolo && python -m pytest -q
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tudo em Docker (build da imagem `e2e` + harness Playwright) — o
+      # runner já traz docker/compose, sem setup adicional. Suíte enxuta de
+      # propósito (smoke, não escala) pra não pesar o ciclo automático de PR
+      # (scripts/merge-when-green.sh espera todos os check-runs).
+      - name: Run e2e suite
+        run: bash scripts/e2e.sh
