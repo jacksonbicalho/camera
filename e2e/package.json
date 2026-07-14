@@ -1,0 +1,24 @@
+{
+  "name": "os-camera-e2e",
+  "private": true,
+  "description": "Suíte e2e (Playwright) do os-camera — independente do frontend/, roda via scripts/e2e.sh.",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^24.12.2",
+    "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.5.0",
+    "prettier": "^3.9.5",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.58.2"
+  }
+}

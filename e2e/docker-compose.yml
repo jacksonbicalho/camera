@@ -9,9 +9,9 @@ services:
       dockerfile: Dockerfile
       target: e2e
     environment:
-      E2E_RECORDINGS: "5"
+      E2E_RECORDINGS: '5'
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8099/api/config"]
+      test: ['CMD', 'curl', '-sf', 'http://127.0.0.1:8099/api/config']
       interval: 2s
       timeout: 3s
       retries: 30
@@ -33,7 +33,7 @@ services:
       # Ids fixos do fixture (câmera com UUID fixo; recording_id=1 — 1ª
       # linha inserida num banco novo a cada execução).
       E2E_CAMERA_ID: e2e00000-0000-4000-8000-000000000001
-      E2E_RECORDING_ID: "1"
+      E2E_RECORDING_ID: '1'
       E2E_ADMIN_USER: admin
       E2E_ADMIN_PASS: e2e-password-123
     command: >
