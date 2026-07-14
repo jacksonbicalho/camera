@@ -13,7 +13,7 @@ Carregue e internalize **todo o fluxo de trabalho combinado** deste projeto ante
 3. **Confirme o entendimento** devolvendo um resumo curto (bullets) dos pontos-gate, sem reabrir discussão e sem começar tarefa nenhuma:
    - Só **3 gates humanos**: G1 (Análise aprovada), G2 (História revisada), G3 (release). Entre G2 e G3, zero prompts ao navigator (exceção: circuit breaker do code review após 3 iterações).
    - **G1:** demanda com trade-offs reais começa por `/analyze` → `work_progress/analysis/*.md`; nada de story/código antes de `[x] Análise aprovada`.
-   - **G2:** `/story` cria branch a partir de `develop` + story já decomposta em tickets (T1..Tn) + 1 cenário funcional por CA em `tests/functional/`. Não implementar (nem red phase) antes de `[x] História revisada`.
+   - **G2:** `/story` escreve, ainda em `develop` (sem branch), a story já decomposta em tickets (T1..Tn) + 1 cenário funcional por CA em `tests/functional/`. Não implementar (nem red phase) antes de `[x] História revisada`. Só depois do gate: `git checkout -b <tipo>/<slug> develop`.
    - Por ticket, sem interação: TDD red → green → refactor → `bash scripts/check.sh` → subagent `code-reviewer` (`CHANGES_REQUESTED` corrige e re-invoca, máx. 3x; `APPROVED` → `scripts/record-review.sh <Tn> <iter>` → commit do ticket).
    - **Checkboxes automáticos, nunca à mão:** CA1 = `check.sh`; demais CAs = `scripts/functional-check.sh`; `Review: APPROVED` = `record-review.sh`; `[x] Aprovado` = `scripts/finalize-story.sh`.
    - Ao final: `scripts/commit.sh` (se pendente) → `scripts/push-pr.sh` (push + PR base `develop` + CI + merge), direto e sem perguntar.
