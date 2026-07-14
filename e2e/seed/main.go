@@ -29,11 +29,14 @@ import (
 // vira flags do seed) quanto pro `playwright` (fallback nos specs) — uma
 // mudança só precisa ser replicada no docker-compose.yml, nunca aqui.
 const (
-	defaultAdminUser  = "admin"
-	defaultAdminPass  = "e2e-password-123"
-	defaultCameraID   = "e2e00000-0000-4000-8000-000000000001"
-	defaultViewerUser = "viewer"
-	defaultViewerPass = "e2e-viewer-password-123"
+	defaultAdminUser = "admin"
+	defaultAdminPass = "e2e-password-123"
+	defaultCameraID  = "e2e00000-0000-4000-8000-000000000001"
+	// defaultAdminOnlyCameraID é uma 2ª câmera, nunca concedida ao viewer —
+	// usada só pelo cenário negativo de acesso restrito (viewer.spec.ts).
+	defaultAdminOnlyCameraID = "e2e00000-0000-4000-8000-000000000002"
+	defaultViewerUser        = "viewer"
+	defaultViewerPass        = "e2e-viewer-password-123"
 
 	// keepForeverMinutes desliga a purga de retenção (100 anos) para o
 	// Cleaner nunca apagar o fixture durante a vida do container.
@@ -51,13 +54,14 @@ var sampleMP4 []byte
 
 // fixtureInfo é impresso em stdout para o orquestrador consumir.
 type fixtureInfo struct {
-	CameraID    string `json:"camera_id"`
-	RecordingID int64  `json:"recording_id"`
-	AdminUser   string `json:"admin_user"`
-	AdminPass   string `json:"admin_pass"`
-	ViewerUser  string `json:"viewer_user"`
-	ViewerPass  string `json:"viewer_pass"`
-	Port        int    `json:"port"`
+	CameraID          string `json:"camera_id"`
+	AdminOnlyCameraID string `json:"admin_only_camera_id"`
+	RecordingID       int64  `json:"recording_id"`
+	AdminUser         string `json:"admin_user"`
+	AdminPass         string `json:"admin_pass"`
+	ViewerUser        string `json:"viewer_user"`
+	ViewerPass        string `json:"viewer_pass"`
+	Port              int    `json:"port"`
 }
 
 func main() {
@@ -67,8 +71,10 @@ func main() {
 	adminUser := flag.String("admin-user", defaultAdminUser, "username do admin semeado")
 	adminPass := flag.String("admin-pass", defaultAdminPass, "senha do admin semeado")
 	cameraID := flag.String("camera-id", defaultCameraID, "id da câmera semeada")
+	adminOnlyCameraID := flag.String("admin-only-camera-id", defaultAdminOnlyCameraID, "id da 2ª câmera, nunca concedida ao viewer")
 	viewerUser := flag.String("viewer-user", defaultViewerUser, "username do viewer semeado")
 	viewerPass := flag.String("viewer-pass", defaultViewerPass, "senha do viewer semeado")
+	fixturePath := flag.String("fixture", "", "arquivo YAML (Fixture) descrevendo usuários/câmeras/eventos; sem ele, usa o fixture default montado a partir das flags acima")
 	flag.Parse()
 
 	if *out == "" {
@@ -91,60 +97,42 @@ func main() {
 	must(err, "abrir db")
 	defer database.Close()
 
-	_, err = db.CreateUser(database, *adminUser, *adminPass, "admin", false)
-	must(err, "criar admin")
-
-	viewerID, err := db.CreateUser(database, *viewerUser, *viewerPass, "viewer", false)
-	must(err, "criar viewer")
-
 	must(db.SetConfig(database, "storage.with_motion_minutes", keepForeverMinutes), "desligar retenção (motion)")
 	must(db.SetConfig(database, "storage.without_motion_minutes", keepForeverMinutes), "desligar retenção (sem motion)")
 
-	_, err = db.CreateCamera(database, config.CameraConfig{
-		ID:               *cameraID,
-		Name:             "E2E Cam",
-		RTSPURL:          "rtsp://fixture/stream",
-		VideoCodec:       "h264",
-		HLSVideoMode:     "auto",
-		RecordVideoMode:  "copy",
-		RecordingEnabled: true,
-	}, nil)
-	must(err, "criar câmera")
-	must(db.SetUserCameras(database, viewerID, []string{*cameraID}), "conceder câmera ao viewer")
-
-	must(seedRecordings(database, storagePath, *recordings, *cameraID), "semear gravações")
-
-	must(writeCameraYAML(filepath.Join(outDir, "camera.yaml"), *port, dbPath, storagePath, *adminUser, *adminPass), "escrever camera.yaml")
-
-	recordingID, err := firstRecordingID(database, *cameraID)
-	must(err, "buscar id da 1ª gravação")
-
-	info := fixtureInfo{
-		CameraID:    *cameraID,
-		RecordingID: recordingID,
-		AdminUser:   *adminUser,
-		AdminPass:   *adminPass,
-		ViewerUser:  *viewerUser,
-		ViewerPass:  *viewerPass,
-		Port:        *port,
+	var f Fixture
+	if *fixturePath != "" {
+		f, err = loadFixture(*fixturePath)
+		must(err, "carregar -fixture")
+	} else {
+		f = defaultFixture(*adminUser, *adminPass, *cameraID, *adminOnlyCameraID, *viewerUser, *viewerPass, *recordings)
 	}
+
+	info, err := applyFixture(database, storagePath, f)
+	must(err, "aplicar fixture")
+	info.Port = *port
+
+	must(writeCameraYAML(filepath.Join(outDir, "camera.yaml"), *port, dbPath, storagePath, info.AdminUser, info.AdminPass), "escrever camera.yaml")
+
 	must(json.NewEncoder(os.Stdout).Encode(info), "codificar saída JSON")
 }
 
 // seedRecordings grava os arquivos .mp4 no layout esperado pelo servidor
 // ({storage}/{camera_id}/{YYYY/MM/DD}/{YYYYMMDDHHmmss}.mp4, UTC) e insere a
-// linha correspondente em `recordings`.
-func seedRecordings(database *db.DB, storagePath string, n int, cameraID string) error {
+// linha correspondente em `recordings`. Devolve os slots gerados — usados
+// por applyFixture pra calcular o instante de eventos de movimento
+// referenciados por índice de gravação.
+func seedRecordings(database *db.DB, storagePath string, n int, cameraID string) ([]recordingSlot, error) {
 	slots := recordingSlots(n, time.Now(), recordingSpacing)
 	for _, slot := range slots {
 		dir := filepath.Join(storagePath, cameraID, slot.Start.Format("2006/01/02"))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("mkdir %s: %w", dir, err)
+			return nil, fmt.Errorf("mkdir %s: %w", dir, err)
 		}
 
 		path := filepath.Join(dir, slot.Start.Format("20060102150405")+".mp4")
 		if err := os.WriteFile(path, sampleMP4, 0o644); err != nil {
-			return fmt.Errorf("write %s: %w", path, err)
+			return nil, fmt.Errorf("write %s: %w", path, err)
 		}
 
 		err := db.InsertRecording(database, db.Recording{
@@ -156,10 +144,10 @@ func seedRecordings(database *db.DB, storagePath string, n int, cameraID string)
 			HasMotion: false,
 		})
 		if err != nil {
-			return fmt.Errorf("insert recording %s: %w", path, err)
+			return nil, fmt.Errorf("insert recording %s: %w", path, err)
 		}
 	}
-	return nil
+	return slots, nil
 }
 
 // firstRecordingID devolve o id da gravação mais antiga da câmera do
