@@ -217,7 +217,7 @@ export default function HistoryTimeline({
       <div id="history-timeline-summary" className="text-caption text-muted">
         {recordingItems.length} gravações · pico entre {peakHour}h e {peakHour + 1}h
       </div>
-      <div className="relative">
+      <div className="relative flex flex-col gap-1">
         {previewMs != null && (
           <div
             id="history-timeline-preview"
@@ -268,9 +268,11 @@ export default function HistoryTimeline({
           })}
         </div>
         {handleFraction != null && (
-          // Ponteiro estilo "lollipop" (bolinha + haste descendo até a trilha, como um
-          // ponteiro de relógio apontando pra baixo) — um único alvo de pointer events
-          // (a bolinha E a haste arrastam), só a bolinha fica visualmente acima da trilha.
+          // Ponteiro estilo "lollipop" (bolinha + haste + seta descendo até a linha dos
+          // números, como um ponteiro de relógio apontando pra baixo) — um único alvo de
+          // pointer events (a bolinha, a haste e a seta arrastam juntas). `top`+`bottom`
+          // (em vez de uma altura fixa) faz a haste esticar (`flex-1` no meio) pra
+          // acompanhar o container todo, da bolinha até a linha de rótulos.
           <div
             id="history-timeline-handle"
             role="button"
@@ -279,11 +281,15 @@ export default function HistoryTimeline({
             onPointerDown={handleHandlePointerDown}
             onPointerMove={handleHandlePointerMove}
             onPointerUp={handleHandlePointerUp}
-            className="absolute -top-2.5 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
+            className="absolute -top-2.5 bottom-0 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
             style={{ left: `${handleFraction * 100}%` }}
           >
             <span className="h-3 w-3 shrink-0 rounded-full bg-primary shadow ring-2 ring-background" />
-            <span className="h-6 w-0.5 bg-primary" />
+            <span className="w-1 flex-1 bg-primary" />
+            <span
+              aria-hidden="true"
+              className="h-0 w-0 shrink-0 border-x-4 border-t-4 border-x-transparent border-t-primary"
+            />
           </div>
         )}
         {hoverFraction != null && (
@@ -292,11 +298,11 @@ export default function HistoryTimeline({
             style={{ left: `${hoverFraction * 100}%` }}
           />
         )}
-      </div>
-      <div id="history-timeline-labels" className="flex justify-between text-caption text-faint">
-        {HOUR_LABELS.map((h) => (
-          <span key={h}>{h}</span>
-        ))}
+        <div id="history-timeline-labels" className="flex justify-between text-caption text-faint">
+          {HOUR_LABELS.map((h) => (
+            <span key={h}>{h}</span>
+          ))}
+        </div>
       </div>
     </div>
   )
