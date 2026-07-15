@@ -73,4 +73,12 @@ describe('ProfileLayout', () => {
     renderAt('/profile')
     expect(document.getElementById('sidebar')).not.toBeNull()
   })
+
+  it('CA6: título "Perfil" via PageHeader (h2/text-h2), não mais um <h1> solto', () => {
+    renderAt('/profile')
+    const title = document.getElementById('profile-header')?.querySelector('h2')
+    expect(title?.textContent).toBe('Perfil')
+    expect(title?.className).toContain('text-h2')
+    expect(document.querySelector('h1')).toBeNull()
+  })
 })

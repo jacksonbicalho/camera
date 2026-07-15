@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import Layout from './Layout'
+import PageHeader from './PageHeader'
 import SectionNavList from './SectionNavList'
 
 const PROFILE_NAV_LINKS = [
@@ -20,7 +21,7 @@ export default function ProfileLayout({ children }: ProfileLayoutProps) {
   return (
     <Layout id="profile-page" footerId="profile-footer" contentClassName="p-6">
       <div id="profile-content" className="page-content">
-        <h1 className="mb-6 text-h1 font-semibold text-foreground">Perfil</h1>
+        <PageHeader id="profile-header" title="Perfil" />
         <div className="flex gap-10">
           <aside className="w-48 shrink-0">
             <SectionNavList items={PROFILE_NAV_LINKS} ariaLabel="Perfil" end />
