@@ -873,6 +873,41 @@ describe('HistoryPage', () => {
       expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
 
+    it('CA3pessoa: chip "Pessoa" existe entre "Movimento" e "Contínua"', async () => {
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+      })
+      const chips = Array.from(
+        document.getElementById('history-filter-chips')!.querySelectorAll('button'),
+      ).map((b) => b.id)
+      expect(chips).toEqual([
+        'history-filter-todos',
+        'history-filter-movimento',
+        'history-filter-pessoa',
+        'history-filter-continua',
+      ])
+    })
+
+    it('CA4pessoa: clique no chip "Pessoa" filtra a lista para só as gravações com evento de pessoa', async () => {
+      // a.mp4 (07:12:00Z) sem evento → continua; b.mp4 (08:03:00Z) com evento "pessoa
+      // detectada" no mesmo intervalo → categoria pessoa.
+      stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'pessoa detectada' }])
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
+      })
+
+      document
+        .getElementById('history-filter-pessoa')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).toBeNull()
+      })
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
+    })
+
     it('grupos por hora mostram a contagem e colapsam/expandem ao clicar no cabeçalho', async () => {
       renderAt('/history/cam1')
       await waitFor(() => {
