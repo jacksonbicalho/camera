@@ -71,6 +71,7 @@ export default function LivePage() {
             idPrefix="live"
             cameraName={camera.name}
             recordingEnabled={camera.recording_enabled}
+            pageTitle="Ao vivo"
           >
             <div
               id="live-player"
@@ -83,7 +84,6 @@ export default function LivePage() {
                 cameraId={camera.id}
                 transport={camera.live_transport}
                 muted
-                title={camera.name}
                 controls
                 className="w-full aspect-video"
                 containerClassName="w-full"

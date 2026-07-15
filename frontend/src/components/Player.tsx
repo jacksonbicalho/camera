@@ -17,16 +17,19 @@ interface PlayerProps {
   id?: string
   className?: string
   containerClassName?: string
-  /** Nome da câmera exibido no rodapé (PlayerFooter). Sem título, sem rodapé. */
+  /** Nome da câmera exibido no rodapé (PlayerFooter). Opcional — o rodapé em si aparece
+   * sempre que `title`/`controls`/`footerTrailing` estiver presente; sem nenhum dos três,
+   * sem rodapé. */
   title?: string
-  /** Mostra os botões de mudo/tela cheia no rodapé (requer `title`). Default false — usado
-   * pelo Ao vivo; o preview do AllCamerasPage não é interativo. */
+  /** Mostra os botões de mudo/tela cheia no rodapé — não requer `title` (o Ao vivo passa
+   * `controls` sem `title`, já que o nome vive no cabeçalho da página). Default false —
+   * o preview do AllCamerasPage não é interativo. */
   controls?: boolean
   /** Overlay extra dentro da área do vídeo (ex.: badge "AO VIVO"), posicionável via
    * `position: absolute` — o div do vídeo já é o `relative` que ancora. */
   children?: ReactNode
   /** Conteúdo extra no rodapé, depois dos botões de mudo/tela cheia — sempre o último à
-   * direita (ex.: CameraViewTabs do LivePage). Requer `title` (mesmo requisito do rodapé). */
+   * direita (ex.: CameraViewTabs do LivePage). Não requer `title`. */
   footerTrailing?: ReactNode
 }
 
@@ -311,7 +314,7 @@ export default function Player({
         ) : null}
       </div>
 
-      {title && (
+      {(title || controls || footerTrailing) && (
         <PlayerFooter id={`${id}-footer`} title={title}>
           {controls && (
             <>

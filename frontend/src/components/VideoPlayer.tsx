@@ -617,7 +617,7 @@ export default function VideoPlayer({
         // do rodapé do Ao vivo (PlayerFooter) — nada de cor fixa tipo bg-black/text-white.
         // `footerExtra` (ex.: reprodução contínua do HistoryPage) renderiza mesmo sem
         // segmentos — o controle em si (ex.: toggle desabilitado) ainda deve aparecer.
-        <PlayerFooter id={`${idPrefix}-controls`}>
+        <PlayerFooter id={`${idPrefix}-controls`} freeform>
           {hasSegments && (
             <div className="flex flex-col gap-1 px-3 py-2">
               <div
