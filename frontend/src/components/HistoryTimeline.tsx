@@ -305,67 +305,78 @@ export default function HistoryTimeline({
             </span>
           </div>
         )}
-        <div
-          id="history-timeline-track"
-          ref={trackRef}
-          role="button"
-          tabIndex={0}
-          aria-label="Selecionar gravação na régua de 24h"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          onClick={handleClick}
-          className="flex h-6 w-full cursor-pointer gap-px overflow-hidden rounded"
-        >
-          {Array.from({ length: 24 }, (_, hour) => {
-            const items = byHour.get(hour)
-            const cat = items
-              ? CAT_PRIORITY.find((c) => items.some((i) => i.category === c))
-              : undefined
-            return (
-              <div
-                key={hour}
-                id={`history-timeline-hour-${hour}`}
-                aria-hidden="true"
-                className={`h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'}`}
-              />
-            )
-          })}
-        </div>
-        {handleFraction != null && (
-          // Ponteiro estilo "lollipop" (bolinha + haste + seta descendo até a linha dos
-          // números, como um ponteiro de relógio apontando pra baixo) — um único alvo de
-          // pointer events (a bolinha, a haste e a seta arrastam juntas). `top`+`bottom`
-          // (em vez de uma altura fixa) faz a haste esticar (`flex-1` no meio) pra
-          // acompanhar o container todo, da bolinha até a linha de rótulos.
+        {/* Wrapper próprio (relative) só pra trilha + alça + linha de hover — a alça usa
+            `bottom-0` ANCORADO NESTE wrapper (não no de fora, que também contém os
+            números), pra que a ponta da seta pare sempre na base da trilha, nunca
+            avançando sobre a linha de números por baixo (mesmo se ela descer). */}
+        <div className="relative">
           <div
-            id="history-timeline-handle"
+            id="history-timeline-track"
+            ref={trackRef}
             role="button"
             tabIndex={0}
-            aria-label="Arrastar para selecionar gravação"
-            onPointerDown={handleHandlePointerDown}
-            onPointerMove={handleHandlePointerMove}
-            onPointerUp={handleHandlePointerUp}
-            className="absolute -top-2.5 bottom-0 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
-            style={{ left: `${handleFraction * 100}%` }}
+            aria-label="Selecionar gravação na régua de 24h"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            onClick={handleClick}
+            className="flex h-6 w-full cursor-pointer gap-px overflow-hidden rounded"
           >
-            <span className="h-3 w-3 shrink-0 rounded-full bg-primary shadow ring-2 ring-background" />
-            <span className="w-1 flex-1 bg-primary" />
-            <span
-              aria-hidden="true"
-              className="h-0 w-0 shrink-0 border-x-8 border-t-8 border-x-transparent border-t-primary"
-            />
+            {Array.from({ length: 24 }, (_, hour) => {
+              const items = byHour.get(hour)
+              const cat = items
+                ? CAT_PRIORITY.find((c) => items.some((i) => i.category === c))
+                : undefined
+              return (
+                <div
+                  key={hour}
+                  id={`history-timeline-hour-${hour}`}
+                  aria-hidden="true"
+                  className={`h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'}`}
+                />
+              )
+            })}
           </div>
-        )}
-        {hoverFraction != null && (
-          <div
-            className="pointer-events-none absolute top-0 h-6 w-px bg-foreground/80"
-            style={{ left: `${hoverFraction * 100}%` }}
-          />
-        )}
+          {handleFraction != null && (
+            // Ponteiro estilo "lollipop" (bolinha + haste + seta apontando pra baixo, como
+            // um ponteiro de relógio) — um único alvo de pointer events (a bolinha, a haste
+            // e a seta arrastam juntas). `top`+`bottom` (em vez de uma altura fixa) faz a
+            // haste esticar (`flex-1` no meio) pra acompanhar a trilha inteira. `-bottom-1`
+            // (em vez de `bottom-0`) desce a ponta da seta um pouco PRA FORA da caixa da
+            // trilha (não só encostada na borda) — o espaço que sobra até a linha de
+            // números (`mt-3` nela, ver abaixo) é o que evita a seta cobrir os dígitos.
+            <div
+              id="history-timeline-handle"
+              role="button"
+              tabIndex={0}
+              aria-label="Arrastar para selecionar gravação"
+              onPointerDown={handleHandlePointerDown}
+              onPointerMove={handleHandlePointerMove}
+              onPointerUp={handleHandlePointerUp}
+              className="absolute -top-2.5 -bottom-1 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
+              style={{ left: `${handleFraction * 100}%` }}
+            >
+              <span className="h-3 w-3 shrink-0 rounded-full bg-primary shadow ring-2 ring-background" />
+              <span className="w-1 flex-1 bg-primary" />
+              <span
+                aria-hidden="true"
+                className="h-0 w-0 shrink-0 border-x-8 border-t-8 border-x-transparent border-t-primary"
+              />
+            </div>
+          )}
+          {hoverFraction != null && (
+            <div
+              className="pointer-events-none absolute top-0 h-6 w-px bg-foreground/80"
+              style={{ left: `${hoverFraction * 100}%` }}
+            />
+          )}
+        </div>
         {/* Mesmo esquema de 24 células flex-1 dos blocos da trilha (não justify-between,
             que espalha borda-a-borda) — cada número fica centralizado sob o bloco da
-            própria hora, não numa fronteira entre dois blocos. */}
-        <div id="history-timeline-labels" className="flex text-caption text-faint">
+            própria hora, não numa fronteira entre dois blocos. `mt-3` (em vez do `gap-1`
+            padrão do wrapper de fora) dá espaço extra pra ponta da seta, que agora para na
+            base do wrapper interno da trilha (ver comentário acima) em vez de esticar até
+            aqui. */}
+        <div id="history-timeline-labels" className="mt-3 flex text-caption text-faint">
           {HOUR_LABELS.map((h) => (
             <span key={h} className="flex-1 text-center">
               {h}

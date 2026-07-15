@@ -433,4 +433,24 @@ describe('HistoryTimeline', () => {
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
     expect(document.getElementById('history-timeline-handle')).toBeNull()
   })
+
+  it('CA4spacing: a alça desce um pouco pra fora da caixa da trilha, e a linha de números tem espaço extra — sem encolher a seta', () => {
+    const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" selectedId={1} />,
+    )
+    // A seta continua tão larga/alta quanto antes (largura pedida pelo navigator,
+    // preservada) — a correção da sobreposição não pode encolhê-la.
+    const arrow = document.querySelector('#history-timeline-handle span:last-child')!
+    expect(arrow.className).toContain('border-x-8')
+    expect(arrow.className).toContain('border-t-8')
+    // A alça desce (`bottom` negativo) pra fora da caixa da trilha, não fica só encostada
+    // na borda (`bottom-0`).
+    const handle = document.getElementById('history-timeline-handle')!
+    expect(handle.className).toContain('-bottom-1')
+    // A linha de números ganhou espaço extra (margem), abrindo a folga que falta pra ponta
+    // da seta não cobrir os dígitos.
+    const labels = document.getElementById('history-timeline-labels')!
+    expect(labels.className).toMatch(/\bmt-\d/)
+  })
 })
