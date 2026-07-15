@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, screen, fireEvent } from '@testing-library/react'
+import { act, cleanup, render, fireEvent } from '@testing-library/react'
 import HistoryTimeline from './HistoryTimeline'
 import type { Recording } from '../pages/cameraUtils'
 import type { RecordingCategory } from '../pages/eventCategory'
@@ -126,12 +126,13 @@ describe('HistoryTimeline', () => {
     expect(summary.textContent).not.toContain('20h')
   })
 
-  it('CA3: rótulos de hora aparecem a cada 4h (00h/04h/.../24h)', () => {
+  it('CA2labels: rótulos de TODAS as 24 horas aparecem, em formato compacto (sem zero-pad/sufixo "h")', () => {
     const items = [item(1, '2026-07-05T07:12:00Z', 'continua')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    for (const label of ['00h', '04h', '08h', '12h', '16h', '20h', '24h']) {
-      expect(screen.getByText(label)).toBeTruthy()
-    }
+    const labels = Array.from(document.getElementById('history-timeline-labels')!.children).map(
+      (el) => el.textContent,
+    )
+    expect(labels).toEqual(Array.from({ length: 24 }, (_, i) => String(i)))
   })
 
   it('CA4: mover o mouse sobre a trilha mostra um preview com miniatura e o horário, sem exigir clique', () => {
@@ -157,6 +158,19 @@ describe('HistoryTimeline', () => {
     const img = preview.querySelector('img')!
     expect(img.getAttribute('src')).toContain('/api/cameras/cam1/event-frame')
     expect(img.getAttribute('src')).toContain('token=fake-token')
+  })
+
+  it('CA4: numa lacuna sem nenhuma gravação (hora sem vídeo), o preview NÃO aparece', () => {
+    vi.useFakeTimers()
+    // Só há gravação às 07h — 18h é uma lacuna franca (sem cobertura nenhuma).
+    const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    mockTrackRect(2400)
+    fireEvent.mouseMove(document.getElementById('history-timeline-track')!, {
+      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+    })
+    act(() => vi.advanceTimersByTime(200))
+    expect(document.getElementById('history-timeline-preview')).toBeNull()
   })
 
   it('CA4: mousemove contínuo reinicia o debounce — não busca uma imagem por posição intermediária', () => {
@@ -246,5 +260,125 @@ describe('HistoryTimeline', () => {
     mockTrackRect(2400)
     fireEvent.click(document.getElementById('history-timeline-track')!, { clientX: 9999 })
     expect(onSelect).toHaveBeenCalledWith(2)
+  })
+
+  it('CA4drag: arrastar a alça atualiza a posição/preview, sem chamar onSelect durante o arraste', () => {
+    vi.useFakeTimers()
+    const onSelect = vi.fn()
+    const items = [
+      item(1, '2026-07-05T05:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:00:00Z', 'movimento'),
+    ]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
+    )
+    mockTrackRect(2400)
+    const handle = document.getElementById('history-timeline-handle')!
+    fireEvent.pointerDown(handle, {
+      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(handle, {
+      clientX: clientXFor('2026-07-05T10:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(handle, {
+      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+      pointerId: 1,
+    })
+    // Nenhuma troca de gravação durante o arraste — só ao soltar (CA5drag).
+    expect(onSelect).not.toHaveBeenCalled()
+
+    act(() => vi.advanceTimersByTime(200))
+    const preview = document.getElementById('history-timeline-preview')
+    expect(preview?.textContent).toContain('18:00')
+  })
+
+  it('CA5drag: soltar a alça seleciona a gravação mais próxima da posição final, exatamente uma vez', () => {
+    const onSelect = vi.fn()
+    const items = [
+      item(1, '2026-07-05T05:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:00:00Z', 'movimento'),
+    ]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
+    )
+    mockTrackRect(2400)
+    const handle = document.getElementById('history-timeline-handle')!
+    fireEvent.pointerDown(handle, {
+      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(handle, {
+      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerUp(handle, {
+      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+      pointerId: 1,
+    })
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith(2)
+  })
+
+  it('CA5drag: sem nenhum pointermove entre down e up (clique rápido na alça), ainda assim seleciona a posição do down', () => {
+    const onSelect = vi.fn()
+    const items = [
+      item(1, '2026-07-05T05:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:00:00Z', 'movimento'),
+    ]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={2} />,
+    )
+    mockTrackRect(2400)
+    const handle = document.getElementById('history-timeline-handle')!
+    fireEvent.pointerDown(handle, {
+      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerUp(handle, {
+      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      pointerId: 1,
+    })
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith(1)
+  })
+
+  it('CA5drag: soltar dentro da MESMA gravação (mesmo id resolvido) mantém a alça na posição solta, não pula de volta pro início dela', () => {
+    // A cobertura de uma gravação é de CHUNK_FALLBACK_MS (5min) a partir do início — soltar
+    // 3min depois do início ainda resolve pro MESMO id (1), então onSelect(1) não muda o
+    // selectedId (HistoryPage não re-renderiza com um selectedId novo). Mesmo assim, a alça
+    // deve continuar na posição solta (05:03), não voltar pro início da gravação (05:00) —
+    // "snapar de volta" é a queixa relatada ("não consigo arrastar pouco dentro da mesma
+    // cor": um arraste pequeno o bastante pra não trocar de gravação parecia "não fazer
+    // nada" porque a alça voltava pro início.
+    const onSelect = vi.fn()
+    const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
+    )
+    mockTrackRect(2400)
+    const handle = document.getElementById('history-timeline-handle')!
+    fireEvent.pointerDown(handle, {
+      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(handle, {
+      clientX: clientXFor('2026-07-05T05:03:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerUp(handle, {
+      clientX: clientXFor('2026-07-05T05:03:00Z', 2400),
+      pointerId: 1,
+    })
+    expect(onSelect).toHaveBeenCalledWith(1)
+    const droppedFraction = clientXFor('2026-07-05T05:03:00Z', 2400) / 2400
+    expect(handle.style.left).toBe(`${droppedFraction * 100}%`)
+  })
+
+  it('sem selectedId e sem arraste em andamento, a alça não aparece', () => {
+    const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    expect(document.getElementById('history-timeline-handle')).toBeNull()
   })
 })

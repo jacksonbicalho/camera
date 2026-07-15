@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { posToTime, recordingAtMs, timePosFraction } from './timelineScale'
+import { isCoveredByRecording, posToTime, recordingAtMs, timePosFraction } from './timelineScale'
 
 const win = { startMs: 0, endMs: 24 * 3600_000 } // dia inteiro, 0 = meia-noite
 
@@ -49,5 +49,27 @@ describe('recordingAtMs', () => {
   })
   it('lista vazia devolve null', () => {
     expect(recordingAtMs([], Date.now(), chunkMs)).toBeNull()
+  })
+})
+
+describe('isCoveredByRecording', () => {
+  const chunkMs = 5 * 60_000
+  const items = [
+    { rec: { id: 1, start: '2026-07-05T07:00:00Z' } },
+    { rec: { id: 3, start: '2026-07-05T18:00:00Z' } },
+  ]
+
+  it('true quando o instante cai dentro de [start, start+chunkMs) de alguma gravação', () => {
+    const ms = Date.parse('2026-07-05T07:02:00Z')
+    expect(isCoveredByRecording(items, ms, chunkMs)).toBe(true)
+  })
+
+  it('false numa lacuna (nenhuma gravação cobre o instante) — mesmo tendo uma "mais próxima"', () => {
+    const ms = Date.parse('2026-07-05T12:00:00Z') // bem no meio da lacuna entre 07h e 18h
+    expect(isCoveredByRecording(items, ms, chunkMs)).toBe(false)
+  })
+
+  it('false com lista vazia', () => {
+    expect(isCoveredByRecording([], Date.now(), chunkMs)).toBe(false)
   })
 })

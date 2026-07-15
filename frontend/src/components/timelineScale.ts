@@ -47,3 +47,19 @@ export function recordingAtMs<T extends { rec: { start: string } }>(
   }
   return best
 }
+
+// true sse `ms` cai dentro de [start, start+chunkMs) de ALGUMA gravação — diferente de
+// `recordingAtMs`, que sempre acha "a mais próxima" mesmo numa lacuna sem gravação
+// nenhuma. Usado pra decidir se o preview (imagem) deve aparecer: sem cobertura real,
+// mostrar uma miniatura da gravação mais próxima seria enganoso (parece que tem vídeo
+// ali, mas não tem).
+export function isCoveredByRecording<T extends { rec: { start: string } }>(
+  items: T[],
+  ms: number,
+  chunkMs: number,
+): boolean {
+  return items.some((item) => {
+    const startMs = Date.parse(item.rec.start)
+    return !Number.isNaN(startMs) && ms >= startMs && ms < startMs + chunkMs
+  })
+}
