@@ -447,7 +447,7 @@ describe('HistoryTimeline', () => {
     // A alça desce (`bottom` negativo) pra fora da caixa da trilha, não fica só encostada
     // na borda (`bottom-0`).
     const handle = document.getElementById('history-timeline-handle')!
-    expect(handle.className).toContain('-bottom-1')
+    expect(handle.className).toContain('-bottom-2')
     // A linha de números ganhou espaço extra (margem), abrindo a folga que falta pra ponta
     // da seta não cobrir os dígitos.
     const labels = document.getElementById('history-timeline-labels')!

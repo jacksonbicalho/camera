@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
-import type { Reporter, TestCase, TestResult } from '@playwright/test/reporter'
+import type { Reporter, TestCase, TestResult, TestStep } from '@playwright/test/reporter'
 
 // Reporter customizado que gera e2e/playwright-report/report.pdf — habilitado
 // via E2E_PDF_REPORT=on (ver playwright.config.ts). Existe porque o relatório
@@ -12,12 +12,27 @@ import type { Reporter, TestCase, TestResult } from '@playwright/test/reporter'
 // imprimimos ESSE HTML, garantindo que o PDF final carregue os dados/imagens
 // no próprio arquivo (nunca uma referência externa a playwright-report/data/).
 
+interface CollectedStep {
+  title: string
+  duration: number
+  steps: CollectedStep[]
+}
+
 interface CollectedTest {
   title: string
   status: string
   duration: number
   errors: string[]
   screenshots: string[]
+  steps: CollectedStep[]
+}
+
+function collectSteps(steps: TestStep[]): CollectedStep[] {
+  return steps.map((step) => ({
+    title: step.title,
+    duration: step.duration,
+    steps: collectSteps(step.steps),
+  }))
 }
 
 function escapeHtml(value: string): string {
@@ -57,6 +72,7 @@ export default class PDFReporter implements Reporter {
       duration: result.duration,
       errors: result.errors.map((error) => stripAnsi(error.stack ?? error.message ?? String(error))),
       screenshots,
+      steps: collectSteps(result.steps),
     })
   }
 
@@ -76,6 +92,7 @@ export default class PDFReporter implements Reporter {
 
   private buildHtml(): string {
     const sections = this.tests.map((test) => this.buildTestSection(test)).join('\n')
+    const generatedAt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date())
 
     return `<!doctype html>
 <html>
@@ -96,29 +113,48 @@ export default class PDFReporter implements Reporter {
     overflow-wrap: break-word;
     font-size: 11px;
   }
-  img.screenshot { max-width: 100%; border: 1px solid #ccc; margin-top: 8px; display: block; }
+  ul.steps { list-style: none; padding-left: 14px; margin: 4px 0; font-size: 11px; color: #333; }
+  ul.steps ul.steps { padding-left: 16px; }
+  ul.steps li { margin: 2px 0; }
+  .step-duration { color: #999; font-size: 10px; }
+  .screenshots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  img.screenshot { max-width: 100%; border: 1px solid #ccc; display: block; }
 </style>
 </head>
 <body>
-<h1>Relatório e2e (PDF) — ${this.tests.length} teste(s)</h1>
+<h1>os-camera — Relatório e2e criado em ${generatedAt}</h1>
 ${sections}
 </body>
 </html>`
+  }
+
+  private buildStepsList(steps: CollectedStep[]): string {
+    if (!steps.length) return ''
+    const items = steps
+      .map(
+        (step) =>
+          `<li>${escapeHtml(step.title)} <span class="step-duration">(${step.duration}ms)</span>${this.buildStepsList(step.steps)}</li>`,
+      )
+      .join('\n')
+    return `<ul class="steps">${items}</ul>`
   }
 
   private buildTestSection(test: CollectedTest): string {
     const errors = test.errors.length
       ? `<pre class="error">${escapeHtml(test.errors.join('\n\n'))}</pre>`
       : ''
+    const steps = this.buildStepsList(test.steps)
     const images = test.screenshots
       .map((src) => `<img class="screenshot" src="${src}" />`)
       .join('\n')
+    const screenshots = images ? `<div class="screenshots">${images}</div>` : ''
 
     return `<section class="test">
   <h2>${escapeHtml(test.title)}<span class="status" style="color:${statusColor(test.status)}">${test.status.toUpperCase()}</span></h2>
   <p class="meta">${test.duration}ms</p>
+  ${steps}
   ${errors}
-  ${images}
+  ${screenshots}
 </section>`
   }
 }
