@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, screen, fireEvent } from '@testing-library/react'
+import { act, cleanup, render, fireEvent } from '@testing-library/react'
 import HistoryTimeline from './HistoryTimeline'
 import type { Recording } from '../pages/cameraUtils'
 import type { RecordingCategory } from '../pages/eventCategory'
@@ -126,12 +126,13 @@ describe('HistoryTimeline', () => {
     expect(summary.textContent).not.toContain('20h')
   })
 
-  it('CA3: rótulos de hora aparecem a cada 4h (00h/04h/.../24h)', () => {
+  it('CA2labels: rótulos de TODAS as 24 horas aparecem, em formato compacto (sem zero-pad/sufixo "h")', () => {
     const items = [item(1, '2026-07-05T07:12:00Z', 'continua')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    for (const label of ['00h', '04h', '08h', '12h', '16h', '20h', '24h']) {
-      expect(screen.getByText(label)).toBeTruthy()
-    }
+    const labels = Array.from(document.getElementById('history-timeline-labels')!.children).map(
+      (el) => el.textContent,
+    )
+    expect(labels).toEqual(Array.from({ length: 24 }, (_, i) => String(i)))
   })
 
   it('CA4: mover o mouse sobre a trilha mostra um preview com miniatura e o horário, sem exigir clique', () => {

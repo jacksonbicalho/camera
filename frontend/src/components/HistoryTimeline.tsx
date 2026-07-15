@@ -32,7 +32,10 @@ const CAT_BG: Record<RecordingCategory, string> = {
   estados: 'bg-green-500',
 }
 
-const HOUR_LABELS = [0, 4, 8, 12, 16, 20, 24]
+// Marcação de TODAS as horas do dia (0..23) — formato compacto (sem zero-pad nem
+// sufixo "h") pra caber em telas estreitas, onde a régua vira a largura total da
+// viewport (abaixo do breakpoint lg as duas colunas do Histórico empilham).
+const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => i)
 // Atraso entre o mouse parar de se mover e o preview (imagem + horário) aparecer — sem
 // isso, CADA `mousemove` trocaria o `src` da <img> e bateria em GET .../event-frame, que
 // no backend faz os.ReadDir + spawna um processo ffmpeg por chamada (extractFrame):
@@ -207,7 +210,7 @@ export default function HistoryTimeline({
       </div>
       <div id="history-timeline-labels" className="flex justify-between text-caption text-faint">
         {HOUR_LABELS.map((h) => (
-          <span key={h}>{String(h).padStart(2, '0')}h</span>
+          <span key={h}>{h}</span>
         ))}
       </div>
     </div>
