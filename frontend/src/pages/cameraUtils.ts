@@ -1,6 +1,11 @@
 import { format } from 'date-fns'
 import { authHeaders } from '../auth'
 
+// Duração assumida de um chunk de gravação quando o fim real (`end`) não é conhecido —
+// usada para classificar categoria (recordingCategory) e mapear posição→gravação
+// (recordingAtMs) por aproximação. Compartilhada entre HistoryPage e HistoryTimeline.
+export const CHUNK_FALLBACK_MS = 5 * 60_000
+
 export interface Recording {
   id: number
   filename: string
