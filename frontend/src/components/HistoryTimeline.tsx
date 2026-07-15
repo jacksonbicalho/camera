@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { getToken } from '../auth'
 import { CHUNK_FALLBACK_MS, type Recording } from '../pages/cameraUtils'
 import { CAT_PRIORITY as EVENT_CAT_PRIORITY, type RecordingCategory } from '../pages/eventCategory'
-import { posToTime, recordingAtMs, type TimelineWindow } from './timelineScale'
+import { posToTime, recordingAtMs, timePosFraction, type TimelineWindow } from './timelineScale'
 
 interface RecordingItem {
   rec: Recording
@@ -13,10 +13,13 @@ interface HistoryTimelineProps {
   /** Gravações do dia inteiro, já com a categoria calculada — SEM o filtro de chips
    * (Tudo/Movimento/Pessoa/Contínua), que afeta só a lista abaixo, não esta visão geral. */
   recordingItems: RecordingItem[]
-  /** Chamado com o id da gravação escolhida (clique na trilha). */
+  /** Chamado com o id da gravação escolhida (clique na trilha ou soltar a alça). */
   onSelect: (id: number) => void
   /** Câmera do Histórico atual — monta a URL do preview (event-frame). */
   cameraId: string
+  /** Gravação selecionada atualmente — posiciona a alça em repouso (fora de um arraste
+   * em andamento). Sem seleção, a alça não aparece. */
+  selectedId?: number | null
 }
 
 // Prioridade (maior → menor) para resolver a cor de um bloco de hora com várias
@@ -57,22 +60,34 @@ function eventFrameURL(cameraId: string, ms: number): string {
 
 // HistoryTimeline — régua de 24h abaixo do player: um bloco por hora, colorido pela
 // categoria de maior prioridade presente naquela hora, mais um resumo (total de gravações
-// + hora de pico). Interação deliberadamente simples — SEM ponteiro arrastável nem
-// listeners globais de `window` (o timeline horizontal anterior, removido, tinha bugs
-// exatamente aí): só `onMouseMove`/`onMouseLeave` (sem estado de "arraste", cada evento é
-// independente) para o preview, e `onClick` (ação discreta) pra selecionar.
+// + hora de pico), e uma alça redonda arrastável pra selecionar uma gravação.
+//
+// Interação deliberadamente sem o padrão que causou bugs no timeline horizontal anterior
+// (removido): nada de listener em `window`, nada de estado de "arraste solto". A alça usa
+// Pointer Events + `setPointerCapture` no próprio elemento — mesmo padrão já em produção
+// na barra de progresso do VideoPlayer — que faz o browser entregar todo `pointermove`/
+// `pointerup` seguinte pro mesmo elemento, mesmo se o cursor sair da área da alça. Durante
+// o arraste, só a posição/preview acompanham (reaproveita o mesmo debounce do hover); o
+// `onSelect` (que troca de gravação, recarregando o VideoPlayer) só dispara UMA vez, no
+// `pointerup` — arrastar rápido pelo dia não deve trocar de gravação dezenas de vezes por
+// segundo (custo bem mais alto que só buscar uma imagem de preview).
 export default function HistoryTimeline({
   recordingItems,
   onSelect,
   cameraId,
+  selectedId,
 }: HistoryTimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // hoverFraction: posição do mouse, atualizada a cada mousemove — move a linha vertical
-  // instantaneamente. previewFraction: debounced — só ela dispara a busca da imagem.
+  const draggingRef = useRef(false)
+  // hoverFraction: posição do mouse/arraste, atualizada a cada movimento — move a linha
+  // vertical e a alça instantaneamente. previewFraction: debounced — só ela dispara a
+  // busca da imagem. dragFraction: posição corrente do arraste (null fora de um arraste);
+  // enquanto não-null, é ela (não a posição da gravação selecionada) que a alça segue.
   const [hoverFraction, setHoverFraction] = useState<number | null>(null)
   const [previewFraction, setPreviewFraction] = useState<number | null>(null)
   const [previewFailed, setPreviewFailed] = useState(false)
+  const [dragFraction, setDragFraction] = useState<number | null>(null)
 
   useEffect(
     () => () => {
@@ -119,9 +134,10 @@ export default function HistoryTimeline({
     return f < 0 ? 0 : f > 1 ? 1 : f
   }
 
-  function handleMouseMove(e: React.MouseEvent) {
-    const f = fractionFromClientX(e.clientX)
-    if (f == null) return
+  // Atualiza a posição (linha vertical/alça, instantâneo) e agenda o preview (imagem +
+  // horário, debounced) — usado tanto pelo hover na trilha quanto pelo arraste da alça,
+  // pra não duplicar a lógica de debounce em dois lugares.
+  function updatePosition(f: number) {
     setHoverFraction(f)
     if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
     previewTimerRef.current = setTimeout(() => {
@@ -130,7 +146,15 @@ export default function HistoryTimeline({
     }, PREVIEW_DEBOUNCE_MS)
   }
 
+  function handleMouseMove(e: React.MouseEvent) {
+    if (draggingRef.current) return // arraste da alça manda durante o arraste, não o hover
+    const f = fractionFromClientX(e.clientX)
+    if (f == null) return
+    updatePosition(f)
+  }
+
   function handleMouseLeave() {
+    if (draggingRef.current) return
     if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
     setHoverFraction(null)
     setPreviewFraction(null)
@@ -144,7 +168,49 @@ export default function HistoryTimeline({
     if (hit) onSelect(hit.rec.id)
   }
 
+  function handleHandlePointerDown(e: React.PointerEvent) {
+    draggingRef.current = true
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    const f = fractionFromClientX(e.clientX)
+    if (f == null) return
+    setDragFraction(f)
+    updatePosition(f)
+  }
+
+  function handleHandlePointerMove(e: React.PointerEvent) {
+    if (!draggingRef.current) return
+    const f = fractionFromClientX(e.clientX)
+    if (f == null) return
+    setDragFraction(f)
+    updatePosition(f)
+  }
+
+  function handleHandlePointerUp(e: React.PointerEvent) {
+    if (!draggingRef.current) return
+    draggingRef.current = false
+    e.currentTarget.releasePointerCapture?.(e.pointerId)
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+    const f = dragFraction
+    setDragFraction(null)
+    setHoverFraction(null)
+    setPreviewFraction(null)
+    if (f == null) return
+    const ms = posToTime(f, win)
+    const hit = recordingAtMs(recordingItems, ms, CHUNK_FALLBACK_MS)
+    if (hit) onSelect(hit.rec.id)
+  }
+
   const previewMs = previewFraction != null ? posToTime(previewFraction, win) : null
+
+  // Posição de repouso da alça: a gravação selecionada atualmente. Durante um arraste,
+  // `dragFraction` manda em vez disso. Sem seleção e fora de um arraste, a alça não
+  // aparece (nada pra "estar em cima").
+  const selectedItem =
+    selectedId != null ? recordingItems.find((i) => i.rec.id === selectedId) : undefined
+  const restingFraction = selectedItem
+    ? timePosFraction(Date.parse(selectedItem.rec.start), win)
+    : null
+  const handleFraction = dragFraction ?? restingFraction
 
   return (
     <div id="history-timeline" className="mt-2 flex flex-col gap-1">
@@ -201,6 +267,19 @@ export default function HistoryTimeline({
             )
           })}
         </div>
+        {handleFraction != null && (
+          <div
+            id="history-timeline-handle"
+            role="button"
+            tabIndex={0}
+            aria-label="Arrastar para selecionar gravação"
+            onPointerDown={handleHandlePointerDown}
+            onPointerMove={handleHandlePointerMove}
+            onPointerUp={handleHandlePointerUp}
+            className="absolute -top-2.5 h-4 w-4 -translate-x-1/2 cursor-grab touch-none rounded-full bg-primary shadow ring-2 ring-background active:cursor-grabbing"
+            style={{ left: `${handleFraction * 100}%` }}
+          />
+        )}
         {hoverFraction != null && (
           <div
             className="pointer-events-none absolute top-0 h-6 w-px bg-foreground/80"

@@ -658,6 +658,7 @@ export default function HistoryPage() {
                   recordingItems={recordingItems}
                   onSelect={selectRecording}
                   cameraId={camera.id}
+                  selectedId={selectedId}
                 />
               </div>
               {/* Sidebar — sibling de `history-main` dentro da MESMA linha; por estar dentro

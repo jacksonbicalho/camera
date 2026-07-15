@@ -248,4 +248,92 @@ describe('HistoryTimeline', () => {
     fireEvent.click(document.getElementById('history-timeline-track')!, { clientX: 9999 })
     expect(onSelect).toHaveBeenCalledWith(2)
   })
+
+  it('CA4drag: arrastar a alça atualiza a posição/preview, sem chamar onSelect durante o arraste', () => {
+    vi.useFakeTimers()
+    const onSelect = vi.fn()
+    const items = [
+      item(1, '2026-07-05T05:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:00:00Z', 'movimento'),
+    ]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
+    )
+    mockTrackRect(2400)
+    const handle = document.getElementById('history-timeline-handle')!
+    fireEvent.pointerDown(handle, {
+      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(handle, {
+      clientX: clientXFor('2026-07-05T10:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(handle, {
+      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+      pointerId: 1,
+    })
+    // Nenhuma troca de gravação durante o arraste — só ao soltar (CA5drag).
+    expect(onSelect).not.toHaveBeenCalled()
+
+    act(() => vi.advanceTimersByTime(200))
+    const preview = document.getElementById('history-timeline-preview')
+    expect(preview?.textContent).toContain('18:00')
+  })
+
+  it('CA5drag: soltar a alça seleciona a gravação mais próxima da posição final, exatamente uma vez', () => {
+    const onSelect = vi.fn()
+    const items = [
+      item(1, '2026-07-05T05:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:00:00Z', 'movimento'),
+    ]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
+    )
+    mockTrackRect(2400)
+    const handle = document.getElementById('history-timeline-handle')!
+    fireEvent.pointerDown(handle, {
+      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(handle, {
+      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerUp(handle, {
+      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+      pointerId: 1,
+    })
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith(2)
+  })
+
+  it('CA5drag: sem nenhum pointermove entre down e up (clique rápido na alça), ainda assim seleciona a posição do down', () => {
+    const onSelect = vi.fn()
+    const items = [
+      item(1, '2026-07-05T05:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:00:00Z', 'movimento'),
+    ]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={2} />,
+    )
+    mockTrackRect(2400)
+    const handle = document.getElementById('history-timeline-handle')!
+    fireEvent.pointerDown(handle, {
+      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerUp(handle, {
+      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      pointerId: 1,
+    })
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith(1)
+  })
+
+  it('sem selectedId e sem arraste em andamento, a alça não aparece', () => {
+    const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    expect(document.getElementById('history-timeline-handle')).toBeNull()
+  })
 })
