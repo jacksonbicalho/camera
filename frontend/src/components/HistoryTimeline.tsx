@@ -16,8 +16,9 @@ interface RecordingItem {
 }
 
 interface HistoryTimelineProps {
-  /** Gravações do dia inteiro, já com a categoria calculada — SEM o filtro de chips
-   * (Tudo/Movimento/Pessoa/Contínua), que afeta só a lista abaixo, não esta visão geral. */
+  /** Gravações do dia já filtradas pelo chip ativo (Tudo/Movimento/Pessoa/Contínua) e com
+   * a categoria calculada — mesmo universo de dados da lista agrupada abaixo. Hora sem
+   * nenhum item do filtro ativo vira bloco neutro (mesmo tratamento de "hora sem gravação"). */
   recordingItems: RecordingItem[]
   /** Chamado com o id da gravação escolhida (clique na trilha ou soltar a alça). */
   onSelect: (id: number) => void
@@ -26,6 +27,15 @@ interface HistoryTimelineProps {
   /** Gravação selecionada atualmente — posiciona a alça em repouso (fora de um arraste
    * em andamento). Sem seleção, a alça não aparece. */
   selectedId?: number | null
+  /** Dia sendo exibido (qualquer instante dele — só ano/mês/dia local importam). Define a
+   * janela de 24h mesmo quando o filtro ativo deixa `recordingItems` vazio: sem essa prop,
+   * a janela seria derivada do 1º item de `recordingItems`, que não existe nesse caso — a
+   * régua inteira (blocos neutros, resumo, alça) sumiria por causa do filtro, em vez de só
+   * as horas sem gravação virarem neutras (o resto do dia pode ter gravação em outra
+   * categoria). Opcional só para não quebrar chamadores/testes que não têm um "dia"
+   * próprio pra passar — nesse caso cai no comportamento antigo (deriva do 1º item, exige
+   * `recordingItems` não vazio). */
+  day?: Date
 }
 
 // Prioridade (maior → menor) para resolver a cor de um bloco de hora com várias
@@ -82,6 +92,7 @@ export default function HistoryTimeline({
   onSelect,
   cameraId,
   selectedId,
+  day,
 }: HistoryTimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -114,7 +125,11 @@ export default function HistoryTimeline({
     [],
   )
 
-  if (recordingItems.length === 0) return null
+  // Sem `day` explícito, precisa de pelo menos 1 item pra saber que dia é (comportamento
+  // antigo, mantido pra não quebrar chamadores que não têm um "dia" próprio pra passar).
+  // Com `day`, a régua aparece mesmo sem NENHUM item (ex.: filtro ativo sem nenhuma
+  // gravação da categoria naquele dia) — vira 24 blocos neutros, não desaparece.
+  if (recordingItems.length === 0 && !day) return null
 
   const byHour = new Map<number, RecordingItem[]>()
   for (const item of recordingItems) {
@@ -137,10 +152,16 @@ export default function HistoryTimeline({
     }
   }
 
-  // Janela do dia: meia-noite local (do 1º item) até +24h — régua fixa, sem seletor de
-  // janela/zoom (o mockup não pede).
-  const first = new Date(recordingItems[0].rec.start)
-  const dayStartMs = new Date(first.getFullYear(), first.getMonth(), first.getDate()).getTime()
+  // Janela do dia: meia-noite local até +24h — régua fixa, sem seletor de janela/zoom (o
+  // mockup não pede). Prefere `day` (sempre correto, mesmo com `recordingItems` vazio);
+  // sem ele, deriva do 1º item — só possível porque o guard acima garante não-vazio nesse
+  // caso.
+  const referenceDay = day ?? new Date(recordingItems[0].rec.start)
+  const dayStartMs = new Date(
+    referenceDay.getFullYear(),
+    referenceDay.getMonth(),
+    referenceDay.getDate(),
+  ).getTime()
   const win: TimelineWindow = { startMs: dayStartMs, endMs: dayStartMs + 24 * 3600_000 }
 
   function fractionFromClientX(clientX: number): number | null {
@@ -248,7 +269,8 @@ export default function HistoryTimeline({
   return (
     <div id="history-timeline" className="mt-2 flex flex-col gap-1">
       <div id="history-timeline-summary" className="text-caption text-muted">
-        {recordingItems.length} gravações · pico entre {peakHour}h e {peakHour + 1}h
+        {recordingItems.length} gravações
+        {recordingItems.length > 0 && ` · pico entre ${peakHour}h e ${peakHour + 1}h`}
       </div>
       <div className="relative flex flex-col gap-1">
         {previewMs != null && (

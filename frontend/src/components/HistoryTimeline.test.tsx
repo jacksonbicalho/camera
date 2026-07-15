@@ -95,6 +95,25 @@ describe('HistoryTimeline', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  it('CA2: com `day` explícito, filtro sem NENHUMA gravação correspondente ainda renderiza a régua inteira (24 blocos neutros) — não desaparece', () => {
+    // Diferente do teste acima: ali não há `day` (não dá pra saber que dia é sem nenhum
+    // item), então some de propósito. Aqui o dia É conhecido (ex.: HistoryPage sempre tem
+    // `selectedDate`) — um filtro que zera a lista não deve fazer a régua sumir, só as
+    // horas ficarem neutras (mesmo espírito de "hora sem gravação" já existente).
+    render(
+      <HistoryTimeline
+        recordingItems={[]}
+        onSelect={vi.fn()}
+        cameraId="cam1"
+        day={new Date('2026-07-05T12:00:00Z')}
+      />,
+    )
+    expect(document.getElementById('history-timeline-track')).not.toBeNull()
+    expect(document.getElementById('history-timeline-hour-0')!.className).toContain('bg-surface-2')
+    expect(document.getElementById('history-timeline-hour-23')!.className).toContain('bg-surface-2')
+    expect(document.getElementById('history-timeline-summary')!.textContent).toBe('0 gravações')
+  })
+
   it('CA3: clique na trilha seleciona a gravação mais próxima daquele instante', () => {
     const onSelect = vi.fn()
     const items = [
