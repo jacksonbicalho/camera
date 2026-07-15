@@ -22,11 +22,35 @@ describe('DatePicker', () => {
     expect(document.getElementById('dp-popover')).toBeNull()
   })
 
-  it('openUp: popover abre pra cima (bottom-full), não pra baixo — evita ficar escondido perto do rodapé', () => {
+  it('openUp: popover abre pra cima (style.bottom), não pra baixo (sem style.top) — evita ficar escondido perto do rodapé', () => {
     render(<DatePicker id="dp" value={new Date(2026, 5, 15)} onChange={() => {}} openUp />)
     fireEvent.click(document.getElementById('dp')!)
-    expect(document.getElementById('dp-popover')?.className).toContain('bottom-full')
-    expect(document.getElementById('dp-popover')?.className).not.toContain('mt-1')
+    const popover = document.getElementById('dp-popover') as HTMLElement
+    expect(popover.style.bottom).not.toBe('')
+    expect(popover.style.top).toBe('')
+  })
+
+  it('CA3: popover renderiza via portal (filho de document.body), não fica preso a nenhum overflow-hidden ancestral', () => {
+    render(<DatePicker id="dp" value={new Date(2026, 5, 15)} onChange={() => {}} />)
+    fireEvent.click(document.getElementById('dp')!)
+    const popover = document.getElementById('dp-popover')!
+    expect(popover.parentElement).toBe(document.body)
+  })
+
+  it('CA3: clicar dentro do popover (ex.: navegação de mês do calendário) não fecha o popover como se fosse clique-fora', () => {
+    render(<DatePicker id="dp" value={new Date(2026, 5, 15)} onChange={() => {}} />)
+    fireEvent.click(document.getElementById('dp')!)
+    const popover = document.getElementById('dp-popover')!
+    fireEvent.mouseDown(popover)
+    expect(document.getElementById('dp-popover')).not.toBeNull()
+  })
+
+  it('CA3: clicar genuinamente fora (nem botão, nem popover) fecha o popover', () => {
+    render(<DatePicker id="dp" value={new Date(2026, 5, 15)} onChange={() => {}} />)
+    fireEvent.click(document.getElementById('dp')!)
+    expect(document.getElementById('dp-popover')).not.toBeNull()
+    fireEvent.mouseDown(document.body)
+    expect(document.getElementById('dp-popover')).toBeNull()
   })
 
   it('com availableDays: dia sem conteúdo fica desabilitado, dia com conteúdo habilitado', () => {
