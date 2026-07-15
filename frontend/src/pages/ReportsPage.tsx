@@ -250,13 +250,16 @@ export default function ReportsPage() {
           subtitle={
             <>
               {camName && (
-                <p id="report-camera-name" className="text-base font-medium text-foreground">
+                <span
+                  id="report-camera-name"
+                  className="block text-base font-medium text-foreground"
+                >
                   {camName}
-                </p>
+                </span>
               )}
-              <p id="report-stats-line" className="text-sm text-muted mt-1">
+              <span id="report-stats-line" className="block text-sm text-muted mt-1">
                 Estatísticas de eventos — {report?.total ?? 0} no período.
-              </p>
+              </span>
             </>
           }
           actions={
