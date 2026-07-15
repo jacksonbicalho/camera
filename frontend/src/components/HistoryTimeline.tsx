@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { getToken } from '../auth'
 import { CHUNK_FALLBACK_MS, type Recording } from '../pages/cameraUtils'
 import { CAT_PRIORITY as EVENT_CAT_PRIORITY, type RecordingCategory } from '../pages/eventCategory'
-import { posToTime, recordingAtMs, timePosFraction, type TimelineWindow } from './timelineScale'
+import {
+  isCoveredByRecording,
+  posToTime,
+  recordingAtMs,
+  timePosFraction,
+  type TimelineWindow,
+} from './timelineScale'
 
 interface RecordingItem {
   rec: Recording
@@ -200,7 +206,15 @@ export default function HistoryTimeline({
     if (hit) onSelect(hit.rec.id)
   }
 
-  const previewMs = previewFraction != null ? posToTime(previewFraction, win) : null
+  // Sem cobertura de gravação real no instante, não mostra o preview — uma miniatura da
+  // gravação mais próxima insinuaria "tem vídeo aqui" numa lacuna franca do dia (ex.: hora
+  // sem nenhuma gravação), o que é enganoso.
+  const previewCandidateMs = previewFraction != null ? posToTime(previewFraction, win) : null
+  const previewMs =
+    previewCandidateMs != null &&
+    isCoveredByRecording(recordingItems, previewCandidateMs, CHUNK_FALLBACK_MS)
+      ? previewCandidateMs
+      : null
 
   // Posição de repouso da alça: a gravação selecionada atualmente. Durante um arraste,
   // `dragFraction` manda em vez disso. Sem seleção e fora de um arraste, a alça não
@@ -298,9 +312,14 @@ export default function HistoryTimeline({
             style={{ left: `${hoverFraction * 100}%` }}
           />
         )}
-        <div id="history-timeline-labels" className="flex justify-between text-caption text-faint">
+        {/* Mesmo esquema de 24 células flex-1 dos blocos da trilha (não justify-between,
+            que espalha borda-a-borda) — cada número fica centralizado sob o bloco da
+            própria hora, não numa fronteira entre dois blocos. */}
+        <div id="history-timeline-labels" className="flex text-caption text-faint">
           {HOUR_LABELS.map((h) => (
-            <span key={h}>{h}</span>
+            <span key={h} className="flex-1 text-center">
+              {h}
+            </span>
           ))}
         </div>
       </div>

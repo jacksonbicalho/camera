@@ -160,6 +160,19 @@ describe('HistoryTimeline', () => {
     expect(img.getAttribute('src')).toContain('token=fake-token')
   })
 
+  it('CA4: numa lacuna sem nenhuma gravação (hora sem vídeo), o preview NÃO aparece', () => {
+    vi.useFakeTimers()
+    // Só há gravação às 07h — 18h é uma lacuna franca (sem cobertura nenhuma).
+    const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    mockTrackRect(2400)
+    fireEvent.mouseMove(document.getElementById('history-timeline-track')!, {
+      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+    })
+    act(() => vi.advanceTimersByTime(200))
+    expect(document.getElementById('history-timeline-preview')).toBeNull()
+  })
+
   it('CA4: mousemove contínuo reinicia o debounce — não busca uma imagem por posição intermediária', () => {
     vi.useFakeTimers()
     const onFrameRequests: string[] = []
