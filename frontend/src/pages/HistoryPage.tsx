@@ -7,6 +7,7 @@ import CameraViewTabs from '../components/CameraViewTabs'
 import DatePicker from '../components/DatePicker'
 import { ChevronDown, Loader2, Play } from '../components/Icons'
 import VideoPlayer, { type VideoPlayerSegment } from '../components/VideoPlayer'
+import HistoryTimeline from '../components/HistoryTimeline'
 import {
   loadMotionEvents,
   loadRecordingsData,
@@ -656,6 +657,7 @@ export default function HistoryPage() {
                     </>
                   }
                 />
+                <HistoryTimeline recordingItems={recordingItems} onSelect={selectRecording} />
               </div>
               {/* Sidebar — sibling de `history-main` dentro da MESMA linha; por estar dentro
                 do `children` do `CameraStageHeader` junto com `history-main`, o topo alinha

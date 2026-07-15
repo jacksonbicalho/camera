@@ -20,8 +20,9 @@ export type RecordingCategory = EventCategory | 'continua'
 // Prioridade (maior → menor) para resolver a categoria de um chunk com vários
 // eventos: pessoa > ia > movimento > estados. Detecção real predomina; um chunk cujo
 // único evento é uma transição de estado fica `estados` (verde, como na timeline) em
-// vez de cair em `continua` (azul).
-const CAT_PRIORITY: EventCategory[] = ['pessoa', 'ia', 'movimento', 'estados']
+// vez de cair em `continua` (azul). Exportada — HistoryTimeline.tsx reusa esta ordem
+// (com `continua` acrescentada ao final) pra colorir blocos com várias categorias.
+export const CAT_PRIORITY: EventCategory[] = ['pessoa', 'ia', 'movimento', 'estados']
 
 // recordingCategory classifica um chunk de gravação pela categoria dos eventos
 // no seu intervalo [start, start+chunk): a de maior prioridade; `continua` se
