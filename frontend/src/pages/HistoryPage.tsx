@@ -691,6 +691,7 @@ export default function HistoryPage() {
                           [
                             { value: 'todos', label: 'Tudo' },
                             { value: 'movimento', label: 'Movimento' },
+                            { value: 'pessoa', label: 'Pessoa' },
                             { value: 'continua', label: 'Contínua' },
                           ] as const
                         ).map((chip) => (
@@ -700,12 +701,18 @@ export default function HistoryPage() {
                             type="button"
                             onClick={() => setFilter(chip.value)}
                             aria-pressed={filter === chip.value}
-                            className={`rounded-full border px-3 py-1 text-caption font-medium transition-colors ${
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-caption font-medium transition-colors ${
                               filter === chip.value
                                 ? 'border-primary bg-primary/15 text-primary'
                                 : 'border-border text-muted hover:text-foreground'
                             }`}
                           >
+                            {chip.value === 'pessoa' && (
+                              <span
+                                className="h-1.5 w-1.5 rounded-full bg-red-500"
+                                aria-hidden="true"
+                              />
+                            )}
                             {chip.label}
                           </button>
                         ))}

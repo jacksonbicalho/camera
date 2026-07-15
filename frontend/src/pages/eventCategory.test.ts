@@ -173,4 +173,13 @@ describe('matchesTimelineFilter', () => {
     expect(matchesTimelineFilter('estados', 'movimento')).toBe(true)
     expect(matchesTimelineFilter('continua', 'movimento')).toBe(false)
   })
+  it('CA2: "pessoa" casa só com a categoria pessoa (igualdade estrita, não altera "movimento")', () => {
+    expect(matchesTimelineFilter('pessoa', 'pessoa')).toBe(true)
+    expect(matchesTimelineFilter('movimento', 'pessoa')).toBe(false)
+    expect(matchesTimelineFilter('ia', 'pessoa')).toBe(false)
+    expect(matchesTimelineFilter('estados', 'pessoa')).toBe(false)
+    expect(matchesTimelineFilter('continua', 'pessoa')).toBe(false)
+    // "movimento" continua inalterado — pessoa ainda casa com ele também.
+    expect(matchesTimelineFilter('pessoa', 'movimento')).toBe(true)
+  })
 })
