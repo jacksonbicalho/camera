@@ -200,17 +200,17 @@ export default function HistoryTimeline({
   }
 
   // Resolve a gravação mais próxima de `f` e posiciona a alça — usada tanto pelo clique
-  // direto na trilha quanto por soltar o arraste. Se `f` cai DENTRO de uma gravação real,
-  // a alça fica exatamente ali (comportamento corrigido na história anterior: soltar
-  // dentro da mesma gravação já selecionada não deve "pular" pro início dela). Se `f` cai
-  // numa lacuna sem gravação nenhuma, a alça vai para a posição REAL da gravação
-  // encontrada por proximidade (`recordingAtMs` sempre acha uma, mesmo numa lacuna) — sem
-  // isso, a alça ficava visualmente "descolada" da gravação de fato selecionada.
+  // direto na trilha quanto por soltar o arraste. As linhas verticais (uma por gravação,
+  // ver render da trilha abaixo) são os ÚNICOS pontos onde a alça pode "grudar": a
+  // posição de repouso sempre vai para o INÍCIO da gravação encontrada (`recordingAtMs`
+  // sempre acha uma, mesmo numa lacuna sem gravação nenhuma) — nunca fica num ponto
+  // livre/contínuo, mesmo soltando dentro da mesma gravação já selecionada (reverte de
+  // propósito o comportamento anterior, que deixava a alça exatamente onde foi solta
+  // quando caía dentro de uma gravação real).
   function commitSelection(f: number) {
     const ms = posToTime(f, win)
     const hit = recordingAtMs(recordingItems, ms, CHUNK_FALLBACK_MS)
-    const covered = isCoveredByRecording(recordingItems, ms, CHUNK_FALLBACK_MS)
-    setRestingFraction(covered || !hit ? f : timePosFraction(Date.parse(hit.rec.start), win))
+    setRestingFraction(hit ? timePosFraction(Date.parse(hit.rec.start), win) : f)
     if (hit) onSelect(hit.rec.id)
   }
 
@@ -326,13 +326,32 @@ export default function HistoryTimeline({
               const cat = items
                 ? CAT_PRIORITY.find((c) => items.some((i) => i.category === c))
                 : undefined
+              // Início desta hora em ms (mesma janela local de `dayStartMs`) — base pra
+              // calcular a fração de CADA gravação DENTRO da hora (não do dia inteiro),
+              // uma linha vertical por gravação, na posição real (proporcional ao
+              // horário de início), não distribuída uniformemente por índice.
+              const hourStartMs = dayStartMs + hour * 3600_000
               return (
                 <div
                   key={hour}
                   id={`history-timeline-hour-${hour}`}
                   aria-hidden="true"
-                  className={`h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'}`}
-                />
+                  className={`relative h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'}`}
+                >
+                  {items?.map((item) => {
+                    const startMs = Date.parse(item.rec.start)
+                    const frac = (startMs - hourStartMs) / 3600_000
+                    const clamped = frac < 0 ? 0 : frac > 1 ? 1 : frac
+                    return (
+                      <span
+                        key={item.rec.id}
+                        id={`history-timeline-hour-${hour}-rec-${item.rec.id}`}
+                        className="absolute top-0 h-full w-px bg-foreground/70"
+                        style={{ left: `${clamped * 100}%` }}
+                      />
+                    )
+                  })}
+                </div>
               )
             })}
           </div>

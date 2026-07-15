@@ -363,14 +363,14 @@ describe('HistoryTimeline', () => {
     expect(onSelect).toHaveBeenCalledWith(1)
   })
 
-  it('CA5drag: soltar dentro da MESMA gravação (mesmo id resolvido) mantém a alça na posição solta, não pula de volta pro início dela', () => {
+  it('CA5drag/CA3linesnap: soltar dentro da MESMA gravação (mesmo id resolvido) sempre volta a alça pro início dela — as linhas são os únicos pontos onde ela gruda', () => {
     // A cobertura de uma gravação é de CHUNK_FALLBACK_MS (5min) a partir do início — soltar
     // 3min depois do início ainda resolve pro MESMO id (1), então onSelect(1) não muda o
-    // selectedId (HistoryPage não re-renderiza com um selectedId novo). Mesmo assim, a alça
-    // deve continuar na posição solta (05:03), não voltar pro início da gravação (05:00) —
-    // "snapar de volta" é a queixa relatada ("não consigo arrastar pouco dentro da mesma
-    // cor": um arraste pequeno o bastante pra não trocar de gravação parecia "não fazer
-    // nada" porque a alça voltava pro início.
+    // selectedId (HistoryPage não re-renderiza com um selectedId novo). MESMO ASSIM, a alça
+    // deve voltar pro início da gravação (05:00) — comportamento intencional desta história:
+    // as linhas verticais (uma por gravação) são os ÚNICOS pontos onde o ponteiro pode
+    // "grudar", nunca um ponto livre/contínuo dentro da gravação (reverte de propósito o
+    // comportamento anterior, que mantinha a alça exatamente onde foi solta).
     const onSelect = vi.fn()
     const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
     render(
@@ -391,8 +391,56 @@ describe('HistoryTimeline', () => {
       pointerId: 1,
     })
     expect(onSelect).toHaveBeenCalledWith(1)
-    const droppedFraction = clientXFor('2026-07-05T05:03:00Z', 2400) / 2400
-    expect(handle.style.left).toBe(`${droppedFraction * 100}%`)
+    const startFraction = clientXFor('2026-07-05T05:00:00Z', 2400) / 2400
+    expect(handle.style.left).toBe(`${startFraction * 100}%`)
+  })
+
+  it('CA3linesnap: clicar numa lacuna sem gravação nenhuma também gruda no início da gravação real mais próxima, nunca num ponto livre', () => {
+    const onSelect = vi.fn()
+    const items = [
+      item(1, '2026-07-05T05:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:00:00Z', 'movimento'),
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
+    mockTrackRect(2400)
+    // 10h: mais perto de 05:00 (5h de distância) do que de 18:00 (8h de distância) — gruda
+    // no início da gravação 1, nunca na posição livre de 10h.
+    fireEvent.click(document.getElementById('history-timeline-track')!, {
+      clientX: clientXFor('2026-07-05T10:00:00Z', 2400),
+    })
+    expect(onSelect).toHaveBeenCalledWith(1)
+    const startFraction = clientXFor('2026-07-05T05:00:00Z', 2400) / 2400
+    const handle = document.getElementById('history-timeline-handle')!
+    expect(handle.style.left).toBe(`${startFraction * 100}%`)
+  })
+
+  it('CA2vlines: cada bloco de hora renderiza uma linha vertical por gravação, posicionada pela fração real do horário dentro da hora', () => {
+    // Hora 7 com 2 gravações: uma no início (07:00, fração 0 dentro da hora) e outra na
+    // metade (07:30, fração 0.5) — a posição de cada linha reflete o horário real, não a
+    // ordem/índice (uma distribuição uniforme por índice colocaria a 2ª em 100%, não 50%).
+    const items = [
+      item(1, '2026-07-05T07:00:00Z', 'continua'),
+      item(2, '2026-07-05T07:30:00Z', 'continua'),
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    const line1 = document.getElementById('history-timeline-hour-7-rec-1')!
+    const line2 = document.getElementById('history-timeline-hour-7-rec-2')!
+    expect(line1.style.left).toBe('0%')
+    expect(line2.style.left).toBe('50%')
+  })
+
+  it('CA2vlines: hora com N gravações renderiza N linhas — quantidade acompanha a quantidade real de gravações', () => {
+    const items = [
+      item(1, '2026-07-05T07:00:00Z', 'continua'),
+      item(2, '2026-07-05T07:10:00Z', 'continua'),
+      item(3, '2026-07-05T07:20:00Z', 'continua'),
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    const hour7 = document.getElementById('history-timeline-hour-7')!
+    expect(hour7.querySelectorAll('span').length).toBe(3)
+    // Hora sem nenhuma gravação não renderiza linha nenhuma.
+    const hour0 = document.getElementById('history-timeline-hour-0')!
+    expect(hour0.querySelectorAll('span').length).toBe(0)
   })
 
   it('CA3snap: soltar numa lacuna sem gravação nenhuma reposiciona a alça pra gravação REAL selecionada, não fica solta no vazio', () => {
