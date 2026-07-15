@@ -268,6 +268,9 @@ export default function HistoryTimeline({
           })}
         </div>
         {handleFraction != null && (
+          // Ponteiro estilo "lollipop" (bolinha + haste descendo até a trilha, como um
+          // ponteiro de relógio apontando pra baixo) — um único alvo de pointer events
+          // (a bolinha E a haste arrastam), só a bolinha fica visualmente acima da trilha.
           <div
             id="history-timeline-handle"
             role="button"
@@ -276,9 +279,12 @@ export default function HistoryTimeline({
             onPointerDown={handleHandlePointerDown}
             onPointerMove={handleHandlePointerMove}
             onPointerUp={handleHandlePointerUp}
-            className="absolute -top-2.5 h-4 w-4 -translate-x-1/2 cursor-grab touch-none rounded-full bg-primary shadow ring-2 ring-background active:cursor-grabbing"
+            className="absolute -top-2.5 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
             style={{ left: `${handleFraction * 100}%` }}
-          />
+          >
+            <span className="h-3 w-3 shrink-0 rounded-full bg-primary shadow ring-2 ring-background" />
+            <span className="h-6 w-0.5 bg-primary" />
+          </div>
         )}
         {hoverFraction != null && (
           <div
