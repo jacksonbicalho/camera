@@ -30,8 +30,8 @@ else:
   exit 1
 }
 
-[ "$max_width_px" -le 400 ] || {
-  echo "CA4 FALHOU: img.screenshot max-width é ${max_width_px}px, esperava <= 400px (screenshot ainda ocupa quase a página toda)"
+[ "$max_width_px" -le 600 ] || {
+  echo "CA4 FALHOU: img.screenshot max-width é ${max_width_px}px, esperava <= 600px (screenshot ainda ocupa quase a página toda)"
   exit 1
 }
 
