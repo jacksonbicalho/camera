@@ -94,6 +94,18 @@ export default function HistoryTimeline({
   const [previewFraction, setPreviewFraction] = useState<number | null>(null)
   const [previewFailed, setPreviewFailed] = useState(false)
   const [dragFraction, setDragFraction] = useState<number | null>(null)
+  // Posição de repouso da alça (fora de um arraste em andamento) — não é recomputada
+  // direto de `selectedId` a cada render: um `pointerup` dentro da MESMA gravação que já
+  // estava selecionada não muda `selectedId` (HistoryPage só troca de estado quando o id
+  // muda de verdade), então recomputar sempre a partir do início da gravação faria a alça
+  // "pular de volta" pro início dela mesmo depois de soltar num ponto mais à frente —
+  // parecendo que um arraste pequeno "não fez nada" (queixa relatada). `pointerup` seta
+  // esta posição diretamente pro ponto solto; só sincroniza com `selectedId` quando ele
+  // muda "de fora" (clique na lista lateral, seleção automática ao trocar de dia).
+  const [restingFraction, setRestingFraction] = useState<number | null>(null)
+  // Guarda o último `selectedId` já sincronizado — precisa ser estado, não ref: o lint
+  // (react-hooks/refs) barra ler/escrever `.current` durante o render.
+  const [syncedSelectedId, setSyncedSelectedId] = useState<number | null | undefined>(undefined)
 
   useEffect(
     () => () => {
@@ -169,6 +181,7 @@ export default function HistoryTimeline({
   function handleClick(e: React.MouseEvent) {
     const f = fractionFromClientX(e.clientX)
     if (f == null) return
+    setRestingFraction(f)
     const ms = posToTime(f, win)
     const hit = recordingAtMs(recordingItems, ms, CHUNK_FALLBACK_MS)
     if (hit) onSelect(hit.rec.id)
@@ -201,6 +214,7 @@ export default function HistoryTimeline({
     setHoverFraction(null)
     setPreviewFraction(null)
     if (f == null) return
+    setRestingFraction(f) // fica onde soltou — não pula de volta pro início da gravação
     const ms = posToTime(f, win)
     const hit = recordingAtMs(recordingItems, ms, CHUNK_FALLBACK_MS)
     if (hit) onSelect(hit.rec.id)
@@ -216,14 +230,19 @@ export default function HistoryTimeline({
       ? previewCandidateMs
       : null
 
-  // Posição de repouso da alça: a gravação selecionada atualmente. Durante um arraste,
-  // `dragFraction` manda em vez disso. Sem seleção e fora de um arraste, a alça não
-  // aparece (nada pra "estar em cima").
-  const selectedItem =
-    selectedId != null ? recordingItems.find((i) => i.rec.id === selectedId) : undefined
-  const restingFraction = selectedItem
-    ? timePosFraction(Date.parse(selectedItem.rec.start), win)
-    : null
+  // Sincroniza `restingFraction` com `selectedId` só quando ele muda "de fora" (clique na
+  // lista lateral, seleção automática ao trocar de dia) — ajuste durante o render (mesmo
+  // padrão de `errorForId`/`continuousResetForDate` em HistoryPage.tsx), não
+  // useEffect+setState. Um clique/soltar do PRÓPRIO timeline já setou `restingFraction`
+  // direto (handleClick/handleHandlePointerUp) — não precisa (e não deve) recomputar daqui.
+  if (selectedId !== syncedSelectedId) {
+    setSyncedSelectedId(selectedId)
+    const selectedItem =
+      selectedId != null ? recordingItems.find((i) => i.rec.id === selectedId) : undefined
+    setRestingFraction(
+      selectedItem ? timePosFraction(Date.parse(selectedItem.rec.start), win) : null,
+    )
+  }
   const handleFraction = dragFraction ?? restingFraction
 
   return (
@@ -302,7 +321,7 @@ export default function HistoryTimeline({
             <span className="w-1 flex-1 bg-primary" />
             <span
               aria-hidden="true"
-              className="h-0 w-0 shrink-0 border-x-4 border-t-4 border-x-transparent border-t-primary"
+              className="h-0 w-0 shrink-0 border-x-8 border-t-8 border-x-transparent border-t-primary"
             />
           </div>
         )}

@@ -344,6 +344,38 @@ describe('HistoryTimeline', () => {
     expect(onSelect).toHaveBeenCalledWith(1)
   })
 
+  it('CA5drag: soltar dentro da MESMA gravação (mesmo id resolvido) mantém a alça na posição solta, não pula de volta pro início dela', () => {
+    // A cobertura de uma gravação é de CHUNK_FALLBACK_MS (5min) a partir do início — soltar
+    // 3min depois do início ainda resolve pro MESMO id (1), então onSelect(1) não muda o
+    // selectedId (HistoryPage não re-renderiza com um selectedId novo). Mesmo assim, a alça
+    // deve continuar na posição solta (05:03), não voltar pro início da gravação (05:00) —
+    // "snapar de volta" é a queixa relatada ("não consigo arrastar pouco dentro da mesma
+    // cor": um arraste pequeno o bastante pra não trocar de gravação parecia "não fazer
+    // nada" porque a alça voltava pro início.
+    const onSelect = vi.fn()
+    const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
+    )
+    mockTrackRect(2400)
+    const handle = document.getElementById('history-timeline-handle')!
+    fireEvent.pointerDown(handle, {
+      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(handle, {
+      clientX: clientXFor('2026-07-05T05:03:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerUp(handle, {
+      clientX: clientXFor('2026-07-05T05:03:00Z', 2400),
+      pointerId: 1,
+    })
+    expect(onSelect).toHaveBeenCalledWith(1)
+    const droppedFraction = clientXFor('2026-07-05T05:03:00Z', 2400) / 2400
+    expect(handle.style.left).toBe(`${droppedFraction * 100}%`)
+  })
+
   it('sem selectedId e sem arraste em andamento, a alça não aparece', () => {
     const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
