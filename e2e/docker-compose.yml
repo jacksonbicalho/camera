@@ -58,6 +58,7 @@ services:
       E2E_REPORTER: ${E2E_REPORTER:-list}
       E2E_SCREENSHOT: ${E2E_SCREENSHOT:-only-on-failure}
       E2E_VIDEO: ${E2E_VIDEO:-off}
+      E2E_PDF_REPORT: ${E2E_PDF_REPORT:-off}
     command: >
       sh -c "bun install &&
              bunx playwright install --with-deps chromium &&
