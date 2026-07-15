@@ -340,10 +340,12 @@ export default function HistoryTimeline({
             // Ponteiro estilo "lollipop" (bolinha + haste + seta apontando pra baixo, como
             // um ponteiro de relógio) — um único alvo de pointer events (a bolinha, a haste
             // e a seta arrastam juntas). `top`+`bottom` (em vez de uma altura fixa) faz a
-            // haste esticar (`flex-1` no meio) pra acompanhar a trilha inteira. `-bottom-1`
+            // haste esticar (`flex-1` no meio) pra acompanhar a trilha inteira. `-bottom-2`
             // (em vez de `bottom-0`) desce a ponta da seta um pouco PRA FORA da caixa da
-            // trilha (não só encostada na borda) — o espaço que sobra até a linha de
-            // números (`mt-3` nela, ver abaixo) é o que evita a seta cobrir os dígitos.
+            // trilha (não só encostada na borda) — a folga até a linha de números
+            // (`mt-4` nela, ver abaixo) usa o MESMO INCREMENTO ABSOLUTO (+4px em cada,
+            // não uma proporção) que o `-bottom-1`/`mt-3` anteriores, preservando os 12px
+            // de folga (somados ao `gap-1` do flex) que evitam a seta cobrir os dígitos.
             <div
               id="history-timeline-handle"
               role="button"
@@ -352,7 +354,7 @@ export default function HistoryTimeline({
               onPointerDown={handleHandlePointerDown}
               onPointerMove={handleHandlePointerMove}
               onPointerUp={handleHandlePointerUp}
-              className="absolute -top-2.5 -bottom-1 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
+              className="absolute -top-2.5 -bottom-2 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
               style={{ left: `${handleFraction * 100}%` }}
             >
               <span className="h-3 w-3 shrink-0 rounded-full bg-primary shadow ring-2 ring-background" />
@@ -372,11 +374,11 @@ export default function HistoryTimeline({
         </div>
         {/* Mesmo esquema de 24 células flex-1 dos blocos da trilha (não justify-between,
             que espalha borda-a-borda) — cada número fica centralizado sob o bloco da
-            própria hora, não numa fronteira entre dois blocos. `mt-3` (em vez do `gap-1`
-            padrão do wrapper de fora) dá espaço extra pra ponta da seta, que agora para na
-            base do wrapper interno da trilha (ver comentário acima) em vez de esticar até
-            aqui. */}
-        <div id="history-timeline-labels" className="mt-3 flex text-caption text-faint">
+            própria hora, não numa fronteira entre dois blocos. `mt-4` (em vez do `gap-1`
+            padrão do wrapper de fora, que sozinho não seria suficiente) dá espaço extra
+            pra ponta da seta, que agora para na base do wrapper interno da trilha (ver
+            comentário acima) em vez de esticar até aqui. */}
+        <div id="history-timeline-labels" className="mt-4 flex text-caption text-faint">
           {HOUR_LABELS.map((h) => (
             <span key={h} className="flex-1 text-center">
               {h}
