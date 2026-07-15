@@ -95,6 +95,25 @@ describe('HistoryTimeline', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  it('CA2: com `day` explícito, filtro sem NENHUMA gravação correspondente ainda renderiza a régua inteira (24 blocos neutros) — não desaparece', () => {
+    // Diferente do teste acima: ali não há `day` (não dá pra saber que dia é sem nenhum
+    // item), então some de propósito. Aqui o dia É conhecido (ex.: HistoryPage sempre tem
+    // `selectedDate`) — um filtro que zera a lista não deve fazer a régua sumir, só as
+    // horas ficarem neutras (mesmo espírito de "hora sem gravação" já existente).
+    render(
+      <HistoryTimeline
+        recordingItems={[]}
+        onSelect={vi.fn()}
+        cameraId="cam1"
+        day={new Date('2026-07-05T12:00:00Z')}
+      />,
+    )
+    expect(document.getElementById('history-timeline-track')).not.toBeNull()
+    expect(document.getElementById('history-timeline-hour-0')!.className).toContain('bg-surface-2')
+    expect(document.getElementById('history-timeline-hour-23')!.className).toContain('bg-surface-2')
+    expect(document.getElementById('history-timeline-summary')!.textContent).toBe('0 gravações')
+  })
+
   it('CA3: clique na trilha seleciona a gravação mais próxima daquele instante', () => {
     const onSelect = vi.fn()
     const items = [
@@ -376,9 +395,62 @@ describe('HistoryTimeline', () => {
     expect(handle.style.left).toBe(`${droppedFraction * 100}%`)
   })
 
+  it('CA3snap: soltar numa lacuna sem gravação nenhuma reposiciona a alça pra gravação REAL selecionada, não fica solta no vazio', () => {
+    // item 1 às 05:00 e item 2 às 07:00 (gap de 2h sem cobertura nenhuma, já que
+    // CHUNK_FALLBACK_MS é só 5min). Soltar às 06:30 (mais perto do item 2) seleciona o
+    // item 2 por proximidade (recordingAtMs), mas 06:30 não é coberto por NENHUM dos
+    // dois — a alça deve ir pra posição REAL do item 2 (07:00), não ficar largada em
+    // 06:30 (onde não há gravação nenhuma) — bug relatado pelo navigator.
+    const onSelect = vi.fn()
+    const items = [
+      item(2, '2026-07-05T07:00:00Z', 'continua'),
+      item(1, '2026-07-05T05:00:00Z', 'continua'),
+    ]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
+    )
+    mockTrackRect(2400)
+    const handle = document.getElementById('history-timeline-handle')!
+    fireEvent.pointerDown(handle, {
+      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(handle, {
+      clientX: clientXFor('2026-07-05T06:30:00Z', 2400),
+      pointerId: 1,
+    })
+    fireEvent.pointerUp(handle, {
+      clientX: clientXFor('2026-07-05T06:30:00Z', 2400),
+      pointerId: 1,
+    })
+    expect(onSelect).toHaveBeenCalledWith(2)
+    const snappedFraction = clientXFor('2026-07-05T07:00:00Z', 2400) / 2400
+    expect(handle.style.left).toBe(`${snappedFraction * 100}%`)
+  })
+
   it('sem selectedId e sem arraste em andamento, a alça não aparece', () => {
     const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
     expect(document.getElementById('history-timeline-handle')).toBeNull()
+  })
+
+  it('CA4spacing: a alça desce um pouco pra fora da caixa da trilha, e a linha de números tem espaço extra — sem encolher a seta', () => {
+    const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" selectedId={1} />,
+    )
+    // A seta continua tão larga/alta quanto antes (largura pedida pelo navigator,
+    // preservada) — a correção da sobreposição não pode encolhê-la.
+    const arrow = document.querySelector('#history-timeline-handle span:last-child')!
+    expect(arrow.className).toContain('border-x-8')
+    expect(arrow.className).toContain('border-t-8')
+    // A alça desce (`bottom` negativo) pra fora da caixa da trilha, não fica só encostada
+    // na borda (`bottom-0`).
+    const handle = document.getElementById('history-timeline-handle')!
+    expect(handle.className).toContain('-bottom-1')
+    // A linha de números ganhou espaço extra (margem), abrindo a folga que falta pra ponta
+    // da seta não cobrir os dígitos.
+    const labels = document.getElementById('history-timeline-labels')!
+    expect(labels.className).toMatch(/\bmt-\d/)
   })
 })

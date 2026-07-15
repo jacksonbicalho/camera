@@ -908,6 +908,35 @@ describe('HistoryPage', () => {
       expect(document.getElementById('history-recording-2')).not.toBeNull()
     })
 
+    it('CA2filtro: a régua do HistoryTimeline reflete o filtro ativo — hora fora do filtro vira bloco neutro', async () => {
+      // a.mp4 (07:12:00Z) sem evento → continua; b.mp4 (08:03:00Z) com evento "pessoa
+      // detectada" no mesmo intervalo → categoria pessoa.
+      stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'pessoa detectada' }])
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
+      })
+
+      // sem filtro (Tudo): as duas horas aparecem coloridas pela própria categoria.
+      expect(document.getElementById('history-timeline-hour-7')!.className).toContain('bg-blue-500')
+      expect(document.getElementById('history-timeline-hour-8')!.className).toContain('bg-red-500')
+
+      document
+        .getElementById('history-filter-pessoa')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).toBeNull()
+      })
+
+      // com o filtro "Pessoa": a hora 7 (só tinha gravação "continua", fora do filtro) vira
+      // bloco neutro; a hora 8 (pessoa, dentro do filtro) continua colorida.
+      expect(document.getElementById('history-timeline-hour-7')!.className).toContain(
+        'bg-surface-2',
+      )
+      expect(document.getElementById('history-timeline-hour-8')!.className).toContain('bg-red-500')
+    })
+
     it('grupos por hora mostram a contagem e colapsam/expandem ao clicar no cabeçalho', async () => {
       renderAt('/history/cam1')
       await waitFor(() => {

@@ -655,10 +655,11 @@ export default function HistoryPage() {
                   }
                 />
                 <HistoryTimeline
-                  recordingItems={recordingItems}
+                  recordingItems={filteredRecordingItems}
                   onSelect={selectRecording}
                   cameraId={camera.id}
                   selectedId={selectedId}
+                  day={selectedDate ?? undefined}
                 />
               </div>
               {/* Sidebar — sibling de `history-main` dentro da MESMA linha; por estar dentro

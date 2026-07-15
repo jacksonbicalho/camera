@@ -16,8 +16,9 @@ interface RecordingItem {
 }
 
 interface HistoryTimelineProps {
-  /** Gravações do dia inteiro, já com a categoria calculada — SEM o filtro de chips
-   * (Tudo/Movimento/Pessoa/Contínua), que afeta só a lista abaixo, não esta visão geral. */
+  /** Gravações do dia já filtradas pelo chip ativo (Tudo/Movimento/Pessoa/Contínua) e com
+   * a categoria calculada — mesmo universo de dados da lista agrupada abaixo. Hora sem
+   * nenhum item do filtro ativo vira bloco neutro (mesmo tratamento de "hora sem gravação"). */
   recordingItems: RecordingItem[]
   /** Chamado com o id da gravação escolhida (clique na trilha ou soltar a alça). */
   onSelect: (id: number) => void
@@ -26,6 +27,15 @@ interface HistoryTimelineProps {
   /** Gravação selecionada atualmente — posiciona a alça em repouso (fora de um arraste
    * em andamento). Sem seleção, a alça não aparece. */
   selectedId?: number | null
+  /** Dia sendo exibido (qualquer instante dele — só ano/mês/dia local importam). Define a
+   * janela de 24h mesmo quando o filtro ativo deixa `recordingItems` vazio: sem essa prop,
+   * a janela seria derivada do 1º item de `recordingItems`, que não existe nesse caso — a
+   * régua inteira (blocos neutros, resumo, alça) sumiria por causa do filtro, em vez de só
+   * as horas sem gravação virarem neutras (o resto do dia pode ter gravação em outra
+   * categoria). Opcional só para não quebrar chamadores/testes que não têm um "dia"
+   * próprio pra passar — nesse caso cai no comportamento antigo (deriva do 1º item, exige
+   * `recordingItems` não vazio). */
+  day?: Date
 }
 
 // Prioridade (maior → menor) para resolver a cor de um bloco de hora com várias
@@ -82,6 +92,7 @@ export default function HistoryTimeline({
   onSelect,
   cameraId,
   selectedId,
+  day,
 }: HistoryTimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -114,7 +125,11 @@ export default function HistoryTimeline({
     [],
   )
 
-  if (recordingItems.length === 0) return null
+  // Sem `day` explícito, precisa de pelo menos 1 item pra saber que dia é (comportamento
+  // antigo, mantido pra não quebrar chamadores que não têm um "dia" próprio pra passar).
+  // Com `day`, a régua aparece mesmo sem NENHUM item (ex.: filtro ativo sem nenhuma
+  // gravação da categoria naquele dia) — vira 24 blocos neutros, não desaparece.
+  if (recordingItems.length === 0 && !day) return null
 
   const byHour = new Map<number, RecordingItem[]>()
   for (const item of recordingItems) {
@@ -137,10 +152,16 @@ export default function HistoryTimeline({
     }
   }
 
-  // Janela do dia: meia-noite local (do 1º item) até +24h — régua fixa, sem seletor de
-  // janela/zoom (o mockup não pede).
-  const first = new Date(recordingItems[0].rec.start)
-  const dayStartMs = new Date(first.getFullYear(), first.getMonth(), first.getDate()).getTime()
+  // Janela do dia: meia-noite local até +24h — régua fixa, sem seletor de janela/zoom (o
+  // mockup não pede). Prefere `day` (sempre correto, mesmo com `recordingItems` vazio);
+  // sem ele, deriva do 1º item — só possível porque o guard acima garante não-vazio nesse
+  // caso.
+  const referenceDay = day ?? new Date(recordingItems[0].rec.start)
+  const dayStartMs = new Date(
+    referenceDay.getFullYear(),
+    referenceDay.getMonth(),
+    referenceDay.getDate(),
+  ).getTime()
   const win: TimelineWindow = { startMs: dayStartMs, endMs: dayStartMs + 24 * 3600_000 }
 
   function fractionFromClientX(clientX: number): number | null {
@@ -178,13 +199,25 @@ export default function HistoryTimeline({
     setPreviewFraction(null)
   }
 
+  // Resolve a gravação mais próxima de `f` e posiciona a alça — usada tanto pelo clique
+  // direto na trilha quanto por soltar o arraste. Se `f` cai DENTRO de uma gravação real,
+  // a alça fica exatamente ali (comportamento corrigido na história anterior: soltar
+  // dentro da mesma gravação já selecionada não deve "pular" pro início dela). Se `f` cai
+  // numa lacuna sem gravação nenhuma, a alça vai para a posição REAL da gravação
+  // encontrada por proximidade (`recordingAtMs` sempre acha uma, mesmo numa lacuna) — sem
+  // isso, a alça ficava visualmente "descolada" da gravação de fato selecionada.
+  function commitSelection(f: number) {
+    const ms = posToTime(f, win)
+    const hit = recordingAtMs(recordingItems, ms, CHUNK_FALLBACK_MS)
+    const covered = isCoveredByRecording(recordingItems, ms, CHUNK_FALLBACK_MS)
+    setRestingFraction(covered || !hit ? f : timePosFraction(Date.parse(hit.rec.start), win))
+    if (hit) onSelect(hit.rec.id)
+  }
+
   function handleClick(e: React.MouseEvent) {
     const f = fractionFromClientX(e.clientX)
     if (f == null) return
-    setRestingFraction(f)
-    const ms = posToTime(f, win)
-    const hit = recordingAtMs(recordingItems, ms, CHUNK_FALLBACK_MS)
-    if (hit) onSelect(hit.rec.id)
+    commitSelection(f)
   }
 
   function handleHandlePointerDown(e: React.PointerEvent) {
@@ -214,10 +247,7 @@ export default function HistoryTimeline({
     setHoverFraction(null)
     setPreviewFraction(null)
     if (f == null) return
-    setRestingFraction(f) // fica onde soltou — não pula de volta pro início da gravação
-    const ms = posToTime(f, win)
-    const hit = recordingAtMs(recordingItems, ms, CHUNK_FALLBACK_MS)
-    if (hit) onSelect(hit.rec.id)
+    commitSelection(f)
   }
 
   // Sem cobertura de gravação real no instante, não mostra o preview — uma miniatura da
@@ -248,7 +278,8 @@ export default function HistoryTimeline({
   return (
     <div id="history-timeline" className="mt-2 flex flex-col gap-1">
       <div id="history-timeline-summary" className="text-caption text-muted">
-        {recordingItems.length} gravações · pico entre {peakHour}h e {peakHour + 1}h
+        {recordingItems.length} gravações
+        {recordingItems.length > 0 && ` · pico entre ${peakHour}h e ${peakHour + 1}h`}
       </div>
       <div className="relative flex flex-col gap-1">
         {previewMs != null && (
@@ -274,67 +305,78 @@ export default function HistoryTimeline({
             </span>
           </div>
         )}
-        <div
-          id="history-timeline-track"
-          ref={trackRef}
-          role="button"
-          tabIndex={0}
-          aria-label="Selecionar gravação na régua de 24h"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          onClick={handleClick}
-          className="flex h-6 w-full cursor-pointer gap-px overflow-hidden rounded"
-        >
-          {Array.from({ length: 24 }, (_, hour) => {
-            const items = byHour.get(hour)
-            const cat = items
-              ? CAT_PRIORITY.find((c) => items.some((i) => i.category === c))
-              : undefined
-            return (
-              <div
-                key={hour}
-                id={`history-timeline-hour-${hour}`}
-                aria-hidden="true"
-                className={`h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'}`}
-              />
-            )
-          })}
-        </div>
-        {handleFraction != null && (
-          // Ponteiro estilo "lollipop" (bolinha + haste + seta descendo até a linha dos
-          // números, como um ponteiro de relógio apontando pra baixo) — um único alvo de
-          // pointer events (a bolinha, a haste e a seta arrastam juntas). `top`+`bottom`
-          // (em vez de uma altura fixa) faz a haste esticar (`flex-1` no meio) pra
-          // acompanhar o container todo, da bolinha até a linha de rótulos.
+        {/* Wrapper próprio (relative) só pra trilha + alça + linha de hover — a alça usa
+            `bottom-0` ANCORADO NESTE wrapper (não no de fora, que também contém os
+            números), pra que a ponta da seta pare sempre na base da trilha, nunca
+            avançando sobre a linha de números por baixo (mesmo se ela descer). */}
+        <div className="relative">
           <div
-            id="history-timeline-handle"
+            id="history-timeline-track"
+            ref={trackRef}
             role="button"
             tabIndex={0}
-            aria-label="Arrastar para selecionar gravação"
-            onPointerDown={handleHandlePointerDown}
-            onPointerMove={handleHandlePointerMove}
-            onPointerUp={handleHandlePointerUp}
-            className="absolute -top-2.5 bottom-0 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
-            style={{ left: `${handleFraction * 100}%` }}
+            aria-label="Selecionar gravação na régua de 24h"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            onClick={handleClick}
+            className="flex h-6 w-full cursor-pointer gap-px overflow-hidden rounded"
           >
-            <span className="h-3 w-3 shrink-0 rounded-full bg-primary shadow ring-2 ring-background" />
-            <span className="w-1 flex-1 bg-primary" />
-            <span
-              aria-hidden="true"
-              className="h-0 w-0 shrink-0 border-x-8 border-t-8 border-x-transparent border-t-primary"
-            />
+            {Array.from({ length: 24 }, (_, hour) => {
+              const items = byHour.get(hour)
+              const cat = items
+                ? CAT_PRIORITY.find((c) => items.some((i) => i.category === c))
+                : undefined
+              return (
+                <div
+                  key={hour}
+                  id={`history-timeline-hour-${hour}`}
+                  aria-hidden="true"
+                  className={`h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'}`}
+                />
+              )
+            })}
           </div>
-        )}
-        {hoverFraction != null && (
-          <div
-            className="pointer-events-none absolute top-0 h-6 w-px bg-foreground/80"
-            style={{ left: `${hoverFraction * 100}%` }}
-          />
-        )}
+          {handleFraction != null && (
+            // Ponteiro estilo "lollipop" (bolinha + haste + seta apontando pra baixo, como
+            // um ponteiro de relógio) — um único alvo de pointer events (a bolinha, a haste
+            // e a seta arrastam juntas). `top`+`bottom` (em vez de uma altura fixa) faz a
+            // haste esticar (`flex-1` no meio) pra acompanhar a trilha inteira. `-bottom-1`
+            // (em vez de `bottom-0`) desce a ponta da seta um pouco PRA FORA da caixa da
+            // trilha (não só encostada na borda) — o espaço que sobra até a linha de
+            // números (`mt-3` nela, ver abaixo) é o que evita a seta cobrir os dígitos.
+            <div
+              id="history-timeline-handle"
+              role="button"
+              tabIndex={0}
+              aria-label="Arrastar para selecionar gravação"
+              onPointerDown={handleHandlePointerDown}
+              onPointerMove={handleHandlePointerMove}
+              onPointerUp={handleHandlePointerUp}
+              className="absolute -top-2.5 -bottom-1 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
+              style={{ left: `${handleFraction * 100}%` }}
+            >
+              <span className="h-3 w-3 shrink-0 rounded-full bg-primary shadow ring-2 ring-background" />
+              <span className="w-1 flex-1 bg-primary" />
+              <span
+                aria-hidden="true"
+                className="h-0 w-0 shrink-0 border-x-8 border-t-8 border-x-transparent border-t-primary"
+              />
+            </div>
+          )}
+          {hoverFraction != null && (
+            <div
+              className="pointer-events-none absolute top-0 h-6 w-px bg-foreground/80"
+              style={{ left: `${hoverFraction * 100}%` }}
+            />
+          )}
+        </div>
         {/* Mesmo esquema de 24 células flex-1 dos blocos da trilha (não justify-between,
             que espalha borda-a-borda) — cada número fica centralizado sob o bloco da
-            própria hora, não numa fronteira entre dois blocos. */}
-        <div id="history-timeline-labels" className="flex text-caption text-faint">
+            própria hora, não numa fronteira entre dois blocos. `mt-3` (em vez do `gap-1`
+            padrão do wrapper de fora) dá espaço extra pra ponta da seta, que agora para na
+            base do wrapper interno da trilha (ver comentário acima) em vez de esticar até
+            aqui. */}
+        <div id="history-timeline-labels" className="mt-3 flex text-caption text-faint">
           {HOUR_LABELS.map((h) => (
             <span key={h} className="flex-1 text-center">
               {h}
