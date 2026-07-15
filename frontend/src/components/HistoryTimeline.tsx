@@ -199,13 +199,25 @@ export default function HistoryTimeline({
     setPreviewFraction(null)
   }
 
+  // Resolve a gravação mais próxima de `f` e posiciona a alça — usada tanto pelo clique
+  // direto na trilha quanto por soltar o arraste. Se `f` cai DENTRO de uma gravação real,
+  // a alça fica exatamente ali (comportamento corrigido na história anterior: soltar
+  // dentro da mesma gravação já selecionada não deve "pular" pro início dela). Se `f` cai
+  // numa lacuna sem gravação nenhuma, a alça vai para a posição REAL da gravação
+  // encontrada por proximidade (`recordingAtMs` sempre acha uma, mesmo numa lacuna) — sem
+  // isso, a alça ficava visualmente "descolada" da gravação de fato selecionada.
+  function commitSelection(f: number) {
+    const ms = posToTime(f, win)
+    const hit = recordingAtMs(recordingItems, ms, CHUNK_FALLBACK_MS)
+    const covered = isCoveredByRecording(recordingItems, ms, CHUNK_FALLBACK_MS)
+    setRestingFraction(covered || !hit ? f : timePosFraction(Date.parse(hit.rec.start), win))
+    if (hit) onSelect(hit.rec.id)
+  }
+
   function handleClick(e: React.MouseEvent) {
     const f = fractionFromClientX(e.clientX)
     if (f == null) return
-    setRestingFraction(f)
-    const ms = posToTime(f, win)
-    const hit = recordingAtMs(recordingItems, ms, CHUNK_FALLBACK_MS)
-    if (hit) onSelect(hit.rec.id)
+    commitSelection(f)
   }
 
   function handleHandlePointerDown(e: React.PointerEvent) {
@@ -235,10 +247,7 @@ export default function HistoryTimeline({
     setHoverFraction(null)
     setPreviewFraction(null)
     if (f == null) return
-    setRestingFraction(f) // fica onde soltou — não pula de volta pro início da gravação
-    const ms = posToTime(f, win)
-    const hit = recordingAtMs(recordingItems, ms, CHUNK_FALLBACK_MS)
-    if (hit) onSelect(hit.rec.id)
+    commitSelection(f)
   }
 
   // Sem cobertura de gravação real no instante, não mostra o preview — uma miniatura da
