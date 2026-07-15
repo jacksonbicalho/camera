@@ -7,7 +7,9 @@ import CameraViewTabs from '../components/CameraViewTabs'
 import DatePicker from '../components/DatePicker'
 import { ChevronDown, Loader2, Play } from '../components/Icons'
 import VideoPlayer, { type VideoPlayerSegment } from '../components/VideoPlayer'
+import HistoryTimeline from '../components/HistoryTimeline'
 import {
+  CHUNK_FALLBACK_MS,
   loadMotionEvents,
   loadRecordingsData,
   mergeRecordings,
@@ -27,10 +29,6 @@ interface Camera {
   name: string
   recording_enabled?: boolean
 }
-
-// Janela usada só pra classificar a categoria do chunk (recordingCategory) quando
-// `end` não veio na API — mesmo fallback de tamanho usado no Filmstrip legado.
-const CHUNK_FALLBACK_MS = 5 * 60_000
 
 const CAT_BORDER: Record<RecordingCategory, string> = {
   continua: 'border-blue-500',
@@ -655,6 +653,11 @@ export default function HistoryPage() {
                       )}
                     </>
                   }
+                />
+                <HistoryTimeline
+                  recordingItems={recordingItems}
+                  onSelect={selectRecording}
+                  cameraId={camera.id}
                 />
               </div>
               {/* Sidebar — sibling de `history-main` dentro da MESMA linha; por estar dentro
