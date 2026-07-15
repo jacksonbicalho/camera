@@ -118,7 +118,7 @@ export default class PDFReporter implements Reporter {
   ul.steps li { margin: 2px 0; }
   .step-duration { color: #999; font-size: 10px; }
   .screenshots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-  img.screenshot { max-width: 260px; border: 1px solid #ccc; display: block; }
+  img.screenshot { max-width: 380px; border: 1px solid #ccc; display: block; }
 </style>
 </head>
 <body>
