@@ -98,7 +98,22 @@ if [[ "$MARKED" -eq 1 ]]; then
     # (bug real, confirmado: arquivo da story ficava órfão após o merge).
     slug=${HEAD#*/}
     story=$(ls work_progress/stories/*_"${slug}".md 2>/dev/null | tail -1 || true)
-    [[ -n "$story" ]] && rm -f "$story" && STORY_NOTE=" | story removido ($(basename "$story"))"
+    if [[ -n "$story" ]]; then
+        # A análise que originou a story (se houve G1) fica referenciada no
+        # cabeçalho (`> Análise: work_progress/analysis/...md`, ver template
+        # em docs/workflow.md) — lida ANTES de apagar a story, senão a
+        # referência some junto. Sem G1 (demanda trivial), a linha não
+        # existe e não há nada a remover aqui.
+        analysis=$(grep -m1 '^> Análise: ' "$story" 2>/dev/null | sed 's/^> Análise: *//' || true)
+        rm -f "$story" && STORY_NOTE=" | story removido ($(basename "$story"))"
+        if [[ -n "$analysis" ]]; then
+            if [[ -f "$analysis" ]]; then
+                rm -f "$analysis" && STORY_NOTE="${STORY_NOTE} | análise removida ($(basename "$analysis"))"
+            else
+                STORY_NOTE="${STORY_NOTE} | análise referenciada não encontrada ($analysis)"
+            fi
+        fi
+    fi
 fi
 
 echo -e "${GREEN}MERGED #${PR} → develop @ ${MERGE_SHA} | ${BRANCH_NOTE} | ${REL_NOTE}${STORY_NOTE}${RESET}"
