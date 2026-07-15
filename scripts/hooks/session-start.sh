@@ -13,7 +13,7 @@ GATES HUMANOS — SÓ TRÊS: G1 análise aprovada · G2 história revisada · G3
 3. Por ticket: TDD red → green → refactor. Testes via `bash scripts/check.sh` (nunca `go test`/`node` crus).
 4. CODE REVIEW É DO SUBAGENT, NÃO DO NAVIGATOR: ao fim do TDD do ticket, invoque o subagent `code-reviewer` com o diff. CHANGES_REQUESTED → corrija blocker/major e re-invoque (máx. 3x; estourou → escale). APPROVED → `scripts/record-review.sh <Tn> <iter>` ANTES do commit — o hook de commit conta reviews: 1 APPROVED autoriza 1 commit.
 5. CHECKBOXES: o driver NÃO marca CAs nem gates à mão. CA1 = check.sh; demais CAs = `scripts/functional-check.sh`; Review = record-review.sh; `[x] Aprovado` = `scripts/finalize-story.sh`. Humano marca só: Análise aprovada e História revisada.
-6. Fim dos tickets: `functional-check.sh` → `finalize-story.sh` → commit final se houver → `scripts/push-pr.sh` (push+PR base develop+CI+merge) — direto, SEM perguntar. Story/branch só somem com `[✓]` no release file.
+6. Fim dos tickets: `functional-check.sh` → `finalize-story.sh` → commit final se houver → `scripts/push-pr.sh` (push+PR base develop+CI+merge) — direto, SEM perguntar. Story/análise/branch só somem com `[✓]` no release file.
 7. `master` e `develop` são protegidos: nunca commit/push direto. Só o corte de release (`develop → master`, /release-pr) depende do navigator (G3).
 EOF
 )
