@@ -3,10 +3,10 @@
 > Fluxo completo do projeto (XP/TDD, análise, tickets, code review automatizado, testes funcionais, branches, CI, release).
 > Referenciado pelo `CLAUDE.md` e lido no início da sessão (hook `session-start`).
 
-O desenvolvimento segue **XP (Extreme Programming)** com **TDD red → green → refactor**, com **3 gates humanos** — o resto do ciclo roda sozinho:
+O desenvolvimento segue **XP (Extreme Programming)** com **TDD red → green → refactor**, com **3 gates humanos** (+ 1 pausa fixa pré-push, ver abaixo) — o resto do ciclo roda sozinho:
 
-- O **navigator** (usuário) aprova a análise, aprova a história (com seus tickets e testes funcionais) e libera o release.
-- O **driver** (Claude) investiga, planeja, implementa, revisa (via subagent) e publica — sem interromper o navigator entre os gates.
+- O **navigator** (usuário) aprova a análise, aprova a história (com seus tickets e testes funcionais), testa a branch antes do push e libera o release.
+- O **driver** (Claude) investiga, planeja, implementa, revisa (via subagent) e publica — sem interromper o navigator entre os gates, exceto pela pausa pré-push.
 
 ```mermaid
 flowchart TD
@@ -17,7 +17,9 @@ flowchart TD
     C --> D["5-6. Code review (subagent)<br/>Ajustes em loop, sem você"]
     D -.-> C
     D --> E["7. Testes funcionais<br/>Um cenário por critério"]
-    E --> G3["Gate 3 — você libera release"]
+    E --> P["Pré-push — você testa a branch e aprova"]
+    P -.-> C
+    P --> G3["Gate 3 — você libera release"]
 ```
 
 > ⚠️ **`master` e `develop` são protegidos.** Push direto é bloqueado em ambos. Features entram via PR para `develop`; o PR `develop → master` acontece apenas no momento de release. Nunca commite ou force-push diretamente em nenhum dos dois.
@@ -28,9 +30,10 @@ flowchart TD
 |------|------|------------------------|
 | **G1 — Análise aprovada** | `work_progress/analysis/*.md` → `[x] Análise aprovada` | Aprova a *direção* (problema + solução escolhida) |
 | **G2 — História revisada** | `work_progress/stories/*.md` → `[x] História revisada` | Aprova story **e tickets** (e os cenários funcionais) de uma vez |
+| **Pré-push** | Depois de `finalize-story.sh`, antes de `push-pr.sh` | Testa a história (manualmente, na branch) e dá o ok explícito pra publicar |
 | **G3 — Release** | `/release-pr` + aprovação do PR develop→master | Libera o corte de release |
 
-**Tudo entre G2 e G3 roda sozinho:** implementação, code review (subagent), ajustes, testes funcionais, commit, push, PR, merge em develop. Zero prompts — a única exceção é o *circuit breaker* do code review (3 iterações sem `APPROVED` num ticket escalam ao navigator).
+**Tudo entre G2 e G3 roda sozinho:** implementação, code review (subagent), ajustes, testes funcionais, commit. Duas exceções: o *circuit breaker* do code review (3 iterações sem `APPROVED` num ticket escalam ao navigator) e a **pausa antes de `push-pr.sh`** — regra permanente (não específica de uma história): o driver nunca dá push/abre PR sem o navigator ter testado a branch e aprovado explicitamente primeiro. Commits por ticket continuam automáticos; só o `push-pr.sh` final espera esse ok.
 
 ### Estratégia de branches
 
@@ -123,7 +126,13 @@ bash scripts/functional-check.sh   → roda cenários, marca CAs [x]
 bash scripts/finalize-story.sh     → se tudo verde: marca [x] Aprovado
    │
    ▼
-scripts/commit.sh → scripts/push-pr.sh   (inalterados: push+PR+CI+merge)
+scripts/commit.sh (se pendente)
+   │
+   ▼
+[Pré-push] navigator testa a branch e dá o ok   ◄── PARE aqui, não dê push sem esse ok
+   │
+   ▼
+scripts/push-pr.sh   (push+PR+CI+merge)
    │
    ▼
 [G3] /release-pr quando o navigator liberar (inalterado)
@@ -134,7 +143,7 @@ scripts/commit.sh → scripts/push-pr.sh   (inalterados: push+PR+CI+merge)
 3. **Gate G2.** Nenhuma branch nova, linha de código de produção ou teste antes de `[x] História revisada` — evita o custo de abandonar uma branch se a revisão pedir mudanças grandes na story.
 4. **Só então:** `git checkout -b <tipo>/<slug> develop` (sincronizado de novo, caso a revisão tenha demorado).
 5. **Ciclo por ticket (sem nenhum prompt ao navigator):** TDD red → green → refactor → `bash scripts/check.sh` → invoca o subagent `code-reviewer` → `CHANGES_REQUESTED` (corrige blocker/major, re-invoca, máx. 3 iterações, senão escala) ou `APPROVED` (`scripts/record-review.sh <Tn> <iterações>`, então commit do ticket).
-6. **Fim dos tickets:** `bash scripts/functional-check.sh` (roda os cenários, marca os CAs) → `bash scripts/finalize-story.sh` (marca `[x] Aprovado` quando História revisada + Review APPROVED + todos os CAs estão verdes) → `scripts/commit.sh` (se houver algo pendente) → `scripts/push-pr.sh` (push + PR **sempre `--base develop`** + aguarda CI + merge quando verde). **CI vermelho:** o `push-pr.sh` propaga o erro sem mergear (PR fica aberto) — **Política A**: um fix trivial pós-`Aprovado` (deixar o CI verde) não exige nova aprovação; se o fix mexer em lógica de produção, volta pro ciclo de ticket (novo review do subagent).
+6. **Fim dos tickets:** `bash scripts/functional-check.sh` (roda os cenários, marca os CAs) → `bash scripts/finalize-story.sh` (marca `[x] Aprovado` quando História revisada + Review APPROVED + todos os CAs estão verdes) → `scripts/commit.sh` (se houver algo pendente) → **PARA e aguarda o navigator testar a branch e aprovar explicitamente** (regra permanente — nunca rodar `push-pr.sh` sem esse ok, mesmo com a story `[x] Aprovado`) → só então `scripts/push-pr.sh` (push + PR **sempre `--base develop`** + aguarda CI + merge quando verde). Se o teste do navigator pedir ajustes, eles voltam pro ciclo normal de ticket (TDD → `check.sh` → subagent `code-reviewer` → commit) antes de tentar `push-pr.sh` de novo. **CI vermelho:** o `push-pr.sh` propaga o erro sem mergear (PR fica aberto) — **Política A**: um fix trivial pós-`Aprovado` (deixar o CI verde) não exige nova aprovação; se o fix mexer em lógica de produção, volta pro ciclo de ticket (novo review do subagent).
 7. Atualizar o arquivo de release correspondente em `work_progress/releases/`: preencher a branch e o número do PR na tabela, marcar `[~]`; o `merge-when-green.sh` marca `[~]→[✓]` ao mergear em `develop`. **Apenas o corte de release** (`develop → master`, G3) depende de autorização explícita do navigator.
 
 ### Artefatos
@@ -245,7 +254,7 @@ O fluxo acima é automatizado pelos slash commands em `.claude/commands/`:
 | Comando | O que faz |
 |---|---|
 | `/analyze <demanda livre>` | Investiga e produz `work_progress/analysis/*.md`; aguarda o gate G1. |
-| `/story [análise\|descrição livre]` | Cria story decomposta em tickets (ainda em `develop`, sem branch); aguarda o gate G2; após G2, cria a branch a partir de `develop` e roda o ciclo completo até o PR. |
+| `/story [análise\|descrição livre]` | Cria story decomposta em tickets (ainda em `develop`, sem branch); aguarda o gate G2; após G2, cria a branch a partir de `develop` e roda o ciclo completo até parar pra você testar e aprovar o push (`push-pr.sh` só roda depois desse ok). |
 | `/release-pr [vX.Y.Z]` | Valida release file e abre PR develop → master (após todas as histórias `[✓]`). |
 | `/release-tag` | Roda `./scripts/release.sh` em master após o PR de release ser mergeado. |
 
