@@ -9,6 +9,7 @@ vi.mock('../auth', () => ({ getToken: () => 'fake-token' }))
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 function item(
@@ -464,6 +465,77 @@ describe('HistoryTimeline', () => {
     // A mais cedo (id 1) mantém a posição proporcional exata (0%) — só as seguintes,
     // muito próximas dela, são empurradas pra garantir a separação mínima.
     expect(lefts[0]).toBe('0%')
+  })
+
+  it('CA2vlines: numa trilha estreita (bloco de hora só ~10px), a separação mínima usa pixels REAIS medidos — não uma fração fixa que encolhe até sumir', () => {
+    // Bug relatado pelo navigator: mesmo depois de garantir separação mínima, "não está
+    // funcionando corretamente" numa tela mais estreita — a causa era uma fração FIXA da
+    // hora (ex. 5%), que em blocos estreitos vira sub-pixel (invisível). Este teste
+    // simula a medição real (ResizeObserver, indisponível no jsdom por padrão — mockado
+    // aqui) de uma trilha de 263px (24 blocos de ~10px + 23 gaps de 1px) e confirma que a
+    // fração mínima usada CRESCE pra compensar (min(30%, 3px/10px) = 30%), continuando
+    // visualmente distinguível mesmo num bloco minúsculo.
+    let resizeCallback: ResizeObserverCallback | null = null
+    class FakeResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        resizeCallback = cb
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+
+    const items = [
+      item(1, '2026-07-05T00:00:00Z', 'continua'),
+      item(2, '2026-07-05T00:00:05Z', 'continua'),
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+
+    act(() => {
+      resizeCallback?.(
+        [{ contentRect: { width: 263 } } as ResizeObserverEntry],
+        {} as ResizeObserver,
+      )
+    })
+
+    const left1 = document.getElementById('history-timeline-hour-0-rec-1')!.style.left
+    const left2 = document.getElementById('history-timeline-hour-0-rec-2')!.style.left
+    expect(left1).toBe('0%')
+    expect(left2).toBe('30%')
+  })
+
+  it('CA2vlines: numa trilha larga (bloco de hora ~30px), a fração mínima fica bem abaixo do teto de 30% — não distorce o layout à toa', () => {
+    // Complementa o teste acima: confirma o ramo SEM o teto de 30% ativo (diferente do
+    // caso estreito, onde 30% é o próprio limite aplicado) — aqui o cálculo natural
+    // (3px / 30px = 10%) é o que vale.
+    let resizeCallback: ResizeObserverCallback | null = null
+    class FakeResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        resizeCallback = cb
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+
+    const items = [
+      item(1, '2026-07-05T00:00:00Z', 'continua'),
+      item(2, '2026-07-05T00:00:05Z', 'continua'),
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+
+    act(() => {
+      // 24 blocos de exatamente 30px + 23 gaps de 1px = 743px.
+      resizeCallback?.(
+        [{ contentRect: { width: 743 } } as ResizeObserverEntry],
+        {} as ResizeObserver,
+      )
+    })
+
+    const left2 = document.getElementById('history-timeline-hour-0-rec-2')!.style.left
+    expect(left2).toBe('10%')
   })
 
   it('CA3snap: soltar numa lacuna sem gravação nenhuma reposiciona a alça pra gravação REAL selecionada, não fica solta no vazio', () => {

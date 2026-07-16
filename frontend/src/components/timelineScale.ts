@@ -77,11 +77,14 @@ export function spreadFractions<T extends { id: number; frac: number }>(
   // Reconcilia de trás pra frente, garantindo `minGap` também contra a posição seguinte
   // já resolvida — a posição final pode ficar abaixo da fração original quando o
   // cluster não cabe inteiro. Garantia de distinção NÃO é incondicional: só vale até
-  // `entries.length <= 1/minGap + 1` (~21 pra minGap=0.05) — acima disso, o [0,1] não
-  // comporta mais posições com essa separação mínima e o excedente colide em 0. Na
-  // prática um bloco de hora (~30-40px) já não comportaria mais que ~20-25 traços de
-  // 1px legíveis de qualquer forma, então esse teto raramente é alcançado antes do
-  // limite físico de pixels.
+  // `entries.length <= 1/minGap + 1` — o `minGap` efetivo é DINÂMICO (calculado em
+  // `HistoryTimeline.tsx` a partir da largura real do bloco de hora, ver
+  // `MIN_LINE_GAP_PX`), então esse teto varia com o layout: ~21 itens numa hora larga
+  // (minGap baixo, ~5%) mas só ~4 numa hora bem estreita (minGap no teto de 30%) —
+  // acima do teto, o [0,1] não comporta mais posições com essa separação mínima e o
+  // excedente colide em 0. Na prática o próprio orçamento de pixels do bloco (largura
+  // real / 1px por traço) já limita quantos traços cabem legíveis antes desse teto
+  // algorítmico entrar em jogo.
   const result = new Map<number, number>()
   let next = Infinity
   for (let i = sorted.length - 1; i >= 0; i--) {

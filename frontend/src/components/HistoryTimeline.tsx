@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getToken } from '../auth'
 import { CHUNK_FALLBACK_MS, type Recording } from '../pages/cameraUtils'
 import { CAT_PRIORITY as EVENT_CAT_PRIORITY, type RecordingCategory } from '../pages/eventCategory'
@@ -63,15 +63,25 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => i)
 // vertical indicadora continua instantânea (não custa nada) — só a imagem/horário do
 // tooltip espera o mouse "descansar".
 const PREVIEW_DEBOUNCE_MS = 150
-// Separação mínima (fração do bloco de hora) entre linhas verticais vizinhas —
-// gravações muito próximas no tempo (ex.: reconexões rápidas do gravador gerando
-// vários chunks em segundos) teriam posições quase idênticas e colapsariam num só
-// pixel, "sumindo" visualmente mesmo com uma linha por gravação de verdade no DOM
-// (ver `spreadFractions`, timelineScale.ts). Um bloco de hora tem só ~30-40px (24
-// blocos numa trilha de largura de página) — 3% ficaria perto de 1px, quase do
-// tamanho da própria linha (`w-px`); 5% dá uma margem visual mais confortável (~1.5-2px)
-// sem distorcer o caso comum (gravações normalmente minutos ou mais separadas).
-const MIN_LINE_GAP_FRACTION = 0.05
+// Separação mínima ENTRE LINHAS VIZINHAS, em pixels reais (não fração fixa da hora) —
+// gravações muito próximas no tempo (ex.: reconexões rápidas do gravador gerando vários
+// chunks em segundos) teriam posições quase idênticas e colapsariam num só pixel,
+// "sumindo" visualmente mesmo com uma linha por gravação de verdade no DOM (ver
+// `spreadFractions`, timelineScale.ts). Uma fração FIXA (ex. 5% da hora) funciona numa
+// tela larga (bloco de ~30-40px, 5% ≈ 1.5-2px) mas vira sub-pixel — logo invisível — numa
+// coluna estreita (bloco de ~15px, 5% ≈ 0.75px): a separação precisa ser medida em PIXELS
+// de verdade, não numa fração que encolhe junto com a tela (bug relatado pelo navigator:
+// "as linhas precisam ser mais separadas... não está funcionando corretamente" — a fração
+// fixa não bastava no viewport dele). `MIN_LINE_GAP_PX` é convertido pra fração a cada
+// render a partir da largura REAL de um bloco de hora (medida via ResizeObserver na
+// trilha, ver `trackCallbackRef` abaixo) — mesmo padrão de medição já usado em
+// `HistoryPage.tsx` (`mainRef`/`mainHeight`) pra evitar depender de suposições de layout.
+const MIN_LINE_GAP_PX = 3
+// Nº de blocos de hora - 1 = nº de gaps de 1px (`gap-px`) entre eles na trilha.
+const HOUR_GAP_COUNT_PX = 23
+// Fração usada ANTES da 1ª medição (ResizeObserver ainda não disparou) e em testes
+// (jsdom não tem ResizeObserver — degrada graciosamente, mesmo padrão de `HistoryPage`).
+const FALLBACK_MIN_LINE_GAP_FRACTION = 0.05
 
 function formatClock(ms: number): string {
   const d = new Date(ms)
@@ -104,7 +114,28 @@ export default function HistoryTimeline({
   selectedId,
   day,
 }: HistoryTimelineProps) {
-  const trackRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement | null>(null)
+  // Largura real (px) da trilha inteira, medida via ResizeObserver — usada só pra
+  // calcular a separação mínima entre linhas em pixels de verdade (ver
+  // MIN_LINE_GAP_PX acima), não pro cálculo de fração de clique/arraste (que já usa
+  // `trackRef.current.getBoundingClientRect()` direto nos handlers, sob demanda).
+  // Ref CALLBACK (não useRef+useEffect(deps:[])): mesmo padrão de `mainRef` em
+  // HistoryPage.tsx — dispara de novo se o node for recriado, e funciona mesmo que o
+  // 1º render aconteça antes do elemento existir.
+  const [trackWidth, setTrackWidth] = useState<number | null>(null)
+  const trackObserverRef = useRef<ResizeObserver | null>(null)
+  const trackCallbackRef = useCallback((el: HTMLDivElement | null) => {
+    trackRef.current = el
+    trackObserverRef.current?.disconnect()
+    trackObserverRef.current = null
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width
+      if (width != null) setTrackWidth(width)
+    })
+    observer.observe(el)
+    trackObserverRef.current = observer
+  }, [])
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const draggingRef = useRef(false)
   // hoverFraction: posição do mouse/arraste, atualizada a cada movimento — move a linha
@@ -322,7 +353,7 @@ export default function HistoryTimeline({
         <div className="relative">
           <div
             id="history-timeline-track"
-            ref={trackRef}
+            ref={trackCallbackRef}
             role="button"
             tabIndex={0}
             aria-label="Selecionar gravação na régua de 24h"
@@ -331,51 +362,65 @@ export default function HistoryTimeline({
             onClick={handleClick}
             className="flex h-6 w-full cursor-pointer gap-px overflow-hidden rounded"
           >
-            {Array.from({ length: 24 }, (_, hour) => {
-              const items = byHour.get(hour)
-              const cat = items
-                ? CAT_PRIORITY.find((c) => items.some((i) => i.category === c))
-                : undefined
-              // Início desta hora em ms (mesma janela local de `dayStartMs`) — base pra
-              // calcular a fração de CADA gravação DENTRO da hora (não do dia inteiro),
-              // uma linha vertical por gravação, na posição real (proporcional ao
-              // horário de início), não distribuída uniformemente por índice.
-              const hourStartMs = dayStartMs + hour * 3600_000
-              // `spreadFractions` garante separação mínima entre linhas vizinhas — sem
-              // isso, gravações muito próximas no tempo (reconexões rápidas do gravador)
-              // colapsam visualmente no mesmo pixel e "somem" (queixa relatada: N
-              // gravações mostrando bem menos que N linhas).
-              const positions = items
-                ? spreadFractions(
-                    items.map((item) => {
-                      const startMs = Date.parse(item.rec.start)
-                      const frac = (startMs - hourStartMs) / 3600_000
-                      return { id: item.rec.id, frac: frac < 0 ? 0 : frac > 1 ? 1 : frac }
-                    }),
-                    MIN_LINE_GAP_FRACTION,
-                  )
-                : null
-              return (
-                <div
-                  key={hour}
-                  id={`history-timeline-hour-${hour}`}
-                  aria-hidden="true"
-                  className={`relative h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'}`}
-                >
-                  {items?.map((item) => {
-                    const clamped = positions!.get(item.rec.id)!
-                    return (
-                      <span
-                        key={item.rec.id}
-                        id={`history-timeline-hour-${hour}-rec-${item.rec.id}`}
-                        className="absolute top-0 h-full w-px bg-foreground/70"
-                        style={{ left: `${clamped * 100}%` }}
-                      />
+            {(() => {
+              // Largura de UM bloco de hora (px) a partir da largura medida da trilha
+              // inteira — 24 blocos + 23 gaps de 1px (`gap-px`). `minLineGapFraction`
+              // converte o mínimo em pixels (`MIN_LINE_GAP_PX`) pra uma fração daquele
+              // bloco especificamente — ao contrário de uma fração fixa, não encolhe até
+              // sumir numa coluna estreita (bug relatado). Sem medição ainda (1º render)
+              // ou em teste (jsdom sem ResizeObserver), cai no fallback estático.
+              const hourBoxWidthPx =
+                trackWidth != null ? (trackWidth - HOUR_GAP_COUNT_PX) / 24 : null
+              const minLineGapFraction =
+                hourBoxWidthPx != null && hourBoxWidthPx > 0
+                  ? Math.min(0.3, MIN_LINE_GAP_PX / hourBoxWidthPx)
+                  : FALLBACK_MIN_LINE_GAP_FRACTION
+              return Array.from({ length: 24 }, (_, hour) => {
+                const items = byHour.get(hour)
+                const cat = items
+                  ? CAT_PRIORITY.find((c) => items.some((i) => i.category === c))
+                  : undefined
+                // Início desta hora em ms (mesma janela local de `dayStartMs`) — base pra
+                // calcular a fração de CADA gravação DENTRO da hora (não do dia inteiro),
+                // uma linha vertical por gravação, na posição real (proporcional ao
+                // horário de início), não distribuída uniformemente por índice.
+                const hourStartMs = dayStartMs + hour * 3600_000
+                // `spreadFractions` garante separação mínima entre linhas vizinhas — sem
+                // isso, gravações muito próximas no tempo (reconexões rápidas do gravador)
+                // colapsam visualmente no mesmo pixel e "somem" (queixa relatada: N
+                // gravações mostrando bem menos que N linhas).
+                const positions = items
+                  ? spreadFractions(
+                      items.map((item) => {
+                        const startMs = Date.parse(item.rec.start)
+                        const frac = (startMs - hourStartMs) / 3600_000
+                        return { id: item.rec.id, frac: frac < 0 ? 0 : frac > 1 ? 1 : frac }
+                      }),
+                      minLineGapFraction,
                     )
-                  })}
-                </div>
-              )
-            })}
+                  : null
+                return (
+                  <div
+                    key={hour}
+                    id={`history-timeline-hour-${hour}`}
+                    aria-hidden="true"
+                    className={`relative h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'}`}
+                  >
+                    {items?.map((item) => {
+                      const clamped = positions!.get(item.rec.id)!
+                      return (
+                        <span
+                          key={item.rec.id}
+                          id={`history-timeline-hour-${hour}-rec-${item.rec.id}`}
+                          className="absolute top-0 h-full w-px bg-foreground/70"
+                          style={{ left: `${clamped * 100}%` }}
+                        />
+                      )
+                    })}
+                  </div>
+                )
+              })
+            })()}
           </div>
           {handleFraction != null && (
             // Ponteiro estilo "lollipop" (bolinha + haste + seta apontando pra baixo, como
