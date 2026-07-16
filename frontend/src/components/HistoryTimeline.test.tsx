@@ -538,6 +538,45 @@ describe('HistoryTimeline', () => {
     expect(left2).toBe('10%')
   })
 
+  it('CA2semfiltro: a régua sempre mostra TODAS as gravações — a cor do bloco de hora não depende da prop `filter`, só as linhas esmaecem', () => {
+    // Hora 18 tem uma gravação "continua" e uma "pessoa" — com o filtro "pessoa" ativo,
+    // a cor do bloco continua vindo da prioridade entre AMBAS (pessoa vence, como sem
+    // filtro nenhum); só a linha da gravação "continua" (fora do filtro) fica esmaecida.
+    const items = [
+      item(1, '2026-07-05T18:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:10:00Z', 'pessoa'),
+    ]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" filter="pessoa" />,
+    )
+    // Cor do bloco: idêntica ao caso sem filtro (CA2 acima) — prioridade entre TODOS.
+    expect(document.getElementById('history-timeline-hour-18')!.className).toContain('bg-red-500')
+    // Nenhuma gravação foi removida: as duas linhas continuam no DOM.
+    expect(document.getElementById('history-timeline-hour-18-rec-1')).not.toBeNull()
+    expect(document.getElementById('history-timeline-hour-18-rec-2')).not.toBeNull()
+    // Só a linha fora do filtro (item 1, "continua") fica esmaecida.
+    expect(document.getElementById('history-timeline-hour-18-rec-1')!.className).toContain(
+      'opacity-40',
+    )
+    expect(document.getElementById('history-timeline-hour-18-rec-2')!.className).not.toContain(
+      'opacity-40',
+    )
+  })
+
+  it('CA2semfiltro: sem a prop `filter`, nenhuma linha fica esmaecida (retrocompatível)', () => {
+    const items = [
+      item(1, '2026-07-05T18:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:10:00Z', 'pessoa'),
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    expect(document.getElementById('history-timeline-hour-18-rec-1')!.className).not.toContain(
+      'opacity-40',
+    )
+    expect(document.getElementById('history-timeline-hour-18-rec-2')!.className).not.toContain(
+      'opacity-40',
+    )
+  })
+
   it('CA3snap: soltar numa lacuna sem gravação nenhuma reposiciona a alça pra gravação REAL selecionada, não fica solta no vazio', () => {
     // item 1 às 05:00 e item 2 às 07:00 (gap de 2h sem cobertura nenhuma, já que
     // CHUNK_FALLBACK_MS é só 5min). Soltar às 06:30 (mais perto do item 2) seleciona o

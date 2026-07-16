@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getToken } from '../auth'
 import { CHUNK_FALLBACK_MS, type Recording } from '../pages/cameraUtils'
-import { CAT_PRIORITY as EVENT_CAT_PRIORITY, type RecordingCategory } from '../pages/eventCategory'
+import {
+  CAT_PRIORITY as EVENT_CAT_PRIORITY,
+  matchesTimelineFilter,
+  type RecordingCategory,
+  type TimelineFilter,
+} from '../pages/eventCategory'
 import {
   isCoveredByRecording,
   posToTime,
@@ -17,9 +22,11 @@ interface RecordingItem {
 }
 
 interface HistoryTimelineProps {
-  /** Gravações do dia já filtradas pelo chip ativo (Tudo/Movimento/Pessoa/Contínua) e com
-   * a categoria calculada — mesmo universo de dados da lista agrupada abaixo. Hora sem
-   * nenhum item do filtro ativo vira bloco neutro (mesmo tratamento de "hora sem gravação"). */
+  /** TODAS as gravações do dia (mesmo universo de dados da lista agrupada abaixo — a lista
+   * e a régua sempre mostram todas as gravações existentes, nunca um subconjunto: o filtro
+   * de categoria não remove nada daqui, só esmaece via `filter` abaixo). Cor do bloco de
+   * hora é sempre a categoria de maior prioridade entre TODOS os itens da hora, com ou sem
+   * `filter` ativo. */
   recordingItems: RecordingItem[]
   /** Chamado com o id da gravação escolhida (clique na trilha ou soltar a alça). */
   onSelect: (id: number) => void
@@ -28,6 +35,12 @@ interface HistoryTimelineProps {
   /** Gravação selecionada atualmente — posiciona a alça em repouso (fora de um arraste
    * em andamento). Sem seleção, a alça não aparece. */
   selectedId?: number | null
+  /** Filtro de categoria ativo (chip Tudo/Movimento/Pessoa/Contínua) — só esmaece
+   * (`opacity`) as linhas verticais de gravações que não batem com ele; NUNCA remove
+   * nenhuma gravação de `recordingItems` nem afeta a cor do bloco de hora (essa continua
+   * agregando todos os itens, filtrados ou não). Omitido = sem esmaecimento (todas as
+   * linhas full-opacity) — comportamento retrocompatível pra quem não passar a prop. */
+  filter?: TimelineFilter
   /** Dia sendo exibido (qualquer instante dele — só ano/mês/dia local importam). Define a
    * janela de 24h mesmo quando o filtro ativo deixa `recordingItems` vazio: sem essa prop,
    * a janela seria derivada do 1º item de `recordingItems`, que não existe nesse caso — a
@@ -113,6 +126,7 @@ export default function HistoryTimeline({
   cameraId,
   selectedId,
   day,
+  filter,
 }: HistoryTimelineProps) {
   const trackRef = useRef<HTMLDivElement | null>(null)
   // Largura real (px) da trilha inteira, medida via ResizeObserver — usada só pra
@@ -408,11 +422,16 @@ export default function HistoryTimeline({
                   >
                     {items?.map((item) => {
                       const clamped = positions!.get(item.rec.id)!
+                      // Esmaece (não remove) gravações fora do filtro ativo — a régua
+                      // sempre mostra TODAS as gravações da hora; `filter` só reduz a
+                      // opacidade das que não batem, igual ao card correspondente na
+                      // lista lateral (HistoryPage.tsx).
+                      const dimmed = filter != null && !matchesTimelineFilter(item.category, filter)
                       return (
                         <span
                           key={item.rec.id}
                           id={`history-timeline-hour-${hour}-rec-${item.rec.id}`}
-                          className="absolute top-0 h-full w-px bg-foreground/70"
+                          className={`absolute top-0 h-full w-px bg-foreground/70 ${dimmed ? 'opacity-40' : ''}`}
                           style={{ left: `${clamped * 100}%` }}
                         />
                       )
