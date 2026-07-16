@@ -6,6 +6,7 @@ import {
   isCoveredByRecording,
   posToTime,
   recordingAtMs,
+  spreadFractions,
   timePosFraction,
   type TimelineWindow,
 } from './timelineScale'
@@ -62,6 +63,15 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => i)
 // vertical indicadora continua instantânea (não custa nada) — só a imagem/horário do
 // tooltip espera o mouse "descansar".
 const PREVIEW_DEBOUNCE_MS = 150
+// Separação mínima (fração do bloco de hora) entre linhas verticais vizinhas —
+// gravações muito próximas no tempo (ex.: reconexões rápidas do gravador gerando
+// vários chunks em segundos) teriam posições quase idênticas e colapsariam num só
+// pixel, "sumindo" visualmente mesmo com uma linha por gravação de verdade no DOM
+// (ver `spreadFractions`, timelineScale.ts). Um bloco de hora tem só ~30-40px (24
+// blocos numa trilha de largura de página) — 3% ficaria perto de 1px, quase do
+// tamanho da própria linha (`w-px`); 5% dá uma margem visual mais confortável (~1.5-2px)
+// sem distorcer o caso comum (gravações normalmente minutos ou mais separadas).
+const MIN_LINE_GAP_FRACTION = 0.05
 
 function formatClock(ms: number): string {
   const d = new Date(ms)
@@ -331,6 +341,20 @@ export default function HistoryTimeline({
               // uma linha vertical por gravação, na posição real (proporcional ao
               // horário de início), não distribuída uniformemente por índice.
               const hourStartMs = dayStartMs + hour * 3600_000
+              // `spreadFractions` garante separação mínima entre linhas vizinhas — sem
+              // isso, gravações muito próximas no tempo (reconexões rápidas do gravador)
+              // colapsam visualmente no mesmo pixel e "somem" (queixa relatada: N
+              // gravações mostrando bem menos que N linhas).
+              const positions = items
+                ? spreadFractions(
+                    items.map((item) => {
+                      const startMs = Date.parse(item.rec.start)
+                      const frac = (startMs - hourStartMs) / 3600_000
+                      return { id: item.rec.id, frac: frac < 0 ? 0 : frac > 1 ? 1 : frac }
+                    }),
+                    MIN_LINE_GAP_FRACTION,
+                  )
+                : null
               return (
                 <div
                   key={hour}
@@ -339,9 +363,7 @@ export default function HistoryTimeline({
                   className={`relative h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'}`}
                 >
                   {items?.map((item) => {
-                    const startMs = Date.parse(item.rec.start)
-                    const frac = (startMs - hourStartMs) / 3600_000
-                    const clamped = frac < 0 ? 0 : frac > 1 ? 1 : frac
+                    const clamped = positions!.get(item.rec.id)!
                     return (
                       <span
                         key={item.rec.id}

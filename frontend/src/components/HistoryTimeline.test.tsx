@@ -443,6 +443,29 @@ describe('HistoryTimeline', () => {
     expect(hour0.querySelectorAll('span').length).toBe(0)
   })
 
+  it('CA2vlines: gravações muito próximas no tempo (reconexões rápidas do gravador) continuam em posições DISTINTAS, não colapsam no mesmo pixel', () => {
+    // Bug relatado: 4 gravações numa hora mostrando só 2 linhas (algumas colidindo) — a
+    // fração pura, sem espaçamento mínimo, deixaria essas 4 quase idênticas (segundos de
+    // diferença numa hora inteira).
+    const items = [
+      item(1, '2026-07-05T00:00:00Z', 'continua'),
+      item(2, '2026-07-05T00:00:05Z', 'continua'),
+      item(3, '2026-07-05T00:00:10Z', 'continua'),
+      item(4, '2026-07-05T00:00:15Z', 'continua'),
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    const hour0 = document.getElementById('history-timeline-hour-0')!
+    expect(hour0.querySelectorAll('span').length).toBe(4)
+    const lefts = [1, 2, 3, 4].map(
+      (id) => document.getElementById(`history-timeline-hour-0-rec-${id}`)!.style.left,
+    )
+    // Todas as 4 posições são distintas entre si.
+    expect(new Set(lefts).size).toBe(4)
+    // A mais cedo (id 1) mantém a posição proporcional exata (0%) — só as seguintes,
+    // muito próximas dela, são empurradas pra garantir a separação mínima.
+    expect(lefts[0]).toBe('0%')
+  })
+
   it('CA3snap: soltar numa lacuna sem gravação nenhuma reposiciona a alça pra gravação REAL selecionada, não fica solta no vazio', () => {
     // item 1 às 05:00 e item 2 às 07:00 (gap de 2h sem cobertura nenhuma, já que
     // CHUNK_FALLBACK_MS é só 5min). Soltar às 06:30 (mais perto do item 2) seleciona o

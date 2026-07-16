@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { isCoveredByRecording, posToTime, recordingAtMs, timePosFraction } from './timelineScale'
+import {
+  isCoveredByRecording,
+  posToTime,
+  recordingAtMs,
+  spreadFractions,
+  timePosFraction,
+} from './timelineScale'
 
 const win = { startMs: 0, endMs: 24 * 3600_000 } // dia inteiro, 0 = meia-noite
 
@@ -71,5 +77,60 @@ describe('isCoveredByRecording', () => {
 
   it('false com lista vazia', () => {
     expect(isCoveredByRecording([], Date.now(), chunkMs)).toBe(false)
+  })
+})
+
+describe('spreadFractions', () => {
+  it('não altera posições já espaçadas o bastante (caso comum, sem distorção)', () => {
+    const result = spreadFractions(
+      [
+        { id: 1, frac: 0 },
+        { id: 2, frac: 0.5 },
+      ],
+      0.03,
+    )
+    expect(result.get(1)).toBe(0)
+    expect(result.get(2)).toBe(0.5)
+  })
+
+  it('empurra posições muito próximas pra garantir a separação mínima, sem inverter a ordem', () => {
+    // 4 gravações praticamente coladas (ex.: reconexões rápidas do gravador) — sem o
+    // espaçamento mínimo, todas cairiam em ~0% e pareceriam 1 linha só.
+    const result = spreadFractions(
+      [
+        { id: 1, frac: 0.1 },
+        { id: 2, frac: 0.101 },
+        { id: 3, frac: 0.102 },
+        { id: 4, frac: 0.103 },
+      ],
+      0.03,
+    )
+    const positions = [1, 2, 3, 4].map((id) => result.get(id)!)
+    expect(positions[0]).toBe(0.1) // a mais cedo nunca muda
+    for (let i = 1; i < positions.length; i++) {
+      expect(positions[i]).toBeGreaterThanOrEqual(positions[i - 1] + 0.03 - 1e-9)
+    }
+    // ordem cronológica preservada
+    expect(positions).toEqual([...positions].sort((a, b) => a - b))
+  })
+
+  it('clampa em 1 mesmo com muitas posições espremidas perto do fim da hora — SEM colidir entre si (reconciliação pra trás)', () => {
+    // Um clamp ingênuo em Math.min(1, ...) faria várias dessas posições colidirem
+    // exatamente em 1 (reproduzindo o mesmo bug que esta função existe pra evitar, só
+    // deslocado pra borda direita) — cada posição precisa continuar DISTINTA da vizinha.
+    const entries = Array.from({ length: 5 }, (_, i) => ({ id: i, frac: 0.95 + i * 0.001 }))
+    const result = spreadFractions(entries, 0.03)
+    const positions = entries.map(({ id }) => result.get(id)!)
+    for (const pos of positions) {
+      expect(pos).toBeLessThanOrEqual(1)
+      expect(pos).toBeGreaterThanOrEqual(0)
+    }
+    expect(new Set(positions).size).toBe(positions.length)
+    // ordem cronológica preservada mesmo reconciliando pra trás
+    expect(positions).toEqual([...positions].sort((a, b) => a - b))
+  })
+
+  it('lista vazia devolve mapa vazio', () => {
+    expect(spreadFractions([], 0.03).size).toBe(0)
   })
 })
