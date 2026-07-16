@@ -838,7 +838,7 @@ describe('HistoryPage', () => {
   })
 
   describe('filtros e lista agrupada por hora', () => {
-    it('chips Tudo/Movimento/Contínua filtram a lista agrupada sem recarregar a página', async () => {
+    it('chips Tudo/Movimento/Contínua esmaecem (não removem) os cards fora do filtro, sem recarregar a página', async () => {
       // a.mp4 (07:12:00Z) sem evento → categoria "continua"; b.mp4 (08:03:00Z) com evento no
       // mesmo intervalo → categoria de movimento (ia).
       stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'carro' }])
@@ -852,25 +852,27 @@ describe('HistoryPage', () => {
         .getElementById('history-filter-continua')!
         .dispatchEvent(new MouseEvent('click', { bubbles: true }))
       await waitFor(() => {
-        expect(document.getElementById('history-recording-2')).toBeNull()
+        expect(document.getElementById('history-recording-2')!.className).toContain('opacity-40')
       })
-      expect(document.getElementById('history-recording-1')).not.toBeNull()
+      expect(document.getElementById('history-recording-1')!.className).not.toContain('opacity-40')
 
       document
         .getElementById('history-filter-movimento')!
         .dispatchEvent(new MouseEvent('click', { bubbles: true }))
       await waitFor(() => {
-        expect(document.getElementById('history-recording-1')).toBeNull()
+        expect(document.getElementById('history-recording-1')!.className).toContain('opacity-40')
       })
-      expect(document.getElementById('history-recording-2')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')!.className).not.toContain('opacity-40')
 
       document
         .getElementById('history-filter-todos')!
         .dispatchEvent(new MouseEvent('click', { bubbles: true }))
       await waitFor(() => {
-        expect(document.getElementById('history-recording-1')).not.toBeNull()
+        expect(document.getElementById('history-recording-1')!.className).not.toContain(
+          'opacity-40',
+        )
       })
-      expect(document.getElementById('history-recording-2')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')!.className).not.toContain('opacity-40')
     })
 
     it('CA3pessoa: chip "Pessoa" existe entre "Movimento" e "Contínua"', async () => {
@@ -889,7 +891,7 @@ describe('HistoryPage', () => {
       ])
     })
 
-    it('CA4pessoa: clique no chip "Pessoa" filtra a lista para só as gravações com evento de pessoa', async () => {
+    it('CA4pessoa: clique no chip "Pessoa" esmaece os cards que não são de pessoa (não remove)', async () => {
       // a.mp4 (07:12:00Z) sem evento → continua; b.mp4 (08:03:00Z) com evento "pessoa
       // detectada" no mesmo intervalo → categoria pessoa.
       stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'pessoa detectada' }])
@@ -903,12 +905,12 @@ describe('HistoryPage', () => {
         .getElementById('history-filter-pessoa')!
         .dispatchEvent(new MouseEvent('click', { bubbles: true }))
       await waitFor(() => {
-        expect(document.getElementById('history-recording-1')).toBeNull()
+        expect(document.getElementById('history-recording-1')!.className).toContain('opacity-40')
       })
-      expect(document.getElementById('history-recording-2')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')!.className).not.toContain('opacity-40')
     })
 
-    it('CA2filtro: a régua do HistoryTimeline reflete o filtro ativo — hora fora do filtro vira bloco neutro', async () => {
+    it('CA2filtro: a régua do HistoryTimeline sempre colore os blocos de hora considerando TODAS as gravações (independente do filtro ativo)', async () => {
       // a.mp4 (07:12:00Z) sem evento → continua; b.mp4 (08:03:00Z) com evento "pessoa
       // detectada" no mesmo intervalo → categoria pessoa.
       stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'pessoa detectada' }])
@@ -926,15 +928,37 @@ describe('HistoryPage', () => {
         .getElementById('history-filter-pessoa')!
         .dispatchEvent(new MouseEvent('click', { bubbles: true }))
       await waitFor(() => {
-        expect(document.getElementById('history-recording-1')).toBeNull()
+        expect(document.getElementById('history-recording-1')!.className).toContain('opacity-40')
       })
 
-      // com o filtro "Pessoa": a hora 7 (só tinha gravação "continua", fora do filtro) vira
-      // bloco neutro; a hora 8 (pessoa, dentro do filtro) continua colorida.
-      expect(document.getElementById('history-timeline-hour-7')!.className).toContain(
-        'bg-surface-2',
-      )
+      // com o filtro "Pessoa" ativo: a régua continua colorindo as DUAS horas com suas
+      // categorias reais (a cor do bloco agrega TODOS os itens, filtrados ou não) — só a
+      // linha vertical da hora 7 (fora do filtro) fica esmaecida, o bloco em si não vira
+      // neutro nem some.
+      expect(document.getElementById('history-timeline-hour-7')!.className).toContain('bg-blue-500')
       expect(document.getElementById('history-timeline-hour-8')!.className).toContain('bg-red-500')
+    })
+
+    it('CA3naoremove: a lista lateral sempre mostra todas as gravações do dia, mesmo com um filtro de categoria ativo', async () => {
+      // a.mp4 (07:12:00Z) sem evento → continua; b.mp4 (08:03:00Z) com evento "pessoa
+      // detectada" no mesmo intervalo → categoria pessoa.
+      stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'pessoa detectada' }])
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
+      })
+
+      document
+        .getElementById('history-filter-pessoa')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')!.className).toContain('opacity-40')
+      })
+      // a gravação fora do filtro continua no DOM (só esmaecida) — nunca removida.
+      expect(document.getElementById('history-recording-1')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')).not.toBeNull()
+      expect(document.getElementById('history-recording-2')!.className).not.toContain('opacity-40')
     })
 
     it('grupos por hora mostram a contagem e colapsam/expandem ao clicar no cabeçalho', async () => {
@@ -946,8 +970,8 @@ describe('HistoryPage', () => {
       // (assume TZ=UTC no ambiente de teste, igual ao resto da suíte).
       const group7 = document.getElementById('history-hour-group-7')!
       const group8 = document.getElementById('history-hour-group-8')!
-      expect(group7.textContent).toContain('07h — 1 evento')
-      expect(group8.textContent).toContain('08h — 1 evento')
+      expect(group7.textContent).toContain('07h — 1 gravação')
+      expect(group8.textContent).toContain('08h — 1 gravação')
 
       group7.dispatchEvent(new MouseEvent('click', { bubbles: true }))
       await waitFor(() => {
