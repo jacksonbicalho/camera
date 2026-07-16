@@ -95,6 +95,13 @@ const HOUR_GAP_COUNT_PX = 23
 // Fração usada ANTES da 1ª medição (ResizeObserver ainda não disparou) e em testes
 // (jsdom não tem ResizeObserver — degrada graciosamente, mesmo padrão de `HistoryPage`).
 const FALLBACK_MIN_LINE_GAP_FRACTION = 0.05
+// Pixels de largura MÍNIMA "pedidos" por gravação numa hora, pra decidir a largura mínima
+// de CADA bloco de hora (ver `requiredHourWidthPx` no render) — mesmo valor de
+// `MIN_LINE_GAP_PX` (pedido do navigator, pra manter as duas constantes de espaçamento
+// consistentes entre si); aqui o USO é o oposto: quanto espaço pedir pra caber todas as
+// linhas de forma legível numa hora muito cheia, mesmo que isso exija rolagem horizontal
+// na régua (`MIN_LINE_GAP_PX` só distribui o espaço que JÁ existe).
+const PX_PER_HOUR_LINE = 3
 
 function formatClock(ms: number): string {
   const d = new Date(ms)
@@ -150,6 +157,17 @@ export default function HistoryTimeline({
     observer.observe(el)
     trackObserverRef.current = observer
   }, [])
+  // Deslocamento horizontal do scroll da régua (`#history-timeline-scroll`) — o preview
+  // (miniatura + horário no hover) fica FORA do container que rola, pra não ser cortado
+  // verticalmente por `overflow-y-hidden` (ele flutua ACIMA da trilha via `bottom-full`);
+  // por isso sua posição horizontal é calculada em PIXELS (`previewFraction * trackWidth
+  // - scrollLeft`, ver JSX abaixo) em vez de porcentagem simples — sem subtrair o scroll,
+  // o preview ficaria "grudado" na posição de antes de rolar, dessincronizado da trilha
+  // por baixo dele.
+  const [scrollLeft, setScrollLeft] = useState(0)
+  function handleTrackScroll(e: React.UIEvent<HTMLDivElement>) {
+    setScrollLeft(e.currentTarget.scrollLeft)
+  }
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const draggingRef = useRef(false)
   // hoverFraction: posição do mouse/arraste, atualizada a cada movimento — move a linha
@@ -207,6 +225,34 @@ export default function HistoryTimeline({
     }
   }
 
+  // Largura MÍNIMA por bloco de hora (px), a partir da hora mais cheia do dia (`peakCount`
+  // já é esse máximo, calculado acima) — reconexões rápidas do gravador podem gerar
+  // dezenas/centenas de chunks curtos numa hora só; nenhuma largura de tela cabe centenas
+  // de linhas legíveis, então a régua toda ganha `min-width` suficiente pra hora mais
+  // cheia (as 24 horas continuam com a MESMA largura entre si — não distorce a proporção
+  // de tempo) e um scroll horizontal PRÓPRIO (`#history-timeline-scroll`) assume quando
+  // isso ultrapassa a largura disponível. Em dias normais (a maioria), o total fica bem
+  // menor que a largura disponível e os blocos crescem via `flex-1` normalmente, sem
+  // scroll nenhum — esse mínimo só "trava" quando realmente precisa.
+  const requiredHourWidthPx = Math.max(1, peakCount) * PX_PER_HOUR_LINE
+
+  // Largura REAL do conteúdo da trilha (24 blocos + gaps), pra qualquer cálculo de fração
+  // de posição (clique/arraste) ou pixel (preview). NÃO é o mesmo que `trackWidth`
+  // (medido via ResizeObserver): um `<div>` de fluxo normal como a trilha SEMPRE tem sua
+  // própria caixa do tamanho do "containing block" (a largura VISÍVEL do scroll
+  // `#history-timeline-scroll`), mesmo quando os filhos (blocos de hora, via `minWidth`)
+  // transbordam e ficam mais largos — `getBoundingClientRect()`/`ResizeObserver` nunca
+  // relatam esse transbordamento, só a caixa "oficial" da trilha. Usar `trackWidth`
+  // (a largura visível) como divisor da fração faria clique/preview mapearem pro
+  // instante errado sempre que a régua estiver "lotada" (bug pego no code review: passar
+  // o mouse a 90% da ÁREA VISÍVEL selecionava um horário de ~21h, quando só as primeiras
+  // ~3-4h estavam de fato ali). `Math.max` cobre os dois casos: dia comum, onde os
+  // blocos crescem (via `flex-1`) além do mínimo pra preencher a largura visível medida
+  // (`trackWidth` já reflete o total real); e dia lotado, onde os blocos ficam presos no
+  // `requiredHourWidthPx` e o total transborda (a soma dos mínimos é maior que qualquer
+  // largura visível, então vence o cálculo).
+  const contentWidthPx = Math.max(trackWidth ?? 0, requiredHourWidthPx * 24 + HOUR_GAP_COUNT_PX)
+
   // Janela do dia: meia-noite local até +24h — régua fixa, sem seletor de janela/zoom (o
   // mockup não pede). Prefere `day` (sempre correto, mesmo com `recordingItems` vazio);
   // sem ele, deriva do 1º item — só possível porque o guard acima garante não-vazio nesse
@@ -224,7 +270,16 @@ export default function HistoryTimeline({
     if (!el) return null
     const rect = el.getBoundingClientRect()
     if (rect.width <= 0) return null
-    const f = (clientX - rect.left) / rect.width
+    // `rect.left` já reflete a posição REAL na viewport (ajustada pelo scroll horizontal
+    // de `#history-timeline-scroll` automaticamente, propriedade padrão de
+    // `getBoundingClientRect()`) — só o DIVISOR precisa ser a largura do CONTEÚDO real,
+    // não a da caixa visível/cortada da trilha (`rect.width` sozinho), senão a fração
+    // mapeia pro instante errado numa régua "lotada" (ver comentário de `contentWidthPx`
+    // acima). Usa `rect.width` FRESCO (não o `trackWidth` de estado, que só é atualizado
+    // pelo ResizeObserver — resultado assíncrono, pode estar um passo atrás do clique
+    // mais recente, e nem existe em teste/jsdom, que só mocka `getBoundingClientRect`).
+    const width = Math.max(rect.width, requiredHourWidthPx * 24 + HOUR_GAP_COUNT_PX)
+    const f = (clientX - rect.left) / width
     return f < 0 ? 0 : f > 1 ? 1 : f
   }
 
@@ -341,7 +396,12 @@ export default function HistoryTimeline({
           <div
             id="history-timeline-preview"
             className="pointer-events-none absolute bottom-full z-10 mb-1 flex -translate-x-1/2 flex-col items-center gap-1"
-            style={{ left: `${(previewFraction ?? 0) * 100}%` }}
+            style={{
+              left:
+                trackWidth != null
+                  ? `${(previewFraction ?? 0) * contentWidthPx - scrollLeft}px`
+                  : `${(previewFraction ?? 0) * 100}%`,
+            }}
           >
             <div className="flex h-16 w-28 items-center justify-center overflow-hidden rounded border border-border bg-surface-2">
               {previewFailed ? (
@@ -360,135 +420,182 @@ export default function HistoryTimeline({
             </span>
           </div>
         )}
-        {/* Wrapper próprio (relative) só pra trilha + alça + linha de hover — a alça usa
-            `bottom-0` ANCORADO NESTE wrapper (não no de fora, que também contém os
-            números), pra que a ponta da seta pare sempre na base da trilha, nunca
-            avançando sobre a linha de números por baixo (mesmo se ela descer). */}
-        <div className="relative">
-          <div
-            id="history-timeline-track"
-            ref={trackCallbackRef}
-            role="button"
-            tabIndex={0}
-            aria-label="Selecionar gravação na régua de 24h"
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            onClick={handleClick}
-            className="flex h-6 w-full cursor-pointer gap-px overflow-hidden rounded"
-          >
-            {(() => {
-              // Largura de UM bloco de hora (px) a partir da largura medida da trilha
-              // inteira — 24 blocos + 23 gaps de 1px (`gap-px`). `minLineGapFraction`
-              // converte o mínimo em pixels (`MIN_LINE_GAP_PX`) pra uma fração daquele
-              // bloco especificamente — ao contrário de uma fração fixa, não encolhe até
-              // sumir numa coluna estreita (bug relatado). Sem medição ainda (1º render)
-              // ou em teste (jsdom sem ResizeObserver), cai no fallback estático.
-              const hourBoxWidthPx =
-                trackWidth != null ? (trackWidth - HOUR_GAP_COUNT_PX) / 24 : null
-              const minLineGapFraction =
-                hourBoxWidthPx != null && hourBoxWidthPx > 0
-                  ? Math.min(0.3, MIN_LINE_GAP_PX / hourBoxWidthPx)
-                  : FALLBACK_MIN_LINE_GAP_FRACTION
-              return Array.from({ length: 24 }, (_, hour) => {
-                const items = byHour.get(hour)
-                const cat = items
-                  ? CAT_PRIORITY.find((c) => items.some((i) => i.category === c))
-                  : undefined
-                // Início desta hora em ms (mesma janela local de `dayStartMs`) — base pra
-                // calcular a fração de CADA gravação DENTRO da hora (não do dia inteiro),
-                // uma linha vertical por gravação, na posição real (proporcional ao
-                // horário de início), não distribuída uniformemente por índice.
-                const hourStartMs = dayStartMs + hour * 3600_000
-                // `spreadFractions` garante separação mínima entre linhas vizinhas — sem
-                // isso, gravações muito próximas no tempo (reconexões rápidas do gravador)
-                // colapsam visualmente no mesmo pixel e "somem" (queixa relatada: N
-                // gravações mostrando bem menos que N linhas).
-                const positions = items
-                  ? spreadFractions(
-                      items.map((item) => {
-                        const startMs = Date.parse(item.rec.start)
-                        const frac = (startMs - hourStartMs) / 3600_000
-                        return { id: item.rec.id, frac: frac < 0 ? 0 : frac > 1 ? 1 : frac }
-                      }),
-                      minLineGapFraction,
-                    )
-                  : null
-                return (
-                  <div
-                    key={hour}
-                    id={`history-timeline-hour-${hour}`}
-                    aria-hidden="true"
-                    className={`relative h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'}`}
-                  >
-                    {items?.map((item) => {
-                      const clamped = positions!.get(item.rec.id)!
-                      // Esmaece (não remove) gravações fora do filtro ativo — a régua
-                      // sempre mostra TODAS as gravações da hora; `filter` só reduz a
-                      // opacidade das que não batem, igual ao card correspondente na
-                      // lista lateral (HistoryPage.tsx).
-                      const dimmed = filter != null && !matchesTimelineFilter(item.category, filter)
-                      return (
-                        <span
-                          key={item.rec.id}
-                          id={`history-timeline-hour-${hour}-rec-${item.rec.id}`}
-                          className={`absolute top-0 h-full w-px bg-foreground/70 ${dimmed ? 'opacity-40' : ''}`}
-                          style={{ left: `${clamped * 100}%` }}
-                        />
-                      )
-                    })}
-                  </div>
-                )
-              })
-            })()}
-          </div>
-          {handleFraction != null && (
-            // Ponteiro estilo "lollipop" (bolinha + haste + seta apontando pra baixo, como
-            // um ponteiro de relógio) — um único alvo de pointer events (a bolinha, a haste
-            // e a seta arrastam juntas). `top`+`bottom` (em vez de uma altura fixa) faz a
-            // haste esticar (`flex-1` no meio) pra acompanhar a trilha inteira. `-bottom-2`
-            // (em vez de `bottom-0`) desce a ponta da seta um pouco PRA FORA da caixa da
-            // trilha (não só encostada na borda) — a folga até a linha de números
-            // (`mt-4` nela, ver abaixo) usa o MESMO INCREMENTO ABSOLUTO (+4px em cada,
-            // não uma proporção) que o `-bottom-1`/`mt-3` anteriores, preservando os 12px
-            // de folga (somados ao `gap-1` do flex) que evitam a seta cobrir os dígitos.
+        {/* `#history-timeline-scroll` — trilha + labels rolam JUNTOS horizontalmente quando
+            a hora mais cheia do dia exige mais espaço do que a tela cabe
+            (`requiredHourWidthPx`, ver comentário acima de onde é calculado) — as 24 horas
+            mantêm a MESMA largura entre si (não distorce a proporção de tempo), só o TOTAL
+            passa a exceder a área visível nesse caso. `overflow-y-hidden` (não afeta o
+            preview, que fica FORA deste container — ver comentário de `scrollLeft` acima)
+            evita uma barra vertical indesejada; sem crowding, o conteúdo cabe inteiro e
+            não aparece barra nenhuma (scroll só aparece quando de fato precisa). */}
+        <div
+          id="history-timeline-scroll"
+          className="scrollbar-thin overflow-x-auto overflow-y-hidden"
+          onScroll={handleTrackScroll}
+        >
+          {/* Wrapper próprio (relative) só pra trilha + alça + linha de hover — a alça usa
+              `bottom-0` ANCORADO NESTE wrapper (não no de fora, que também contém os
+              números), pra que a ponta da seta pare sempre na base da trilha, nunca
+              avançando sobre a linha de números por baixo (mesmo se ela descer). */}
+          <div className="relative">
             <div
-              id="history-timeline-handle"
+              id="history-timeline-track"
+              ref={trackCallbackRef}
               role="button"
               tabIndex={0}
-              aria-label="Arrastar para selecionar gravação"
-              onPointerDown={handleHandlePointerDown}
-              onPointerMove={handleHandlePointerMove}
-              onPointerUp={handleHandlePointerUp}
-              className="absolute -top-2.5 -bottom-2 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
-              style={{ left: `${handleFraction * 100}%` }}
+              aria-label="Selecionar gravação na régua de 24h"
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+              onClick={handleClick}
+              className="flex h-6 gap-px rounded cursor-pointer"
             >
-              <span className="h-3 w-3 shrink-0 rounded-full bg-primary shadow ring-2 ring-background" />
-              <span className="w-1 flex-1 bg-primary" />
-              <span
-                aria-hidden="true"
-                className="h-0 w-0 shrink-0 border-x-8 border-t-8 border-x-transparent border-t-primary"
-              />
+              {(() => {
+                // Largura de UM bloco de hora (px) a partir da largura real do CONTEÚDO
+                // (`contentWidthPx` — não `trackWidth`, que só reflete a caixa visível/
+                // cortada da trilha, ver comentário de `contentWidthPx` acima) — 24 blocos
+                // + 23 gaps de 1px (`gap-px`). `minLineGapFraction` converte o mínimo em
+                // pixels (`MIN_LINE_GAP_PX`) pra uma fração daquele bloco especificamente —
+                // ao contrário de uma fração fixa, não encolhe até sumir numa coluna
+                // estreita (bug relatado). Sem medição ainda (1º render) ou em teste (jsdom
+                // sem ResizeObserver), cai no fallback estático.
+                const hourBoxWidthPx =
+                  trackWidth != null ? (contentWidthPx - HOUR_GAP_COUNT_PX) / 24 : null
+                const minLineGapFraction =
+                  hourBoxWidthPx != null && hourBoxWidthPx > 0
+                    ? Math.min(0.3, MIN_LINE_GAP_PX / hourBoxWidthPx)
+                    : FALLBACK_MIN_LINE_GAP_FRACTION
+                return Array.from({ length: 24 }, (_, hour) => {
+                  const items = byHour.get(hour)
+                  const cat = items
+                    ? CAT_PRIORITY.find((c) => items.some((i) => i.category === c))
+                    : undefined
+                  // Início desta hora em ms (mesma janela local de `dayStartMs`) — base pra
+                  // calcular a fração de CADA gravação DENTRO da hora (não do dia inteiro),
+                  // uma linha vertical por gravação, na posição real (proporcional ao
+                  // horário de início), não distribuída uniformemente por índice.
+                  const hourStartMs = dayStartMs + hour * 3600_000
+                  // `spreadFractions` garante separação mínima entre linhas vizinhas — sem
+                  // isso, gravações muito próximas no tempo (reconexões rápidas do gravador)
+                  // colapsam visualmente no mesmo pixel e "somem" (queixa relatada: N
+                  // gravações mostrando bem menos que N linhas).
+                  const positions = items
+                    ? spreadFractions(
+                        items.map((item) => {
+                          const startMs = Date.parse(item.rec.start)
+                          const frac = (startMs - hourStartMs) / 3600_000
+                          return { id: item.rec.id, frac: frac < 0 ? 0 : frac > 1 ? 1 : frac }
+                        }),
+                        minLineGapFraction,
+                      )
+                    : null
+                  return (
+                    <div
+                      key={hour}
+                      id={`history-timeline-hour-${hour}`}
+                      aria-hidden="true"
+                      className={`relative h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'} ${
+                        hour === 0 ? 'rounded-l' : hour === 23 ? 'rounded-r' : ''
+                      }`}
+                      style={{ minWidth: requiredHourWidthPx }}
+                    >
+                      {items?.map((item) => {
+                        const clamped = positions!.get(item.rec.id)!
+                        // Esmaece (não remove) gravações fora do filtro ativo — a régua
+                        // sempre mostra TODAS as gravações da hora; `filter` só reduz a
+                        // opacidade das que não batem, igual ao card correspondente na
+                        // lista lateral (HistoryPage.tsx).
+                        const dimmed =
+                          filter != null && !matchesTimelineFilter(item.category, filter)
+                        return (
+                          <span
+                            key={item.rec.id}
+                            id={`history-timeline-hour-${hour}-rec-${item.rec.id}`}
+                            className={`absolute top-0 h-full w-px bg-foreground/70 ${dimmed ? 'opacity-40' : ''}`}
+                            style={{ left: `${clamped * 100}%` }}
+                          />
+                        )
+                      })}
+                    </div>
+                  )
+                })
+              })()}
             </div>
-          )}
-          {hoverFraction != null && (
-            <div
-              className="pointer-events-none absolute top-0 h-6 w-px bg-foreground/80"
-              style={{ left: `${hoverFraction * 100}%` }}
-            />
-          )}
-        </div>
-        {/* Mesmo esquema de 24 células flex-1 dos blocos da trilha (não justify-between,
-            que espalha borda-a-borda) — cada número fica centralizado sob o bloco da
-            própria hora, não numa fronteira entre dois blocos. `mt-4` (em vez do `gap-1`
-            padrão do wrapper de fora, que sozinho não seria suficiente) dá espaço extra
-            pra ponta da seta, que agora para na base do wrapper interno da trilha (ver
-            comentário acima) em vez de esticar até aqui. */}
-        <div id="history-timeline-labels" className="mt-4 flex text-caption text-faint">
-          {HOUR_LABELS.map((h) => (
-            <span key={h} className="flex-1 text-center">
-              {h}
-            </span>
-          ))}
+            {handleFraction != null && (
+              // Ponteiro estilo "lollipop" (bolinha + haste + seta apontando pra baixo, como
+              // um ponteiro de relógio) — um único alvo de pointer events (a bolinha, a haste
+              // e a seta arrastam juntas). `top`+`bottom` (em vez de uma altura fixa) faz a
+              // haste esticar (`flex-1` no meio) pra acompanhar a trilha inteira. `-bottom-2`
+              // (em vez de `bottom-0`) desce a ponta da seta um pouco PRA FORA da caixa da
+              // trilha (não só encostada na borda) — a folga até a linha de números
+              // (`mt-4` nela, ver abaixo) usa o MESMO INCREMENTO ABSOLUTO (+4px em cada,
+              // não uma proporção) que o `-bottom-1`/`mt-3` anteriores, preservando os 12px
+              // de folga (somados ao `gap-1` do flex) que evitam a seta cobrir os dígitos.
+              // Posição em PIXELS (`contentWidthPx`), não porcentagem: o `.relative` que
+              // contém a alça (ancestral posicionado mais próximo) nunca cresce além da
+              // largura VISÍVEL de `#history-timeline-scroll` (block box comum, largura
+              // travada no containing block, mesmo quando os filhos — os blocos de hora —
+              // transbordam) — `left: X%` resolveria contra essa largura visível, não a do
+              // conteúdo real, fazendo a alça flutuar "grudada" numa fração da JANELA em
+              // vez da posição real no dia (bug pego no code review, reproduzido em
+              // Chromium). Diferente do preview (fora do container de scroll), a alça e a
+              // linha de hover ficam DENTRO dele — o próprio scroll nativo do navegador já
+              // desloca sua posição visual ao rolar, então NÃO subtraem `scrollLeft` (isso
+              // duplicaria o deslocamento).
+              <div
+                id="history-timeline-handle"
+                role="button"
+                tabIndex={0}
+                aria-label="Arrastar para selecionar gravação"
+                onPointerDown={handleHandlePointerDown}
+                onPointerMove={handleHandlePointerMove}
+                onPointerUp={handleHandlePointerUp}
+                className="absolute -top-2.5 -bottom-2 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
+                style={{
+                  left:
+                    trackWidth != null
+                      ? `${handleFraction * contentWidthPx}px`
+                      : `${handleFraction * 100}%`,
+                }}
+              >
+                <span className="h-3 w-3 shrink-0 rounded-full bg-primary shadow ring-2 ring-background" />
+                <span className="w-1 flex-1 bg-primary" />
+                <span
+                  aria-hidden="true"
+                  className="h-0 w-0 shrink-0 border-x-8 border-t-8 border-x-transparent border-t-primary"
+                />
+              </div>
+            )}
+            {hoverFraction != null && (
+              <div
+                className="pointer-events-none absolute top-0 h-6 w-px bg-foreground/80"
+                style={{
+                  left:
+                    trackWidth != null
+                      ? `${hoverFraction * contentWidthPx}px`
+                      : `${hoverFraction * 100}%`,
+                }}
+              />
+            )}
+          </div>
+          {/* Mesmo esquema de 24 células flex-1 dos blocos da trilha (não justify-between,
+              que espalha borda-a-borda) — cada número fica centralizado sob o bloco da
+              própria hora, não numa fronteira entre dois blocos; `minWidth` igual ao dos
+              blocos acima (`requiredHourWidthPx`) mantém os números alinhados mesmo quando
+              a régua rola horizontalmente. `mt-4` (em vez do `gap-1` padrão do wrapper de
+              fora, que sozinho não seria suficiente) dá espaço extra pra ponta da seta, que
+              agora para na base do wrapper interno da trilha (ver comentário acima) em vez
+              de esticar até aqui. */}
+          <div id="history-timeline-labels" className="mt-4 flex text-caption text-faint">
+            {HOUR_LABELS.map((h) => (
+              <span
+                key={h}
+                className="flex-1 text-center"
+                style={{ minWidth: requiredHourWidthPx }}
+              >
+                {h}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </div>

@@ -577,6 +577,115 @@ describe('HistoryTimeline', () => {
     )
   })
 
+  it('CAscroll: todo bloco de hora ganha a MESMA largura mínima, dimensionada pela hora mais cheia do dia — nunca uma largura diferente entre horas', () => {
+    // Hora 7 com 50 gravações (simulação de reconexões rápidas do gravador); hora 18 com
+    // só 1. Ambas precisam ter o MESMO min-width (o da hora mais cheia) — blocos de hora
+    // desiguais distorceriam a proporção de tempo da régua.
+    const busyHour = Array.from({ length: 50 }, (_, i) =>
+      item(i + 1, `2026-07-05T07:${String(i % 60).padStart(2, '0')}:00Z`, 'continua'),
+    )
+    const items = [...busyHour, item(999, '2026-07-05T18:00:00Z', 'pessoa')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    const expectedWidth = '150px' // 50 gravações × 3px (PX_PER_HOUR_LINE)
+    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe(expectedWidth)
+    expect(document.getElementById('history-timeline-hour-18')!.style.minWidth).toBe(expectedWidth)
+    // Hora sem gravação nenhuma também segue a mesma largura mínima.
+    expect(document.getElementById('history-timeline-hour-0')!.style.minWidth).toBe(expectedWidth)
+    // Os rótulos de hora abaixo da régua acompanham a mesma largura, pra continuarem
+    // alinhados sob o bloco correspondente mesmo com a régua rolando horizontalmente.
+    const labels = document.getElementById('history-timeline-labels')!
+    for (const label of Array.from(labels.children)) {
+      expect((label as HTMLElement).style.minWidth).toBe(expectedWidth)
+    }
+  })
+
+  it('CAscroll: dia comum (poucas gravações) usa uma largura mínima pequena — não força scroll à toa', () => {
+    const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    // 1 gravação × 3px — bem menor que a largura real de qualquer tela, então o `flex-1`
+    // continua sendo o que de fato decide a largura visível (sem scroll).
+    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe('3px')
+  })
+
+  it('CAscroll: clique numa régua "lotada" mapeia pro instante certo — não usa a largura VISÍVEL (cortada) como divisor da fração', () => {
+    // Bug pego no code review: dividir pela largura visível/mockada (700px) em vez da
+    // largura real do conteúdo (24 blocos de 60 gravações × 3px + gaps = 4343px) faria um
+    // clique a 90% da área VISÍVEL (630px) resolver pra ~90% do DIA (~21h36, perto da
+    // gravação da hora 20) — quando na verdade, na largura real do conteúdo, 630px cai
+    // bem cedo (~3h30, perto das gravações da hora 0). 60 gravações na hora 0 (simulação
+    // de reconexões rápidas do gravador) dominam `requiredHourWidthPx`; uma única
+    // gravação isolada na hora 20 serve de "atrator" errado caso o bug volte.
+    const onSelect = vi.fn()
+    const busyHour = Array.from({ length: 60 }, (_, i) =>
+      item(i + 1, `2026-07-05T00:${String(i % 60).padStart(2, '0')}:00Z`, 'continua'),
+    )
+    const items = [...busyHour, item(999, '2026-07-05T20:00:00Z', 'pessoa')]
+    render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
+    mockTrackRect(700) // largura VISÍVEL, bem menor que a largura real do conteúdo
+    fireEvent.click(document.getElementById('history-timeline-track')!, { clientX: 630 })
+    const selectedId = onSelect.mock.calls[0]![0] as number
+    // Qualquer id de 1 a 60 (hora 0) está correto; 999 (hora 20) indicaria o bug de volta.
+    expect(selectedId).not.toBe(999)
+    expect(selectedId).toBeGreaterThanOrEqual(1)
+    expect(selectedId).toBeLessThanOrEqual(60)
+  })
+
+  it('CAscroll: a alça (posição de repouso) usa pixels do CONTEÚDO real numa régua "lotada" — não porcentagem da janela visível', () => {
+    // Bug pego no code review: `left: X%` resolvido contra o `.relative` (ancestral
+    // posicionado da alça) sempre a largura VISÍVEL do scroll (nunca a do conteúdo
+    // transbordante) fazia a alça flutuar grudada numa fração da JANELA, não na posição
+    // real do dia — pior, deslizando junto com o próprio scroll.
+    let resizeCallback: ResizeObserverCallback | null = null
+    class FakeResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        resizeCallback = cb
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+
+    const busyHour = Array.from({ length: 60 }, (_, i) =>
+      item(i + 1, `2026-07-05T00:${String(i % 60).padStart(2, '0')}:00Z`, 'continua'),
+    )
+    render(
+      <HistoryTimeline
+        recordingItems={busyHour}
+        onSelect={vi.fn()}
+        cameraId="cam1"
+        selectedId={30}
+      />,
+    )
+    act(() => {
+      resizeCallback?.(
+        [{ contentRect: { width: 700 } } as ResizeObserverEntry],
+        {} as ResizeObserver,
+      )
+    })
+
+    // requiredHourWidthPx = 60×3 = 180 → contentWidthPx = max(700, 180×24+23) = 4343 (bem
+    // maior que os 700px "visíveis" mockados — exatamente o cenário de régua lotada).
+    // Se o bug voltasse (`left: X%` contra a largura visível), o valor seria uma STRING
+    // de porcentagem (ex. "2.01%"), nunca em px.
+    const contentWidthPx = 60 * 3 * 24 + 23
+    const fraction = (Date.parse('2026-07-05T00:29:00Z') - DAY_START) / DAY_MS
+    const handle = document.getElementById('history-timeline-handle')!
+    // `toBeCloseTo` (não `toBe`) — o navegador arredonda o valor de `style.left` (px) com
+    // menos casas decimais do que o float bruto do JS, então o texto exato varia.
+    expect(handle.style.left.endsWith('px')).toBe(true)
+    expect(parseFloat(handle.style.left)).toBeCloseTo(fraction * contentWidthPx, 2)
+  })
+
+  it('CAscroll: o container `#history-timeline-scroll` existe e permite rolagem horizontal', () => {
+    const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    const scroll = document.getElementById('history-timeline-scroll')!
+    expect(scroll.className).toContain('overflow-x-auto')
+    expect(scroll.contains(document.getElementById('history-timeline-track'))).toBe(true)
+    expect(scroll.contains(document.getElementById('history-timeline-labels'))).toBe(true)
+  })
+
   it('CA3snap: soltar numa lacuna sem gravação nenhuma reposiciona a alça pra gravação REAL selecionada, não fica solta no vazio', () => {
     // item 1 às 05:00 e item 2 às 07:00 (gap de 2h sem cobertura nenhuma, já que
     // CHUNK_FALLBACK_MS é só 5min). Soltar às 06:30 (mais perto do item 2) seleciona o
