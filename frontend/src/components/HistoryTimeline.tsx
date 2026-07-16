@@ -102,6 +102,24 @@ const FALLBACK_MIN_LINE_GAP_FRACTION = 0.05
 // linhas de forma legível numa hora muito cheia, mesmo que isso exija rolagem horizontal
 // na régua (`MIN_LINE_GAP_PX` só distribui o espaço que JÁ existe).
 const PX_PER_HOUR_LINE = 3
+// Margem (px) entre linhas vizinhas dentro do espaço "pedido" de um bloco de hora — conta
+// TAMBÉM antes da 1ª linha e depois da última (N linhas → N+1 margens), pedido explícito
+// do navigator.
+const HOUR_LINE_MARGIN_PX = 1
+// Quantas linhas de `PX_PER_HOUR_LINE` cabem, por padrão, em CADA bloco de hora — pedido
+// do navigator: em vez de dimensionar a régua pela hora mais cheia REAL do dia
+// (`peakCount`, que faria dias comuns nunca rolar), todo bloco de hora já nasce largo o
+// bastante pra até 360 gravações (ex.: uma hora inteira de chunks de 10s), com a régua
+// ficando SEMPRE mais larga que a área visível e o scroll horizontal SEMPRE ativo por
+// padrão — não só em dias excepcionalmente cheios. "Por agora" (nota do navigator): um
+// valor fixo, não uma projeção de crescimento futuro.
+const DEFAULT_HOUR_LINE_CAPACITY = 360
+// Largura mínima "padrão" de UM bloco de hora: `DEFAULT_HOUR_LINE_CAPACITY` linhas de
+// `PX_PER_HOUR_LINE`px + uma margem de `HOUR_LINE_MARGIN_PX` antes de cada uma E depois da
+// última (N linhas → N+1 margens) — ex.: 360×3 + 361×1 = 1441px.
+const DEFAULT_HOUR_WIDTH_PX =
+  DEFAULT_HOUR_LINE_CAPACITY * PX_PER_HOUR_LINE +
+  (DEFAULT_HOUR_LINE_CAPACITY + 1) * HOUR_LINE_MARGIN_PX
 
 function formatClock(ms: number): string {
   const d = new Date(ms)
@@ -225,16 +243,19 @@ export default function HistoryTimeline({
     }
   }
 
-  // Largura MÍNIMA por bloco de hora (px), a partir da hora mais cheia do dia (`peakCount`
-  // já é esse máximo, calculado acima) — reconexões rápidas do gravador podem gerar
-  // dezenas/centenas de chunks curtos numa hora só; nenhuma largura de tela cabe centenas
-  // de linhas legíveis, então a régua toda ganha `min-width` suficiente pra hora mais
-  // cheia (as 24 horas continuam com a MESMA largura entre si — não distorce a proporção
-  // de tempo) e um scroll horizontal PRÓPRIO (`#history-timeline-scroll`) assume quando
-  // isso ultrapassa a largura disponível. Em dias normais (a maioria), o total fica bem
-  // menor que a largura disponível e os blocos crescem via `flex-1` normalmente, sem
-  // scroll nenhum — esse mínimo só "trava" quando realmente precisa.
-  const requiredHourWidthPx = Math.max(1, peakCount) * PX_PER_HOUR_LINE
+  // Largura MÍNIMA por bloco de hora (px) — `DEFAULT_HOUR_WIDTH_PX` (largura padrão fixa,
+  // pra até 360 linhas, ver comentário da constante) é o piso pra TODO bloco de hora,
+  // COM OU SEM gravação — pedido do navigator: os blocos devem ser mais largos
+  // independente de ter ou não gravação, não só quando o dia está cheio. Isso faz a régua
+  // ficar SEMPRE mais larga que a área visível e o scroll horizontal
+  // (`#history-timeline-scroll`) SEMPRE ativo por padrão. `Math.max` contra o valor
+  // calculado a partir da hora mais cheia do dia (`peakCount`, mesma fórmula de margem de
+  // `DEFAULT_HOUR_WIDTH_PX`) é só uma rede de segurança pro caso (hoje hipotético) de uma
+  // hora real superar 360 gravações — nesse caso o piso fixo deixaria de bastar sozinho.
+  const requiredHourWidthPx = Math.max(
+    DEFAULT_HOUR_WIDTH_PX,
+    peakCount * PX_PER_HOUR_LINE + (peakCount + 1) * HOUR_LINE_MARGIN_PX,
+  )
 
   // Largura REAL do conteúdo da trilha (24 blocos + gaps), pra qualquer cálculo de fração
   // de posição (clique/arraste) ou pixel (preview). NÃO é o mesmo que `trackWidth`
@@ -540,7 +561,10 @@ export default function HistoryTimeline({
               // Chromium). Diferente do preview (fora do container de scroll), a alça e a
               // linha de hover ficam DENTRO dele — o próprio scroll nativo do navegador já
               // desloca sua posição visual ao rolar, então NÃO subtraem `scrollLeft` (isso
-              // duplicaria o deslocamento).
+              // duplicaria o deslocamento). `z-20` garante que a alça sempre pinta por
+              // cima das linhas verticais da trilha — numa hora bem cheia (muitas linhas
+              // vizinhas), a bolinha/haste podiam "sumir" visualmente em meio à quantidade
+              // de linhas próximas (queixa relatada pelo navigator).
               <div
                 id="history-timeline-handle"
                 role="button"
@@ -549,7 +573,7 @@ export default function HistoryTimeline({
                 onPointerDown={handleHandlePointerDown}
                 onPointerMove={handleHandlePointerMove}
                 onPointerUp={handleHandlePointerUp}
-                className="absolute -top-2.5 -bottom-2 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
+                className="absolute -top-2.5 -bottom-2 z-20 flex -translate-x-1/2 touch-none cursor-grab flex-col items-center active:cursor-grabbing"
                 style={{
                   left:
                     trackWidth != null

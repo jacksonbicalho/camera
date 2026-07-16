@@ -122,9 +122,9 @@ describe('HistoryTimeline', () => {
       item(1, '2026-07-05T18:03:00Z', 'movimento'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     fireEvent.click(document.getElementById('history-timeline-track')!, {
-      clientX: clientXFor('2026-07-05T18:03:00Z', 2400),
+      clientX: clientXFor('2026-07-05T18:03:00Z', 40000),
     })
     expect(onSelect).toHaveBeenCalledWith(1)
   })
@@ -159,12 +159,12 @@ describe('HistoryTimeline', () => {
     vi.useFakeTimers()
     const items = [item(1, '2026-07-05T18:03:00Z', 'movimento')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    mockTrackRect(2400)
+    mockTrackRect(40000)
 
     expect(document.getElementById('history-timeline-preview')).toBeNull()
 
     fireEvent.mouseMove(document.getElementById('history-timeline-track')!, {
-      clientX: clientXFor('2026-07-05T18:03:00Z', 2400),
+      clientX: clientXFor('2026-07-05T18:03:00Z', 40000),
     })
     // A imagem/horário só aparece depois do mouse "descansar" (debounce) — ver comentário
     // de PREVIEW_DEBOUNCE_MS em HistoryTimeline.tsx: sem isso, cada mousemove bateria no
@@ -185,9 +185,9 @@ describe('HistoryTimeline', () => {
     // Só há gravação às 07h — 18h é uma lacuna franca (sem cobertura nenhuma).
     const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     fireEvent.mouseMove(document.getElementById('history-timeline-track')!, {
-      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T18:00:00Z', 40000),
     })
     act(() => vi.advanceTimersByTime(200))
     expect(document.getElementById('history-timeline-preview')).toBeNull()
@@ -198,13 +198,13 @@ describe('HistoryTimeline', () => {
     const onFrameRequests: string[] = []
     const items = [item(1, '2026-07-05T18:03:00Z', 'movimento')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     const track = document.getElementById('history-timeline-track')!
 
     // Move o mouse por várias posições intermediárias em rápida sucessão (< debounce entre
     // cada uma) — só a ÚLTIMA posição deve gerar preview, nunca as intermediárias.
     for (const t of ['12:00:00Z', '13:00:00Z', '14:00:00Z', '18:03:00Z']) {
-      fireEvent.mouseMove(track, { clientX: clientXFor(`2026-07-05T${t}`, 2400) })
+      fireEvent.mouseMove(track, { clientX: clientXFor(`2026-07-05T${t}`, 40000) })
       act(() => vi.advanceTimersByTime(50)) // < PREVIEW_DEBOUNCE_MS — nenhum preview deve ter disparado ainda
       expect(document.getElementById('history-timeline-preview')).toBeNull()
     }
@@ -222,9 +222,9 @@ describe('HistoryTimeline', () => {
     vi.useFakeTimers()
     const items = [item(1, '2026-07-05T18:03:00Z', 'movimento')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     const track = document.getElementById('history-timeline-track')!
-    fireEvent.mouseMove(track, { clientX: clientXFor('2026-07-05T18:03:00Z', 2400) })
+    fireEvent.mouseMove(track, { clientX: clientXFor('2026-07-05T18:03:00Z', 40000) })
     act(() => vi.advanceTimersByTime(200))
     expect(document.getElementById('history-timeline-preview')).not.toBeNull()
     fireEvent.mouseLeave(track)
@@ -235,9 +235,9 @@ describe('HistoryTimeline', () => {
     vi.useFakeTimers()
     const items = [item(1, '2026-07-05T18:03:00Z', 'movimento')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     const track = document.getElementById('history-timeline-track')!
-    fireEvent.mouseMove(track, { clientX: clientXFor('2026-07-05T18:03:00Z', 2400) })
+    fireEvent.mouseMove(track, { clientX: clientXFor('2026-07-05T18:03:00Z', 40000) })
     act(() => vi.advanceTimersByTime(200))
     const img = document.querySelector('#history-timeline-preview img')!
     fireEvent.error(img)
@@ -251,9 +251,9 @@ describe('HistoryTimeline', () => {
       item(1, '2026-07-05T18:03:00Z', 'movimento'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     fireEvent.click(document.getElementById('history-timeline-track')!, {
-      clientX: clientXFor('2026-07-05T18:20:00Z', 2400),
+      clientX: clientXFor('2026-07-05T18:20:00Z', 40000),
     })
     expect(onSelect).toHaveBeenCalledWith(2)
   })
@@ -265,7 +265,7 @@ describe('HistoryTimeline', () => {
       item(1, '2026-07-05T05:00:00Z', 'continua'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     fireEvent.click(document.getElementById('history-timeline-track')!, { clientX: -500 })
     expect(onSelect).toHaveBeenCalledWith(1)
   })
@@ -277,8 +277,8 @@ describe('HistoryTimeline', () => {
       item(1, '2026-07-05T05:00:00Z', 'continua'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
-    mockTrackRect(2400)
-    fireEvent.click(document.getElementById('history-timeline-track')!, { clientX: 9999 })
+    mockTrackRect(40000)
+    fireEvent.click(document.getElementById('history-timeline-track')!, { clientX: 999999 })
     expect(onSelect).toHaveBeenCalledWith(2)
   })
 
@@ -292,18 +292,18 @@ describe('HistoryTimeline', () => {
     render(
       <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
     )
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     const handle = document.getElementById('history-timeline-handle')!
     fireEvent.pointerDown(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
       pointerId: 1,
     })
     fireEvent.pointerMove(handle, {
-      clientX: clientXFor('2026-07-05T10:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T10:00:00Z', 40000),
       pointerId: 1,
     })
     fireEvent.pointerMove(handle, {
-      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T18:00:00Z', 40000),
       pointerId: 1,
     })
     // Nenhuma troca de gravação durante o arraste — só ao soltar (CA5drag).
@@ -323,18 +323,18 @@ describe('HistoryTimeline', () => {
     render(
       <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
     )
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     const handle = document.getElementById('history-timeline-handle')!
     fireEvent.pointerDown(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
       pointerId: 1,
     })
     fireEvent.pointerMove(handle, {
-      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T18:00:00Z', 40000),
       pointerId: 1,
     })
     fireEvent.pointerUp(handle, {
-      clientX: clientXFor('2026-07-05T18:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T18:00:00Z', 40000),
       pointerId: 1,
     })
     expect(onSelect).toHaveBeenCalledTimes(1)
@@ -350,14 +350,14 @@ describe('HistoryTimeline', () => {
     render(
       <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={2} />,
     )
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     const handle = document.getElementById('history-timeline-handle')!
     fireEvent.pointerDown(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
       pointerId: 1,
     })
     fireEvent.pointerUp(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
       pointerId: 1,
     })
     expect(onSelect).toHaveBeenCalledTimes(1)
@@ -377,22 +377,22 @@ describe('HistoryTimeline', () => {
     render(
       <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
     )
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     const handle = document.getElementById('history-timeline-handle')!
     fireEvent.pointerDown(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
       pointerId: 1,
     })
     fireEvent.pointerMove(handle, {
-      clientX: clientXFor('2026-07-05T05:03:00Z', 2400),
+      clientX: clientXFor('2026-07-05T05:03:00Z', 40000),
       pointerId: 1,
     })
     fireEvent.pointerUp(handle, {
-      clientX: clientXFor('2026-07-05T05:03:00Z', 2400),
+      clientX: clientXFor('2026-07-05T05:03:00Z', 40000),
       pointerId: 1,
     })
     expect(onSelect).toHaveBeenCalledWith(1)
-    const startFraction = clientXFor('2026-07-05T05:00:00Z', 2400) / 2400
+    const startFraction = clientXFor('2026-07-05T05:00:00Z', 40000) / 40000
     expect(handle.style.left).toBe(`${startFraction * 100}%`)
   })
 
@@ -403,14 +403,14 @@ describe('HistoryTimeline', () => {
       item(2, '2026-07-05T18:00:00Z', 'movimento'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     // 10h: mais perto de 05:00 (5h de distância) do que de 18:00 (8h de distância) — gruda
     // no início da gravação 1, nunca na posição livre de 10h.
     fireEvent.click(document.getElementById('history-timeline-track')!, {
-      clientX: clientXFor('2026-07-05T10:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T10:00:00Z', 40000),
     })
     expect(onSelect).toHaveBeenCalledWith(1)
-    const startFraction = clientXFor('2026-07-05T05:00:00Z', 2400) / 2400
+    const startFraction = clientXFor('2026-07-05T05:00:00Z', 40000) / 40000
     const handle = document.getElementById('history-timeline-handle')!
     expect(handle.style.left).toBe(`${startFraction * 100}%`)
   })
@@ -467,14 +467,12 @@ describe('HistoryTimeline', () => {
     expect(lefts[0]).toBe('0%')
   })
 
-  it('CA2vlines: numa trilha estreita (bloco de hora só ~10px), a separação mínima usa pixels REAIS medidos — não uma fração fixa que encolhe até sumir', () => {
-    // Bug relatado pelo navigator: mesmo depois de garantir separação mínima, "não está
-    // funcionando corretamente" numa tela mais estreita — a causa era uma fração FIXA da
-    // hora (ex. 5%), que em blocos estreitos vira sub-pixel (invisível). Este teste
-    // simula a medição real (ResizeObserver, indisponível no jsdom por padrão — mockado
-    // aqui) de uma trilha de 263px (24 blocos de ~10px + 23 gaps de 1px) e confirma que a
-    // fração mínima usada CRESCE pra compensar (min(30%, 3px/10px) = 30%), continuando
-    // visualmente distinguível mesmo num bloco minúsculo.
+  it('CA2vlines: mesmo numa trilha medida bem estreita, o bloco de hora usa a largura PADRÃO fixa (1441px) — nunca precisa do teto de 30% de separação, o piso já garante espaço de sobra', () => {
+    // Desde que os blocos de hora ganharam uma largura padrão fixa (pedido do navigator:
+    // "os boxes... devem ser mais largos independente se tem ou não gravação"), a largura
+    // MEDIDA da trilha (via ResizeObserver) deixa de importar pra esse cálculo sempre que
+    // for menor que o piso fixo — 263px medidos aqui são bem menores que os 1441px do
+    // piso, então é o piso que vale (`Math.max`).
     let resizeCallback: ResizeObserverCallback | null = null
     class FakeResizeObserver {
       constructor(cb: ResizeObserverCallback) {
@@ -502,13 +500,15 @@ describe('HistoryTimeline', () => {
     const left1 = document.getElementById('history-timeline-hour-0-rec-1')!.style.left
     const left2 = document.getElementById('history-timeline-hour-0-rec-2')!.style.left
     expect(left1).toBe('0%')
-    expect(left2).toBe('30%')
+    // minLineGapFraction = MIN_LINE_GAP_PX / 1441 (o piso fixo, não os 263px medidos).
+    const minGapFraction = (3 / 1441) * 100
+    expect(parseFloat(left2)).toBeCloseTo(minGapFraction, 5)
   })
 
-  it('CA2vlines: numa trilha larga (bloco de hora ~30px), a fração mínima fica bem abaixo do teto de 30% — não distorce o layout à toa', () => {
-    // Complementa o teste acima: confirma o ramo SEM o teto de 30% ativo (diferente do
-    // caso estreito, onde 30% é o próprio limite aplicado) — aqui o cálculo natural
-    // (3px / 30px = 10%) é o que vale.
+  it('CA2vlines: numa trilha medida MAIOR que a largura padrão (24 blocos), o bloco de hora cresce além do piso fixo — a largura real ainda pode dominar', () => {
+    // Complementa o teste acima: confirma que `Math.max` continua funcionando nos dois
+    // sentidos — uma trilha genuinamente maior que 24×1441px+gaps (34607px) ainda faz os
+    // blocos crescerem além do piso, com uma fração mínima ainda menor (mais espaço).
     let resizeCallback: ResizeObserverCallback | null = null
     class FakeResizeObserver {
       constructor(cb: ResizeObserverCallback) {
@@ -526,16 +526,18 @@ describe('HistoryTimeline', () => {
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
 
+    const measuredWidth = 40000 // > 24×1441+23 (34607) — maior que o piso fixo
     act(() => {
-      // 24 blocos de exatamente 30px + 23 gaps de 1px = 743px.
       resizeCallback?.(
-        [{ contentRect: { width: 743 } } as ResizeObserverEntry],
+        [{ contentRect: { width: measuredWidth } } as ResizeObserverEntry],
         {} as ResizeObserver,
       )
     })
 
     const left2 = document.getElementById('history-timeline-hour-0-rec-2')!.style.left
-    expect(left2).toBe('10%')
+    const hourBoxWidthPx = (measuredWidth - 23) / 24
+    const minGapFraction = (3 / hourBoxWidthPx) * 100
+    expect(parseFloat(left2)).toBeCloseTo(minGapFraction, 5)
   })
 
   it('CA2semfiltro: a régua sempre mostra TODAS as gravações — a cor do bloco de hora não depende da prop `filter`, só as linhas esmaecem', () => {
@@ -577,19 +579,20 @@ describe('HistoryTimeline', () => {
     )
   })
 
-  it('CAscroll: todo bloco de hora ganha a MESMA largura mínima, dimensionada pela hora mais cheia do dia — nunca uma largura diferente entre horas', () => {
+  it('CAscroll: todo bloco de hora ganha a MESMA largura mínima PADRÃO (fixa, pra até 360 linhas) — com ou sem gravação, independente do quão cheio o dia está', () => {
     // Hora 7 com 50 gravações (simulação de reconexões rápidas do gravador); hora 18 com
-    // só 1. Ambas precisam ter o MESMO min-width (o da hora mais cheia) — blocos de hora
-    // desiguais distorceriam a proporção de tempo da régua.
+    // só 1; hora 0 sem nenhuma. As 3 precisam ter o MESMO min-width — o padrão fixo
+    // (360×3px + 361×1px de margem = 1441px), não um valor calculado a partir da
+    // contagem real do dia: pedido do navigator ("os boxes... devem ser mais largos
+    // independente se tem ou não gravação").
     const busyHour = Array.from({ length: 50 }, (_, i) =>
       item(i + 1, `2026-07-05T07:${String(i % 60).padStart(2, '0')}:00Z`, 'continua'),
     )
     const items = [...busyHour, item(999, '2026-07-05T18:00:00Z', 'pessoa')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    const expectedWidth = '150px' // 50 gravações × 3px (PX_PER_HOUR_LINE)
+    const expectedWidth = '1441px' // 360×3 + 361×1 (largura padrão fixa)
     expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe(expectedWidth)
     expect(document.getElementById('history-timeline-hour-18')!.style.minWidth).toBe(expectedWidth)
-    // Hora sem gravação nenhuma também segue a mesma largura mínima.
     expect(document.getElementById('history-timeline-hour-0')!.style.minWidth).toBe(expectedWidth)
     // Os rótulos de hora abaixo da régua acompanham a mesma largura, pra continuarem
     // alinhados sob o bloco correspondente mesmo com a régua rolando horizontalmente.
@@ -599,12 +602,21 @@ describe('HistoryTimeline', () => {
     }
   })
 
-  it('CAscroll: dia comum (poucas gravações) usa uma largura mínima pequena — não força scroll à toa', () => {
+  it('CAscroll: dia comum (poucas gravações) ainda usa a largura padrão fixa — o scroll fica ativo por padrão, não só em dias cheios', () => {
     const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    // 1 gravação × 3px — bem menor que a largura real de qualquer tela, então o `flex-1`
-    // continua sendo o que de fato decide a largura visível (sem scroll).
-    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe('3px')
+    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe('1441px')
+  })
+
+  it('CAscroll: uma hora com mais gravações do que a capacidade padrão (360) faz o piso crescer além do valor fixo', () => {
+    // Rede de segurança: 400 gravações numa hora só (acima do padrão de 360) precisam de
+    // mais espaço do que o piso fixo garante sozinho.
+    const items = Array.from({ length: 400 }, (_, i) =>
+      item(i + 1, `2026-07-05T07:00:${String(i % 60).padStart(2, '0')}Z`, 'continua'),
+    )
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    // 400×3 + 401×1 = 1601px > 1441px (o piso fixo).
+    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe('1601px')
   })
 
   it('CAscroll: clique numa régua "lotada" mapeia pro instante certo — não usa a largura VISÍVEL (cortada) como divisor da fração', () => {
@@ -664,11 +676,13 @@ describe('HistoryTimeline', () => {
       )
     })
 
-    // requiredHourWidthPx = 60×3 = 180 → contentWidthPx = max(700, 180×24+23) = 4343 (bem
-    // maior que os 700px "visíveis" mockados — exatamente o cenário de régua lotada).
-    // Se o bug voltasse (`left: X%` contra a largura visível), o valor seria uma STRING
-    // de porcentagem (ex. "2.01%"), nunca em px.
-    const contentWidthPx = 60 * 3 * 24 + 23
+    // 60 gravações não chegam nem perto da capacidade padrão (360) — quem decide
+    // `requiredHourWidthPx` aqui é o piso fixo (1441px, `DEFAULT_HOUR_WIDTH_PX`), não os
+    // dados. contentWidthPx = max(700, 1441×24+23) = 34607 — bem maior que os 700px
+    // "visíveis" mockados, exatamente o cenário de régua lotada por padrão. Se o bug
+    // voltasse (`left: X%` contra a largura visível), o valor seria uma STRING de
+    // porcentagem (ex. "2.01%"), nunca em px.
+    const contentWidthPx = 1441 * 24 + 23
     const fraction = (Date.parse('2026-07-05T00:29:00Z') - DAY_START) / DAY_MS
     const handle = document.getElementById('history-timeline-handle')!
     // `toBeCloseTo` (não `toBe`) — o navegador arredonda o valor de `style.left` (px) com
@@ -700,22 +714,22 @@ describe('HistoryTimeline', () => {
     render(
       <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
     )
-    mockTrackRect(2400)
+    mockTrackRect(40000)
     const handle = document.getElementById('history-timeline-handle')!
     fireEvent.pointerDown(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 2400),
+      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
       pointerId: 1,
     })
     fireEvent.pointerMove(handle, {
-      clientX: clientXFor('2026-07-05T06:30:00Z', 2400),
+      clientX: clientXFor('2026-07-05T06:30:00Z', 40000),
       pointerId: 1,
     })
     fireEvent.pointerUp(handle, {
-      clientX: clientXFor('2026-07-05T06:30:00Z', 2400),
+      clientX: clientXFor('2026-07-05T06:30:00Z', 40000),
       pointerId: 1,
     })
     expect(onSelect).toHaveBeenCalledWith(2)
-    const snappedFraction = clientXFor('2026-07-05T07:00:00Z', 2400) / 2400
+    const snappedFraction = clientXFor('2026-07-05T07:00:00Z', 40000) / 40000
     expect(handle.style.left).toBe(`${snappedFraction * 100}%`)
   })
 
