@@ -76,6 +76,11 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => i)
 // vertical indicadora continua instantânea (não custa nada) — só a imagem/horário do
 // tooltip espera o mouse "descansar".
 const PREVIEW_DEBOUNCE_MS = 150
+// Largura de CADA linha vertical (px) — pedido do navigator: uma linha fina de verdade
+// (1px) sumia visualmente numa régua densa (centenas de gravações numa hora só), mesmo
+// tecnicamente presente no DOM. 3px por linha garante que cada gravação continua
+// individualmente visível mesmo lado a lado com outras.
+const LINE_WIDTH_PX = 3
 // Separação mínima ENTRE LINHAS VIZINHAS, em pixels reais (não fração fixa da hora) —
 // gravações muito próximas no tempo (ex.: reconexões rápidas do gravador gerando vários
 // chunks em segundos) teriam posições quase idênticas e colapsariam num só pixel,
@@ -85,28 +90,21 @@ const PREVIEW_DEBOUNCE_MS = 150
 // coluna estreita (bloco de ~15px, 5% ≈ 0.75px): a separação precisa ser medida em PIXELS
 // de verdade, não numa fração que encolhe junto com a tela (bug relatado pelo navigator:
 // "as linhas precisam ser mais separadas... não está funcionando corretamente" — a fração
-// fixa não bastava no viewport dele). `MIN_LINE_GAP_PX` é convertido pra fração a cada
-// render a partir da largura REAL de um bloco de hora (medida via ResizeObserver na
-// trilha, ver `trackCallbackRef` abaixo) — mesmo padrão de medição já usado em
-// `HistoryPage.tsx` (`mainRef`/`mainHeight`) pra evitar depender de suposições de layout.
-const MIN_LINE_GAP_PX = 3
+// fixa não bastava no viewport dele). Também usada, com o mesmo valor, como margem entre
+// linhas no cálculo da largura PADRÃO de um bloco de hora (`DEFAULT_HOUR_WIDTH_PX` abaixo)
+// — uma única constante de espaçamento pros dois usos, pedido do navigator ao testar
+// 1.5px como valor (antes eram 3px, dobrando a largura reservada por linha sem motivo).
+// `LINE_GAP_PX` é convertido pra fração a cada render a partir da largura REAL de um
+// bloco de hora (medida via ResizeObserver na trilha, ver `trackCallbackRef` abaixo) —
+// mesmo padrão de medição já usado em `HistoryPage.tsx` (`mainRef`/`mainHeight`) pra
+// evitar depender de suposições de layout.
+const LINE_GAP_PX = 1.5
 // Nº de blocos de hora - 1 = nº de gaps de 1px (`gap-px`) entre eles na trilha.
 const HOUR_GAP_COUNT_PX = 23
 // Fração usada ANTES da 1ª medição (ResizeObserver ainda não disparou) e em testes
 // (jsdom não tem ResizeObserver — degrada graciosamente, mesmo padrão de `HistoryPage`).
 const FALLBACK_MIN_LINE_GAP_FRACTION = 0.05
-// Pixels de largura MÍNIMA "pedidos" por gravação numa hora, pra decidir a largura mínima
-// de CADA bloco de hora (ver `requiredHourWidthPx` no render) — mesmo valor de
-// `MIN_LINE_GAP_PX` (pedido do navigator, pra manter as duas constantes de espaçamento
-// consistentes entre si); aqui o USO é o oposto: quanto espaço pedir pra caber todas as
-// linhas de forma legível numa hora muito cheia, mesmo que isso exija rolagem horizontal
-// na régua (`MIN_LINE_GAP_PX` só distribui o espaço que JÁ existe).
-const PX_PER_HOUR_LINE = 3
-// Margem (px) entre linhas vizinhas dentro do espaço "pedido" de um bloco de hora — conta
-// TAMBÉM antes da 1ª linha e depois da última (N linhas → N+1 margens), pedido explícito
-// do navigator.
-const HOUR_LINE_MARGIN_PX = 1
-// Quantas linhas de `PX_PER_HOUR_LINE` cabem, por padrão, em CADA bloco de hora — pedido
+// Quantas linhas de `LINE_WIDTH_PX` cabem, por padrão, em CADA bloco de hora — pedido
 // do navigator: em vez de dimensionar a régua pela hora mais cheia REAL do dia
 // (`peakCount`, que faria dias comuns nunca rolar), todo bloco de hora já nasce largo o
 // bastante pra até 360 gravações (ex.: uma hora inteira de chunks de 10s), com a régua
@@ -115,11 +113,10 @@ const HOUR_LINE_MARGIN_PX = 1
 // valor fixo, não uma projeção de crescimento futuro.
 const DEFAULT_HOUR_LINE_CAPACITY = 360
 // Largura mínima "padrão" de UM bloco de hora: `DEFAULT_HOUR_LINE_CAPACITY` linhas de
-// `PX_PER_HOUR_LINE`px + uma margem de `HOUR_LINE_MARGIN_PX` antes de cada uma E depois da
-// última (N linhas → N+1 margens) — ex.: 360×3 + 361×1 = 1441px.
+// `LINE_WIDTH_PX`px + uma margem de `LINE_GAP_PX` antes de cada uma E depois da última
+// (N linhas → N+1 margens) — ex.: 360×3 + 361×1.5 = 1621.5px.
 const DEFAULT_HOUR_WIDTH_PX =
-  DEFAULT_HOUR_LINE_CAPACITY * PX_PER_HOUR_LINE +
-  (DEFAULT_HOUR_LINE_CAPACITY + 1) * HOUR_LINE_MARGIN_PX
+  DEFAULT_HOUR_LINE_CAPACITY * LINE_WIDTH_PX + (DEFAULT_HOUR_LINE_CAPACITY + 1) * LINE_GAP_PX
 
 function formatClock(ms: number): string {
   const d = new Date(ms)
@@ -156,7 +153,7 @@ export default function HistoryTimeline({
   const trackRef = useRef<HTMLDivElement | null>(null)
   // Largura real (px) da trilha inteira, medida via ResizeObserver — usada só pra
   // calcular a separação mínima entre linhas em pixels de verdade (ver
-  // MIN_LINE_GAP_PX acima), não pro cálculo de fração de clique/arraste (que já usa
+  // LINE_GAP_PX acima), não pro cálculo de fração de clique/arraste (que já usa
   // `trackRef.current.getBoundingClientRect()` direto nos handlers, sob demanda).
   // Ref CALLBACK (não useRef+useEffect(deps:[])): mesmo padrão de `mainRef` em
   // HistoryPage.tsx — dispara de novo se o node for recriado, e funciona mesmo que o
@@ -254,7 +251,7 @@ export default function HistoryTimeline({
   // hora real superar 360 gravações — nesse caso o piso fixo deixaria de bastar sozinho.
   const requiredHourWidthPx = Math.max(
     DEFAULT_HOUR_WIDTH_PX,
-    peakCount * PX_PER_HOUR_LINE + (peakCount + 1) * HOUR_LINE_MARGIN_PX,
+    peakCount * LINE_WIDTH_PX + (peakCount + 1) * LINE_GAP_PX,
   )
 
   // Largura REAL do conteúdo da trilha (24 blocos + gaps), pra qualquer cálculo de fração
@@ -451,7 +448,14 @@ export default function HistoryTimeline({
             não aparece barra nenhuma (scroll só aparece quando de fato precisa). */}
         <div
           id="history-timeline-scroll"
-          className="scrollbar-thin overflow-x-auto overflow-y-hidden"
+          // `pt-3` dá espaço pra bolinha da alça (`-top-2.5`, ver comentário abaixo), que
+          // sem isso ficava cortada por `overflow-y-hidden` — a caixa deste container só
+          // tinha a altura da trilha (24px), então qualquer coisa desenhada ACIMA dela
+          // (offset negativo) era clipada na hora, mesmo com z-index maior (clipping não é
+          // stacking: um `overflow-y-hidden` corta o que sai da própria caixa,
+          // independente de z-index). Bug relatado pelo navigator ("alça escondida") numa
+          // hora bem cheia — na prática a alça sempre existiu ali, só invisível.
+          className="scrollbar-thin overflow-x-auto overflow-y-hidden pt-3"
           onScroll={handleTrackScroll}
         >
           {/* Wrapper próprio (relative) só pra trilha + alça + linha de hover — a alça usa
@@ -475,7 +479,7 @@ export default function HistoryTimeline({
                 // (`contentWidthPx` — não `trackWidth`, que só reflete a caixa visível/
                 // cortada da trilha, ver comentário de `contentWidthPx` acima) — 24 blocos
                 // + 23 gaps de 1px (`gap-px`). `minLineGapFraction` converte o mínimo em
-                // pixels (`MIN_LINE_GAP_PX`) pra uma fração daquele bloco especificamente —
+                // pixels (`LINE_GAP_PX`) pra uma fração daquele bloco especificamente —
                 // ao contrário de uma fração fixa, não encolhe até sumir numa coluna
                 // estreita (bug relatado). Sem medição ainda (1º render) ou em teste (jsdom
                 // sem ResizeObserver), cai no fallback estático.
@@ -483,7 +487,7 @@ export default function HistoryTimeline({
                   trackWidth != null ? (contentWidthPx - HOUR_GAP_COUNT_PX) / 24 : null
                 const minLineGapFraction =
                   hourBoxWidthPx != null && hourBoxWidthPx > 0
-                    ? Math.min(0.3, MIN_LINE_GAP_PX / hourBoxWidthPx)
+                    ? Math.min(0.3, LINE_GAP_PX / hourBoxWidthPx)
                     : FALLBACK_MIN_LINE_GAP_FRACTION
                 return Array.from({ length: 24 }, (_, hour) => {
                   const items = byHour.get(hour)
@@ -531,8 +535,8 @@ export default function HistoryTimeline({
                           <span
                             key={item.rec.id}
                             id={`history-timeline-hour-${hour}-rec-${item.rec.id}`}
-                            className={`absolute top-0 h-full w-px bg-foreground/70 ${dimmed ? 'opacity-40' : ''}`}
-                            style={{ left: `${clamped * 100}%` }}
+                            className={`absolute top-0 h-full -translate-x-1/2 bg-foreground/70 ${dimmed ? 'opacity-40' : ''}`}
+                            style={{ left: `${clamped * 100}%`, width: LINE_WIDTH_PX }}
                           />
                         )
                       })}
@@ -609,7 +613,7 @@ export default function HistoryTimeline({
               fora, que sozinho não seria suficiente) dá espaço extra pra ponta da seta, que
               agora para na base do wrapper interno da trilha (ver comentário acima) em vez
               de esticar até aqui. */}
-          <div id="history-timeline-labels" className="mt-4 flex text-caption text-faint">
+          <div id="history-timeline-labels" className="mt-4 flex text-body font-bold text-faint">
             {HOUR_LABELS.map((h) => (
               <span
                 key={h}

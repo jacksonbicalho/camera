@@ -467,11 +467,11 @@ describe('HistoryTimeline', () => {
     expect(lefts[0]).toBe('0%')
   })
 
-  it('CA2vlines: mesmo numa trilha medida bem estreita, o bloco de hora usa a largura PADRÃO fixa (1441px) — nunca precisa do teto de 30% de separação, o piso já garante espaço de sobra', () => {
+  it('CA2vlines: mesmo numa trilha medida bem estreita, o bloco de hora usa a largura PADRÃO fixa (1621.5px) — nunca precisa do teto de 30% de separação, o piso já garante espaço de sobra', () => {
     // Desde que os blocos de hora ganharam uma largura padrão fixa (pedido do navigator:
     // "os boxes... devem ser mais largos independente se tem ou não gravação"), a largura
     // MEDIDA da trilha (via ResizeObserver) deixa de importar pra esse cálculo sempre que
-    // for menor que o piso fixo — 263px medidos aqui são bem menores que os 1441px do
+    // for menor que o piso fixo — 263px medidos aqui são bem menores que os 1621.5px do
     // piso, então é o piso que vale (`Math.max`).
     let resizeCallback: ResizeObserverCallback | null = null
     class FakeResizeObserver {
@@ -484,9 +484,13 @@ describe('HistoryTimeline', () => {
     }
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
 
+    // 1s de diferença (não 5s): natural gap = 1/3600×100 ≈ 0.0278%, menor que o mínimo
+    // aplicado aqui (0.0925%, ver abaixo) — precisa ser MENOR que o mínimo pra este teste
+    // de fato exercitar o enforcement (com o piso mais largo de 1621.5px, LINE_GAP_PX
+    // menor deixa o mínimo bem mais folgado do que quando a constante era 3px).
     const items = [
       item(1, '2026-07-05T00:00:00Z', 'continua'),
-      item(2, '2026-07-05T00:00:05Z', 'continua'),
+      item(2, '2026-07-05T00:00:01Z', 'continua'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
 
@@ -500,14 +504,14 @@ describe('HistoryTimeline', () => {
     const left1 = document.getElementById('history-timeline-hour-0-rec-1')!.style.left
     const left2 = document.getElementById('history-timeline-hour-0-rec-2')!.style.left
     expect(left1).toBe('0%')
-    // minLineGapFraction = MIN_LINE_GAP_PX / 1441 (o piso fixo, não os 263px medidos).
-    const minGapFraction = (3 / 1441) * 100
+    // minLineGapFraction = LINE_GAP_PX / 1621.5 (o piso fixo, não os 263px medidos).
+    const minGapFraction = (1.5 / 1621.5) * 100
     expect(parseFloat(left2)).toBeCloseTo(minGapFraction, 5)
   })
 
   it('CA2vlines: numa trilha medida MAIOR que a largura padrão (24 blocos), o bloco de hora cresce além do piso fixo — a largura real ainda pode dominar', () => {
     // Complementa o teste acima: confirma que `Math.max` continua funcionando nos dois
-    // sentidos — uma trilha genuinamente maior que 24×1441px+gaps (34607px) ainda faz os
+    // sentidos — uma trilha genuinamente maior que 24×1621.5px+gaps (38939px) ainda faz os
     // blocos crescerem além do piso, com uma fração mínima ainda menor (mais espaço).
     let resizeCallback: ResizeObserverCallback | null = null
     class FakeResizeObserver {
@@ -520,13 +524,15 @@ describe('HistoryTimeline', () => {
     }
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
 
+    // 1s de diferença (não 5s) — mesmo motivo do teste acima: precisa ser menor que o
+    // mínimo aplicado pra exercitar o enforcement, não só refletir a posição natural.
     const items = [
       item(1, '2026-07-05T00:00:00Z', 'continua'),
-      item(2, '2026-07-05T00:00:05Z', 'continua'),
+      item(2, '2026-07-05T00:00:01Z', 'continua'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
 
-    const measuredWidth = 40000 // > 24×1441+23 (34607) — maior que o piso fixo
+    const measuredWidth = 40000 // > 24×1621.5+23 (38939) — maior que o piso fixo
     act(() => {
       resizeCallback?.(
         [{ contentRect: { width: measuredWidth } } as ResizeObserverEntry],
@@ -536,7 +542,7 @@ describe('HistoryTimeline', () => {
 
     const left2 = document.getElementById('history-timeline-hour-0-rec-2')!.style.left
     const hourBoxWidthPx = (measuredWidth - 23) / 24
-    const minGapFraction = (3 / hourBoxWidthPx) * 100
+    const minGapFraction = (1.5 / hourBoxWidthPx) * 100
     expect(parseFloat(left2)).toBeCloseTo(minGapFraction, 5)
   })
 
@@ -582,7 +588,7 @@ describe('HistoryTimeline', () => {
   it('CAscroll: todo bloco de hora ganha a MESMA largura mínima PADRÃO (fixa, pra até 360 linhas) — com ou sem gravação, independente do quão cheio o dia está', () => {
     // Hora 7 com 50 gravações (simulação de reconexões rápidas do gravador); hora 18 com
     // só 1; hora 0 sem nenhuma. As 3 precisam ter o MESMO min-width — o padrão fixo
-    // (360×3px + 361×1px de margem = 1441px), não um valor calculado a partir da
+    // (360×3px + 361×1.5px de margem = 1621.5px), não um valor calculado a partir da
     // contagem real do dia: pedido do navigator ("os boxes... devem ser mais largos
     // independente se tem ou não gravação").
     const busyHour = Array.from({ length: 50 }, (_, i) =>
@@ -590,7 +596,7 @@ describe('HistoryTimeline', () => {
     )
     const items = [...busyHour, item(999, '2026-07-05T18:00:00Z', 'pessoa')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    const expectedWidth = '1441px' // 360×3 + 361×1 (largura padrão fixa)
+    const expectedWidth = '1621.5px' // 360×3 + 361×1.5 (largura padrão fixa)
     expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe(expectedWidth)
     expect(document.getElementById('history-timeline-hour-18')!.style.minWidth).toBe(expectedWidth)
     expect(document.getElementById('history-timeline-hour-0')!.style.minWidth).toBe(expectedWidth)
@@ -605,7 +611,7 @@ describe('HistoryTimeline', () => {
   it('CAscroll: dia comum (poucas gravações) ainda usa a largura padrão fixa — o scroll fica ativo por padrão, não só em dias cheios', () => {
     const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe('1441px')
+    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe('1621.5px')
   })
 
   it('CAscroll: uma hora com mais gravações do que a capacidade padrão (360) faz o piso crescer além do valor fixo', () => {
@@ -615,8 +621,8 @@ describe('HistoryTimeline', () => {
       item(i + 1, `2026-07-05T07:00:${String(i % 60).padStart(2, '0')}Z`, 'continua'),
     )
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    // 400×3 + 401×1 = 1601px > 1441px (o piso fixo).
-    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe('1601px')
+    // 400×3 + 401×1.5 = 1801.5px > 1621.5px (o piso fixo).
+    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe('1801.5px')
   })
 
   it('CAscroll: clique numa régua "lotada" mapeia pro instante certo — não usa a largura VISÍVEL (cortada) como divisor da fração', () => {
@@ -677,12 +683,12 @@ describe('HistoryTimeline', () => {
     })
 
     // 60 gravações não chegam nem perto da capacidade padrão (360) — quem decide
-    // `requiredHourWidthPx` aqui é o piso fixo (1441px, `DEFAULT_HOUR_WIDTH_PX`), não os
-    // dados. contentWidthPx = max(700, 1441×24+23) = 34607 — bem maior que os 700px
+    // `requiredHourWidthPx` aqui é o piso fixo (1621.5px, `DEFAULT_HOUR_WIDTH_PX`), não os
+    // dados. contentWidthPx = max(700, 1621.5×24+23) = 38939 — bem maior que os 700px
     // "visíveis" mockados, exatamente o cenário de régua lotada por padrão. Se o bug
     // voltasse (`left: X%` contra a largura visível), o valor seria uma STRING de
     // porcentagem (ex. "2.01%"), nunca em px.
-    const contentWidthPx = 1441 * 24 + 23
+    const contentWidthPx = 1621.5 * 24 + 23
     const fraction = (Date.parse('2026-07-05T00:29:00Z') - DAY_START) / DAY_MS
     const handle = document.getElementById('history-timeline-handle')!
     // `toBeCloseTo` (não `toBe`) — o navegador arredonda o valor de `style.left` (px) com
