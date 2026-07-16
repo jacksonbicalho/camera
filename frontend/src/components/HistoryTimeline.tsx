@@ -448,14 +448,16 @@ export default function HistoryTimeline({
             não aparece barra nenhuma (scroll só aparece quando de fato precisa). */}
         <div
           id="history-timeline-scroll"
-          // `pt-3` dá espaço pra bolinha da alça (`-top-2.5`, ver comentário abaixo), que
-          // sem isso ficava cortada por `overflow-y-hidden` — a caixa deste container só
-          // tinha a altura da trilha (24px), então qualquer coisa desenhada ACIMA dela
-          // (offset negativo) era clipada na hora, mesmo com z-index maior (clipping não é
-          // stacking: um `overflow-y-hidden` corta o que sai da própria caixa,
-          // independente de z-index). Bug relatado pelo navigator ("alça escondida") numa
-          // hora bem cheia — na prática a alça sempre existiu ali, só invisível.
-          className="scrollbar-thin overflow-x-auto overflow-y-hidden pt-3"
+          // `pt-4` (16px) dá espaço pra bolinha da alça (`-top-2.5` = -10px, ver comentário
+          // abaixo), que sem isso ficava cortada por `overflow-y-hidden` — a caixa deste
+          // container só tinha a altura da trilha (24px), então qualquer coisa desenhada
+          // ACIMA dela (offset negativo) era clipada na hora, mesmo com z-index maior
+          // (clipping não é stacking: um `overflow-y-hidden` corta o que sai da própria
+          // caixa, independente de z-index). Bug relatado pelo navigator ("alça escondida")
+          // numa hora bem cheia — na prática a alça sempre existiu ali, só invisível.
+          // 16px de padding contra 10px de offset negativo (folga de 6px, não os 2px
+          // originais de uma 1ª tentativa com `pt-3`) — margem confortável.
+          className="scrollbar-thin overflow-x-auto overflow-y-hidden pt-4"
           onScroll={handleTrackScroll}
         >
           {/* Wrapper próprio (relative) só pra trilha + alça + linha de hover — a alça usa
@@ -595,8 +597,9 @@ export default function HistoryTimeline({
             )}
             {hoverFraction != null && (
               <div
-                className="pointer-events-none absolute top-0 h-6 w-px bg-foreground/80"
+                className="pointer-events-none absolute top-0 h-6 -translate-x-1/2 bg-foreground/80"
                 style={{
+                  width: LINE_WIDTH_PX,
                   left:
                     trackWidth != null
                       ? `${hoverFraction * contentWidthPx}px`
