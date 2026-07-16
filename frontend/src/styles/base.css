@@ -80,15 +80,21 @@ a,
 }
 
 /* Scrollbar fina, theme-aware — usada pela lista lateral de gravações do Histórico
-   (history-recordings-groups), que tem scroll vertical próprio dentro de uma altura
-   capada. `scrollbar-width`/`scrollbar-color` cobrem o Firefox; os pseudo-elementos
-   `::-webkit-scrollbar*` cobrem Chromium/Safari. */
+   (history-recordings-groups, scroll VERTICAL) e pela régua de 24h do HistoryTimeline
+   (history-timeline-scroll, scroll HORIZONTAL quando a hora mais cheia do dia exige mais
+   espaço do que a tela cabe) — mesma aparência nos dois eixos, pedido do navigator.
+   `scrollbar-width`/`scrollbar-color` cobrem o Firefox (orientação-agnóstico); os
+   pseudo-elementos `::-webkit-scrollbar*` cobrem Chromium/Safari — `width` dimensiona a
+   espessura de uma barra vertical, `height` a de uma horizontal; webkit só aplica a
+   propriedade relevante pro eixo que de fato tem scroll, então definir as duas aqui não
+   conflita. */
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
 }
 .scrollbar-thin::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 .scrollbar-thin::-webkit-scrollbar-track {
   background: transparent;

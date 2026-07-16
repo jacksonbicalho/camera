@@ -386,17 +386,75 @@ export default function HistoryPage() {
   // existir num render posterior.
   const [mainHeight, setMainHeight] = useState<number | null>(null)
   const mainObserverRef = useRef<ResizeObserver | null>(null)
-  const mainRef = useCallback((el: HTMLDivElement | null) => {
-    mainObserverRef.current?.disconnect()
-    mainObserverRef.current = null
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver((entries) => {
-      const height = entries[0]?.contentRect.height
-      if (height != null) setMainHeight(height)
-    })
-    observer.observe(el)
-    mainObserverRef.current = observer
+  // Node de `history-main` guardado à parte (além do ResizeObserver acima) — usado por
+  // `recomputeRowWidth` abaixo pra medir a borda esquerda de verdade via
+  // `getBoundingClientRect()`, sem alterar em nada o próprio sizing do player (`flex-1
+  // lg:max-w-[72rem]`, que precisa continuar crescendo normalmente).
+  const mainNodeRef = useRef<HTMLDivElement | null>(null)
+  // Sidebar (`history-recordings-list`) — condicionada a `selectedDate`, então pode
+  // desmontar/remontar (recalcula sozinho, ref callback dispara com `null` no unmount).
+  // Declarado ANTES de `recomputeRowWidth` (que o lê) — mesma ordem de `mainNodeRef`
+  // acima, exigida pelo eslint-plugin-react-hooks (react-hooks/immutability).
+  const sidebarNodeRef = useRef<HTMLDivElement | null>(null)
+  const sidebarObserverRef = useRef<ResizeObserver | null>(null)
+
+  // Largura da RÉGUA de 24h (fica FORA da linha player+lista, abaixo dela) — precisa
+  // ocupar exatamente da borda esquerda do player até a borda direita da lista (pedido do
+  // navigator, com referência visual em work_progress/amostras/limite-timeline.png: a
+  // régua não pode vazar pra fora desses limites). PRIMEIRA tentativa (revertida): forçar
+  // a linha player+lista a `width: fit-content` (`w-fit`) pra poder medir a própria linha
+  // via ResizeObserver — só que um container flex com `fit-content` NÃO distribui espaço
+  // livre pros filhos `flex-grow` (não há "sobra" quando o próprio container se
+  // autoajusta ao conteúdo): `history-main` (`flex-1 lg:max-w-[72rem]`) colapsava pro
+  // tamanho do conteúdo intrínseco mais largo em vez de crescer até 72rem — regressão
+  // visual severa (o player inteiro encolhia), pega no code review e confirmada pelo
+  // navigator ("você diminuiu tudo"). Solução: NÃO tocar no sizing de `history-main`/
+  // sidebar — medir a posição RENDERIZADA de cada um via `getBoundingClientRect()`
+  // (borda esquerda do player, borda direita da lista) e calcular a diferença. Um
+  // `ResizeObserver` só dispara quando o próprio elemento observado muda de tamanho, não
+  // quando um IRMÃO aparece/desaparece (ex.: a lista sendo condicionada a `selectedDate`)
+  // — por isso observa os DOIS nodes (main e sidebar), recalculando a cada disparo de
+  // qualquer um.
+  const [rowWidth, setRowWidth] = useState<number | null>(null)
+  const recomputeRowWidth = useCallback(() => {
+    const mainEl = mainNodeRef.current
+    if (!mainEl) return
+    const mainRect = mainEl.getBoundingClientRect()
+    const sidebarEl = sidebarNodeRef.current
+    const rightEdge = sidebarEl ? sidebarEl.getBoundingClientRect().right : mainRect.right
+    setRowWidth(rightEdge - mainRect.left)
   }, [])
+  const mainRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      mainNodeRef.current = el
+      mainObserverRef.current?.disconnect()
+      mainObserverRef.current = null
+      if (!el || typeof ResizeObserver === 'undefined') return
+      const observer = new ResizeObserver((entries) => {
+        const height = entries[0]?.contentRect.height
+        if (height != null) setMainHeight(height)
+        recomputeRowWidth()
+      })
+      observer.observe(el)
+      mainObserverRef.current = observer
+    },
+    [recomputeRowWidth],
+  )
+  const sidebarRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      sidebarNodeRef.current = el
+      sidebarObserverRef.current?.disconnect()
+      sidebarObserverRef.current = null
+      if (!el || typeof ResizeObserver === 'undefined') {
+        recomputeRowWidth()
+        return
+      }
+      const observer = new ResizeObserver(() => recomputeRowWidth())
+      observer.observe(el)
+      sidebarObserverRef.current = observer
+    },
+    [recomputeRowWidth],
+  )
 
   // singleSegments: 1 gravação = 1 segmento (modo normal, troca manual de card) —
   // referência estável (useMemo) enquanto `selected` não muda. continuousSegments: a
@@ -654,13 +712,6 @@ export default function HistoryPage() {
                     </>
                   }
                 />
-                <HistoryTimeline
-                  recordingItems={filteredRecordingItems}
-                  onSelect={selectRecording}
-                  cameraId={camera.id}
-                  selectedId={selectedId}
-                  day={selectedDate ?? undefined}
-                />
               </div>
               {/* Sidebar — sibling de `history-main` dentro da MESMA linha; por estar dentro
                 do `children` do `CameraStageHeader` junto com `history-main`, o topo alinha
@@ -675,6 +726,7 @@ export default function HistoryPage() {
                 box. */}
               {selectedDate && (
                 <div
+                  ref={sidebarRef}
                   id="history-recordings-list"
                   className="flex w-full flex-col gap-1.5 overflow-hidden rounded-lg border border-border p-2 lg:w-80 lg:shrink-0"
                   style={mainHeight != null ? { maxHeight: mainHeight } : undefined}
@@ -800,6 +852,28 @@ export default function HistoryPage() {
                   )}
                 </div>
               )}
+            </div>
+            {/* Régua de 24h FORA da linha player+lista (não mais dentro de `history-main`) —
+                pedido do navigator: ocupar a largura COMBINADA das duas colunas (não só a do
+                player, que é capada em `lg:max-w-[72rem]`), pra dar mais espaço horizontal a
+                cada bloco de hora (mais fácil distinguir as linhas verticais de cada
+                gravação, sobretudo em horas cheias). `maxWidth: rowWidth` (medido via
+                `getBoundingClientRect()` do player + da lista, ver `recomputeRowWidth`
+                acima) alinha a régua exatamente com a borda esquerda do player até a borda
+                direita da lista, sem alterar o sizing de nenhum dos dois; `mx-auto` centra
+                (mesmo eixo de `lg:justify-center` da linha acima). Sem medição ainda/jsdom:
+                sem teto, ocupa a largura total disponível. */}
+            <div
+              className="mx-auto w-full"
+              style={rowWidth != null ? { maxWidth: rowWidth } : undefined}
+            >
+              <HistoryTimeline
+                recordingItems={filteredRecordingItems}
+                onSelect={selectRecording}
+                cameraId={camera.id}
+                selectedId={selectedId}
+                day={selectedDate ?? undefined}
+              />
             </div>
           </CameraStageHeader>
         )}

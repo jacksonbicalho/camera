@@ -5,6 +5,7 @@
 # Uso:
 #   scripts/await-gate.sh analise <arquivo-analysis>   # G1: [x] Análise aprovada
 #   scripts/await-gate.sh revisao [story]              # G2: [x] História revisada
+#   scripts/await-gate.sh prepush [story]               # Pré-push: [x] Pré-push: revisado e aprovado
 #   scripts/await-gate.sh aprovado [story]              # legado: CAs todos + [x] Aprovado
 #
 # Padrões ancorados no início de linha de checkbox, case-insensitive —
@@ -28,12 +29,16 @@ case "$mode" in
     file=$(resolve_story "$arg")
     pattern='.*revisada'   # ASCII-safe: casa 'História revisada' em qualquer locale
     ;;
+  prepush)
+    file=$(resolve_story "$arg")
+    pattern='.*revisado e aprovado'  # 'Pré-push: revisado e aprovado', seção ## Revisão
+    ;;
   aprovado)
     file=$(resolve_story "$arg")
     pattern='aprovado[[:space:]]*$'  # ancorado: não casa 'aprovada'
     ;;
   *)
-    echo "uso: $0 {analise <arquivo>|revisao [story]|aprovado [story]}" >&2
+    echo "uso: $0 {analise <arquivo>|revisao [story]|prepush [story]|aprovado [story]}" >&2
     exit 2
     ;;
 esac

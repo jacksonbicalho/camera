@@ -22,3 +22,4 @@ __pycache__/
 
 # Claude Code — overrides locais de permissão (settings.json é versionado)
 .claude/settings.local.json
+.devdata/

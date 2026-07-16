@@ -48,6 +48,53 @@ export function recordingAtMs<T extends { rec: { start: string } }>(
   return best
 }
 
+// Empurra posições (fração 0..1) muito próximas umas das outras pra garantir uma
+// separação mínima visível — sem isso, gravações muito próximas no tempo (ex.:
+// reconexões rápidas do gravador gerando vários chunks curtos em segundos) colapsam
+// no mesmo pixel/percentual e "somem" visualmente, mesmo a posição calculada estando
+// correta (`HistoryTimeline`, uma linha vertical por gravação DENTRO da hora). Ordena
+// por posição e empurra pra frente só quando necessário — nunca inverte a ordem
+// cronológica, e a entrada mais cedo nunca muda de posição; entradas já espaçadas o
+// bastante mantêm a posição proporcional exata (sem distorção pro caso comum).
+export function spreadFractions<T extends { id: number; frac: number }>(
+  entries: T[],
+  minGap: number,
+): Map<number, number> {
+  const sorted = [...entries].sort((a, b) => a.frac - b.frac)
+  // Passo 1 (frente pra trás): empurra cada posição pra garantir `minGap` da anterior —
+  // nunca decresce abaixo da fração original, só avança quando necessário. Pode
+  // ultrapassar 1 quando um cluster inteiro está perto do fim da hora.
+  const forward: number[] = []
+  let prev = -Infinity
+  for (const entry of sorted) {
+    const pos = Math.max(entry.frac, prev + minGap)
+    forward.push(pos)
+    prev = pos
+  }
+  // Passo 2 (trás pra frente): um clamp simples em 1 no passo 1 faria VÁRIAS posições
+  // colidirem exatamente em 1 quando o cluster estoura — reintroduzindo o mesmo colapso
+  // visual que esta função existe pra evitar, só deslocado pra borda direita da hora.
+  // Reconcilia de trás pra frente, garantindo `minGap` também contra a posição seguinte
+  // já resolvida — a posição final pode ficar abaixo da fração original quando o
+  // cluster não cabe inteiro. Garantia de distinção NÃO é incondicional: só vale até
+  // `entries.length <= 1/minGap + 1` — o `minGap` efetivo é DINÂMICO (calculado em
+  // `HistoryTimeline.tsx` a partir da largura real do bloco de hora, ver
+  // `MIN_LINE_GAP_PX`), então esse teto varia com o layout: ~21 itens numa hora larga
+  // (minGap baixo, ~5%) mas só ~4 numa hora bem estreita (minGap no teto de 30%) —
+  // acima do teto, o [0,1] não comporta mais posições com essa separação mínima e o
+  // excedente colide em 0. Na prática o próprio orçamento de pixels do bloco (largura
+  // real / 1px por traço) já limita quantos traços cabem legíveis antes desse teto
+  // algorítmico entrar em jogo.
+  const result = new Map<number, number>()
+  let next = Infinity
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const pos = Math.max(0, Math.min(forward[i], next - minGap, 1))
+    result.set(sorted[i].id, pos)
+    next = pos
+  }
+  return result
+}
+
 // true sse `ms` cai dentro de [start, start+chunkMs) de ALGUMA gravação — diferente de
 // `recordingAtMs`, que sempre acha "a mais próxima" mesmo numa lacuna sem gravação
 // nenhuma. Usado pra decidir se o preview (imagem) deve aparecer: sem cobertura real,
