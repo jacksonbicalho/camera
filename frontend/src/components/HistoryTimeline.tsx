@@ -481,15 +481,25 @@ export default function HistoryTimeline({
                 // (`contentWidthPx` — não `trackWidth`, que só reflete a caixa visível/
                 // cortada da trilha, ver comentário de `contentWidthPx` acima) — 24 blocos
                 // + 23 gaps de 1px (`gap-px`). `minLineGapFraction` converte o mínimo em
-                // pixels (`LINE_GAP_PX`) pra uma fração daquele bloco especificamente —
-                // ao contrário de uma fração fixa, não encolhe até sumir numa coluna
-                // estreita (bug relatado). Sem medição ainda (1º render) ou em teste (jsdom
-                // sem ResizeObserver), cai no fallback estático.
+                // pixels pra uma fração daquele bloco especificamente — ao contrário de uma
+                // fração fixa, não encolhe até sumir numa coluna estreita (bug relatado).
+                // `spreadFractions` (`timelineScale.ts`) aplica esse mínimo entre os CENTROS
+                // de linhas vizinhas, não entre as bordas — como cada linha agora tem
+                // `LINE_WIDTH_PX` de largura própria (não mais um traço de 1px, quase um
+                // ponto), usar só `LINE_GAP_PX` como distância mínima entre centros faz duas
+                // linhas de largura real se sobreporem (2 centros a 1.5px um do outro, cada
+                // linha de 3px, colidem por completo) — bug relatado pelo navigator ("tem
+                // linhas que parecem estar coladas"). O mínimo entre centros precisa ser o
+                // PASSO inteiro (`LINE_WIDTH_PX + LINE_GAP_PX`), a mesma conta já usada em
+                // `DEFAULT_HOUR_WIDTH_PX`/`requiredHourWidthPx` pra dimensionar o bloco —
+                // só assim a borda de uma linha e a da vizinha ficam de fato `LINE_GAP_PX`
+                // separadas. Sem medição ainda (1º render) ou em teste (jsdom sem
+                // ResizeObserver), cai no fallback estático.
                 const hourBoxWidthPx =
                   trackWidth != null ? (contentWidthPx - HOUR_GAP_COUNT_PX) / 24 : null
                 const minLineGapFraction =
                   hourBoxWidthPx != null && hourBoxWidthPx > 0
-                    ? Math.min(0.3, LINE_GAP_PX / hourBoxWidthPx)
+                    ? Math.min(0.3, (LINE_WIDTH_PX + LINE_GAP_PX) / hourBoxWidthPx)
                     : FALLBACK_MIN_LINE_GAP_FRACTION
                 return Array.from({ length: 24 }, (_, hour) => {
                   const items = byHour.get(hour)

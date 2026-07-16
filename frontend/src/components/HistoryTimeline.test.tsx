@@ -485,9 +485,8 @@ describe('HistoryTimeline', () => {
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
 
     // 1s de diferença (não 5s): natural gap = 1/3600×100 ≈ 0.0278%, menor que o mínimo
-    // aplicado aqui (0.0925%, ver abaixo) — precisa ser MENOR que o mínimo pra este teste
-    // de fato exercitar o enforcement (com o piso mais largo de 1621.5px, LINE_GAP_PX
-    // menor deixa o mínimo bem mais folgado do que quando a constante era 3px).
+    // aplicado aqui (0.2775%, ver abaixo) — precisa ser MENOR que o mínimo pra este teste
+    // de fato exercitar o enforcement.
     const items = [
       item(1, '2026-07-05T00:00:00Z', 'continua'),
       item(2, '2026-07-05T00:00:01Z', 'continua'),
@@ -504,8 +503,12 @@ describe('HistoryTimeline', () => {
     const left1 = document.getElementById('history-timeline-hour-0-rec-1')!.style.left
     const left2 = document.getElementById('history-timeline-hour-0-rec-2')!.style.left
     expect(left1).toBe('0%')
-    // minLineGapFraction = LINE_GAP_PX / 1621.5 (o piso fixo, não os 263px medidos).
-    const minGapFraction = (1.5 / 1621.5) * 100
+    // minLineGapFraction = (LINE_WIDTH_PX + LINE_GAP_PX) / 1621.5 (o piso fixo, não os
+    // 263px medidos) — o mínimo é o PASSO inteiro (largura + margem), não só a margem:
+    // `spreadFractions` aplica esse valor entre os CENTROS de linhas vizinhas, e cada
+    // linha agora tem 3px de largura própria (não mais um traço de 1px) — só assim a
+    // borda de uma linha e a da vizinha ficam de fato `LINE_GAP_PX` separadas.
+    const minGapFraction = (4.5 / 1621.5) * 100
     expect(parseFloat(left2)).toBeCloseTo(minGapFraction, 5)
   })
 
@@ -542,7 +545,8 @@ describe('HistoryTimeline', () => {
 
     const left2 = document.getElementById('history-timeline-hour-0-rec-2')!.style.left
     const hourBoxWidthPx = (measuredWidth - 23) / 24
-    const minGapFraction = (1.5 / hourBoxWidthPx) * 100
+    // Mesmo motivo do teste acima: o mínimo é o PASSO inteiro (largura + margem).
+    const minGapFraction = (4.5 / hourBoxWidthPx) * 100
     expect(parseFloat(left2)).toBeCloseTo(minGapFraction, 5)
   })
 
