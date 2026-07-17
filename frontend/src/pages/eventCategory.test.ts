@@ -7,6 +7,8 @@ import {
   eventCardLines,
   firstEventInChunk,
   matchesTimelineFilter,
+  categoryColor,
+  categoryLabel,
 } from './eventCategory'
 
 describe('recordingCategory', () => {
@@ -38,7 +40,7 @@ describe('recordingCategory', () => {
     ]
     expect(recordingCategory(recAt(0), events, 300_000)).toBe('movimento')
   })
-  it('estado tem prioridade sobre continua mas perde para pessoa/ia/movimento', () => {
+  it('estado tem prioridade sobre continua mas perde para pessoa/movimento/label específico', () => {
     const stateOnly = [
       { time: new Date(60_000).toISOString(), label: 'fechado', kind: 'state' as const },
     ]
@@ -48,6 +50,49 @@ describe('recordingCategory', () => {
       { time: new Date(90_000).toISOString(), label: 'pessoa' },
     ]
     expect(recordingCategory(recAt(0), withPerson, 300_000)).toBe('pessoa')
+  })
+
+  it('CA4prioridade: label específico (ex.: "carro") tem prioridade sobre movimento (label vazio) no mesmo chunk', () => {
+    const events = [
+      { time: new Date(60_000).toISOString(), label: '' },
+      { time: new Date(90_000).toISOString(), label: 'carro' },
+    ]
+    expect(recordingCategory(recAt(0), events, 300_000)).toBe('carro')
+  })
+  it('CA4prioridade: pessoa vence QUALQUER label específico no mesmo chunk', () => {
+    const events = [
+      { time: new Date(60_000).toISOString(), label: 'carro' },
+      { time: new Date(90_000).toISOString(), label: 'pessoa' },
+    ]
+    expect(recordingCategory(recAt(0), events, 300_000)).toBe('pessoa')
+  })
+  it('CA4prioridade: entre labels específicos distintos, o com MAIS ocorrências no chunk vence', () => {
+    const events = [
+      { time: new Date(10_000).toISOString(), label: 'carro' },
+      { time: new Date(20_000).toISOString(), label: 'gato' },
+      { time: new Date(30_000).toISOString(), label: 'gato' },
+    ]
+    expect(recordingCategory(recAt(0), events, 300_000)).toBe('gato')
+  })
+  it('CA4prioridade: empate na contagem entre labels específicos desempata em ordem ALFABÉTICA (determinístico)', () => {
+    const events = [
+      { time: new Date(10_000).toISOString(), label: 'gato' },
+      { time: new Date(20_000).toISOString(), label: 'carro' },
+    ]
+    expect(recordingCategory(recAt(0), events, 300_000)).toBe('carro')
+    // ordem de inserção invertida não muda o resultado — é alfabético, não por ordem de chegada.
+    const reversed = [
+      { time: new Date(10_000).toISOString(), label: 'carro' },
+      { time: new Date(20_000).toISOString(), label: 'gato' },
+    ]
+    expect(recordingCategory(recAt(0), reversed, 300_000)).toBe('carro')
+  })
+  it('CA4prioridade: estados sempre perde pra movimento (label vazio) no mesmo chunk', () => {
+    const events = [
+      { time: new Date(60_000).toISOString(), label: 'fechado', kind: 'state' as const },
+      { time: new Date(90_000).toISOString(), label: '' },
+    ]
+    expect(recordingCategory(recAt(0), events, 300_000)).toBe('movimento')
   })
 })
 
@@ -62,9 +107,13 @@ describe('eventCategory', () => {
     expect(eventCategory({ label: 'Pessoa com chapéu' })).toBe('pessoa')
     expect(eventCategory({ label: 'person' })).toBe('pessoa')
   })
-  it('outro label de modelo → ia', () => {
-    expect(eventCategory({ label: 'carro' })).toBe('ia')
-    expect(eventCategory({ label: 'cachorro' })).toBe('ia')
+  it('CA2fiel: outro label de modelo é fiel ao label real (não mais bucket genérico "ia")', () => {
+    expect(eventCategory({ label: 'carro' })).toBe('carro')
+    expect(eventCategory({ label: 'cachorro' })).toBe('cachorro')
+  })
+  it('CA2fiel: label normalizado por trim + lowercase (mesmo bucket independente de caixa/espaços)', () => {
+    expect(eventCategory({ label: '  Dog  ' })).toBe('dog')
+    expect(eventCategory({ label: 'Cachorro' })).toBe('cachorro')
   })
   it('kind=state → estados (independe do label)', () => {
     expect(eventCategory({ kind: 'state', label: 'aberto' })).toBe('estados')
@@ -73,11 +122,45 @@ describe('eventCategory', () => {
   })
 })
 
+describe('categoryColor', () => {
+  it('CA3cor: movimento/pessoa/estados têm cor fixa conhecida', () => {
+    expect(categoryColor('movimento')).toBe('bg-amber-400')
+    expect(categoryColor('pessoa')).toBe('bg-red-500')
+    expect(categoryColor('estados')).toBe('bg-green-500')
+  })
+  it('CA3cor: um label arbitrário sempre devolve a MESMA cor (determinístico)', () => {
+    const c1 = categoryColor('carro')
+    const c2 = categoryColor('carro')
+    expect(c1).toBe(c2)
+    expect(c1).toMatch(/^bg-/)
+  })
+  it('CA3cor: chamadas repetidas com labels diferentes continuam determinísticas cada uma', () => {
+    const carro1 = categoryColor('carro')
+    const cachorro1 = categoryColor('cachorro')
+    const carro2 = categoryColor('carro')
+    const cachorro2 = categoryColor('cachorro')
+    expect(carro1).toBe(carro2)
+    expect(cachorro1).toBe(cachorro2)
+  })
+})
+
+describe('categoryLabel', () => {
+  it('capitaliza a 1ª letra pra exibição — mesma função pra categorias conhecidas e arbitrárias', () => {
+    expect(categoryLabel('movimento')).toBe('Movimento')
+    expect(categoryLabel('pessoa')).toBe('Pessoa')
+    expect(categoryLabel('estados')).toBe('Estados')
+    expect(categoryLabel('carro')).toBe('Carro')
+  })
+  it('string vazia devolve vazia (sem quebrar)', () => {
+    expect(categoryLabel('')).toBe('')
+  })
+})
+
 describe('eventTitle', () => {
   it('título por categoria', () => {
     expect(eventTitle({})).toBe('Movimento detectado')
     expect(eventTitle({ label: 'pessoa' })).toBe('Pessoa detectada')
-    expect(eventTitle({ label: 'carro' })).toBe('carro')
+    expect(eventTitle({ label: 'carro' })).toBe('Carro')
   })
 })
 
@@ -124,8 +207,8 @@ describe('eventCardLines', () => {
       subtitle: 'Cam1',
     })
   })
-  it('ia: label no título, câmera no subtítulo', () => {
-    expect(eventCardLines({ label: 'carro' }, 'Cam1')).toEqual({ title: 'carro', subtitle: 'Cam1' })
+  it('label específico: título capitalizado, câmera no subtítulo', () => {
+    expect(eventCardLines({ label: 'carro' }, 'Cam1')).toEqual({ title: 'Carro', subtitle: 'Cam1' })
   })
 })
 
@@ -146,8 +229,8 @@ describe('filterEventsByCategory', () => {
   it('filtra por pessoa', () => {
     expect(filterEventsByCategory(evs, 'pessoa').map((e) => e.id)).toEqual([2, 4])
   })
-  it('filtra por ia', () => {
-    expect(filterEventsByCategory(evs, 'ia').map((e) => e.id)).toEqual([3])
+  it('filtra por um label específico (ex.: carro) — fiel ao label real, não mais um bucket "ia"', () => {
+    expect(filterEventsByCategory(evs, 'carro').map((e) => e.id)).toEqual([3])
   })
   it('filtra por estados (transições kind=state)', () => {
     expect(filterEventsByCategory(evs, 'estados').map((e) => e.id)).toEqual([5])

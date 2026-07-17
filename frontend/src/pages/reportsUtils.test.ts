@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { categoryBuckets, axisTicks, categoryDetail } from './reportsUtils'
 
 describe('categoryBuckets', () => {
-  it('dobra labels nas categorias (vazio→movimento, pessoa, outro→ia)', () => {
+  it('dobra labels nas categorias (vazio→movimento, pessoa, resto→o próprio label, fiel)', () => {
     expect(categoryBuckets({ '': 5, pessoa: 3, carro: 2 })).toEqual({
       movimento: 5,
       pessoa: 3,
-      ia: 2,
-      estados: 0,
+      carro: 2,
     })
   })
   it('soma múltiplos labels da mesma categoria', () => {
@@ -17,21 +16,20 @@ describe('categoryBuckets', () => {
     expect(categoryBuckets({ '': 5, pessoa: 3 }, { estados: 7 })).toEqual({
       movimento: 5,
       pessoa: 3,
-      ia: 0,
       estados: 7,
     })
+  })
+  it('labels distintos (ex.: carro, cachorro) viram entradas PRÓPRIAS, não um bucket "ia" compartilhado', () => {
+    expect(categoryBuckets({ carro: 2, cachorro: 5 })).toEqual({ carro: 2, cachorro: 5 })
   })
 })
 
 describe('categoryDetail', () => {
   const byLabel = { '': 5, pessoa: 3, carro: 10, cachorro: 2 }
-  it('ia: total e labels ordenados desc, sem o label vazio', () => {
-    expect(categoryDetail('ia', byLabel)).toEqual({
-      total: 12,
-      labels: [
-        { label: 'carro', count: 10 },
-        { label: 'cachorro', count: 2 },
-      ],
+  it('label específico: total e labels ordenados desc, sem o label vazio', () => {
+    expect(categoryDetail('carro', byLabel)).toEqual({
+      total: 10,
+      labels: [{ label: 'carro', count: 10 }],
     })
   })
   it('pessoa: total e label(s) que casam pessoa', () => {

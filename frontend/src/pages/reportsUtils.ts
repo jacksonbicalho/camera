@@ -57,18 +57,22 @@ export function axisTicks(days: string[], maxTicks = 6): { index: number; label:
 }
 
 // categoryBuckets dobra as contagens cruas por label nas categorias do app (mesma regra
-// do eventCategory): label vazio → movimento, pessoa → pessoa, etc. `byCategory` (opcional)
-// traz categorias que não vêm de label — hoje `estados` (de camera_state_history).
+// do eventCategory): label vazio → movimento, pessoa → pessoa, resto → o próprio label
+// (fiel, dinâmico — não mais um bucket fixo "ia"). `byCategory` (opcional) traz
+// categorias que não vêm de label — hoje `estados` (de camera_state_history). Chaves são
+// inicializadas sob demanda (não um record fixo) — qualquer label novo vira uma entrada
+// própria, sem precisar ser conhecido de antemão.
 export function categoryBuckets(
   byLabel: Record<string, number>,
   byCategory?: Record<string, number>,
 ): Record<EventCategory, number> {
-  const out: Record<EventCategory, number> = { movimento: 0, pessoa: 0, ia: 0, estados: 0 }
+  const out: Record<EventCategory, number> = {}
   for (const [label, count] of Object.entries(byLabel)) {
-    out[eventCategory({ label })] += count
+    const cat = eventCategory({ label })
+    out[cat] = (out[cat] ?? 0) + count
   }
   for (const [cat, count] of Object.entries(byCategory ?? {})) {
-    if (cat in out) out[cat as EventCategory] += count
+    out[cat] = (out[cat] ?? 0) + count
   }
   return out
 }
