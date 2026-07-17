@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  computeHourLayout,
+  hourBoxWidthPx,
   isCoveredByRecording,
+  pixelToTimeFraction,
   posToTime,
   recordingAtMs,
   spreadFractions,
+  timeFractionToPixel,
   timePosFraction,
 } from './timelineScale'
 
@@ -132,5 +136,79 @@ describe('spreadFractions', () => {
 
   it('lista vazia devolve mapa vazio', () => {
     expect(spreadFractions([], 0.03).size).toBe(0)
+  })
+})
+
+describe('hourBoxWidthPx', () => {
+  it('sem nenhuma linha, usa o piso mínimo', () => {
+    expect(hourBoxWidthPx(0, 3, 1.5, 16, 80)).toBe(80)
+  })
+  it('poucas linhas (conteúdo menor que o piso) ainda usa o piso mínimo', () => {
+    // 2 linhas: 2×3 + 1×1.5 + 16 = 23.5 < 80
+    expect(hourBoxWidthPx(2, 3, 1.5, 16, 80)).toBe(80)
+  })
+  it('muitas linhas (conteúdo maior que o piso) cresce além do piso, proporcional à contagem', () => {
+    // 20 linhas: 20×3 + 19×1.5 + 16 = 60 + 28.5 + 16 = 104.5
+    expect(hourBoxWidthPx(20, 3, 1.5, 16, 80)).toBe(104.5)
+  })
+})
+
+describe('computeHourLayout', () => {
+  it('acumula offsets a partir das larguras + gap entre elas', () => {
+    const layout = computeHourLayout([80, 100, 80], 12)
+    expect(layout.offsets).toEqual([0, 92, 204])
+    expect(layout.totalWidthPx).toBe(284) // 80+100+80 + 2×12
+  })
+  it('lista vazia devolve offsets vazios e largura total 0', () => {
+    const layout = computeHourLayout([], 12)
+    expect(layout.offsets).toEqual([])
+    expect(layout.totalWidthPx).toBe(0)
+  })
+  it('uma única largura não soma gap nenhum', () => {
+    const layout = computeHourLayout([80], 12)
+    expect(layout.offsets).toEqual([0])
+    expect(layout.totalWidthPx).toBe(80)
+  })
+})
+
+describe('timeFractionToPixel / pixelToTimeFraction', () => {
+  // 3 "horas" de larguras bem diferentes — testa o caso não-uniforme (o motivo de existir
+  // além de uma simples `fração × largura total`).
+  const widths = [80, 200, 80]
+  const layout = computeHourLayout(widths, 10) // total = 80+200+80+20 = 380
+
+  it('mapeia o início do dia pro pixel 0', () => {
+    expect(timeFractionToPixel(0, widths, layout)).toBe(0)
+  })
+  it('mapeia o fim do dia pro fim do último card', () => {
+    expect(timeFractionToPixel(1, widths, layout)).toBeCloseTo(380, 5)
+  })
+  it('mapeia o MEIO de uma hora estreita e de uma larga proporcionalmente à largura de CADA UMA — não uma fração linear do total', () => {
+    // Meio da "hora" 0 (fração 1/6, já que são 3 "horas" — 0.5/3): pixel = 0 + 0.5×80 = 40.
+    expect(timeFractionToPixel(0.5 / 3, widths, layout)).toBeCloseTo(40, 5)
+    // Meio da "hora" 1 (fração 1.5/3): pixel = offsets[1] + 0.5×200 = 90 + 100 = 190.
+    expect(timeFractionToPixel(1.5 / 3, widths, layout)).toBeCloseTo(190, 5)
+  })
+  it('clampa frações fora de 0..1', () => {
+    expect(timeFractionToPixel(-0.5, widths, layout)).toBe(0)
+    expect(timeFractionToPixel(1.5, widths, layout)).toBeCloseTo(380, 5)
+  })
+  it('pixelToTimeFraction é o inverso de timeFractionToPixel pros mesmos pontos', () => {
+    for (const f of [0, 0.1, 1.5 / 3, 0.5, 0.99, 1]) {
+      const px = timeFractionToPixel(f, widths, layout)
+      expect(pixelToTimeFraction(px, widths, layout)).toBeCloseTo(f, 5)
+    }
+  })
+  it('pixel negativo clampa pra fração 0; pixel além do total clampa pra fração 1', () => {
+    expect(pixelToTimeFraction(-100, widths, layout)).toBe(0)
+    expect(pixelToTimeFraction(99999, widths, layout)).toBe(1)
+  })
+  it('pixel exatamente num GAP entre dois cards é atribuído ao card ANTERIOR (limite direito)', () => {
+    // offsets = [0, 90, 300]; hora 0 vai de 0 a 80, gap de 80 a 90 (hora 1 começa em 90).
+    const px = 85 // dentro do gap entre a hora 0 e a hora 1
+    const f = pixelToTimeFraction(px, widths, layout)
+    // Deve cair na hora 0 (fração < 1/3), na borda direita dela (bem perto de 1/3).
+    expect(f).toBeLessThanOrEqual(1 / 3)
+    expect(f).toBeGreaterThan(0.9 / 3)
   })
 })

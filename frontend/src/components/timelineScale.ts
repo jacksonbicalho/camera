@@ -95,6 +95,91 @@ export function spreadFractions<T extends { id: number; frac: number }>(
   return result
 }
 
+// Largura (px) de UM card de hora — proporcional à quantidade de gravações naquela hora
+// (medidas do protótipo de referência, TimelineHour.tsx, descartado como código): as
+// linhas ocupam `lineWidthPx` cada, separadas por `lineGapPx`, mais um `paddingPx` lateral
+// fixo; `minWidthPx` é o piso pra horas vazias ou com poucas gravações (o card nunca fica
+// menor que isso, mesmo sem nenhuma linha). Parametrizada (não usa constantes fixas
+// internas) pelo mesmo motivo de `spreadFractions` acima — o chamador é quem decide os
+// valores, aqui só a fórmula.
+export function hourBoxWidthPx(
+  count: number,
+  lineWidthPx: number,
+  lineGapPx: number,
+  paddingPx: number,
+  minWidthPx: number,
+): number {
+  const content = count * lineWidthPx + Math.max(0, count - 1) * lineGapPx
+  return Math.max(content + paddingPx, minWidthPx)
+}
+
+export interface HourLayout {
+  /** offsets[h] = posição x (px), a partir do início do conteúdo, onde o card da hora h
+   * começa (já soma as larguras + gaps de todas as horas anteriores). */
+  offsets: number[]
+  /** Largura total do conteúdo (soma de todos os cards + gaps entre eles). */
+  totalWidthPx: number
+}
+
+// computeHourLayout converte uma largura (px) por hora (`hourWidthsPx`, uma por hora do
+// dia) numa lista de offsets — necessário porque, com cards de largura PROPORCIONAL à
+// contagem (não mais uniforme), a posição x de cada hora não é mais `hora * largura fixa`.
+export function computeHourLayout(hourWidthsPx: number[], gapPx: number): HourLayout {
+  const offsets: number[] = []
+  let x = 0
+  for (const w of hourWidthsPx) {
+    offsets.push(x)
+    x += w + gapPx
+  }
+  return { offsets, totalWidthPx: hourWidthsPx.length > 0 ? x - gapPx : 0 }
+}
+
+// timeFractionToPixel converte uma fração 0..1 do DIA INTEIRO pra uma posição x (px) no
+// conteúdo — piecewise linear entre as horas (que podem ter larguras DIFERENTES entre si,
+// proporcionais à contagem de gravações de cada uma via `hourBoxWidthPx`): uma conta simples
+// `fração * larguraTotal` desalinharia a alça/preview dos cards de verdade sempre que as
+// larguras divergissem da média (ex.: a alça "atravessaria" uma hora estreita rápido
+// demais, ou uma larga devagar demais, em vez de seguir exatamente a borda de cada card).
+export function timeFractionToPixel(
+  fraction: number,
+  hourWidthsPx: number[],
+  layout: HourLayout,
+): number {
+  const n = hourWidthsPx.length
+  if (n === 0) return 0
+  const clamped = fraction < 0 ? 0 : fraction > 1 ? 1 : fraction
+  const hoursFromStart = clamped * n
+  const hour = Math.min(n - 1, Math.floor(hoursFromStart))
+  const fracWithinHour = Math.min(1, Math.max(0, hoursFromStart - hour))
+  return layout.offsets[hour] + fracWithinHour * hourWidthsPx[hour]
+}
+
+// pixelToTimeFraction é o inverso de `timeFractionToPixel` — dado um x (px) dentro do
+// conteúdo, acha em qual card de hora ele cai e devolve a fração 0..1 do dia
+// correspondente. Um x que cai exatamente num GAP entre dois cards (área sem card
+// nenhum) é atribuído ao card ANTERIOR, no seu limite direito (fracWithinHour clampada em
+// 1) — os gaps são pequenos o bastante (`CARD_GAP_PX` em HistoryTimeline.tsx) pra essa
+// escolha não ser perceptível.
+export function pixelToTimeFraction(
+  pixelX: number,
+  hourWidthsPx: number[],
+  layout: HourLayout,
+): number {
+  const n = hourWidthsPx.length
+  if (n === 0 || pixelX <= 0) return 0
+  for (let hour = 0; hour < n; hour++) {
+    const start = layout.offsets[hour]
+    const width = hourWidthsPx[hour]
+    const isLast = hour === n - 1
+    const nextStart = isLast ? start + width : layout.offsets[hour + 1]
+    if (pixelX < nextStart || isLast) {
+      const fracWithinHour = width > 0 ? Math.min(1, Math.max(0, (pixelX - start) / width)) : 0
+      return Math.min(1, (hour + fracWithinHour) / n)
+    }
+  }
+  return 1
+}
+
 // true sse `ms` cai dentro de [start, start+chunkMs) de ALGUMA gravação — diferente de
 // `recordingAtMs`, que sempre acha "a mais próxima" mesmo numa lacuna sem gravação
 // nenhuma. Usado pra decidir se o preview (imagem) deve aparecer: sem cobertura real,
