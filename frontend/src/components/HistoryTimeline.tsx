@@ -99,7 +99,13 @@ const LINE_WIDTH_PX = 3
 // mesmo padrão de medição já usado em `HistoryPage.tsx` (`mainRef`/`mainHeight`) pra
 // evitar depender de suposições de layout.
 const LINE_GAP_PX = 1.5
-// Nº de blocos de hora - 1 = nº de gaps de 1px (`gap-px`) entre eles na trilha.
+// Gap visível ENTRE os cards de hora (não confundir com `LINE_GAP_PX`, a margem entre
+// LINHAS dentro do mesmo card) — pedido do navigator: cada hora vira um card discreto
+// (não mais uma barra contínua de blocos colados), no espírito do protótipo
+// (`TimelineHour.tsx`, descartado como código, só serviu de referência de layout).
+const CARD_GAP_PX = 12
+// Nº de blocos de hora - 1 = nº de gaps entre eles na trilha (cada gap mede
+// `CARD_GAP_PX`).
 const HOUR_GAP_COUNT_PX = 23
 // Fração usada ANTES da 1ª medição (ResizeObserver ainda não disparou) e em testes
 // (jsdom não tem ResizeObserver — degrada graciosamente, mesmo padrão de `HistoryPage`).
@@ -269,7 +275,10 @@ export default function HistoryTimeline({
   // (`trackWidth` já reflete o total real); e dia lotado, onde os blocos ficam presos no
   // `requiredHourWidthPx` e o total transborda (a soma dos mínimos é maior que qualquer
   // largura visível, então vence o cálculo).
-  const contentWidthPx = Math.max(trackWidth ?? 0, requiredHourWidthPx * 24 + HOUR_GAP_COUNT_PX)
+  const contentWidthPx = Math.max(
+    trackWidth ?? 0,
+    requiredHourWidthPx * 24 + HOUR_GAP_COUNT_PX * CARD_GAP_PX,
+  )
 
   // Janela do dia: meia-noite local até +24h — régua fixa, sem seletor de janela/zoom (o
   // mockup não pede). Prefere `day` (sempre correto, mesmo com `recordingItems` vazio);
@@ -296,7 +305,7 @@ export default function HistoryTimeline({
     // acima). Usa `rect.width` FRESCO (não o `trackWidth` de estado, que só é atualizado
     // pelo ResizeObserver — resultado assíncrono, pode estar um passo atrás do clique
     // mais recente, e nem existe em teste/jsdom, que só mocka `getBoundingClientRect`).
-    const width = Math.max(rect.width, requiredHourWidthPx * 24 + HOUR_GAP_COUNT_PX)
+    const width = Math.max(rect.width, requiredHourWidthPx * 24 + HOUR_GAP_COUNT_PX * CARD_GAP_PX)
     const f = (clientX - rect.left) / width
     return f < 0 ? 0 : f > 1 ? 1 : f
   }
@@ -474,13 +483,14 @@ export default function HistoryTimeline({
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
               onClick={handleClick}
-              className="flex h-6 gap-px rounded cursor-pointer"
+              className="flex h-6 cursor-pointer"
+              style={{ gap: CARD_GAP_PX }}
             >
               {(() => {
                 // Largura de UM bloco de hora (px) a partir da largura real do CONTEÚDO
                 // (`contentWidthPx` — não `trackWidth`, que só reflete a caixa visível/
-                // cortada da trilha, ver comentário de `contentWidthPx` acima) — 24 blocos
-                // + 23 gaps de 1px (`gap-px`). `minLineGapFraction` converte o mínimo em
+                // cortada da trilha, ver comentário de `contentWidthPx` acima) — 24 cards
+                // + 23 gaps de `CARD_GAP_PX`. `minLineGapFraction` converte o mínimo em
                 // pixels pra uma fração daquele bloco especificamente — ao contrário de uma
                 // fração fixa, não encolhe até sumir numa coluna estreita (bug relatado).
                 // `spreadFractions` (`timelineScale.ts`) aplica esse mínimo entre os CENTROS
@@ -496,7 +506,9 @@ export default function HistoryTimeline({
                 // separadas. Sem medição ainda (1º render) ou em teste (jsdom sem
                 // ResizeObserver), cai no fallback estático.
                 const hourBoxWidthPx =
-                  trackWidth != null ? (contentWidthPx - HOUR_GAP_COUNT_PX) / 24 : null
+                  trackWidth != null
+                    ? (contentWidthPx - HOUR_GAP_COUNT_PX * CARD_GAP_PX) / 24
+                    : null
                 const minLineGapFraction =
                   hourBoxWidthPx != null && hourBoxWidthPx > 0
                     ? Math.min(0.3, (LINE_WIDTH_PX + LINE_GAP_PX) / hourBoxWidthPx)
@@ -530,9 +542,7 @@ export default function HistoryTimeline({
                       key={hour}
                       id={`history-timeline-hour-${hour}`}
                       aria-hidden="true"
-                      className={`relative h-full flex-1 ${cat ? CAT_BG[cat] : 'bg-surface-2'} ${
-                        hour === 0 ? 'rounded-l' : hour === 23 ? 'rounded-r' : ''
-                      }`}
+                      className={`relative h-full flex-1 rounded ${cat ? CAT_BG[cat] : 'bg-surface-2'}`}
                       style={{ minWidth: requiredHourWidthPx }}
                     >
                       {items?.map((item) => {
@@ -626,7 +636,15 @@ export default function HistoryTimeline({
               fora, que sozinho não seria suficiente) dá espaço extra pra ponta da seta, que
               agora para na base do wrapper interno da trilha (ver comentário acima) em vez
               de esticar até aqui. */}
-          <div id="history-timeline-labels" className="mt-4 flex text-body font-bold text-faint">
+          {/* Mesmo `gap` da trilha acima (`CARD_GAP_PX`) — sem isso, os números
+              desalinhariam sob o card correspondente à medida que a régua avança (cada
+              gap real de 12px entre cards, sem contrapartida aqui, acumula um desvio
+              visível ao longo das 24 horas). */}
+          <div
+            id="history-timeline-labels"
+            className="mt-4 flex text-body font-bold text-faint"
+            style={{ gap: CARD_GAP_PX }}
+          >
             {HOUR_LABELS.map((h) => (
               <span
                 key={h}
