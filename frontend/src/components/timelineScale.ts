@@ -1,107 +1,35 @@
-// timelineScale — funções puras de mapeamento tempo↔posição pro HistoryTimeline.
-// Adaptado do timelineScale.ts original (removido junto com a antiga CameraPage) —
-// só a parte pura sobrevive aqui; o resto (janelas de zoom, filmstrip permanente) não é
-// necessário no desenho atual (régua fixa de 24h, sem seletor de janela).
+// timelineScale — funções puras de layout/posição pro HistoryTimeline. Modelo 100%
+// geométrico (pixel/índice de card), sem noção de "fração do dia" — desde que os cards de
+// hora passaram a ter largura PROPORCIONAL à contagem (e horas vazias somem do layout),
+// a única fonte de verdade pra "onde fica o quê" é a lista de cards de fato renderizados,
+// não mais uma janela de tempo abstrata.
 
-export interface TimelineWindow {
-  startMs: number
-  endMs: number
-}
-
-// Fração 0..1 da posição de um timestamp dentro da janela (clampada).
-export function timePosFraction(tsMs: number, win: TimelineWindow): number {
-  const span = win.endMs - win.startMs
-  if (span <= 0) return 0
-  const f = (tsMs - win.startMs) / span
-  return f < 0 ? 0 : f > 1 ? 1 : f
-}
-
-// Inverso de timePosFraction: fração 0..1 → timestamp (ms) na janela.
-export function posToTime(fraction: number, win: TimelineWindow): number {
-  const f = fraction < 0 ? 0 : fraction > 1 ? 1 : fraction
-  return win.startMs + f * (win.endMs - win.startMs)
-}
-
-// Item (gravação) cujo intervalo [start, start+chunkMs) cobre o instante `ms`; sem
-// cobertura exata, devolve o item cujo início está mais próximo de `ms` (antes ou
-// depois) — sempre um resultado útil pro preview/seleção, em vez de "nada" numa lacuna.
-// Não devolve offsetSeconds (diferente do original): a seleção aqui é sempre a
-// gravação inteira (mesma granularidade de clicar um card da lista), não um instante
-// preciso dentro dela.
-export function recordingAtMs<T extends { rec: { start: string } }>(
-  items: T[],
-  ms: number,
-  chunkMs: number,
-): T | null {
-  let best: T | null = null
-  let bestDist = Infinity
-  for (const item of items) {
-    const startMs = Date.parse(item.rec.start)
-    if (Number.isNaN(startMs)) continue
-    if (ms >= startMs && ms < startMs + chunkMs) return item
-    const dist = Math.abs(ms - startMs)
-    if (dist < bestDist) {
-      bestDist = dist
-      best = item
-    }
-  }
-  return best
-}
-
-// Empurra posições (fração 0..1) muito próximas umas das outras pra garantir uma
-// separação mínima visível — sem isso, gravações muito próximas no tempo (ex.:
-// reconexões rápidas do gravador gerando vários chunks curtos em segundos) colapsam
-// no mesmo pixel/percentual e "somem" visualmente, mesmo a posição calculada estando
-// correta (`HistoryTimeline`, uma linha vertical por gravação DENTRO da hora). Ordena
-// por posição e empurra pra frente só quando necessário — nunca inverte a ordem
-// cronológica, e a entrada mais cedo nunca muda de posição; entradas já espaçadas o
-// bastante mantêm a posição proporcional exata (sem distorção pro caso comum).
-export function spreadFractions<T extends { id: number; frac: number }>(
-  entries: T[],
-  minGap: number,
-): Map<number, number> {
-  const sorted = [...entries].sort((a, b) => a.frac - b.frac)
-  // Passo 1 (frente pra trás): empurra cada posição pra garantir `minGap` da anterior —
-  // nunca decresce abaixo da fração original, só avança quando necessário. Pode
-  // ultrapassar 1 quando um cluster inteiro está perto do fim da hora.
-  const forward: number[] = []
-  let prev = -Infinity
-  for (const entry of sorted) {
-    const pos = Math.max(entry.frac, prev + minGap)
-    forward.push(pos)
-    prev = pos
-  }
-  // Passo 2 (trás pra frente): um clamp simples em 1 no passo 1 faria VÁRIAS posições
-  // colidirem exatamente em 1 quando o cluster estoura — reintroduzindo o mesmo colapso
-  // visual que esta função existe pra evitar, só deslocado pra borda direita da hora.
-  // Reconcilia de trás pra frente, garantindo `minGap` também contra a posição seguinte
-  // já resolvida — a posição final pode ficar abaixo da fração original quando o
-  // cluster não cabe inteiro. Garantia de distinção NÃO é incondicional: só vale até
-  // `entries.length <= 1/minGap + 1` — o `minGap` efetivo é DINÂMICO (calculado em
-  // `HistoryTimeline.tsx` a partir da largura real do bloco de hora, ver
-  // `LINE_GAP_PX`), então esse teto varia com o layout: ~21 itens numa hora larga
-  // (minGap baixo, ~5%) mas só ~4 numa hora bem estreita (minGap no teto de 30%) —
-  // acima do teto, o [0,1] não comporta mais posições com essa separação mínima e o
-  // excedente colide em 0. Na prática o próprio orçamento de pixels do bloco (largura
-  // real / 1px por traço) já limita quantos traços cabem legíveis antes desse teto
-  // algorítmico entrar em jogo.
+// Distribui N ids uniformemente em [0,1] pela ORDEM (índice), não pelo horário real de cada
+// um — o 1º (mais cedo) → 0, o último (mais tarde) → 1, os do meio em passos iguais entre
+// eles. Substituiu uma versão anterior baseada em fração de horário real (com um "empurrão"
+// de separação mínima pra gravações muito próximas no tempo): naquele modelo, a LARGURA do
+// card já é dimensionada só pela CONTAGEM (não pela duração real coberta pelas gravações,
+// ver `hourBoxWidthPx`) — misturar isso com posição por TEMPO real produzia um artefato
+// visual (relatado pelo navigator): um agrupamento denso de gravações num intervalo curto
+// era empurrado pra ocupar mais espaço do que sua fração de tempo real "merecia", abrindo um
+// vão visualmente estranho onde as gravações seguintes eram naturalmente mais espaçadas.
+// Como a largura do card já não reflete duração, posicionar por ÍNDICE (não por tempo) é
+// consistente com esse design e elimina o artefato por construção — o espaçamento entre
+// quaisquer duas linhas vizinhas é sempre exatamente igual, nunca menos que o mínimo
+// necessário (`hourBoxWidthPx` dimensiona o card exatamente para isso). `ids` deve já vir
+// ordenado cronologicamente pelo chamador — esta função só distribui posições, não ordena.
+export function evenFractions(ids: number[]): Map<number, number> {
   const result = new Map<number, number>()
-  let next = Infinity
-  for (let i = sorted.length - 1; i >= 0; i--) {
-    const pos = Math.max(0, Math.min(forward[i], next - minGap, 1))
-    result.set(sorted[i].id, pos)
-    next = pos
-  }
+  const last = ids.length - 1
+  ids.forEach((id, i) => result.set(id, last > 0 ? i / last : 0))
   return result
 }
 
 // Largura (px) de UM card de hora — proporcional à quantidade de gravações naquela hora
 // (medidas do protótipo de referência, TimelineHour.tsx, descartado como código): as
 // linhas ocupam `lineWidthPx` cada, separadas por `lineGapPx`, mais um `paddingPx` lateral
-// fixo; `minWidthPx` é o piso pra horas vazias ou com poucas gravações (o card nunca fica
-// menor que isso, mesmo sem nenhuma linha). Parametrizada (não usa constantes fixas
-// internas) pelo mesmo motivo de `spreadFractions` acima — o chamador é quem decide os
-// valores, aqui só a fórmula.
+// fixo; `minWidthPx` é o piso pra horas com poucas gravações. Parametrizada (não usa
+// constantes fixas internas) — o chamador é quem decide os valores, aqui só a fórmula.
 export function hourBoxWidthPx(
   count: number,
   lineWidthPx: number,
@@ -114,84 +42,62 @@ export function hourBoxWidthPx(
 }
 
 export interface HourLayout {
-  /** offsets[h] = posição x (px), a partir do início do conteúdo, onde o card da hora h
-   * começa (já soma as larguras + gaps de todas as horas anteriores). */
+  /** offsets[i] = posição x (px), a partir do início do conteúdo, onde o card no índice i
+   * (da lista COMPACTA de cards renderizados — horas sem gravação nenhuma não entram
+   * nessa lista) começa. */
   offsets: number[]
   /** Largura total do conteúdo (soma de todos os cards + gaps entre eles). */
   totalWidthPx: number
 }
 
-// computeHourLayout converte uma largura (px) por hora (`hourWidthsPx`, uma por hora do
-// dia) numa lista de offsets — necessário porque, com cards de largura PROPORCIONAL à
-// contagem (não mais uniforme), a posição x de cada hora não é mais `hora * largura fixa`.
-export function computeHourLayout(hourWidthsPx: number[], gapPx: number): HourLayout {
+// computeHourLayout converte uma largura (px) por card numa lista de offsets acumulados.
+export function computeHourLayout(widthsPx: number[], gapPx: number): HourLayout {
   const offsets: number[] = []
   let x = 0
-  for (const w of hourWidthsPx) {
+  for (const w of widthsPx) {
     offsets.push(x)
     x += w + gapPx
   }
-  return { offsets, totalWidthPx: hourWidthsPx.length > 0 ? x - gapPx : 0 }
+  return { offsets, totalWidthPx: widthsPx.length > 0 ? x - gapPx : 0 }
 }
 
-// timeFractionToPixel converte uma fração 0..1 do DIA INTEIRO pra uma posição x (px) no
-// conteúdo — piecewise linear entre as horas (que podem ter larguras DIFERENTES entre si,
-// proporcionais à contagem de gravações de cada uma via `hourBoxWidthPx`): uma conta simples
-// `fração * larguraTotal` desalinharia a alça/preview dos cards de verdade sempre que as
-// larguras divergissem da média (ex.: a alça "atravessaria" uma hora estreita rápido
-// demais, ou uma larga devagar demais, em vez de seguir exatamente a borda de cada card).
-export function timeFractionToPixel(
-  fraction: number,
-  hourWidthsPx: number[],
-  layout: HourLayout,
-): number {
-  const n = hourWidthsPx.length
-  if (n === 0) return 0
-  const clamped = fraction < 0 ? 0 : fraction > 1 ? 1 : fraction
-  const hoursFromStart = clamped * n
-  const hour = Math.min(n - 1, Math.floor(hoursFromStart))
-  const fracWithinHour = Math.min(1, Math.max(0, hoursFromStart - hour))
-  return layout.offsets[hour] + fracWithinHour * hourWidthsPx[hour]
-}
-
-// pixelToTimeFraction é o inverso de `timeFractionToPixel` — dado um x (px) dentro do
-// conteúdo, acha em qual card de hora ele cai e devolve a fração 0..1 do dia
-// correspondente. Um x que cai exatamente num GAP entre dois cards (área sem card
-// nenhum) é atribuído ao card ANTERIOR, no seu limite direito (fracWithinHour clampada em
-// 1) — os gaps são pequenos o bastante (`CARD_GAP_PX` em HistoryTimeline.tsx) pra essa
-// escolha não ser perceptível.
-export function pixelToTimeFraction(
+// cardIndexAtPixel acha em qual card (índice na lista COMPACTA `widthsPx`/`layout`) um
+// pixel `pixelX` cai — ESTRITO: só dentro dos limites [início, fim) do próprio card,
+// nunca nos gaps entre eles nem além das bordas. `null` quando o pixel não cai em NENHUM
+// card (incluindo lista vazia) — pedido do navigator: a ação do mouse/ponteiro (hover,
+// preview, clique) só deve responder quando está literalmente sobre um card, os gaps
+// entre cards (e qualquer área além do último) são "mortos" pra interação.
+export function cardIndexAtPixel(
   pixelX: number,
-  hourWidthsPx: number[],
+  widthsPx: number[],
   layout: HourLayout,
-): number {
-  const n = hourWidthsPx.length
-  if (n === 0 || pixelX <= 0) return 0
-  for (let hour = 0; hour < n; hour++) {
-    const start = layout.offsets[hour]
-    const width = hourWidthsPx[hour]
-    const isLast = hour === n - 1
-    const nextStart = isLast ? start + width : layout.offsets[hour + 1]
-    if (pixelX < nextStart || isLast) {
-      const fracWithinHour = width > 0 ? Math.min(1, Math.max(0, (pixelX - start) / width)) : 0
-      return Math.min(1, (hour + fracWithinHour) / n)
+): number | null {
+  for (let i = 0; i < widthsPx.length; i++) {
+    const start = layout.offsets[i]
+    const end = start + widthsPx[i]
+    if (pixelX >= start && pixelX < end) return i
+  }
+  return null
+}
+
+// nearestIdByPixel acha, entre um conjunto de (id → posição em pixel), o id cuja posição
+// está mais próxima de `pixelX` — usado pra resolver clique/arraste na trilha pra
+// EXATAMENTE a linha visualmente mais próxima do ponto clicado (posições RENDERIZADAS, via
+// `evenFractions`), não o horário bruto da gravação. Diferença crucial numa hora muito
+// cheia: duas gravações com poucos segundos de diferença têm horários quase idênticos, mas
+// a posição renderizada de cada uma é bem separada da vizinha (espaçamento sempre uniforme
+// por índice) — resolver por horário bruto podia então "grudar" na gravação vizinha errada
+// quando o usuário clicava exatamente em cima de uma linha específica (bug relatado pelo
+// navigator). `positions` vazio devolve `null`.
+export function nearestIdByPixel(positions: Map<number, number>, pixelX: number): number | null {
+  let best: number | null = null
+  let bestDist = Infinity
+  for (const [id, pos] of positions) {
+    const dist = Math.abs(pos - pixelX)
+    if (dist < bestDist) {
+      bestDist = dist
+      best = id
     }
   }
-  return 1
-}
-
-// true sse `ms` cai dentro de [start, start+chunkMs) de ALGUMA gravação — diferente de
-// `recordingAtMs`, que sempre acha "a mais próxima" mesmo numa lacuna sem gravação
-// nenhuma. Usado pra decidir se o preview (imagem) deve aparecer: sem cobertura real,
-// mostrar uma miniatura da gravação mais próxima seria enganoso (parece que tem vídeo
-// ali, mas não tem).
-export function isCoveredByRecording<T extends { rec: { start: string } }>(
-  items: T[],
-  ms: number,
-  chunkMs: number,
-): boolean {
-  return items.some((item) => {
-    const startMs = Date.parse(item.rec.start)
-    return !Number.isNaN(startMs) && ms >= startMs && ms < startMs + chunkMs
-  })
+  return best
 }
