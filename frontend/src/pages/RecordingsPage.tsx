@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { format } from 'date-fns'
 import Layout from '../components/Layout'
@@ -7,21 +7,22 @@ import DatePicker from '../components/DatePicker'
 import { Button } from '../components/ui/button'
 import { authHeaders, onUnauthorized, getToken } from '../auth'
 import { resolveEventRecordingUrl } from '../lib/eventNavigation'
+import { categoryColor, categoryLabel } from './eventCategory'
 
-const CAT_LABEL: Record<string, string> = {
-  movimento: 'Movimento',
-  pessoa: 'Pessoa',
-  ia: 'IA',
-  estados: 'Estados',
-}
-const CAT_COLOR: Record<string, string> = {
-  movimento: 'bg-amber-400',
-  pessoa: 'bg-red-500',
-  ia: 'bg-violet-500',
-  estados: 'bg-green-500',
-}
-const CAT_FILTERS = ['todos', 'movimento', 'pessoa', 'ia', 'estados'] as const
 const WINDOWS = [1, 2, 4, 6, 12, 24] as const
+
+// sortCategories ordena categorias dinâmicas: pessoa primeiro, movimento depois, resto em
+// ordem alfabética, estados sempre por último — mesma convenção usada em ReportsPage.tsx
+// (`sortCategories` local) e no dropdown do Histórico (HistoryPage.tsx, que não tem
+// `estados` como opção separada, mas segue a mesma prioridade pra pessoa/movimento).
+function sortCategories(categories: Iterable<string>): string[] {
+  const rank = (cat: string) =>
+    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat === 'estados' ? 3 : 2
+  return [...categories].sort((a, b) => {
+    const diff = rank(a) - rank(b)
+    return diff !== 0 ? diff : a.localeCompare(b)
+  })
+}
 
 // parseLocalDate — parseia "yyyy-MM-dd" como data LOCAL (sem o deslocamento de fuso
 // de `new Date(string)`, que interpreta como UTC). Sem :date válido, cai em hoje.
@@ -109,6 +110,21 @@ export default function RecordingsPage() {
   const [recordings, setRecordings] = useState<RecordingItem[]>([])
   const [recLoaded, setRecLoaded] = useState(false)
   const [contentDays, setContentDays] = useState<string[]>([])
+
+  // Opções do filtro de categoria (`#recordings-category-chips`) — dinâmicas, derivadas
+  // dos momentos efetivamente carregados (pedido do navigator: nada de chips fixos
+  // hardcoded pra categorias que nem existem). Como `/api/moments` já filtra por
+  // `category` no servidor quando um filtro específico está ativo, a lista de opções
+  // "encolhe" pra só a categoria selecionada nesse caso — por isso o filtro ATIVO sempre
+  // entra no set (nunca desaparece do próprio filtro que o gerou); com "Todos" selecionado
+  // (estado inicial e mais comum), a resposta reflete TODAS as categorias do dia/câmera.
+  const filterOptions = useMemo(() => {
+    const present = new Set<string>()
+    for (const m of moments) present.add(m.category)
+    present.add(category)
+    present.delete('todos')
+    return ['todos', ...sortCategories(present)]
+  }, [moments, category])
 
   // Mantém a URL sincronizada com data/janela/modo (fonte compartilhável) — mesmo
   // padrão de ReportsPage.tsx/HistoryPage.tsx: só navega quando o alvo difere da
@@ -294,10 +310,10 @@ export default function RecordingsPage() {
           }
         />
 
-        {/* Filtro de categoria (modo Momentos) */}
+        {/* Filtro de categoria (modo Momentos) — dinâmico, ver `filterOptions` acima */}
         {view === 'moments' && (
           <div id="recordings-category-chips" className="flex flex-wrap items-center gap-1.5 mb-2">
-            {CAT_FILTERS.map((c) => (
+            {filterOptions.map((c) => (
               <button
                 key={c}
                 id={`recordings-cat-${c}`}
@@ -311,8 +327,10 @@ export default function RecordingsPage() {
                     : 'bg-surface-2 text-muted hover:text-foreground'
                 }`}
               >
-                {c !== 'todos' && <span className={`w-1.5 h-1.5 rounded-full ${CAT_COLOR[c]}`} />}
-                {c === 'todos' ? 'Todos' : CAT_LABEL[c]}
+                {c !== 'todos' && (
+                  <span className={`w-1.5 h-1.5 rounded-full ${categoryColor(c)}`} />
+                )}
+                {c === 'todos' ? 'Todos' : categoryLabel(c)}
               </button>
             ))}
           </div>
@@ -457,7 +475,7 @@ export default function RecordingsPage() {
                   <div className="px-2 py-1.5">
                     <div className="flex items-center gap-1.5">
                       <span
-                        className={`w-2 h-2 rounded-full shrink-0 ${CAT_COLOR[m.category] ?? 'bg-border'}`}
+                        className={`w-2 h-2 rounded-full shrink-0 ${categoryColor(m.category)}`}
                       />
                       <span className="text-xs font-medium text-foreground truncate">
                         {m.camera_name}

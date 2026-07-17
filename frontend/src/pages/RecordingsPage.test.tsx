@@ -258,4 +258,160 @@ describe('RecordingsPage', () => {
     )
     expect(called).toBe(true)
   })
+
+  describe('CA5dinamico: filtro de categoria dinâmico (modo Momentos)', () => {
+    // Momentos com um label específico dinâmico (ex.: "carro") além dos 2 padrão
+    // (estados/pessoa) — servidor filtra por `category` quando presente, igual à API real.
+    const dynamicMoments = [
+      ...moments,
+      {
+        camera_id: 'cam1',
+        camera_name: 'Corredor',
+        time: '2026-06-23T09:00:00Z',
+        kind: 'motion' as const,
+        label: 'carro',
+        category: 'carro',
+        frame: '20260623090000_motion.jpg',
+        score: 0.7,
+      },
+    ]
+
+    function stubMomentsFetch() {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/moments')) {
+            const cat = new URL(url, 'http://x').searchParams.get('category')
+            const filtered = cat ? dynamicMoments.filter((m) => m.category === cat) : dynamicMoments
+            return Promise.resolve({
+              status: 200,
+              json: () =>
+                Promise.resolve({ moments: filtered, total: filtered.length, hasMore: false }),
+            })
+          }
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+          return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+    }
+
+    it('REGRESSÃO: "estados" sempre fica por ÚLTIMO na ordenação, mesmo perdendo alfabeticamente pra outro label dinâmico', async () => {
+      // "estados" vem antes de "zebra" em ordem alfabética pura ('e' < 'z') — a regra da
+      // story exige "estados" sempre por último, independente disso (mesma convenção de
+      // ReportsPage.tsx). Reproduz com fetch próprio (não usa `dynamicMoments`/
+      // `stubMomentsFetch` do describe, que só tem "carro" — alfabeticamente ANTES de
+      // "estados", não pegaria a regressão).
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/moments')) {
+            const withZebra = [
+              ...moments,
+              {
+                camera_id: 'cam1',
+                camera_name: 'Corredor',
+                time: '2026-06-23T09:00:00Z',
+                kind: 'motion' as const,
+                label: 'zebra',
+                category: 'zebra',
+                frame: '20260623090000_motion.jpg',
+                score: 0.7,
+              },
+            ]
+            return Promise.resolve({
+              status: 200,
+              json: () =>
+                Promise.resolve({ moments: withZebra, total: withZebra.length, hasMore: false }),
+            })
+          }
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+          return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      const chips = Array.from(
+        document.getElementById('recordings-category-chips')!.querySelectorAll('button'),
+      ).map((b) => b.id)
+      expect(chips).toEqual([
+        'recordings-cat-todos',
+        'recordings-cat-pessoa',
+        'recordings-cat-zebra',
+        'recordings-cat-estados',
+      ])
+    })
+
+    it('as opções do filtro são dinâmicas — refletem as categorias REAIS dos momentos carregados, não um array fixo', async () => {
+      stubMomentsFetch()
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      const chips = Array.from(
+        document.getElementById('recordings-category-chips')!.querySelectorAll('button'),
+      ).map((b) => b.id)
+      // pessoa primeiro, "carro" (alfabético entre os específicos) antes de "estados".
+      expect(chips).toEqual([
+        'recordings-cat-todos',
+        'recordings-cat-pessoa',
+        'recordings-cat-carro',
+        'recordings-cat-estados',
+      ])
+    })
+
+    it('clicar num chip de categoria dinâmica (ex.: "carro") filtra via query param e mostra só esses momentos', async () => {
+      stubMomentsFetch()
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      fetchMock.mockClear()
+      fireEvent.click(document.getElementById('recordings-cat-carro')!)
+      await waitFor(() => {
+        const called = fetchMock.mock.calls.some(
+          ([u]: [string]) =>
+            String(u).startsWith('/api/moments') && String(u).includes('category=carro'),
+        )
+        if (!called) throw new Error('fetch com category=carro não disparou')
+      })
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')?.textContent).toContain('Corredor')
+        expect(document.getElementById('moment-1')).toBeNull()
+      })
+    })
+
+    it('rótulos dos chips são capitalizados (categoryLabel) — "Todos"/"Pessoa"/"Carro"/"Estados"', async () => {
+      stubMomentsFetch()
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      const labels = Array.from(
+        document.getElementById('recordings-category-chips')!.querySelectorAll('button'),
+      ).map((b) => b.textContent?.trim())
+      expect(labels).toEqual(['Todos', 'Pessoa', 'Carro', 'Estados'])
+    })
+
+    it('o chip da categoria ATIVA nunca desaparece, mesmo quando o servidor filtra a resposta pra só ela', async () => {
+      stubMomentsFetch()
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      fireEvent.click(document.getElementById('recordings-cat-carro')!)
+      await waitFor(() => {
+        expect(document.getElementById('moment-1')).toBeNull() // já filtrado, só 1 momento
+      })
+      // mesmo com a resposta contendo só "carro", o chip "carro" continua na lista (é o
+      // próprio filtro ativo) — e os demais (pessoa/estados) somem, comportamento aceito
+      // (opções derivadas "da resposta carregada", ver comentário de `filterOptions`).
+      expect(document.getElementById('recordings-cat-carro')).not.toBeNull()
+      expect(document.getElementById('recordings-cat-todos')).not.toBeNull()
+    })
+  })
 })

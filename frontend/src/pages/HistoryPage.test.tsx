@@ -1056,5 +1056,33 @@ describe('HistoryPage', () => {
         expect(document.getElementById('history-recording-1')).not.toBeNull()
       })
     })
+
+    it('REGRESSÃO: fechar o grupo da hora que já contém o item ATIVO (ex.: a mais recente, selecionada por padrão) mantém o grupo fechado — não reabre sozinho', async () => {
+      // Bug relatado pelo navigator ("a primeira hora eu não consigo fechar na seta"): o
+      // ajuste-durante-o-render que reabre o grupo do item ativo rodava em TODO render, não
+      // só quando a seleção de fato mudava — fechar manualmente o grupo que já continha o
+      // item ativo era desfeito no próprio render seguinte, parecendo que o clique não
+      // "pegava". b.mp4 (08:03Z, id 2) é a gravação mais recente — selecionada por padrão,
+      // cai no grupo da hora 8.
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
+      })
+      expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBe(
+        'true',
+      )
+      const group8 = document.getElementById('history-hour-group-8')!
+      group8.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-2')).toBeNull()
+      })
+      // Continua fechado (não é só um instante entre renders) — aguarda mais um ciclo e
+      // confirma que não reapareceu sozinho.
+      await act(() => Promise.resolve())
+      expect(document.getElementById('history-recording-2')).toBeNull()
+      expect(document.getElementById('history-hour-group-8')?.getAttribute('aria-expanded')).toBe(
+        'false',
+      )
+    })
   })
 })

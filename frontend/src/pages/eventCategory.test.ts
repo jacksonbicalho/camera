@@ -9,6 +9,7 @@ import {
   matchesTimelineFilter,
   categoryColor,
   categoryBorderColor,
+  categoryStrokeColor,
   categoryLabel,
 } from './eventCategory'
 
@@ -159,17 +160,47 @@ describe('categoryLabel', () => {
 })
 
 describe('categoryBorderColor', () => {
-  it('mesma cor de categoryColor, só troca o prefixo bg- por border-', () => {
+  it('mesmo tom de categoryColor pra categorias conhecidas, só troca bg- por border-', () => {
     expect(categoryBorderColor('movimento')).toBe('border-amber-400')
     expect(categoryBorderColor('pessoa')).toBe('border-red-500')
     expect(categoryBorderColor('estados')).toBe('border-green-500')
     expect(categoryBorderColor('continua')).toBe('border-blue-500')
   })
-  it('label arbitrário: determinístico e consistente com categoryColor (mesmo tom)', () => {
-    const bg = categoryColor('carro')
-    expect(categoryBorderColor('carro')).toBe(bg.replace('bg-', 'border-'))
+  it('label arbitrário: determinístico, e o MESMO tom de categoryColor pra essa categoria', () => {
+    const bgTone = categoryColor('carro').replace('bg-', '')
+    expect(categoryBorderColor('carro')).toBe(`border-${bgTone}`)
     // chamadas repetidas continuam estáveis.
     expect(categoryBorderColor('carro')).toBe(categoryBorderColor('carro'))
+  })
+})
+
+describe('categoryStrokeColor', () => {
+  it('mesmo tom de categoryColor pra categorias conhecidas, só troca bg- por stroke-', () => {
+    expect(categoryStrokeColor('movimento')).toBe('stroke-amber-400')
+    expect(categoryStrokeColor('pessoa')).toBe('stroke-red-500')
+    expect(categoryStrokeColor('estados')).toBe('stroke-green-500')
+    expect(categoryStrokeColor('continua')).toBe('stroke-blue-500')
+  })
+  it('label arbitrário: determinístico, e o MESMO tom de categoryColor/categoryBorderColor pra essa categoria', () => {
+    const bgTone = categoryColor('carro').replace('bg-', '')
+    expect(categoryStrokeColor('carro')).toBe(`stroke-${bgTone}`)
+    expect(categoryStrokeColor('carro')).toBe(categoryStrokeColor('carro'))
+  })
+  it('cada classe usada aqui é um literal fixo na paleta — nunca construída em runtime por concatenação (Tailwind só descobre classes que aparecem literalmente no código-fonte)', () => {
+    // Regressão: uma versão anterior de categoryBorderColor fazia
+    // `categoryColor(cat).replace('bg-','border-')` — parecia funcionar nos tons
+    // "conhecidos" só por coincidência (essas classes já existiam em outro lugar do
+    // app), mas os tons da paleta de labels arbitrários nunca tinham `border-*`/
+    // `stroke-*` de verdade gerados pelo Tailwind (confirmado inspecionando o CSS
+    // compilado). Este teste não pega a ausência de CSS em si (fora do alcance do
+    // vitest/jsdom), mas documenta e trava o contrato: os 3 tons de uma mesma
+    // categoria SEMPRE compartilham a cor (nunca um tom pra bg e outro pra
+    // border/stroke), o que só é garantido pela estrutura de paleta com literais.
+    for (const cat of ['movimento', 'pessoa', 'estados', 'continua', 'carro', 'cachorro']) {
+      const tone = (cls: string) => cls.replace(/^(bg|border|stroke)-/, '')
+      expect(tone(categoryBorderColor(cat))).toBe(tone(categoryColor(cat)))
+      expect(tone(categoryStrokeColor(cat))).toBe(tone(categoryColor(cat)))
+    }
   })
 })
 

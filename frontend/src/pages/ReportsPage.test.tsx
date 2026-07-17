@@ -181,3 +181,87 @@ describe('ReportsPage rota (câmera/data/range na URL)', () => {
     })
   })
 })
+
+describe('CA5dinamico: categorias dinâmicas (barras/donut/modal), não mais um bucket fixo "IA"', () => {
+  function stubDynamicReport() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.startsWith('/api/cameras'))
+          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+        if (url.startsWith('/api/reports/events') && url.includes('bucket=hour')) {
+          return Promise.resolve({
+            status: 200,
+            json: () =>
+              Promise.resolve({
+                total: 10,
+                by_hour: [
+                  {
+                    hour: 10,
+                    count: 10,
+                    by_category: { pessoa: 3, movimento: 2, carro: 5 },
+                  },
+                ],
+                // by_label é a ÚNICA fonte de pessoa/movimento/carro pra categoryBuckets
+                // (usado no total da legenda/modal) — by_category (topo) só carrega
+                // categorias que NÃO vêm de label (hoje só "estados"), nunca duplica o que
+                // já está em by_label. by_hour[].by_category é um campo DIFERENTE (a
+                // composição de CADA hora, usada pelas barras empilhadas).
+                by_label: { pessoa: 3, '': 2, carro: 5 },
+              }),
+          })
+        }
+        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+  }
+
+  it('barras empilhadas: um label específico dinâmico (ex.: "carro") aparece com sua PRÓPRIA cor, não mais bucket "ia"', async () => {
+    stubDynamicReport()
+    renderAt('/reports/cam1/2026-06-24/1')
+    await waitFor(() => {
+      expect(document.getElementById('report-bars')).not.toBeNull()
+    })
+    const bar = document.getElementById('report-bars')!.firstElementChild as HTMLElement
+    expect(bar.getAttribute('title')).toContain('Carro: 5')
+    // 3 segmentos empilhados (pessoa, movimento, carro) — pessoa primeiro, movimento
+    // depois, "carro" (resto alfabético) por último.
+    const segments = Array.from(bar.querySelectorAll('button')).map((b) => b.getAttribute('title'))
+    expect(segments).toEqual(['Pessoa: 3', 'Movimento: 2', 'Carro: 5'])
+  })
+
+  it('donut: legenda mostra o label real capitalizado ("Carro"), com a cor determinística de categoryColor', async () => {
+    stubDynamicReport()
+    renderAt('/reports/cam1/2026-06-24/1')
+    await waitFor(() => {
+      expect(document.getElementById('report-bars')).not.toBeNull()
+    })
+    const legendButtons = Array.from(document.querySelectorAll('button')).filter((b) =>
+      b.textContent?.includes('Carro'),
+    )
+    expect(legendButtons).toHaveLength(1)
+    expect(legendButtons[0].textContent).toContain('5')
+    const dot = legendButtons[0].querySelector('span')!
+    expect(dot.className).toMatch(/bg-\w+-\d+/)
+  })
+
+  it('clicar no segmento/legenda de um label dinâmico abre o modal com título capitalizado e descrição fiel ao label (não mais "Detecções de modelos de IA")', async () => {
+    stubDynamicReport()
+    renderAt('/reports/cam1/2026-06-24/1')
+    await waitFor(() => {
+      expect(document.getElementById('report-bars')).not.toBeNull()
+    })
+    const carroSegment = Array.from(document.querySelectorAll('button')).find(
+      (b) => b.getAttribute('title') === 'Carro: 5',
+    )!
+    fireEvent.click(carroSegment)
+    const modal = await waitFor(() => {
+      const el = document.getElementById('report-category-modal')
+      if (!el) throw new Error('modal não abriu')
+      return el
+    })
+    expect(modal.textContent).toContain('Carro — 5 eventos')
+    expect(modal.textContent).toContain('Detecções classificadas como "Carro"')
+    expect(modal.textContent).not.toContain('IA')
+  })
+})

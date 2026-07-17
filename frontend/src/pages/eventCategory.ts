@@ -21,53 +21,79 @@ export function eventCategory(ev: Pick<MotionEvent, 'label' | 'kind'>): EventCat
 
 export type RecordingCategory = EventCategory | 'continua'
 
+// Uma entrada de paleta por categoria — as 3 variantes (fundo/borda/traço SVG) do MESMO
+// tom, usadas em pontos diferentes da UI (linha da régua, borda de card, contorno do
+// donut de relatórios). IMPORTANTE: as 3 classes de cada entrada são strings LITERAIS
+// (nunca construídas em runtime por concatenação/`.replace()`) — o Tailwind descobre
+// classes "dinâmicas" fazendo varredura de TEXTO nos arquivos-fonte, não avaliação de JS;
+// uma classe só existe no CSS final se aparecer LITERALMENTE em algum arquivo escaneado.
+// Uma versão anterior gerava `border-*`/`stroke-*` via `categoryColor(...).replace('bg-
+// ','border-')` — parecia funcionar nos 4 tons "conhecidos" só por COINCIDÊNCIA (essas
+// classes literais já existiam em outros componentes do app, por motivos não
+// relacionados), mas os 8 tons da paleta de labels arbitrários nunca tiveram `border-*`/
+// `stroke-*` gerado — bug real, confirmado inspecionando o CSS compilado (`yarn build`).
+interface CategoryPalette {
+  bg: string
+  border: string
+  stroke: string
+}
+
 // Cores fixas das categorias "conhecidas" do produto — mesmas cores já usadas em vários
 // lugares (dot de gravação, badges). `continua` não é um EventCategory (não vem de
 // label nenhum — é a ausência de qualquer evento no chunk, ver `recordingCategory`
 // abaixo), mas é um valor de `RecordingCategory` tão "conhecido" quanto os outros 3, daí
 // entrar aqui também — mesma fonte única de cor pra QUALQUER categoria (evento ou
-// gravação). Qualquer outro label (dinâmico) usa a paleta por hash, ver `categoryColor`.
-const KNOWN_COLORS: Record<string, string> = {
-  movimento: 'bg-amber-400',
-  pessoa: 'bg-red-500',
-  estados: 'bg-green-500',
-  continua: 'bg-blue-500',
+// gravação). Qualquer outro label (dinâmico) usa a paleta por hash abaixo.
+const KNOWN_COLORS: Record<string, CategoryPalette> = {
+  movimento: { bg: 'bg-amber-400', border: 'border-amber-400', stroke: 'stroke-amber-400' },
+  pessoa: { bg: 'bg-red-500', border: 'border-red-500', stroke: 'stroke-red-500' },
+  estados: { bg: 'bg-green-500', border: 'border-green-500', stroke: 'stroke-green-500' },
+  continua: { bg: 'bg-blue-500', border: 'border-blue-500', stroke: 'stroke-blue-500' },
 }
 
 // Paleta fixa pra labels arbitrários — resto do espectro, evitando os tons já usados
 // pelas categorias conhecidas acima (âmbar/vermelho/verde/azul).
-const LABEL_PALETTE = [
-  'bg-violet-500',
-  'bg-cyan-500',
-  'bg-orange-500',
-  'bg-pink-500',
-  'bg-lime-500',
-  'bg-indigo-500',
-  'bg-teal-500',
-  'bg-fuchsia-500',
+const LABEL_PALETTE: CategoryPalette[] = [
+  { bg: 'bg-violet-500', border: 'border-violet-500', stroke: 'stroke-violet-500' },
+  { bg: 'bg-cyan-500', border: 'border-cyan-500', stroke: 'stroke-cyan-500' },
+  { bg: 'bg-orange-500', border: 'border-orange-500', stroke: 'stroke-orange-500' },
+  { bg: 'bg-pink-500', border: 'border-pink-500', stroke: 'stroke-pink-500' },
+  { bg: 'bg-lime-500', border: 'border-lime-500', stroke: 'stroke-lime-500' },
+  { bg: 'bg-indigo-500', border: 'border-indigo-500', stroke: 'stroke-indigo-500' },
+  { bg: 'bg-teal-500', border: 'border-teal-500', stroke: 'stroke-teal-500' },
+  { bg: 'bg-fuchsia-500', border: 'border-fuchsia-500', stroke: 'stroke-fuchsia-500' },
 ]
 
-// categoryColor devolve a cor (classe Tailwind `bg-*`) de uma categoria — fixa para as
-// conhecidas (movimento/pessoa/estados), determinística por HASH para qualquer label
-// arbitrário (a MESMA string sempre cai na MESMA cor da paleta, em qualquer sessão ou
-// página — sem precisar cadastrar cor por label manualmente).
-export function categoryColor(category: string): string {
+// paletteFor resolve a paleta (3 variantes) de uma categoria — fixa pras conhecidas,
+// determinística por HASH pra qualquer label arbitrário (a MESMA string sempre cai na
+// MESMA paleta, em qualquer sessão ou página — sem precisar cadastrar cor por label).
+function paletteFor(category: string): CategoryPalette {
   const known = KNOWN_COLORS[category]
   if (known) return known
   let hash = 0
   for (let i = 0; i < category.length; i++) {
     hash = (hash * 31 + category.charCodeAt(i)) | 0
   }
-  const idx = Math.abs(hash) % LABEL_PALETTE.length
-  return LABEL_PALETTE[idx]
+  return LABEL_PALETTE[Math.abs(hash) % LABEL_PALETTE.length]
 }
 
-// categoryBorderColor devolve a cor de BORDA (classe Tailwind `border-*`) equivalente à
-// cor de fundo de `categoryColor` — mesma fonte única (paleta + hash), só troca o prefixo
-// `bg-`→`border-`, garantindo que a borda de um card e a linha de uma gravação da MESMA
-// categoria usem sempre o mesmo tom, sem duplicar a paleta.
+// categoryColor devolve a cor de FUNDO (classe Tailwind `bg-*`) de uma categoria.
+export function categoryColor(category: string): string {
+  return paletteFor(category).bg
+}
+
+// categoryBorderColor devolve a cor de BORDA (classe Tailwind `border-*`) — mesmo tom de
+// `categoryColor` pra a MESMA categoria, sem duplicar a paleta.
 export function categoryBorderColor(category: string): string {
-  return categoryColor(category).replace('bg-', 'border-')
+  return paletteFor(category).border
+}
+
+// categoryStrokeColor devolve a cor de TRAÇO SVG (classe Tailwind `stroke-*`) — mesmo tom
+// de `categoryColor`/`categoryBorderColor`, usado pelo contorno do donut de categorias
+// (ReportsPage.tsx). SVG `stroke` como atributo de apresentação espera uma cor CSS crua
+// (hex/rgb), não uma classe utilitária — por isso vira `className`, nunca `stroke={...}`.
+export function categoryStrokeColor(category: string): string {
+  return paletteFor(category).stroke
 }
 
 // categoryLabel capitaliza a 1ª letra de uma categoria pra exibição — UMA função só,

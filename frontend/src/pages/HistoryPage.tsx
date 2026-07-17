@@ -367,16 +367,25 @@ export default function HistoryPage() {
   // Grupos COLAPSADOS (o padrão é todo mundo aberto — dia normal de câmera residencial tem
   // poucas horas com conteúdo; abrir tudo por padrão favorece escanear a lista inteira,
   // igual ao filmstrip plano de antes, e ainda permite recolher horas que não interessam).
-  // Um grupo fechado reabre sozinho se o item ativo cair nele de novo (clique num card,
+  // Um grupo fechado reabre sozinho se o item ativo MUDAR pra ele (clique num card,
   // deep-link da URL, avanço da reprodução contínua) — nunca esconde o item em reprodução.
   const [closedHours, setClosedHours] = useState<Set<number>>(new Set())
-  // Ajuste durante o render (mesmo padrão de `errorForId`/`continuousResetForDate` abaixo),
-  // não useEffect+setState — reabre o grupo do item ativo se ele tiver sido fechado.
   const activeHour = selected ? new Date(selected.start).getHours() : null
-  if (activeHour != null && closedHours.has(activeHour)) {
-    const next = new Set(closedHours)
-    next.delete(activeHour)
-    setClosedHours(next)
+  // Ajuste durante o render (mesmo padrão de `errorForId`/`continuousResetForDate` abaixo),
+  // não useEffect+setState — mas só reabre quando `activeHour` de fato MUDA (comparado
+  // contra `syncedActiveHour`, sincronizado só nesse momento), nunca a cada render. Sem
+  // esse guard de mudança, fechar manualmente o grupo do item JÁ ativo (ex.: a hora mais
+  // recente, selecionada por padrão) reabria sozinho no próximo render — o clique no
+  // colapsar nunca "pegava" pra esse grupo específico (bug relatado pelo navigator: "a
+  // primeira hora eu não consigo fechar").
+  const [syncedActiveHour, setSyncedActiveHour] = useState(activeHour)
+  if (activeHour !== syncedActiveHour) {
+    setSyncedActiveHour(activeHour)
+    if (activeHour != null && closedHours.has(activeHour)) {
+      const next = new Set(closedHours)
+      next.delete(activeHour)
+      setClosedHours(next)
+    }
   }
   function toggleHour(hour: number) {
     setClosedHours((prev) => {
