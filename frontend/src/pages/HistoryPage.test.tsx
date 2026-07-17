@@ -920,9 +920,18 @@ describe('HistoryPage', () => {
         expect(document.getElementById('history-recording-2')).not.toBeNull()
       })
 
-      // sem filtro (Tudo): as duas horas aparecem coloridas pela própria categoria.
-      expect(document.getElementById('history-timeline-hour-7')!.className).toContain('bg-blue-500')
-      expect(document.getElementById('history-timeline-hour-8')!.className).toContain('bg-red-500')
+      // sem filtro (Tudo): o card de cada hora é sempre neutro; cada LINHA usa a cor da
+      // PRÓPRIA categoria (não mais o card colorido pela categoria dominante).
+      expect(document.getElementById('history-timeline-hour-7')!.className).toContain(
+        'bg-surface-2',
+      )
+      expect(document.getElementById('history-timeline-hour-8')!.className).toContain(
+        'bg-surface-2',
+      )
+      const line7 = document.querySelector('#history-timeline-hour-7 span')!
+      const line8 = document.querySelector('#history-timeline-hour-8 span')!
+      expect(line7.className).toContain('bg-blue-500') // continua
+      expect(line8.className).toContain('bg-red-500') // pessoa
 
       document
         .getElementById('history-filter-pessoa')!
@@ -931,12 +940,21 @@ describe('HistoryPage', () => {
         expect(document.getElementById('history-recording-1')!.className).toContain('opacity-40')
       })
 
-      // com o filtro "Pessoa" ativo: a régua continua colorindo as DUAS horas com suas
-      // categorias reais (a cor do bloco agrega TODOS os itens, filtrados ou não) — só a
-      // linha vertical da hora 7 (fora do filtro) fica esmaecida, o bloco em si não vira
-      // neutro nem some.
-      expect(document.getElementById('history-timeline-hour-7')!.className).toContain('bg-blue-500')
-      expect(document.getElementById('history-timeline-hour-8')!.className).toContain('bg-red-500')
+      // com o filtro "Pessoa" ativo: os cards continuam neutros e as linhas continuam com
+      // suas cores reais — só a linha da hora 7 (fora do filtro) fica esmaecida, nenhuma
+      // linha some nem muda de cor.
+      expect(document.getElementById('history-timeline-hour-7')!.className).toContain(
+        'bg-surface-2',
+      )
+      expect(document.getElementById('history-timeline-hour-8')!.className).toContain(
+        'bg-surface-2',
+      )
+      expect(document.querySelector('#history-timeline-hour-7 span')!.className).toContain(
+        'bg-blue-500',
+      )
+      expect(document.querySelector('#history-timeline-hour-8 span')!.className).toContain(
+        'bg-red-500',
+      )
     })
 
     it('CA3naoremove: a lista lateral sempre mostra todas as gravações do dia, mesmo com um filtro de categoria ativo', async () => {

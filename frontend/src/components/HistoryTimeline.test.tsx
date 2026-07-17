@@ -3,13 +3,13 @@ import { act, cleanup, render, fireEvent } from '@testing-library/react'
 import HistoryTimeline from './HistoryTimeline'
 import type { Recording } from '../pages/cameraUtils'
 import type { RecordingCategory } from '../pages/eventCategory'
+import { computeHourLayout, evenFractions, hourBoxWidthPx } from './timelineScale'
 
 vi.mock('../auth', () => ({ getToken: () => 'fake-token' }))
 
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 function item(
@@ -30,26 +30,82 @@ function item(
   }
 }
 
-const DAY_MS = 24 * 3600_000
-const DAY_START = Date.parse('2026-07-05T00:00:00Z')
+// Mesmas medidas do componente (HistoryTimeline.tsx) — duplicadas aqui (não importadas)
+// porque são detalhe de implementação privado do componente; os testes só conhecem o
+// contrato público (funções puras de timelineScale.ts, já testadas isoladamente com
+// valores hardcoded em timelineScale.test.ts) + estas medidas.
+const LINE_WIDTH_PX = 5
+const LINE_GAP_PX = 2.5
+const CARD_GAP_PX = 18
+const CARD_PADDING_PX = 24
 
-// clientXFor calcula o clientX correspondente a um horário ISO, assumindo a trilha
-// mockada com `left: 0` e a largura dada — mesma janela (dia inteiro, TZ=UTC no ambiente
-// de teste) que o componente usa internamente.
-function clientXFor(iso: string, trackWidth: number): number {
-  const fraction = (Date.parse(iso) - DAY_START) / DAY_MS
-  return fraction * trackWidth
+// linePixelPositionsFor replica o cálculo de posição RENDERIZADA de cada linha — a MESMA
+// lógica de produção (HistoryTimeline.tsx: agrupa por hora, calcula a largura de cada card
+// via `hourBoxWidthPx`, o layout via `computeHourLayout`, e a posição de cada linha DENTRO
+// do card via `evenFractions`, por ÍNDICE cronológico), usando só funções puras já testadas
+// isoladamente. Usado pra prever, nos testes de interação (clique/arraste/preview), a
+// posição em pixel exata de uma gravação específica — sem números mágicos, e sem depender
+// de medir o DOM (jsdom não faz layout de verdade).
+function linePixelPositionsFor(items: { rec: Recording }[]): Map<number, number> {
+  const byHour = new Map<number, typeof items>()
+  for (const it of items) {
+    const h = new Date(it.rec.start).getHours()
+    const list = byHour.get(h)
+    if (list) list.push(it)
+    else byHour.set(h, [it])
+  }
+  const hours = [...byHour.keys()].sort((a, b) => a - b)
+  const widths: number[] = []
+  const perHour: { items: typeof items; positions: Map<number, number> }[] = []
+  for (const hour of hours) {
+    const hourItems = byHour.get(hour)!
+    // Sem piso mínimo (`minWidthPx: 0`) — mesma medida de produção: um card já fechado
+    // (não recebe mais gravações) não reserva espaço além do necessário.
+    const width = hourBoxWidthPx(hourItems.length, LINE_WIDTH_PX, LINE_GAP_PX, CARD_PADDING_PX, 0)
+    // Posição por ÍNDICE cronológico (não por horário real) — mesma lógica de produção
+    // (HistoryTimeline.tsx): a primeira e a última linha de TODO card sempre encostam na
+    // mesma distância da borda (o padding), e o espaçamento entre vizinhas é sempre
+    // uniforme, independente de quão perto/longe estejam no tempo real.
+    const sortedIds = [...hourItems]
+      .sort((a, b) => Date.parse(a.rec.start) - Date.parse(b.rec.start))
+      .map((it) => it.rec.id)
+    const positions = evenFractions(sortedIds)
+    widths.push(width)
+    perHour.push({ items: hourItems, positions })
+  }
+  const layout = computeHourLayout(widths, CARD_GAP_PX)
+  const result = new Map<number, number>()
+  perHour.forEach((h, i) => {
+    // Recuada por `CARD_PADDING_PX/2` de cada lado — mesmo wrapper interno do render (ver
+    // HistoryTimeline.tsx): sem esse recuo, uma linha em frac≈1 renderizaria colada na
+    // borda direita do card em vez de manter a folga do padding.
+    const contentWidth = widths[i] - CARD_PADDING_PX
+    for (const it of h.items) {
+      const clamped = h.positions.get(it.rec.id)!
+      result.set(it.rec.id, layout.offsets[i] + CARD_PADDING_PX / 2 + clamped * contentWidth)
+    }
+  })
+  return result
+}
+
+// pixelForId devolve o clientX (relativo à trilha, `left: 0` mockado por `mockTrackRect`)
+// da posição RENDERIZADA da gravação `id`.
+function pixelForId(items: { rec: Recording }[], id: number): number {
+  return linePixelPositionsFor(items).get(id)!
 }
 
 // mockTrackRect dá um retângulo determinístico à trilha — jsdom não faz layout de
-// verdade, então getBoundingClientRect() sempre devolve zeros sem isso.
-function mockTrackRect(width: number) {
+// verdade, então getBoundingClientRect() sempre devolve zeros sem isso. A largura em si
+// não importa pro cálculo de posição (que hoje vem só de `items`, determinístico) — só
+// precisa ser > 0 pra passar o guard de "elemento ainda não renderizado" e ter `left: 0`
+// pra não deslocar as contas de `pixelForId`.
+function mockTrackRect() {
   const track = document.getElementById('history-timeline-track')!
   vi.spyOn(track, 'getBoundingClientRect').mockReturnValue({
     left: 0,
-    width,
+    width: 100000,
     top: 0,
-    right: width,
+    right: 100000,
     bottom: 24,
     height: 24,
     x: 0,
@@ -62,45 +118,22 @@ function mockTrackRect(width: number) {
 }
 
 describe('HistoryTimeline', () => {
-  it('CA2: renderiza um bloco por hora colorido pela categoria dominante e o resumo com total e pico', () => {
-    const items = [
-      item(1, '2026-07-05T07:12:00Z', 'continua'),
-      item(2, '2026-07-05T18:03:00Z', 'movimento'),
-      item(3, '2026-07-05T18:20:00Z', 'pessoa'),
-    ]
-    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-
-    // Hora 7 (só continua) → cor de continua; hora 18 (movimento + pessoa) → prioridade
-    // pessoa vence.
-    const hour7 = document.getElementById('history-timeline-hour-7')!
-    const hour18 = document.getElementById('history-timeline-hour-18')!
-    expect(hour7.className).toContain('bg-blue-500')
-    expect(hour18.className).toContain('bg-red-500')
-
-    const summary = document.getElementById('history-timeline-summary')!
-    expect(summary.textContent).toContain('3')
-    expect(summary.textContent).toContain('18h')
-  })
-
-  it('CA2: hora sem nenhuma gravação renderiza um bloco neutro', () => {
+  it('CA2: hora sem nenhuma gravação NÃO renderiza card nenhum (pedido do navigator: horas vazias somem, não ocupam espaço)', () => {
     const items = [item(1, '2026-07-05T07:12:00Z', 'continua')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    const hour0 = document.getElementById('history-timeline-hour-0')!
-    expect(hour0.className).toContain('bg-surface-2')
+    expect(document.getElementById('history-timeline-hour-7')).not.toBeNull()
+    expect(document.getElementById('history-timeline-hour-0')).toBeNull()
+    expect(document.getElementById('history-timeline-hour-23')).toBeNull()
   })
 
-  it('CA2: sem nenhuma gravação, não renderiza nada', () => {
+  it('CA2: sem nenhuma gravação e sem `day`, não renderiza nada', () => {
     const { container } = render(
       <HistoryTimeline recordingItems={[]} onSelect={vi.fn()} cameraId="cam1" />,
     )
     expect(container.firstChild).toBeNull()
   })
 
-  it('CA2: com `day` explícito, filtro sem NENHUMA gravação correspondente ainda renderiza a régua inteira (24 blocos neutros) — não desaparece', () => {
-    // Diferente do teste acima: ali não há `day` (não dá pra saber que dia é sem nenhum
-    // item), então some de propósito. Aqui o dia É conhecido (ex.: HistoryPage sempre tem
-    // `selectedDate`) — um filtro que zera a lista não deve fazer a régua sumir, só as
-    // horas ficarem neutras (mesmo espírito de "hora sem gravação" já existente).
+  it('CA2: com `day` explícito, sem NENHUMA gravação a régua ainda aparece (resumo "0 gravações" + trilha vazia) — não desaparece; mas nenhum card de hora é renderizado', () => {
     render(
       <HistoryTimeline
         recordingItems={[]}
@@ -110,8 +143,8 @@ describe('HistoryTimeline', () => {
       />,
     )
     expect(document.getElementById('history-timeline-track')).not.toBeNull()
-    expect(document.getElementById('history-timeline-hour-0')!.className).toContain('bg-surface-2')
-    expect(document.getElementById('history-timeline-hour-23')!.className).toContain('bg-surface-2')
+    expect(document.getElementById('history-timeline-headers')).not.toBeNull()
+    expect(document.getElementById('history-timeline-track')!.children.length).toBe(0)
     expect(document.getElementById('history-timeline-summary')!.textContent).toBe('0 gravações')
   })
 
@@ -122,49 +155,60 @@ describe('HistoryTimeline', () => {
       item(1, '2026-07-05T18:03:00Z', 'movimento'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
-    mockTrackRect(40000)
+    mockTrackRect()
     fireEvent.click(document.getElementById('history-timeline-track')!, {
-      clientX: clientXFor('2026-07-05T18:03:00Z', 40000),
+      clientX: pixelForId(items, 1),
     })
     expect(onSelect).toHaveBeenCalledWith(1)
   })
 
-  it('CA2: pico em caso de empate de contagem entre horas escolhe a mais cedo', () => {
-    // recordingItems chega em ordem DECRESCENTE de horário (mesma convenção de
-    // HistoryPage.tsx) — 20h tem 2 itens inseridos ANTES de 5h, que também tem 2. Sem o
-    // desempate correto (comparar a hora, não a ordem de iteração do Map), o resultado
-    // seria 20h (a primeira inserida), não 5h (a mais cedo, esperado pela spec).
+  it('CA4header: cada card ganha um cabeçalho próprio com a hora e a contagem de gravações daquela hora', () => {
     const items = [
-      item(4, '2026-07-05T20:10:00Z', 'continua'),
-      item(3, '2026-07-05T20:00:00Z', 'continua'),
-      item(2, '2026-07-05T05:10:00Z', 'continua'),
-      item(1, '2026-07-05T05:00:00Z', 'continua'),
+      item(1, '2026-07-05T07:12:00Z', 'continua'),
+      item(2, '2026-07-05T18:03:00Z', 'movimento'),
+      item(3, '2026-07-05T18:20:00Z', 'pessoa'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    const summary = document.getElementById('history-timeline-summary')!
-    expect(summary.textContent).toContain('5h')
-    expect(summary.textContent).not.toContain('20h')
+    expect(document.getElementById('history-timeline-hour-7-header')!.textContent).toBe(
+      '7h · 1 gravação',
+    )
+    expect(document.getElementById('history-timeline-hour-18-header')!.textContent).toBe(
+      '18h · 2 gravações',
+    )
   })
 
-  it('CA2labels: rótulos de TODAS as 24 horas aparecem, em formato compacto (sem zero-pad/sufixo "h")', () => {
+  it('CA4header: só as horas COM gravação ganham cabeçalho — horas vazias não aparecem nem aqui', () => {
     const items = [item(1, '2026-07-05T07:12:00Z', 'continua')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    const labels = Array.from(document.getElementById('history-timeline-labels')!.children).map(
-      (el) => el.textContent,
+    expect(document.getElementById('history-timeline-hour-7-header')).not.toBeNull()
+    expect(document.getElementById('history-timeline-headers')!.children.length).toBe(1)
+  })
+
+  it('CA4header: os cabeçalhos usam o MESMO gap/largura por coluna da trilha abaixo — sem isso desalinhariam sob o card correspondente', () => {
+    const items = [
+      item(1, '2026-07-05T07:12:00Z', 'continua'),
+      item(2, '2026-07-05T18:00:00Z', 'movimento'),
+      item(3, '2026-07-05T18:05:00Z', 'movimento'),
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    expect(document.getElementById('history-timeline-headers')!.style.gap).toBe('18px')
+    // Hora 18 (2 gravações, card mais largo que o mínimo) — cabeçalho e card de baixo
+    // continuam com a MESMA largura entre si.
+    expect(document.getElementById('history-timeline-hour-18-header')!.style.width).toBe(
+      document.getElementById('history-timeline-hour-18')!.style.width,
     )
-    expect(labels).toEqual(Array.from({ length: 24 }, (_, i) => String(i)))
   })
 
   it('CA4: mover o mouse sobre a trilha mostra um preview com miniatura e o horário, sem exigir clique', () => {
     vi.useFakeTimers()
     const items = [item(1, '2026-07-05T18:03:00Z', 'movimento')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    mockTrackRect(40000)
+    mockTrackRect()
 
     expect(document.getElementById('history-timeline-preview')).toBeNull()
 
     fireEvent.mouseMove(document.getElementById('history-timeline-track')!, {
-      clientX: clientXFor('2026-07-05T18:03:00Z', 40000),
+      clientX: pixelForId(items, 1),
     })
     // A imagem/horário só aparece depois do mouse "descansar" (debounce) — ver comentário
     // de PREVIEW_DEBOUNCE_MS em HistoryTimeline.tsx: sem isso, cada mousemove bateria no
@@ -180,15 +224,18 @@ describe('HistoryTimeline', () => {
     expect(img.getAttribute('src')).toContain('token=fake-token')
   })
 
-  it('CA4: numa lacuna sem nenhuma gravação (hora sem vídeo), o preview NÃO aparece', () => {
+  it('CA4: sem nenhum card renderizado (dia vazio), o preview NÃO aparece', () => {
     vi.useFakeTimers()
-    // Só há gravação às 07h — 18h é uma lacuna franca (sem cobertura nenhuma).
-    const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
-    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    mockTrackRect(40000)
-    fireEvent.mouseMove(document.getElementById('history-timeline-track')!, {
-      clientX: clientXFor('2026-07-05T18:00:00Z', 40000),
-    })
+    render(
+      <HistoryTimeline
+        recordingItems={[]}
+        onSelect={vi.fn()}
+        cameraId="cam1"
+        day={new Date('2026-07-05T12:00:00Z')}
+      />,
+    )
+    mockTrackRect()
+    fireEvent.mouseMove(document.getElementById('history-timeline-track')!, { clientX: 50 })
     act(() => vi.advanceTimersByTime(200))
     expect(document.getElementById('history-timeline-preview')).toBeNull()
   })
@@ -196,15 +243,20 @@ describe('HistoryTimeline', () => {
   it('CA4: mousemove contínuo reinicia o debounce — não busca uma imagem por posição intermediária', () => {
     vi.useFakeTimers()
     const onFrameRequests: string[] = []
-    const items = [item(1, '2026-07-05T18:03:00Z', 'movimento')]
+    const items = [
+      item(1, '2026-07-05T12:00:00Z', 'continua'),
+      item(2, '2026-07-05T13:00:00Z', 'continua'),
+      item(3, '2026-07-05T14:00:00Z', 'continua'),
+      item(4, '2026-07-05T18:03:00Z', 'movimento'),
+    ]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    mockTrackRect(40000)
+    mockTrackRect()
     const track = document.getElementById('history-timeline-track')!
 
     // Move o mouse por várias posições intermediárias em rápida sucessão (< debounce entre
     // cada uma) — só a ÚLTIMA posição deve gerar preview, nunca as intermediárias.
-    for (const t of ['12:00:00Z', '13:00:00Z', '14:00:00Z', '18:03:00Z']) {
-      fireEvent.mouseMove(track, { clientX: clientXFor(`2026-07-05T${t}`, 40000) })
+    for (const id of [1, 2, 3, 4]) {
+      fireEvent.mouseMove(track, { clientX: pixelForId(items, id) })
       act(() => vi.advanceTimersByTime(50)) // < PREVIEW_DEBOUNCE_MS — nenhum preview deve ter disparado ainda
       expect(document.getElementById('history-timeline-preview')).toBeNull()
     }
@@ -222,9 +274,9 @@ describe('HistoryTimeline', () => {
     vi.useFakeTimers()
     const items = [item(1, '2026-07-05T18:03:00Z', 'movimento')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    mockTrackRect(40000)
+    mockTrackRect()
     const track = document.getElementById('history-timeline-track')!
-    fireEvent.mouseMove(track, { clientX: clientXFor('2026-07-05T18:03:00Z', 40000) })
+    fireEvent.mouseMove(track, { clientX: pixelForId(items, 1) })
     act(() => vi.advanceTimersByTime(200))
     expect(document.getElementById('history-timeline-preview')).not.toBeNull()
     fireEvent.mouseLeave(track)
@@ -235,9 +287,9 @@ describe('HistoryTimeline', () => {
     vi.useFakeTimers()
     const items = [item(1, '2026-07-05T18:03:00Z', 'movimento')]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    mockTrackRect(40000)
+    mockTrackRect()
     const track = document.getElementById('history-timeline-track')!
-    fireEvent.mouseMove(track, { clientX: clientXFor('2026-07-05T18:03:00Z', 40000) })
+    fireEvent.mouseMove(track, { clientX: pixelForId(items, 1) })
     act(() => vi.advanceTimersByTime(200))
     const img = document.querySelector('#history-timeline-preview img')!
     fireEvent.error(img)
@@ -251,35 +303,62 @@ describe('HistoryTimeline', () => {
       item(1, '2026-07-05T18:03:00Z', 'movimento'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
-    mockTrackRect(40000)
+    mockTrackRect()
     fireEvent.click(document.getElementById('history-timeline-track')!, {
-      clientX: clientXFor('2026-07-05T18:20:00Z', 40000),
+      clientX: pixelForId(items, 2),
     })
     expect(onSelect).toHaveBeenCalledWith(2)
   })
 
-  it('CA5: clique antes do início da trilha (clientX negativo) clampa pra fração 0, seleciona a gravação mais cedo', () => {
+  it('CA5: clique antes do início da trilha (clientX negativo) não seleciona nada — fora de qualquer card, sem "grudar" numa gravação distante', () => {
+    // Pedido do navigator: a ação do mouse/ponteiro só responde EM CIMA de um card —
+    // clicar bem antes do 1º card (fora de qualquer um) não deve selecionar nada.
     const onSelect = vi.fn()
     const items = [
       item(2, '2026-07-05T18:00:00Z', 'movimento'),
       item(1, '2026-07-05T05:00:00Z', 'continua'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
-    mockTrackRect(40000)
+    mockTrackRect()
     fireEvent.click(document.getElementById('history-timeline-track')!, { clientX: -500 })
-    expect(onSelect).toHaveBeenCalledWith(1)
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('CA5: clique depois do fim da trilha (clientX além da largura) clampa pra fração 1, seleciona a gravação mais tarde', () => {
+  it('CA5: clique depois do fim da trilha (clientX além da largura) não seleciona nada — fora de qualquer card', () => {
     const onSelect = vi.fn()
     const items = [
       item(2, '2026-07-05T18:00:00Z', 'movimento'),
       item(1, '2026-07-05T05:00:00Z', 'continua'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
-    mockTrackRect(40000)
+    mockTrackRect()
     fireEvent.click(document.getElementById('history-timeline-track')!, { clientX: 999999 })
-    expect(onSelect).toHaveBeenCalledWith(2)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('CA5: clique no GAP entre dois cards (não sobre nenhum deles) não seleciona nada', () => {
+    const onSelect = vi.fn()
+    const items = [
+      item(1, '2026-07-05T05:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:00:00Z', 'movimento'),
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
+    mockTrackRect()
+    // Cada hora tem só 1 gravação → card no tamanho exato de 1 linha (sem piso mínimo, ver
+    // `hourBoxWidthPx`), e a linha única de cada hora fica em frac 0% — mas RECUADA por
+    // `CARD_PADDING_PX/2` do início do card (ver o wrapper interno em HistoryTimeline.tsx),
+    // então `pixelForId` (que já aplica esse recuo) não é a borda esquerda do card, e sim
+    // `card.start + CARD_PADDING_PX/2`. O fim real do card 1 é
+    // `(px1 - CARD_PADDING_PX/2) + singleItemWidth`; o início real do card 2 é
+    // `px2 - CARD_PADDING_PX/2` — o meio do gap real fica entre os dois.
+    const singleItemWidth = hourBoxWidthPx(1, LINE_WIDTH_PX, LINE_GAP_PX, CARD_PADDING_PX, 0)
+    const px1 = pixelForId(items, 1)
+    const px2 = pixelForId(items, 2)
+    const card1End = px1 - CARD_PADDING_PX / 2 + singleItemWidth
+    const card2Start = px2 - CARD_PADDING_PX / 2
+    const gapMid = (card1End + card2Start) / 2
+    fireEvent.click(document.getElementById('history-timeline-track')!, { clientX: gapMid })
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('CA4drag: arrastar a alça atualiza a posição/preview, sem chamar onSelect durante o arraste', () => {
@@ -292,20 +371,14 @@ describe('HistoryTimeline', () => {
     render(
       <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
     )
-    mockTrackRect(40000)
+    mockTrackRect()
     const handle = document.getElementById('history-timeline-handle')!
-    fireEvent.pointerDown(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
-      pointerId: 1,
-    })
+    fireEvent.pointerDown(handle, { clientX: pixelForId(items, 1), pointerId: 1 })
     fireEvent.pointerMove(handle, {
-      clientX: clientXFor('2026-07-05T10:00:00Z', 40000),
+      clientX: (pixelForId(items, 1) + pixelForId(items, 2)) / 2,
       pointerId: 1,
     })
-    fireEvent.pointerMove(handle, {
-      clientX: clientXFor('2026-07-05T18:00:00Z', 40000),
-      pointerId: 1,
-    })
+    fireEvent.pointerMove(handle, { clientX: pixelForId(items, 2), pointerId: 1 })
     // Nenhuma troca de gravação durante o arraste — só ao soltar (CA5drag).
     expect(onSelect).not.toHaveBeenCalled()
 
@@ -323,20 +396,11 @@ describe('HistoryTimeline', () => {
     render(
       <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
     )
-    mockTrackRect(40000)
+    mockTrackRect()
     const handle = document.getElementById('history-timeline-handle')!
-    fireEvent.pointerDown(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
-      pointerId: 1,
-    })
-    fireEvent.pointerMove(handle, {
-      clientX: clientXFor('2026-07-05T18:00:00Z', 40000),
-      pointerId: 1,
-    })
-    fireEvent.pointerUp(handle, {
-      clientX: clientXFor('2026-07-05T18:00:00Z', 40000),
-      pointerId: 1,
-    })
+    fireEvent.pointerDown(handle, { clientX: pixelForId(items, 1), pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientX: pixelForId(items, 2), pointerId: 1 })
+    fireEvent.pointerUp(handle, { clientX: pixelForId(items, 2), pointerId: 1 })
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(2)
   })
@@ -350,84 +414,79 @@ describe('HistoryTimeline', () => {
     render(
       <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={2} />,
     )
-    mockTrackRect(40000)
+    mockTrackRect()
     const handle = document.getElementById('history-timeline-handle')!
-    fireEvent.pointerDown(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
-      pointerId: 1,
-    })
-    fireEvent.pointerUp(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
-      pointerId: 1,
-    })
+    fireEvent.pointerDown(handle, { clientX: pixelForId(items, 1), pointerId: 1 })
+    fireEvent.pointerUp(handle, { clientX: pixelForId(items, 1), pointerId: 1 })
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(1)
   })
 
   it('CA5drag/CA3linesnap: soltar dentro da MESMA gravação (mesmo id resolvido) sempre volta a alça pro início dela — as linhas são os únicos pontos onde ela gruda', () => {
-    // A cobertura de uma gravação é de CHUNK_FALLBACK_MS (5min) a partir do início — soltar
-    // 3min depois do início ainda resolve pro MESMO id (1), então onSelect(1) não muda o
-    // selectedId (HistoryPage não re-renderiza com um selectedId novo). MESMO ASSIM, a alça
-    // deve voltar pro início da gravação (05:00) — comportamento intencional desta história:
-    // as linhas verticais (uma por gravação) são os ÚNICOS pontos onde o ponteiro pode
-    // "grudar", nunca um ponto livre/contínuo dentro da gravação (reverte de propósito o
-    // comportamento anterior, que mantinha a alça exatamente onde foi solta).
+    // A linha da gravação 1 é o único ponto de "grude" nesta hora (só ela existe) —
+    // soltar num pixel um pouco deslocado da posição exata dela ainda resolve pro MESMO
+    // id (1, a única linha ali), então onSelect(1) não muda o selectedId. MESMO ASSIM, a
+    // alça deve voltar pra posição RENDERIZADA da gravação (não ficar solta no pixel
+    // exato onde foi solta) — comportamento intencional: as linhas verticais são os
+    // ÚNICOS pontos onde o ponteiro pode "grudar".
     const onSelect = vi.fn()
     const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
     render(
       <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
     )
-    mockTrackRect(40000)
+    mockTrackRect()
     const handle = document.getElementById('history-timeline-handle')!
-    fireEvent.pointerDown(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
-      pointerId: 1,
-    })
-    fireEvent.pointerMove(handle, {
-      clientX: clientXFor('2026-07-05T05:03:00Z', 40000),
-      pointerId: 1,
-    })
-    fireEvent.pointerUp(handle, {
-      clientX: clientXFor('2026-07-05T05:03:00Z', 40000),
-      pointerId: 1,
-    })
+    const px1 = pixelForId(items, 1)
+    fireEvent.pointerDown(handle, { clientX: px1, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientX: px1 + 3, pointerId: 1 })
+    fireEvent.pointerUp(handle, { clientX: px1 + 3, pointerId: 1 })
     expect(onSelect).toHaveBeenCalledWith(1)
-    const startFraction = clientXFor('2026-07-05T05:00:00Z', 40000) / 40000
-    expect(handle.style.left).toBe(`${startFraction * 100}%`)
+    expect(parseFloat(handle.style.left)).toBeCloseTo(px1, 5)
   })
 
-  it('CA3linesnap: clicar numa lacuna sem gravação nenhuma também gruda no início da gravação real mais próxima, nunca num ponto livre', () => {
+  it('CA3linesnap: clicar dentro do card mas não exatamente na linha também gruda na linha renderizada mais próxima, nunca num ponto livre', () => {
     const onSelect = vi.fn()
     const items = [
       item(1, '2026-07-05T05:00:00Z', 'continua'),
       item(2, '2026-07-05T18:00:00Z', 'movimento'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
-    mockTrackRect(40000)
-    // 10h: mais perto de 05:00 (5h de distância) do que de 18:00 (8h de distância) — gruda
-    // no início da gravação 1, nunca na posição livre de 10h.
-    fireEvent.click(document.getElementById('history-timeline-track')!, {
-      clientX: clientXFor('2026-07-05T10:00:00Z', 40000),
-    })
+    mockTrackRect()
+    const px1 = pixelForId(items, 1)
+    // Um ponto a 5px da linha 1, ainda dentro do card dela (largura do card > 5px) — gruda
+    // na 1, não fica livre no meio do card.
+    fireEvent.click(document.getElementById('history-timeline-track')!, { clientX: px1 + 5 })
     expect(onSelect).toHaveBeenCalledWith(1)
-    const startFraction = clientXFor('2026-07-05T05:00:00Z', 40000) / 40000
     const handle = document.getElementById('history-timeline-handle')!
-    expect(handle.style.left).toBe(`${startFraction * 100}%`)
+    expect(parseFloat(handle.style.left)).toBeCloseTo(px1, 5)
   })
 
-  it('CA2vlines: cada bloco de hora renderiza uma linha vertical por gravação, posicionada pela fração real do horário dentro da hora', () => {
-    // Hora 7 com 2 gravações: uma no início (07:00, fração 0 dentro da hora) e outra na
-    // metade (07:30, fração 0.5) — a posição de cada linha reflete o horário real, não a
-    // ordem/índice (uma distribuição uniforme por índice colocaria a 2ª em 100%, não 50%).
+  it('CA2vlines: cada bloco de hora renderiza uma linha vertical por gravação, posicionada por ÍNDICE cronológico (não pelo horário real) — espaçamento sempre uniforme', () => {
+    // Pedido do navigator: a primeira e a última linha de TODO card devem sempre encostar
+    // na mesma distância da borda (o padding), e o espaçamento entre linhas vizinhas nunca
+    // deve variar de forma estranha — como a LARGURA do card já é só por CONTAGEM (não por
+    // duração real coberta pelas gravações), a posição de cada linha também é só por
+    // ÍNDICE: mais cedo → 0%, mais tarde → 100%, as do meio em passos IGUAIS entre elas —
+    // não proporcional ao tempo real decorrido (07:15 fica a 50%, não a 1/3 do intervalo
+    // 07:00↔07:45, mesmo estando temporalmente mais perto do início).
     const items = [
       item(1, '2026-07-05T07:00:00Z', 'continua'),
-      item(2, '2026-07-05T07:30:00Z', 'continua'),
+      item(2, '2026-07-05T07:15:00Z', 'continua'),
+      item(3, '2026-07-05T07:45:00Z', 'continua'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
     const line1 = document.getElementById('history-timeline-hour-7-rec-1')!
     const line2 = document.getElementById('history-timeline-hour-7-rec-2')!
+    const line3 = document.getElementById('history-timeline-hour-7-rec-3')!
     expect(line1.style.left).toBe('0%')
     expect(line2.style.left).toBe('50%')
+    expect(line3.style.left).toBe('100%')
+  })
+
+  it('CA2vlines: uma hora com só 1 gravação ancora a linha em 0% (sem intervalo pra distribuir)', () => {
+    const items = [item(1, '2026-07-05T07:37:00Z', 'continua')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    expect(document.getElementById('history-timeline-hour-7-rec-1')!.style.left).toBe('0%')
   })
 
   it('CA2vlines: hora com N gravações renderiza N linhas — quantidade acompanha a quantidade real de gravações', () => {
@@ -439,15 +498,13 @@ describe('HistoryTimeline', () => {
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
     const hour7 = document.getElementById('history-timeline-hour-7')!
     expect(hour7.querySelectorAll('span').length).toBe(3)
-    // Hora sem nenhuma gravação não renderiza linha nenhuma.
-    const hour0 = document.getElementById('history-timeline-hour-0')!
-    expect(hour0.querySelectorAll('span').length).toBe(0)
   })
 
-  it('CA2vlines: gravações muito próximas no tempo (reconexões rápidas do gravador) continuam em posições DISTINTAS, não colapsam no mesmo pixel', () => {
-    // Bug relatado: 4 gravações numa hora mostrando só 2 linhas (algumas colidindo) — a
-    // fração pura, sem espaçamento mínimo, deixaria essas 4 quase idênticas (segundos de
-    // diferença numa hora inteira).
+  it('CA2vlines: gravações muito próximas no tempo (reconexões rápidas do gravador) continuam em posições DISTINTAS e uniformemente espaçadas, não colapsam no mesmo pixel', () => {
+    // Bug relatado originalmente: 4 gravações numa hora mostrando só 2 linhas (algumas
+    // colidindo). Como a posição de cada linha é por ÍNDICE (não pelo horário real), 4
+    // gravações a poucos segundos uma da outra ficam tão bem distribuídas quanto 4
+    // gravações espalhadas pela hora inteira — 0%, 33.33%, 66.67%, 100%.
     const items = [
       item(1, '2026-07-05T00:00:00Z', 'continua'),
       item(2, '2026-07-05T00:00:05Z', 'continua'),
@@ -457,103 +514,110 @@ describe('HistoryTimeline', () => {
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
     const hour0 = document.getElementById('history-timeline-hour-0')!
     expect(hour0.querySelectorAll('span').length).toBe(4)
-    const lefts = [1, 2, 3, 4].map(
-      (id) => document.getElementById(`history-timeline-hour-0-rec-${id}`)!.style.left,
+    const lefts = [1, 2, 3, 4].map((id) =>
+      parseFloat(document.getElementById(`history-timeline-hour-0-rec-${id}`)!.style.left),
     )
-    // Todas as 4 posições são distintas entre si.
-    expect(new Set(lefts).size).toBe(4)
-    // A mais cedo (id 1) mantém a posição proporcional exata (0%) — só as seguintes,
-    // muito próximas dela, são empurradas pra garantir a separação mínima.
-    expect(lefts[0]).toBe('0%')
+    expect(lefts[0]).toBeCloseTo(0, 5)
+    expect(lefts[1]).toBeCloseTo(100 / 3, 5)
+    expect(lefts[2]).toBeCloseTo(200 / 3, 5)
+    expect(lefts[3]).toBeCloseTo(100, 5)
   })
 
-  it('CA2vlines: mesmo numa trilha medida bem estreita, o bloco de hora usa a largura PADRÃO fixa (1621.5px) — nunca precisa do teto de 30% de separação, o piso já garante espaço de sobra', () => {
-    // Desde que os blocos de hora ganharam uma largura padrão fixa (pedido do navigator:
-    // "os boxes... devem ser mais largos independente se tem ou não gravação"), a largura
-    // MEDIDA da trilha (via ResizeObserver) deixa de importar pra esse cálculo sempre que
-    // for menor que o piso fixo — 263px medidos aqui são bem menores que os 1621.5px do
-    // piso, então é o piso que vale (`Math.max`).
-    let resizeCallback: ResizeObserverCallback | null = null
-    class FakeResizeObserver {
-      constructor(cb: ResizeObserverCallback) {
-        resizeCallback = cb
-      }
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    }
-    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
-
-    // 1s de diferença (não 5s): natural gap = 1/3600×100 ≈ 0.0278%, menor que o mínimo
-    // aplicado aqui (0.2775%, ver abaixo) — precisa ser MENOR que o mínimo pra este teste
-    // de fato exercitar o enforcement.
+  it('CA2vlines: numa hora com POUCAS gravações (card pequeno, sem piso mínimo — só o necessário pra conter as linhas), o espaçamento por índice ainda distribui corretamente', () => {
+    // Sem piso mínimo (pedido do navigator: um card já fechado não reserva espaço além
+    // do necessário), o card de 2 gravações fica com exatamente 2×5 + 1×2.5 + 24 = 36.5px
+    // — com só 2 gravações, a 1ª sempre em 0% e a 2ª sempre em 100% (índice, não tempo).
     const items = [
       item(1, '2026-07-05T00:00:00Z', 'continua'),
-      item(2, '2026-07-05T00:00:01Z', 'continua'),
+      item(2, '2026-07-05T00:00:01Z', 'continua'), // 1s de diferença — irrelevante pra posição
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-
-    act(() => {
-      resizeCallback?.(
-        [{ contentRect: { width: 263 } } as ResizeObserverEntry],
-        {} as ResizeObserver,
-      )
-    })
+    const expectedWidth = hourBoxWidthPx(2, LINE_WIDTH_PX, LINE_GAP_PX, CARD_PADDING_PX, 0)
+    expect(document.getElementById('history-timeline-hour-0')!.style.width).toBe(
+      `${expectedWidth}px`,
+    )
 
     const left1 = document.getElementById('history-timeline-hour-0-rec-1')!.style.left
     const left2 = document.getElementById('history-timeline-hour-0-rec-2')!.style.left
     expect(left1).toBe('0%')
-    // minLineGapFraction = (LINE_WIDTH_PX + LINE_GAP_PX) / 1621.5 (o piso fixo, não os
-    // 263px medidos) — o mínimo é o PASSO inteiro (largura + margem), não só a margem:
-    // `spreadFractions` aplica esse valor entre os CENTROS de linhas vizinhas, e cada
-    // linha agora tem 3px de largura própria (não mais um traço de 1px) — só assim a
-    // borda de uma linha e a da vizinha ficam de fato `LINE_GAP_PX` separadas.
-    const minGapFraction = (4.5 / 1621.5) * 100
-    expect(parseFloat(left2)).toBeCloseTo(minGapFraction, 5)
+    expect(left2).toBe('100%')
   })
 
-  it('CA2vlines: numa trilha medida MAIOR que a largura padrão (24 blocos), o bloco de hora cresce além do piso fixo — a largura real ainda pode dominar', () => {
-    // Complementa o teste acima: confirma que `Math.max` continua funcionando nos dois
-    // sentidos — uma trilha genuinamente maior que 24×1621.5px+gaps (38939px) ainda faz os
-    // blocos crescerem além do piso, com uma fração mínima ainda menor (mais espaço).
-    let resizeCallback: ResizeObserverCallback | null = null
-    class FakeResizeObserver {
-      constructor(cb: ResizeObserverCallback) {
-        resizeCallback = cb
-      }
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    }
-    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
-
-    // 1s de diferença (não 5s) — mesmo motivo do teste acima: precisa ser menor que o
-    // mínimo aplicado pra exercitar o enforcement, não só refletir a posição natural.
-    const items = [
-      item(1, '2026-07-05T00:00:00Z', 'continua'),
-      item(2, '2026-07-05T00:00:01Z', 'continua'),
-    ]
+  it('CA2vlines: numa hora com MUITAS gravações, o espaçamento por índice continua uniforme — cada linha vizinha à mesma distância relativa', () => {
+    // Complementa o teste acima: confirma que o card cresce de verdade com a contagem
+    // (largura proporcional, sem piso fixo compartilhado por todas as horas) e que o
+    // espaçamento por índice permanece exatamente uniforme mesmo com muitas linhas.
+    const items = Array.from({ length: 50 }, (_, i) =>
+      item(i + 1, `2026-07-05T00:00:${String(i % 60).padStart(2, '0')}Z`, 'continua'),
+    )
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-
-    const measuredWidth = 40000 // > 24×1621.5+23 (38939) — maior que o piso fixo
-    act(() => {
-      resizeCallback?.(
-        [{ contentRect: { width: measuredWidth } } as ResizeObserverEntry],
-        {} as ResizeObserver,
-      )
-    })
+    const hourWidthPx = parseFloat(document.getElementById('history-timeline-hour-0')!.style.width)
+    const smallCardWidth = hourBoxWidthPx(2, LINE_WIDTH_PX, LINE_GAP_PX, CARD_PADDING_PX, 0)
+    expect(hourWidthPx).toBeGreaterThan(smallCardWidth) // 50 linhas exigem bem mais espaço que 2
 
     const left2 = document.getElementById('history-timeline-hour-0-rec-2')!.style.left
-    const hourBoxWidthPx = (measuredWidth - 23) / 24
-    // Mesmo motivo do teste acima: o mínimo é o PASSO inteiro (largura + margem).
-    const minGapFraction = (4.5 / hourBoxWidthPx) * 100
-    expect(parseFloat(left2)).toBeCloseTo(minGapFraction, 5)
+    expect(parseFloat(left2)).toBeCloseTo(100 / 49, 5) // item 2 de 50 → índice 1/49
   })
 
-  it('CA2semfiltro: a régua sempre mostra TODAS as gravações — a cor do bloco de hora não depende da prop `filter`, só as linhas esmaecem', () => {
-    // Hora 18 tem uma gravação "continua" e uma "pessoa" — com o filtro "pessoa" ativo,
-    // a cor do bloco continua vindo da prioridade entre AMBAS (pessoa vence, como sem
-    // filtro nenhum); só a linha da gravação "continua" (fora do filtro) fica esmaecida.
+  it('CA2vlines: linhas espaçadas por índice nunca se sobrepõem em PIXELS reais — mede a distância renderizada, não confia numa fórmula interna', () => {
+    // Regressão: uma versão anterior calculava a posição por fração de horário real com um
+    // "empurrão" de separação mínima, cuja fórmula podia ficar inconsistente com o wrapper
+    // recuado (bug real, já corrigido) — o modelo atual (por ÍNDICE) elimina essa classe de
+    // bug por construção: o espaçamento entre vizinhas é SEMPRE `contentWidthPx / (N-1)`,
+    // que por sua vez é sempre >= o PASSO mínimo (`LINE_WIDTH_PX + LINE_GAP_PX`) usado pra
+    // dimensionar o card (`hourBoxWidthPx`). Este teste mede a distância final em PIXELS
+    // (via largura real do wrapper), não uma fórmula replicada.
+    for (const count of [2, 3, 4, 6]) {
+      cleanup()
+      const items = Array.from({ length: count }, (_, i) =>
+        item(i + 1, `2026-07-05T00:00:0${i}Z`, 'continua'),
+      )
+      render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+      const widthPx = parseFloat(document.getElementById('history-timeline-hour-0')!.style.width)
+      const contentWidthPx = widthPx - CARD_PADDING_PX
+      const pixelPositions = items
+        .map((it) =>
+          parseFloat(
+            document.getElementById(`history-timeline-hour-0-rec-${it.rec.id}`)!.style.left,
+          ),
+        )
+        .map((pct) => (pct / 100) * contentWidthPx)
+        .sort((a, b) => a - b)
+      for (let i = 1; i < pixelPositions.length; i++) {
+        expect(pixelPositions[i] - pixelPositions[i - 1]).toBeGreaterThanOrEqual(
+          LINE_WIDTH_PX + LINE_GAP_PX - 1e-6,
+        )
+      }
+    }
+  })
+
+  it('CA2linecolor: cada linha usa a cor da PRÓPRIA categoria — o card de fundo é sempre neutro, não mais colorido pela categoria dominante', () => {
+    const items = [
+      item(1, '2026-07-05T18:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:10:00Z', 'pessoa'),
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    expect(document.getElementById('history-timeline-hour-18')!.className).toContain('bg-surface-2')
+    expect(document.getElementById('history-timeline-hour-18')!.className).not.toContain(
+      'bg-red-500',
+    )
+    expect(document.getElementById('history-timeline-hour-18-rec-1')!.className).toContain(
+      'bg-blue-500', // continua
+    )
+    expect(document.getElementById('history-timeline-hour-18-rec-2')!.className).toContain(
+      'bg-red-500', // pessoa
+    )
+  })
+
+  it('CA2linecolor: altura 75% e cantos arredondados nas linhas, medidas do protótipo de referência', () => {
+    const items = [item(1, '2026-07-05T18:00:00Z', 'continua')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    const line = document.getElementById('history-timeline-hour-18-rec-1')!
+    expect(line.style.height).toBe('75%')
+    expect(line.className).toContain('rounded-[1px]')
+  })
+
+  it('CA2semfiltro: gravações fora do filtro ativo ficam esmaecidas, nunca removidas (linhas continuam com a própria cor)', () => {
     const items = [
       item(1, '2026-07-05T18:00:00Z', 'continua'),
       item(2, '2026-07-05T18:10:00Z', 'pessoa'),
@@ -561,8 +625,6 @@ describe('HistoryTimeline', () => {
     render(
       <HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" filter="pessoa" />,
     )
-    // Cor do bloco: idêntica ao caso sem filtro (CA2 acima) — prioridade entre TODOS.
-    expect(document.getElementById('history-timeline-hour-18')!.className).toContain('bg-red-500')
     // Nenhuma gravação foi removida: as duas linhas continuam no DOM.
     expect(document.getElementById('history-timeline-hour-18-rec-1')).not.toBeNull()
     expect(document.getElementById('history-timeline-hour-18-rec-2')).not.toBeNull()
@@ -589,85 +651,137 @@ describe('HistoryTimeline', () => {
     )
   })
 
-  it('CAscroll: todo bloco de hora ganha a MESMA largura mínima PADRÃO (fixa, pra até 360 linhas) — com ou sem gravação, independente do quão cheio o dia está', () => {
-    // Hora 7 com 50 gravações (simulação de reconexões rápidas do gravador); hora 18 com
-    // só 1; hora 0 sem nenhuma. As 3 precisam ter o MESMO min-width — o padrão fixo
-    // (360×3px + 361×1.5px de margem = 1621.5px), não um valor calculado a partir da
-    // contagem real do dia: pedido do navigator ("os boxes... devem ser mais largos
-    // independente se tem ou não gravação").
-    const busyHour = Array.from({ length: 50 }, (_, i) =>
-      item(i + 1, `2026-07-05T07:${String(i % 60).padStart(2, '0')}:00Z`, 'continua'),
-    )
-    const items = [...busyHour, item(999, '2026-07-05T18:00:00Z', 'pessoa')]
-    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    const expectedWidth = '1621.5px' // 360×3 + 361×1.5 (largura padrão fixa)
-    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe(expectedWidth)
-    expect(document.getElementById('history-timeline-hour-18')!.style.minWidth).toBe(expectedWidth)
-    expect(document.getElementById('history-timeline-hour-0')!.style.minWidth).toBe(expectedWidth)
-    // Os rótulos de hora abaixo da régua acompanham a mesma largura, pra continuarem
-    // alinhados sob o bloco correspondente mesmo com a régua rolando horizontalmente.
-    const labels = document.getElementById('history-timeline-labels')!
-    for (const label of Array.from(labels.children)) {
-      expect((label as HTMLElement).style.minWidth).toBe(expectedWidth)
-    }
-  })
-
-  it('CAscroll: dia comum (poucas gravações) ainda usa a largura padrão fixa — o scroll fica ativo por padrão, não só em dias cheios', () => {
-    const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
-    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe('1621.5px')
-  })
-
-  it('CAscroll: uma hora com mais gravações do que a capacidade padrão (360) faz o piso crescer além do valor fixo', () => {
-    // Rede de segurança: 400 gravações numa hora só (acima do padrão de 360) precisam de
-    // mais espaço do que o piso fixo garante sozinho.
-    const items = Array.from({ length: 400 }, (_, i) =>
-      item(i + 1, `2026-07-05T07:00:${String(i % 60).padStart(2, '0')}Z`, 'continua'),
-    )
-    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    // 400×3 + 401×1.5 = 1801.5px > 1621.5px (o piso fixo).
-    expect(document.getElementById('history-timeline-hour-7')!.style.minWidth).toBe('1801.5px')
-  })
-
-  it('CAscroll: clique numa régua "lotada" mapeia pro instante certo — não usa a largura VISÍVEL (cortada) como divisor da fração', () => {
-    // Bug pego no code review: dividir pela largura visível/mockada (700px) em vez da
-    // largura real do conteúdo (24 blocos de 60 gravações × 3px + gaps = 4343px) faria um
-    // clique a 90% da área VISÍVEL (630px) resolver pra ~90% do DIA (~21h36, perto da
-    // gravação da hora 20) — quando na verdade, na largura real do conteúdo, 630px cai
-    // bem cedo (~3h30, perto das gravações da hora 0). 60 gravações na hora 0 (simulação
-    // de reconexões rápidas do gravador) dominam `requiredHourWidthPx`; uma única
-    // gravação isolada na hora 20 serve de "atrator" errado caso o bug volte.
+  it('CAscroll: clique numa régua com uma hora bem mais cheia que as outras mapeia pro card certo — não usa uma largura visível/mockada como divisor', () => {
+    // Bug pego no code review original (modelo de largura uniforme): dividir pela largura
+    // VISÍVEL/mockada em vez da largura REAL do conteúdo mapeava o clique pro instante
+    // errado. Aqui adaptado ao modelo proporcional/compacto: a hora 0 (60 gravações) fica
+    // bem mais larga que a hora 20 (1 gravação, piso mínimo) — um clique calculado pela
+    // geometria REAL (via `pixelForId`) precisa continuar resolvendo pra dentro da hora 0.
     const onSelect = vi.fn()
     const busyHour = Array.from({ length: 60 }, (_, i) =>
       item(i + 1, `2026-07-05T00:${String(i % 60).padStart(2, '0')}:00Z`, 'continua'),
     )
     const items = [...busyHour, item(999, '2026-07-05T20:00:00Z', 'pessoa')]
     render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
-    mockTrackRect(700) // largura VISÍVEL, bem menor que a largura real do conteúdo
-    fireEvent.click(document.getElementById('history-timeline-track')!, { clientX: 630 })
-    const selectedId = onSelect.mock.calls[0]![0] as number
-    // Qualquer id de 1 a 60 (hora 0) está correto; 999 (hora 20) indicaria o bug de volta.
-    expect(selectedId).not.toBe(999)
-    expect(selectedId).toBeGreaterThanOrEqual(1)
-    expect(selectedId).toBeLessThanOrEqual(60)
+    mockTrackRect()
+    fireEvent.click(document.getElementById('history-timeline-track')!, {
+      clientX: pixelForId(items, 59),
+    })
+    expect(onSelect).toHaveBeenCalledWith(59)
   })
 
-  it('CAscroll: a alça (posição de repouso) usa pixels do CONTEÚDO real numa régua "lotada" — não porcentagem da janela visível', () => {
-    // Bug pego no code review: `left: X%` resolvido contra o `.relative` (ancestral
-    // posicionado da alça) sempre a largura VISÍVEL do scroll (nunca a do conteúdo
-    // transbordante) fazia a alça flutuar grudada numa fração da JANELA, não na posição
-    // real do dia — pior, deslizando junto com o próprio scroll.
-    let resizeCallback: ResizeObserverCallback | null = null
-    class FakeResizeObserver {
-      constructor(cb: ResizeObserverCallback) {
-        resizeCallback = cb
-      }
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    }
-    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+  it('CAscroll: o container `#history-timeline-scroll` existe e permite rolagem horizontal', () => {
+    const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    const scroll = document.getElementById('history-timeline-scroll')!
+    expect(scroll.className).toContain('overflow-x-auto')
+    expect(scroll.contains(document.getElementById('history-timeline-track'))).toBe(true)
+    expect(scroll.contains(document.getElementById('history-timeline-headers'))).toBe(true)
+  })
 
+  it('CAscroll: selecionar uma gravação (ex.: clique na lista lateral, fora do próprio timeline) rola a régua até a linha correspondente entrar em vista', () => {
+    // Mesmo padrão de `activeCardRef`/`scrollIntoView` em HistoryPage.tsx (lista lateral) —
+    // pedido do navigator: clicar numa gravação na lista deve trazer a posição
+    // correspondente na régua horizontal pra dentro da área visível.
+    const scrollIntoView = vi.fn()
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      const items = [
+        item(1, '2026-07-05T05:00:00Z', 'continua'),
+        item(2, '2026-07-05T18:00:00Z', 'movimento'),
+      ]
+      const { rerender } = render(
+        <HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />,
+      )
+      expect(scrollIntoView).not.toHaveBeenCalled()
+      rerender(
+        <HistoryTimeline
+          recordingItems={items}
+          onSelect={vi.fn()}
+          cameraId="cam1"
+          selectedId={2}
+        />,
+      )
+      expect(scrollIntoView).toHaveBeenCalledWith(
+        expect.objectContaining({ inline: 'nearest', block: 'nearest' }),
+      )
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+  })
+
+  it('sem selectedId e sem arraste em andamento, a alça não aparece', () => {
+    const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    expect(document.getElementById('history-timeline-handle')).toBeNull()
+  })
+
+  it('CA4spacing: a alça desce um pouco pra fora da caixa da trilha — sem encolher a seta', () => {
+    const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" selectedId={1} />,
+    )
+    // A seta continua tão larga/alta quanto antes (largura pedida pelo navigator,
+    // preservada) — a correção da sobreposição não pode encolhê-la.
+    const arrow = document.querySelector('#history-timeline-handle span:last-child')!
+    expect(arrow.className).toContain('border-x-8')
+    expect(arrow.className).toContain('border-t-8')
+    // A alça desce (`bottom` negativo) pra fora da caixa da trilha, não fica só encostada
+    // na borda (`bottom-0`) — os cabeçalhos de hora ficam ACIMA da trilha agora (não mais
+    // uma linha de números embaixo), então essa folga não corre risco de cobrir nada.
+    const handle = document.getElementById('history-timeline-handle')!
+    expect(handle.className).toContain('-bottom-2')
+  })
+
+  it('CA2cards: cada hora vira um card discreto — gap real (não mais 1px) entre eles, cantos arredondados', () => {
+    const items = [
+      item(1, '2026-07-05T00:00:00Z', 'continua'),
+      item(2, '2026-07-05T12:00:00Z', 'continua'),
+      item(3, '2026-07-05T23:00:00Z', 'continua'),
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    const track = document.getElementById('history-timeline-track')!
+    expect(track.style.gap).toBe('18px')
+    expect(document.getElementById('history-timeline-hour-0')!.className).toContain('rounded')
+    expect(document.getElementById('history-timeline-hour-12')!.className).toContain('rounded')
+    expect(document.getElementById('history-timeline-hour-23')!.className).toContain('rounded')
+  })
+
+  it('CA2cards: o cursor "mãozinha" (pointer) só aparece sobre uma LINHA — nem a trilha (gaps entre cards) nem o resto do card (área vazia/padding) usam pointer', () => {
+    // `role="button"` na trilha faz o preflight do Tailwind aplicar `cursor: pointer`
+    // globalmente nela, mesmo sem a classe utilitária — precisa de um `cursor-default`
+    // explícito pra não vazar pros gaps entre cards (bug relatado pelo navigator). O card
+    // em si também fica com o cursor padrão (pedido do navigator: a mãozinha só deve
+    // responder em cima de uma gravação de verdade, não em qualquer ponto do card) — só a
+    // LINHA (`<span>` de cada gravação) leva `cursor-pointer`.
+    const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    expect(document.getElementById('history-timeline-track')!.className).toContain('cursor-default')
+    expect(document.getElementById('history-timeline-hour-7')!.className).not.toContain(
+      'cursor-pointer',
+    )
+    expect(document.getElementById('history-timeline-hour-7-rec-1')!.className).toContain(
+      'cursor-pointer',
+    )
+  })
+
+  it('CA2cards: a largura de cada card é PROPORCIONAL à quantidade de gravações daquela hora — sem piso mínimo, um card já fechado não reserva espaço além do necessário', () => {
+    // Hora 7 com 1 gravação só (5+0+24=29px); hora 18 com 20 gravações (bem mais larga) —
+    // medidas do protótipo de referência (TimelineHour.tsx, descartado como código),
+    // escaladas a pedido do navigator: LINE_WIDTH_PX=5, LINE_GAP_PX=2.5, padding 24.
+    const busyHour = Array.from({ length: 20 }, (_, i) =>
+      item(i + 1, `2026-07-05T18:${String(i % 60).padStart(2, '0')}:00Z`, 'continua'),
+    )
+    const items = [item(999, '2026-07-05T07:00:00Z', 'pessoa'), ...busyHour]
+    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    // 1×5 + 0×2.5 + 24 = 29px.
+    expect(document.getElementById('history-timeline-hour-7')!.style.width).toBe('29px')
+    // 20×5 + 19×2.5 + 24 = 100+47.5+24 = 171.5px.
+    expect(document.getElementById('history-timeline-hour-18')!.style.width).toBe('171.5px')
+  })
+
+  it('CA3interacao: a alça posiciona corretamente considerando as larguras PROPORCIONAIS e os gaps reais entre os cards de hora renderizados', () => {
     const busyHour = Array.from({ length: 60 }, (_, i) =>
       item(i + 1, `2026-07-05T00:${String(i % 60).padStart(2, '0')}:00Z`, 'continua'),
     )
@@ -679,93 +793,45 @@ describe('HistoryTimeline', () => {
         selectedId={30}
       />,
     )
-    act(() => {
-      resizeCallback?.(
-        [{ contentRect: { width: 700 } } as ResizeObserverEntry],
-        {} as ResizeObserver,
-      )
-    })
-
-    // 60 gravações não chegam nem perto da capacidade padrão (360) — quem decide
-    // `requiredHourWidthPx` aqui é o piso fixo (1621.5px, `DEFAULT_HOUR_WIDTH_PX`), não os
-    // dados. contentWidthPx = max(700, 1621.5×24+23) = 38939 — bem maior que os 700px
-    // "visíveis" mockados, exatamente o cenário de régua lotada por padrão. Se o bug
-    // voltasse (`left: X%` contra a largura visível), o valor seria uma STRING de
-    // porcentagem (ex. "2.01%"), nunca em px.
-    const contentWidthPx = 1621.5 * 24 + 23
-    const fraction = (Date.parse('2026-07-05T00:29:00Z') - DAY_START) / DAY_MS
     const handle = document.getElementById('history-timeline-handle')!
-    // `toBeCloseTo` (não `toBe`) — o navegador arredonda o valor de `style.left` (px) com
-    // menos casas decimais do que o float bruto do JS, então o texto exato varia.
     expect(handle.style.left.endsWith('px')).toBe(true)
-    expect(parseFloat(handle.style.left)).toBeCloseTo(fraction * contentWidthPx, 2)
+    expect(parseFloat(handle.style.left)).toBeCloseTo(pixelForId(busyHour, 30), 5)
   })
 
-  it('CAscroll: o container `#history-timeline-scroll` existe e permite rolagem horizontal', () => {
-    const items = [item(1, '2026-07-05T07:00:00Z', 'continua')]
-    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    const scroll = document.getElementById('history-timeline-scroll')!
-    expect(scroll.className).toContain('overflow-x-auto')
-    expect(scroll.contains(document.getElementById('history-timeline-track'))).toBe(true)
-    expect(scroll.contains(document.getElementById('history-timeline-labels'))).toBe(true)
-  })
-
-  it('CA3snap: soltar numa lacuna sem gravação nenhuma reposiciona a alça pra gravação REAL selecionada, não fica solta no vazio', () => {
-    // item 1 às 05:00 e item 2 às 07:00 (gap de 2h sem cobertura nenhuma, já que
-    // CHUNK_FALLBACK_MS é só 5min). Soltar às 06:30 (mais perto do item 2) seleciona o
-    // item 2 por proximidade (recordingAtMs), mas 06:30 não é coberto por NENHUM dos
-    // dois — a alça deve ir pra posição REAL do item 2 (07:00), não ficar largada em
-    // 06:30 (onde não há gravação nenhuma) — bug relatado pelo navigator.
+  it('CA3interacao: clique na trilha continua selecionando a gravação certa considerando o gap real entre cards', () => {
     const onSelect = vi.fn()
     const items = [
-      item(2, '2026-07-05T07:00:00Z', 'continua'),
-      item(1, '2026-07-05T05:00:00Z', 'continua'),
+      item(2, '2026-07-05T18:20:00Z', 'pessoa'),
+      item(1, '2026-07-05T18:03:00Z', 'movimento'),
     ]
-    render(
-      <HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" selectedId={1} />,
-    )
-    mockTrackRect(40000)
-    const handle = document.getElementById('history-timeline-handle')!
-    fireEvent.pointerDown(handle, {
-      clientX: clientXFor('2026-07-05T05:00:00Z', 40000),
-      pointerId: 1,
+    render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
+    mockTrackRect()
+    fireEvent.click(document.getElementById('history-timeline-track')!, {
+      clientX: pixelForId(items, 1),
     })
-    fireEvent.pointerMove(handle, {
-      clientX: clientXFor('2026-07-05T06:30:00Z', 40000),
-      pointerId: 1,
-    })
-    fireEvent.pointerUp(handle, {
-      clientX: clientXFor('2026-07-05T06:30:00Z', 40000),
-      pointerId: 1,
-    })
-    expect(onSelect).toHaveBeenCalledWith(2)
-    const snappedFraction = clientXFor('2026-07-05T07:00:00Z', 40000) / 40000
-    expect(handle.style.left).toBe(`${snappedFraction * 100}%`)
+    expect(onSelect).toHaveBeenCalledWith(1)
   })
 
-  it('sem selectedId e sem arraste em andamento, a alça não aparece', () => {
-    const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
-    render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
-    expect(document.getElementById('history-timeline-handle')).toBeNull()
-  })
-
-  it('CA4spacing: a alça desce um pouco pra fora da caixa da trilha, e a linha de números tem espaço extra — sem encolher a seta', () => {
-    const items = [item(1, '2026-07-05T05:00:00Z', 'continua')]
-    render(
-      <HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" selectedId={1} />,
-    )
-    // A seta continua tão larga/alta quanto antes (largura pedida pelo navigator,
-    // preservada) — a correção da sobreposição não pode encolhê-la.
-    const arrow = document.querySelector('#history-timeline-handle span:last-child')!
-    expect(arrow.className).toContain('border-x-8')
-    expect(arrow.className).toContain('border-t-8')
-    // A alça desce (`bottom` negativo) pra fora da caixa da trilha, não fica só encostada
-    // na borda (`bottom-0`).
-    const handle = document.getElementById('history-timeline-handle')!
-    expect(handle.className).toContain('-bottom-2')
-    // A linha de números ganhou espaço extra (margem), abrindo a folga que falta pra ponta
-    // da seta não cobrir os dígitos.
-    const labels = document.getElementById('history-timeline-labels')!
-    expect(labels.className).toMatch(/\bmt-\d/)
+  it('CA3interacao: clicar exatamente na posição RENDERIZADA de uma linha espaçada por índice seleciona a gravação DAQUELA linha, não a vizinha por horário bruto', () => {
+    // Regressão do bug relatado pelo navigator (print em work_progress/amostras/): numa
+    // hora com gravações muito próximas no tempo, a linha "empurrada" pelo espalhamento
+    // mínimo ficava inclicável — clicar nela sempre selecionava a vizinha "âncora" (a
+    // resolução antiga convertia pixel→horário bruto e achava a gravação mais próxima por
+    // HORÁRIO, ignorando o deslocamento visual). No modelo atual (posição por ÍNDICE, não
+    // por horário), duas gravações a 11s uma da outra na mesma hora ficam tão bem
+    // separadas quanto qualquer outro par (0% e 100%, únicas 2 da hora) — clicar
+    // exatamente na posição renderizada da linha 4 precisa resolver pra 4, não pra 3.
+    const onSelect = vi.fn()
+    const items = [
+      item(3, '2026-07-05T21:36:18Z', 'pessoa'),
+      item(4, '2026-07-05T21:36:29Z', 'movimento'), // 11s depois — só a ordem importa, não a distância real
+    ]
+    render(<HistoryTimeline recordingItems={items} onSelect={onSelect} cameraId="cam1" />)
+    mockTrackRect()
+    // Clica exatamente na posição renderizada da linha 4 (a "empurrada" do par).
+    fireEvent.click(document.getElementById('history-timeline-track')!, {
+      clientX: pixelForId(items, 4),
+    })
+    expect(onSelect).toHaveBeenCalledWith(4)
   })
 })
