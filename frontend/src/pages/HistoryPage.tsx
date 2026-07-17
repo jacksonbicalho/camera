@@ -312,24 +312,23 @@ export default function HistoryPage() {
       })),
     [recordings, events],
   )
-  const filteredRecordingItems = useMemo(
-    () => recordingItems.filter((item) => matchesTimelineFilter(item.category, filter)),
-    [recordingItems, filter],
-  )
-
   // Agrupa por hora local (0-23) do início da gravação — cada grupo é colapsável, com
-  // contagem no cabeçalho ("18h — 12 eventos"). A ordem dos grupos (desc) e dos itens dentro
-  // de cada grupo (desc) segue a mesma ordem de `recordings`.
+  // contagem no cabeçalho ("18h — 12 gravações"). A ordem dos grupos (desc) e dos itens
+  // dentro de cada grupo (desc) segue a mesma ordem de `recordings`. Deriva de
+  // `recordingItems` (TODAS as gravações do dia, não filtradas) — a lista/régua nunca
+  // removem gravação nenhuma por causa do filtro de categoria ativo, só esmaecem (ver
+  // `matchesTimelineFilter` abaixo, no card); reprodução contínua já dependia dessa mesma
+  // lista completa (`recordings`), sem filtro.
   const groupsByHour = useMemo(() => {
-    const map = new Map<number, typeof filteredRecordingItems>()
-    for (const item of filteredRecordingItems) {
+    const map = new Map<number, typeof recordingItems>()
+    for (const item of recordingItems) {
       const hour = new Date(item.rec.start).getHours()
       const list = map.get(hour)
       if (list) list.push(item)
       else map.set(hour, [item])
     }
     return [...map.entries()].sort((a, b) => b[0] - a[0])
-  }, [filteredRecordingItems])
+  }, [recordingItems])
 
   // Grupos COLAPSADOS (o padrão é todo mundo aberto — dia normal de câmera residencial tem
   // poucas horas com conteúdo; abrir tudo por padrão favorece escanear a lista inteira,
@@ -778,11 +777,6 @@ export default function HistoryPage() {
                         id="history-recordings-groups"
                         className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
                       >
-                        {groupsByHour.length === 0 && (
-                          <div className="px-2 py-4 text-center text-caption text-muted">
-                            Nenhuma gravação com esse filtro.
-                          </div>
-                        )}
                         {groupsByHour.map(([hour, items]) => {
                           const isOpen = !closedHours.has(hour)
                           return (
@@ -796,7 +790,7 @@ export default function HistoryPage() {
                               >
                                 <span>
                                   {String(hour).padStart(2, '0')}h — {items.length}{' '}
-                                  {items.length === 1 ? 'evento' : 'eventos'}
+                                  {items.length === 1 ? 'gravação' : 'gravações'}
                                 </span>
                                 <ChevronDown
                                   className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -810,6 +804,9 @@ export default function HistoryPage() {
                                       active && playing
                                         ? { animation: 'filmstrip-blink 1.1s ease-in-out infinite' }
                                         : undefined
+                                    // Esmaece (não remove) gravações fora do filtro ativo — mesmo
+                                    // tratamento das linhas verticais da régua (HistoryTimeline).
+                                    const dimmed = !matchesTimelineFilter(cat, filter)
                                     return (
                                       <button
                                         key={rec.id}
@@ -820,6 +817,8 @@ export default function HistoryPage() {
                                         aria-current={active ? 'true' : undefined}
                                         style={blinkStyle}
                                         className={`flex items-center justify-between rounded border-2 px-2 py-1 text-left transition-colors ${
+                                          dimmed ? 'opacity-40' : ''
+                                        } ${
                                           active
                                             ? 'border-primary bg-primary/15'
                                             : `bg-surface-2 ${CAT_BORDER[cat]}`
@@ -868,7 +867,8 @@ export default function HistoryPage() {
               style={rowWidth != null ? { maxWidth: rowWidth } : undefined}
             >
               <HistoryTimeline
-                recordingItems={filteredRecordingItems}
+                recordingItems={recordingItems}
+                filter={filter}
                 onSelect={selectRecording}
                 cameraId={camera.id}
                 selectedId={selectedId}
