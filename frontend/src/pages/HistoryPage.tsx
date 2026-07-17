@@ -17,9 +17,10 @@ import {
   type Recording,
 } from './cameraUtils'
 import {
+  categoryBorderColor,
+  categoryLabel,
   matchesTimelineFilter,
   recordingCategory,
-  type RecordingCategory,
   type TimelineFilter,
 } from './eventCategory'
 import { RecordingsGateway } from '../lib/recordingsGateway'
@@ -28,14 +29,6 @@ interface Camera {
   id: string
   name: string
   recording_enabled?: boolean
-}
-
-const CAT_BORDER: Record<RecordingCategory, string> = {
-  continua: 'border-blue-500',
-  movimento: 'border-amber-400',
-  pessoa: 'border-red-500',
-  ia: 'border-violet-500',
-  estados: 'border-green-500',
 }
 
 // formatDuration calcula a duração do chunk: usa `end` (fim real) quando presente,
@@ -59,6 +52,16 @@ function formatDuration(rec: Recording, next: Recording | undefined): string | n
 // progredindo em direção à mais recente. Ex.: filmstrip [4,3,2,1] (ids, mais recente
 // primeiro) + clique no 2 → toca "2, 3, 4". `id` não encontrado (não deveria acontecer,
 // `id` sempre vem de um card do próprio filmstrip) → sequência inteira como fallback.
+// filterOptionLabel resolve o texto exibido de uma opção do dropdown de filtro
+// (`#history-filter-dropdown`) — `todos`/`continua` são valores fixos do próprio
+// TimelineFilter (não vêm de label nenhum, `categoryLabel` não os conhece), qualquer
+// categoria real usa `categoryLabel` (mesma capitalização usada em todo o resto do app).
+function filterOptionLabel(value: string): string {
+  if (value === 'todos') return 'Tudo'
+  if (value === 'continua') return 'Contínua'
+  return categoryLabel(value)
+}
+
 function buildContinuousSequence(recs: Recording[], id: number | null): Recording[] {
   const idx = recs.findIndex((r) => r.id === id)
   const upToSelected = idx >= 0 ? recs.slice(0, idx + 1) : recs
@@ -312,6 +315,37 @@ export default function HistoryPage() {
       })),
     [recordings, events],
   )
+  // Opções do dropdown de filtro (`#history-filter-dropdown`) — dinâmicas, derivadas das
+  // categorias que de fato aparecem nas gravações do dia carregado (pedido do navigator:
+  // nada de chips fixos hardcoded pra categorias que nem existem no dia). `todos` sempre
+  // primeiro, `continua` sempre por último (não vem de label nenhum — é a ausência de
+  // evento no chunk, sempre uma opção válida mesmo sem NENHUMA gravação "continua" ainda);
+  // entre as duas pontas, as categorias reais presentes, ordenadas: pessoa primeiro,
+  // movimento depois, resto em ordem alfabética (mesma prioridade de `recordingCategory`).
+  const filterOptions = useMemo(() => {
+    const present = new Set<string>()
+    for (const item of recordingItems) {
+      if (item.category !== 'continua') present.add(item.category)
+    }
+    const rank = (cat: string) => (cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : 2)
+    const dynamic = [...present].sort((a, b) => {
+      const diff = rank(a) - rank(b)
+      return diff !== 0 ? diff : a.localeCompare(b)
+    })
+    return ['todos', ...dynamic, 'continua']
+  }, [recordingItems])
+  // O filtro ativo pode deixar de existir entre um dia e outro (as opções são dinâmicas,
+  // por dia) ou entre um poll e outro (se a categoria que estava selecionada não aparecer
+  // mais nas gravações atuais) — ajuste durante o render (mesmo padrão de
+  // `continuousResetForDate` abaixo, não useEffect+setState). Sem isso, o `<select>` caía
+  // sozinho pra "Tudo" no DOM (nenhuma `<option>` bate o `value` antigo, comportamento
+  // padrão do HTML), mas o estado React continuava com o filtro antigo — o dropdown
+  // MENTIA sobre o filtro ativo: mostrava "Tudo" enquanto `matchesTimelineFilter` seguia
+  // aplicando a categoria antiga, esmaecendo TUDO sem explicação visível (bug relatado
+  // pelo code-reviewer).
+  if (!filterOptions.includes(filter)) {
+    setFilter('todos')
+  }
   // Agrupa por hora local (0-23) do início da gravação — cada grupo é colapsável, com
   // contagem no cabeçalho ("18h — 12 gravações"). A ordem dos grupos (desc) e dos itens
   // dentro de cada grupo (desc) segue a mesma ordem de `recordings`. Deriva de
@@ -742,37 +776,22 @@ export default function HistoryPage() {
                   </div>
                   {recordingItems.length > 0 && (
                     <>
-                      <div id="history-filter-chips" className="flex items-center gap-1.5">
-                        {(
-                          [
-                            { value: 'todos', label: 'Tudo' },
-                            { value: 'movimento', label: 'Movimento' },
-                            { value: 'pessoa', label: 'Pessoa' },
-                            { value: 'continua', label: 'Contínua' },
-                          ] as const
-                        ).map((chip) => (
-                          <button
-                            key={chip.value}
-                            id={`history-filter-${chip.value}`}
-                            type="button"
-                            onClick={() => setFilter(chip.value)}
-                            aria-pressed={filter === chip.value}
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-caption font-medium transition-colors ${
-                              filter === chip.value
-                                ? 'border-primary bg-primary/15 text-primary'
-                                : 'border-border text-muted hover:text-foreground'
-                            }`}
-                          >
-                            {chip.value === 'pessoa' && (
-                              <span
-                                className="h-1.5 w-1.5 rounded-full bg-red-500"
-                                aria-hidden="true"
-                              />
-                            )}
-                            {chip.label}
-                          </button>
+                      {/* Dropdown dinâmico (pedido do navigator, no lugar dos chips fixos
+                          antigos) — só `Tudo`/`Contínua` (fixos) + as categorias que de fato
+                          existem nas gravações do dia (`filterOptions` acima). */}
+                      <select
+                        id="history-filter-dropdown"
+                        aria-label="Filtrar gravações por categoria"
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                        className="rounded border border-border bg-surface-2 px-2 py-1 text-caption text-foreground"
+                      >
+                        {filterOptions.map((value) => (
+                          <option key={value} value={value}>
+                            {filterOptionLabel(value)}
+                          </option>
                         ))}
-                      </div>
+                      </select>
                       <div
                         id="history-recordings-groups"
                         className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
@@ -821,7 +840,7 @@ export default function HistoryPage() {
                                         } ${
                                           active
                                             ? 'border-primary bg-primary/15'
-                                            : `bg-surface-2 ${CAT_BORDER[cat]}`
+                                            : `bg-surface-2 ${categoryBorderColor(cat)}`
                                         }`}
                                       >
                                         <span className="flex items-center gap-2">

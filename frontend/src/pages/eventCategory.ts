@@ -22,16 +22,20 @@ export function eventCategory(ev: Pick<MotionEvent, 'label' | 'kind'>): EventCat
 export type RecordingCategory = EventCategory | 'continua'
 
 // Cores fixas das categorias "conhecidas" do produto — mesmas cores já usadas em vários
-// lugares (dot de gravação, badges). Qualquer outro label (dinâmico) usa `categoryColor`.
+// lugares (dot de gravação, badges). `continua` não é um EventCategory (não vem de
+// label nenhum — é a ausência de qualquer evento no chunk, ver `recordingCategory`
+// abaixo), mas é um valor de `RecordingCategory` tão "conhecido" quanto os outros 3, daí
+// entrar aqui também — mesma fonte única de cor pra QUALQUER categoria (evento ou
+// gravação). Qualquer outro label (dinâmico) usa a paleta por hash, ver `categoryColor`.
 const KNOWN_COLORS: Record<string, string> = {
   movimento: 'bg-amber-400',
   pessoa: 'bg-red-500',
   estados: 'bg-green-500',
+  continua: 'bg-blue-500',
 }
 
 // Paleta fixa pra labels arbitrários — resto do espectro, evitando os tons já usados
-// pelas categorias conhecidas acima (âmbar/vermelho/verde) e por "continua" (azul,
-// definido em HistoryTimeline.tsx/RecordingsPage.tsx).
+// pelas categorias conhecidas acima (âmbar/vermelho/verde/azul).
 const LABEL_PALETTE = [
   'bg-violet-500',
   'bg-cyan-500',
@@ -56,6 +60,14 @@ export function categoryColor(category: string): string {
   }
   const idx = Math.abs(hash) % LABEL_PALETTE.length
   return LABEL_PALETTE[idx]
+}
+
+// categoryBorderColor devolve a cor de BORDA (classe Tailwind `border-*`) equivalente à
+// cor de fundo de `categoryColor` — mesma fonte única (paleta + hash), só troca o prefixo
+// `bg-`→`border-`, garantindo que a borda de um card e a linha de uma gravação da MESMA
+// categoria usem sempre o mesmo tom, sem duplicar a paleta.
+export function categoryBorderColor(category: string): string {
+  return categoryColor(category).replace('bg-', 'border-')
 }
 
 // categoryLabel capitaliza a 1ª letra de uma categoria pra exibição — UMA função só,
@@ -183,24 +195,21 @@ export function filterEventsByCategory<T extends Pick<MotionEvent, 'label' | 'ki
   return events.filter((ev) => eventCategory(ev) === filter)
 }
 
-// Filtro da timeline de 24h (chips "Tudo/Movimento/Pessoa/Contínua" do Histórico) —
-// dicotomia mais grossa que EventFilter (tem evento vs. não tem) para "movimento", mais
-// um refinamento estrito ("pessoa") — não as 4 categorias finas completas do painel de
-// eventos (sem "ia"/"estados" à parte).
-export type TimelineFilter = 'todos' | 'movimento' | 'pessoa' | 'continua'
+// Filtro da timeline de 24h — dropdown dinâmico do Histórico (`#history-filter-dropdown`,
+// HistoryPage.tsx), populado com `todos` + `continua` (fixos) + as categorias que de fato
+// existem nas gravações do dia. Deixou de ser um conjunto fixo de 4 valores — qualquer
+// categoria real (`RecordingCategory`) é um filtro válido.
+export type TimelineFilter = 'todos' | RecordingCategory
 
-// matchesTimelineFilter resolve se `category` bate com o filtro simples da timeline de
-// 24h: "movimento" casa com QUALQUER categoria de evento (movimento/pessoa/ia/estados),
-// não só a literal "movimento" — a timeline não distingue tipo de evento, só "tem
-// movimento" vs. "só contínua". "pessoa" é o único filtro estrito aqui (igualdade de
-// categoria) — propositalmente se sobrepõe a "movimento" (que continua mostrando tudo,
-// inclusive pessoa), em vez de reparticionar os filtros existentes.
+// matchesTimelineFilter resolve se `category` bate com o filtro selecionado no dropdown —
+// igualdade ESTRITA (fora de "todos", que casa com qualquer categoria). O modelo antigo
+// tinha uma dicotomia mais grossa pra "movimento" (casava com QUALQUER categoria de
+// evento) — deixou de fazer sentido num dropdown de labels dinâmicos: "Tudo" já cobre
+// esse caso, e cada opção do dropdown deve filtrar exatamente pelo que ela diz.
 export function matchesTimelineFilter(
   category: RecordingCategory,
   filter: TimelineFilter,
 ): boolean {
   if (filter === 'todos') return true
-  if (filter === 'continua') return category === 'continua'
-  if (filter === 'pessoa') return category === 'pessoa'
-  return category !== 'continua'
+  return category === filter
 }

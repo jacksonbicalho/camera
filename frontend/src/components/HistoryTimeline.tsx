@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { getToken } from '../auth'
 import type { Recording } from '../pages/cameraUtils'
 import {
+  categoryColor,
   matchesTimelineFilter,
   type RecordingCategory,
   type TimelineFilter,
@@ -43,18 +44,6 @@ interface HistoryTimelineProps {
    * para não quebrar chamadores/testes que não têm um "dia" próprio pra passar — nesse
    * caso, sem nenhum item, o componente não renderiza nada (não dá pra saber que dia é). */
   day?: Date
-}
-
-// Cor de cada linha vertical — pela categoria REAL da PRÓPRIA gravação (o card de fundo é
-// sempre neutro, ver `bg-surface-2` abaixo). Mesmo espírito do protótipo de referência
-// (`TimelineHour.tsx`, descartado como código): lá cada linha tinha sua própria cor por
-// "tipo"; aqui os "tipos" são as categorias reais do projeto.
-const CAT_BG: Record<RecordingCategory, string> = {
-  continua: 'bg-blue-500',
-  movimento: 'bg-amber-400',
-  pessoa: 'bg-red-500',
-  ia: 'bg-violet-500',
-  estados: 'bg-green-500',
 }
 
 // Atraso entre o mouse parar de se mover e o preview (imagem + horário) aparecer — sem
@@ -534,7 +523,7 @@ export default function HistoryTimeline({
                           key={item.rec.id}
                           id={`history-timeline-hour-${card.hour}-rec-${item.rec.id}`}
                           ref={item.rec.id === selectedId ? activeLineRef : undefined}
-                          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-[1px] ${CAT_BG[item.category]} ${dimmed ? 'opacity-40' : ''}`}
+                          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-[1px] ${categoryColor(item.category)} ${dimmed ? 'opacity-40' : ''}`}
                           style={{
                             left: `${clamped * 100}%`,
                             width: LINE_WIDTH_PX,
@@ -591,7 +580,7 @@ export default function HistoryTimeline({
               >
                 {/* Cor NEUTRA (`bg-foreground`, não `bg-primary`) — pedido do navigator:
                     a alça não pode usar uma cor que também apareça numa categoria de
-                    gravação (`CAT_BG` acima já usa azul pra "continua", entre outras) — a
+                    gravação (`categoryColor` já usa azul pra "continua", entre outras) — a
                     tonalidade padrão de destaque (`primary`) é azul no tema default, o que
                     confundia a alça com linhas da categoria "continua". Mesmo tratamento
                     neutro já usado pela linha de hover (`bg-foreground/80` abaixo). */}

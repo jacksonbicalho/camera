@@ -8,6 +8,7 @@ import {
   firstEventInChunk,
   matchesTimelineFilter,
   categoryColor,
+  categoryBorderColor,
   categoryLabel,
 } from './eventCategory'
 
@@ -123,10 +124,11 @@ describe('eventCategory', () => {
 })
 
 describe('categoryColor', () => {
-  it('CA3cor: movimento/pessoa/estados têm cor fixa conhecida', () => {
+  it('CA3cor: movimento/pessoa/estados/continua têm cor fixa conhecida', () => {
     expect(categoryColor('movimento')).toBe('bg-amber-400')
     expect(categoryColor('pessoa')).toBe('bg-red-500')
     expect(categoryColor('estados')).toBe('bg-green-500')
+    expect(categoryColor('continua')).toBe('bg-blue-500')
   })
   it('CA3cor: um label arbitrário sempre devolve a MESMA cor (determinístico)', () => {
     const c1 = categoryColor('carro')
@@ -153,6 +155,21 @@ describe('categoryLabel', () => {
   })
   it('string vazia devolve vazia (sem quebrar)', () => {
     expect(categoryLabel('')).toBe('')
+  })
+})
+
+describe('categoryBorderColor', () => {
+  it('mesma cor de categoryColor, só troca o prefixo bg- por border-', () => {
+    expect(categoryBorderColor('movimento')).toBe('border-amber-400')
+    expect(categoryBorderColor('pessoa')).toBe('border-red-500')
+    expect(categoryBorderColor('estados')).toBe('border-green-500')
+    expect(categoryBorderColor('continua')).toBe('border-blue-500')
+  })
+  it('label arbitrário: determinístico e consistente com categoryColor (mesmo tom)', () => {
+    const bg = categoryColor('carro')
+    expect(categoryBorderColor('carro')).toBe(bg.replace('bg-', 'border-'))
+    // chamadas repetidas continuam estáveis.
+    expect(categoryBorderColor('carro')).toBe(categoryBorderColor('carro'))
   })
 })
 
@@ -243,26 +260,35 @@ describe('matchesTimelineFilter', () => {
     expect(matchesTimelineFilter('movimento', 'todos')).toBe(true)
     expect(matchesTimelineFilter('pessoa', 'todos')).toBe(true)
     expect(matchesTimelineFilter('estados', 'todos')).toBe(true)
+    expect(matchesTimelineFilter('carro', 'todos')).toBe(true)
   })
-  it('"continua" só casa com a categoria continua', () => {
+  it('CA6dropdown: fora de "todos", a igualdade é ESTRITA — o dropdown lista labels reais, não dicotomias amplas', () => {
+    // Modelo antigo (chips fixos): "movimento" casava com QUALQUER categoria de evento
+    // (dicotomia grossa "tem evento" vs "não tem"). No modelo de dropdown dinâmico isso
+    // deixa de fazer sentido — "movimento" é só mais uma opção entre outras, "Tudo" já
+    // cobre o caso "qualquer evento".
+    expect(matchesTimelineFilter('movimento', 'movimento')).toBe(true)
+    expect(matchesTimelineFilter('pessoa', 'movimento')).toBe(false)
+    expect(matchesTimelineFilter('carro', 'movimento')).toBe(false)
+    expect(matchesTimelineFilter('estados', 'movimento')).toBe(false)
+    expect(matchesTimelineFilter('continua', 'movimento')).toBe(false)
+  })
+  it('CA6dropdown: "pessoa" casa só com a categoria pessoa', () => {
+    expect(matchesTimelineFilter('pessoa', 'pessoa')).toBe(true)
+    expect(matchesTimelineFilter('movimento', 'pessoa')).toBe(false)
+    expect(matchesTimelineFilter('carro', 'pessoa')).toBe(false)
+    expect(matchesTimelineFilter('estados', 'pessoa')).toBe(false)
+    expect(matchesTimelineFilter('continua', 'pessoa')).toBe(false)
+  })
+  it('CA6dropdown: "continua" casa só com a categoria continua', () => {
     expect(matchesTimelineFilter('continua', 'continua')).toBe(true)
     expect(matchesTimelineFilter('movimento', 'continua')).toBe(false)
     expect(matchesTimelineFilter('pessoa', 'continua')).toBe(false)
   })
-  it('"movimento" casa com QUALQUER categoria de evento (não só a literal "movimento") — dicotomia mais grossa que EventFilter', () => {
-    expect(matchesTimelineFilter('movimento', 'movimento')).toBe(true)
-    expect(matchesTimelineFilter('pessoa', 'movimento')).toBe(true)
-    expect(matchesTimelineFilter('ia', 'movimento')).toBe(true)
-    expect(matchesTimelineFilter('estados', 'movimento')).toBe(true)
-    expect(matchesTimelineFilter('continua', 'movimento')).toBe(false)
-  })
-  it('CA2: "pessoa" casa só com a categoria pessoa (igualdade estrita, não altera "movimento")', () => {
-    expect(matchesTimelineFilter('pessoa', 'pessoa')).toBe(true)
-    expect(matchesTimelineFilter('movimento', 'pessoa')).toBe(false)
-    expect(matchesTimelineFilter('ia', 'pessoa')).toBe(false)
-    expect(matchesTimelineFilter('estados', 'pessoa')).toBe(false)
-    expect(matchesTimelineFilter('continua', 'pessoa')).toBe(false)
-    // "movimento" continua inalterado — pessoa ainda casa com ele também.
-    expect(matchesTimelineFilter('pessoa', 'movimento')).toBe(true)
+  it('CA6dropdown: um label específico dinâmico (ex.: "carro") casa só com ele mesmo', () => {
+    expect(matchesTimelineFilter('carro', 'carro')).toBe(true)
+    expect(matchesTimelineFilter('cachorro', 'carro')).toBe(false)
+    expect(matchesTimelineFilter('pessoa', 'carro')).toBe(false)
+    expect(matchesTimelineFilter('continua', 'carro')).toBe(false)
   })
 })
