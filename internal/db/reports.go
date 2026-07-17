@@ -3,11 +3,12 @@ package db
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 )
 
 // DayCount is the event count for one calendar day (UTC), com a quebra por categoria
-// (movimento/pessoa/ia/estados) para as barras empilhadas.
+// (movimento/pessoa/estados + qualquer label real detectado) para as barras empilhadas.
 type DayCount struct {
 	Day        string           `json:"day"` // YYYY-MM-DD
 	Count      int64            `json:"count"`
@@ -17,15 +18,18 @@ type DayCount struct {
 var personRe = regexp.MustCompile(`(?i)pessoa|person`)
 
 // MotionCategory deriva a categoria de um motion event pelo label — mesma regra do
-// eventCategory no frontend: vazio→movimento, pessoa/person→pessoa, resto→ia.
+// eventCategory no frontend: vazio→movimento, pessoa/person→pessoa, resto→o próprio
+// label (normalizado por trim+lowercase) — fiel à classificação real do YOLO (ex.:
+// "car"/"Dog "), não mais um bucket genérico "ia" que descartava o que foi detectado.
 func MotionCategory(label string) string {
-	if label == "" {
+	trimmed := strings.TrimSpace(label)
+	if trimmed == "" {
 		return "movimento"
 	}
-	if personRe.MatchString(label) {
+	if personRe.MatchString(trimmed) {
 		return "pessoa"
 	}
-	return "ia"
+	return strings.ToLower(trimmed)
 }
 
 // HourCount is the event count for one hour-of-day (0..23) no fuso pedido, com a quebra
@@ -46,9 +50,10 @@ type DayHourCell struct {
 }
 
 // EventReport aggregates events of a single camera over a period: total, per day
-// (ordered), per raw motion label and per category. As categorias movimento/pessoa/ia
-// são derivadas do label no frontend (mesma regra do eventCategory); `estados` (que não
-// vem de label) é contada aqui em ByCategory a partir de camera_state_history.
+// (ordered), per raw motion label and per category. As categorias movimento/pessoa e
+// qualquer outro label real são derivadas do label via MotionCategory (mesma regra do
+// eventCategory no frontend); `estados` (que não vem de label) é contada aqui em
+// ByCategory a partir de camera_state_history.
 // ByHour só é preenchido no modo por hora (AggregateMotionEventsHourly); ByDay no diário.
 type EventReport struct {
 	Total      int64            `json:"total"`
