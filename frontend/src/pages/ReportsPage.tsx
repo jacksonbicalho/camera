@@ -6,7 +6,12 @@ import PageHeader from '../components/PageHeader'
 import DatePicker from '../components/DatePicker'
 import { authHeaders, onUnauthorized } from '../auth'
 import { categoryBuckets, axisTicks, categoryDetail, type EventReport } from './reportsUtils'
-import type { EventCategory } from './eventCategory'
+import {
+  categoryColor,
+  categoryLabel,
+  categoryStrokeColor,
+  type EventCategory,
+} from './eventCategory'
 
 const RANGE_OPTS = [1, 2, 3, 4, 5, 6, 7, 14, 30, 90]
 
@@ -29,26 +34,34 @@ function parseLocalDate(s: string | undefined): Date {
   return new Date(y, m - 1, d)
 }
 
-const CAT_LABEL: Record<string, string> = {
-  movimento: 'Movimento',
-  pessoa: 'Pessoa',
-  ia: 'IA',
-  estados: 'Estados',
+// categoryDescription — texto do modal de detalhe da categoria; movimento/pessoa/estados
+// têm frase própria (comportamento conhecido do produto), qualquer outro label (dinâmico,
+// fiel à classificação real do YOLO) usa uma frase genérica com o próprio label — não mais
+// um bucket "Detecções de modelos de IA" que escondia o que foi de fato detectado.
+function categoryDescription(cat: string): string {
+  switch (cat) {
+    case 'movimento':
+      return 'Movimento detectado por diferença de pixels, sem classificação.'
+    case 'pessoa':
+      return 'Detecções classificadas como pessoa.'
+    case 'estados':
+      return 'Transições de classificadores de estado.'
+    default:
+      return `Detecções classificadas como "${categoryLabel(cat)}".`
+  }
 }
-const CAT_COLOR: Record<string, string> = {
-  movimento: 'bg-amber-400',
-  pessoa: 'bg-red-500',
-  ia: 'bg-violet-500',
-  estados: 'bg-green-500',
+
+// sortCategories ordena a pilha/legenda: pessoa primeiro, movimento depois, resto em
+// ordem alfabética, `estados` sempre por último (mesma convenção do dropdown do
+// Histórico — HistoryPage.tsx —, com `estados` adicionalmente empurrado pro fim aqui).
+function sortCategories(categories: Iterable<string>): string[] {
+  const rank = (cat: string) =>
+    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat === 'estados' ? 3 : 2
+  return [...categories].sort((a, b) => {
+    const diff = rank(a) - rank(b)
+    return diff !== 0 ? diff : a.localeCompare(b)
+  })
 }
-const CAT_DESC: Record<string, string> = {
-  movimento: 'Movimento detectado por diferença de pixels, sem classificação.',
-  pessoa: 'Detecções classificadas como pessoa.',
-  ia: 'Detecções de modelos de IA (exceto pessoa).',
-  estados: 'Transições de classificadores de estado.',
-}
-// Ordem de empilhamento das barras (de baixo p/ cima).
-const STACK_ORDER = ['movimento', 'pessoa', 'ia', 'estados'] as const
 
 interface CameraOption {
   id: string
@@ -185,9 +198,10 @@ export default function ReportsPage() {
     : (report?.by_day ?? []).map((d) => ({ key: d.day, count: d.count, bc: d.by_category ?? {} }))
   const maxVal = Math.max(1, ...bars.map((b) => b.count))
 
-  const cats = report
-    ? categoryBuckets(report.by_label, report.by_category)
-    : { movimento: 0, pessoa: 0, ia: 0, estados: 0 }
+  const cats = report ? categoryBuckets(report.by_label, report.by_category) : {}
+  // Ordem de empilhamento das barras/legenda — dinâmica, derivada das categorias que de
+  // fato aparecem no relatório (pessoa, movimento, resto alfabético, estados por último).
+  const stackOrder = sortCategories(Object.keys(cats))
   const catEntries = Object.entries(cats).filter(([, n]) => n > 0)
   const catTotal = catEntries.reduce((s, [, n]) => s + n, 0) || 1
 
@@ -195,12 +209,6 @@ export default function ReportsPage() {
   const R = 54
   const CIRC = 2 * Math.PI * R
   let acc = 0
-  const HEX: Record<string, string> = {
-    movimento: '#fbbf24',
-    pessoa: '#ef4444',
-    ia: '#8b5cf6',
-    estados: '#22c55e',
-  }
   const segments = catEntries.map(([cat, n]) => {
     const len = (n / catTotal) * CIRC
     const seg = { cat, n, len, offset: acc }
@@ -236,9 +244,9 @@ export default function ReportsPage() {
 
   const barTitle = (b: Bar) => {
     const head = dayMode ? `${b.key}h` : b.key
-    const parts = STACK_ORDER.filter((c) => (b.bc[c] ?? 0) > 0).map(
-      (c) => `${CAT_LABEL[c]}: ${b.bc[c]}`,
-    )
+    const parts = stackOrder
+      .filter((c) => (b.bc[c] ?? 0) > 0)
+      .map((c) => `${categoryLabel(c)}: ${b.bc[c]}`)
     return parts.length > 0 ? `${head} — ${parts.join(', ')}` : `${head}: ${b.count}`
   }
 
@@ -317,7 +325,7 @@ export default function ReportsPage() {
                     className="flex-1 flex flex-col-reverse h-full"
                     title={barTitle(b)}
                   >
-                    {STACK_ORDER.map((c) => {
+                    {stackOrder.map((c) => {
                       const n = b.bc[c] ?? 0
                       if (n === 0) return null
                       return (
@@ -325,9 +333,9 @@ export default function ReportsPage() {
                           key={c}
                           type="button"
                           onClick={() => setModalCat(c)}
-                          className={`w-full ${CAT_COLOR[c]} min-h-[2px] relative cursor-pointer transition-transform duration-150 origin-center hover:scale-110 hover:brightness-110 hover:z-10`}
+                          className={`w-full ${categoryColor(c)} min-h-[2px] relative cursor-pointer transition-transform duration-150 origin-center hover:scale-110 hover:brightness-110 hover:z-10`}
                           style={{ height: `${(n / maxVal) * 100}%` }}
-                          title={`${CAT_LABEL[c]}: ${n}`}
+                          title={`${categoryLabel(c)}: ${n}`}
                         />
                       )
                     })}
@@ -444,26 +452,26 @@ export default function ReportsPage() {
                     cy="70"
                     r={R}
                     fill="none"
-                    stroke={HEX[s.cat]}
+                    className={categoryStrokeColor(s.cat)}
                     strokeWidth="18"
                     strokeDasharray={`${s.len} ${CIRC - s.len}`}
                     strokeDashoffset={-s.offset}
                   >
-                    <title>{`${CAT_LABEL[s.cat]}: ${s.n}`}</title>
+                    <title>{`${categoryLabel(s.cat)}: ${s.n}`}</title>
                   </circle>
                 ))}
               </svg>
               <div className="flex-1 min-w-0">
-                {Object.entries(cats).map(([cat, n]) => (
+                {sortCategories(Object.keys(cats)).map((cat) => (
                   <button
                     key={cat}
                     type="button"
                     onClick={() => setModalCat(cat as EventCategory)}
                     className="w-full flex items-center gap-2 text-sm mb-1.5 hover:bg-surface-2 rounded px-1 -mx-1 transition-colors"
                   >
-                    <span className={`w-2.5 h-2.5 rounded-full ${CAT_COLOR[cat]}`} />
-                    <span className="text-foreground flex-1 text-left">{CAT_LABEL[cat]}</span>
-                    <span className="text-muted tabular-nums">{n}</span>
+                    <span className={`w-2.5 h-2.5 rounded-full ${categoryColor(cat)}`} />
+                    <span className="text-foreground flex-1 text-left">{categoryLabel(cat)}</span>
+                    <span className="text-muted tabular-nums">{cats[cat]}</span>
                   </button>
                 ))}
               </div>
@@ -486,9 +494,10 @@ export default function ReportsPage() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <span className={`w-3 h-3 rounded-full shrink-0 ${CAT_COLOR[modalCat]}`} />
+                    <span className={`w-3 h-3 rounded-full shrink-0 ${categoryColor(modalCat)}`} />
                     <h3 className="text-base font-semibold text-foreground flex-1">
-                      {CAT_LABEL[modalCat]} — {det.total} {det.total === 1 ? 'evento' : 'eventos'}
+                      {categoryLabel(modalCat)} — {det.total}{' '}
+                      {det.total === 1 ? 'evento' : 'eventos'}
                     </h3>
                     <button
                       onClick={() => setModalCat(null)}
@@ -498,7 +507,7 @@ export default function ReportsPage() {
                       ✕
                     </button>
                   </div>
-                  <p className="text-sm text-muted mb-3">{CAT_DESC[modalCat]}</p>
+                  <p className="text-sm text-muted mb-3">{categoryDescription(modalCat)}</p>
                   {det.labels.length > 0 && (
                     <>
                       <p className="text-xs font-medium text-faint uppercase tracking-wider mb-1">

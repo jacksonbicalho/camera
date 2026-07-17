@@ -205,3 +205,25 @@ func TestAggregateMotionEventsDayHour(t *testing.T) {
 		t.Errorf("índice 9 = %+v, want 06-21/9h count 2", rep.Heatmap[9])
 	}
 }
+
+// TestMotionCategory_FielAoLabelReal — CA2 (metade backend): a categoria de
+// um motion event com label não-pessoa é fiel ao label real (trim +
+// lowercase), não mais um bucket genérico "ia".
+func TestMotionCategory_FielAoLabelReal(t *testing.T) {
+	cases := []struct {
+		label string
+		want  string
+	}{
+		{"", "movimento"},
+		{"pessoa", "pessoa"},
+		{"Person detected", "pessoa"},
+		{"carro", "carro"},
+		{"  Dog  ", "dog"},
+		{"Cachorro", "cachorro"},
+	}
+	for _, c := range cases {
+		if got := db.MotionCategory(c.label); got != c.want {
+			t.Errorf("MotionCategory(%q) = %q, want %q", c.label, got, c.want)
+		}
+	}
+}

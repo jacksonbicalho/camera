@@ -7,6 +7,10 @@ import {
   eventCardLines,
   firstEventInChunk,
   matchesTimelineFilter,
+  categoryColor,
+  categoryBorderColor,
+  categoryStrokeColor,
+  categoryLabel,
 } from './eventCategory'
 
 describe('recordingCategory', () => {
@@ -38,7 +42,7 @@ describe('recordingCategory', () => {
     ]
     expect(recordingCategory(recAt(0), events, 300_000)).toBe('movimento')
   })
-  it('estado tem prioridade sobre continua mas perde para pessoa/ia/movimento', () => {
+  it('estado tem prioridade sobre continua mas perde para pessoa/movimento/label específico', () => {
     const stateOnly = [
       { time: new Date(60_000).toISOString(), label: 'fechado', kind: 'state' as const },
     ]
@@ -48,6 +52,49 @@ describe('recordingCategory', () => {
       { time: new Date(90_000).toISOString(), label: 'pessoa' },
     ]
     expect(recordingCategory(recAt(0), withPerson, 300_000)).toBe('pessoa')
+  })
+
+  it('CA4prioridade: label específico (ex.: "carro") tem prioridade sobre movimento (label vazio) no mesmo chunk', () => {
+    const events = [
+      { time: new Date(60_000).toISOString(), label: '' },
+      { time: new Date(90_000).toISOString(), label: 'carro' },
+    ]
+    expect(recordingCategory(recAt(0), events, 300_000)).toBe('carro')
+  })
+  it('CA4prioridade: pessoa vence QUALQUER label específico no mesmo chunk', () => {
+    const events = [
+      { time: new Date(60_000).toISOString(), label: 'carro' },
+      { time: new Date(90_000).toISOString(), label: 'pessoa' },
+    ]
+    expect(recordingCategory(recAt(0), events, 300_000)).toBe('pessoa')
+  })
+  it('CA4prioridade: entre labels específicos distintos, o com MAIS ocorrências no chunk vence', () => {
+    const events = [
+      { time: new Date(10_000).toISOString(), label: 'carro' },
+      { time: new Date(20_000).toISOString(), label: 'gato' },
+      { time: new Date(30_000).toISOString(), label: 'gato' },
+    ]
+    expect(recordingCategory(recAt(0), events, 300_000)).toBe('gato')
+  })
+  it('CA4prioridade: empate na contagem entre labels específicos desempata em ordem ALFABÉTICA (determinístico)', () => {
+    const events = [
+      { time: new Date(10_000).toISOString(), label: 'gato' },
+      { time: new Date(20_000).toISOString(), label: 'carro' },
+    ]
+    expect(recordingCategory(recAt(0), events, 300_000)).toBe('carro')
+    // ordem de inserção invertida não muda o resultado — é alfabético, não por ordem de chegada.
+    const reversed = [
+      { time: new Date(10_000).toISOString(), label: 'carro' },
+      { time: new Date(20_000).toISOString(), label: 'gato' },
+    ]
+    expect(recordingCategory(recAt(0), reversed, 300_000)).toBe('carro')
+  })
+  it('CA4prioridade: estados sempre perde pra movimento (label vazio) no mesmo chunk', () => {
+    const events = [
+      { time: new Date(60_000).toISOString(), label: 'fechado', kind: 'state' as const },
+      { time: new Date(90_000).toISOString(), label: '' },
+    ]
+    expect(recordingCategory(recAt(0), events, 300_000)).toBe('movimento')
   })
 })
 
@@ -62,9 +109,13 @@ describe('eventCategory', () => {
     expect(eventCategory({ label: 'Pessoa com chapéu' })).toBe('pessoa')
     expect(eventCategory({ label: 'person' })).toBe('pessoa')
   })
-  it('outro label de modelo → ia', () => {
-    expect(eventCategory({ label: 'carro' })).toBe('ia')
-    expect(eventCategory({ label: 'cachorro' })).toBe('ia')
+  it('CA2fiel: outro label de modelo é fiel ao label real (não mais bucket genérico "ia")', () => {
+    expect(eventCategory({ label: 'carro' })).toBe('carro')
+    expect(eventCategory({ label: 'cachorro' })).toBe('cachorro')
+  })
+  it('CA2fiel: label normalizado por trim + lowercase (mesmo bucket independente de caixa/espaços)', () => {
+    expect(eventCategory({ label: '  Dog  ' })).toBe('dog')
+    expect(eventCategory({ label: 'Cachorro' })).toBe('cachorro')
   })
   it('kind=state → estados (independe do label)', () => {
     expect(eventCategory({ kind: 'state', label: 'aberto' })).toBe('estados')
@@ -73,11 +124,91 @@ describe('eventCategory', () => {
   })
 })
 
+describe('categoryColor', () => {
+  it('CA3cor: movimento/pessoa/estados/continua têm cor fixa conhecida', () => {
+    expect(categoryColor('movimento')).toBe('bg-amber-400')
+    expect(categoryColor('pessoa')).toBe('bg-red-500')
+    expect(categoryColor('estados')).toBe('bg-green-500')
+    expect(categoryColor('continua')).toBe('bg-blue-500')
+  })
+  it('CA3cor: um label arbitrário sempre devolve a MESMA cor (determinístico)', () => {
+    const c1 = categoryColor('carro')
+    const c2 = categoryColor('carro')
+    expect(c1).toBe(c2)
+    expect(c1).toMatch(/^bg-/)
+  })
+  it('CA3cor: chamadas repetidas com labels diferentes continuam determinísticas cada uma', () => {
+    const carro1 = categoryColor('carro')
+    const cachorro1 = categoryColor('cachorro')
+    const carro2 = categoryColor('carro')
+    const cachorro2 = categoryColor('cachorro')
+    expect(carro1).toBe(carro2)
+    expect(cachorro1).toBe(cachorro2)
+  })
+})
+
+describe('categoryLabel', () => {
+  it('capitaliza a 1ª letra pra exibição — mesma função pra categorias conhecidas e arbitrárias', () => {
+    expect(categoryLabel('movimento')).toBe('Movimento')
+    expect(categoryLabel('pessoa')).toBe('Pessoa')
+    expect(categoryLabel('estados')).toBe('Estados')
+    expect(categoryLabel('carro')).toBe('Carro')
+  })
+  it('string vazia devolve vazia (sem quebrar)', () => {
+    expect(categoryLabel('')).toBe('')
+  })
+})
+
+describe('categoryBorderColor', () => {
+  it('mesmo tom de categoryColor pra categorias conhecidas, só troca bg- por border-', () => {
+    expect(categoryBorderColor('movimento')).toBe('border-amber-400')
+    expect(categoryBorderColor('pessoa')).toBe('border-red-500')
+    expect(categoryBorderColor('estados')).toBe('border-green-500')
+    expect(categoryBorderColor('continua')).toBe('border-blue-500')
+  })
+  it('label arbitrário: determinístico, e o MESMO tom de categoryColor pra essa categoria', () => {
+    const bgTone = categoryColor('carro').replace('bg-', '')
+    expect(categoryBorderColor('carro')).toBe(`border-${bgTone}`)
+    // chamadas repetidas continuam estáveis.
+    expect(categoryBorderColor('carro')).toBe(categoryBorderColor('carro'))
+  })
+})
+
+describe('categoryStrokeColor', () => {
+  it('mesmo tom de categoryColor pra categorias conhecidas, só troca bg- por stroke-', () => {
+    expect(categoryStrokeColor('movimento')).toBe('stroke-amber-400')
+    expect(categoryStrokeColor('pessoa')).toBe('stroke-red-500')
+    expect(categoryStrokeColor('estados')).toBe('stroke-green-500')
+    expect(categoryStrokeColor('continua')).toBe('stroke-blue-500')
+  })
+  it('label arbitrário: determinístico, e o MESMO tom de categoryColor/categoryBorderColor pra essa categoria', () => {
+    const bgTone = categoryColor('carro').replace('bg-', '')
+    expect(categoryStrokeColor('carro')).toBe(`stroke-${bgTone}`)
+    expect(categoryStrokeColor('carro')).toBe(categoryStrokeColor('carro'))
+  })
+  it('cada classe usada aqui é um literal fixo na paleta — nunca construída em runtime por concatenação (Tailwind só descobre classes que aparecem literalmente no código-fonte)', () => {
+    // Regressão: uma versão anterior de categoryBorderColor fazia
+    // `categoryColor(cat).replace('bg-','border-')` — parecia funcionar nos tons
+    // "conhecidos" só por coincidência (essas classes já existiam em outro lugar do
+    // app), mas os tons da paleta de labels arbitrários nunca tinham `border-*`/
+    // `stroke-*` de verdade gerados pelo Tailwind (confirmado inspecionando o CSS
+    // compilado). Este teste não pega a ausência de CSS em si (fora do alcance do
+    // vitest/jsdom), mas documenta e trava o contrato: os 3 tons de uma mesma
+    // categoria SEMPRE compartilham a cor (nunca um tom pra bg e outro pra
+    // border/stroke), o que só é garantido pela estrutura de paleta com literais.
+    for (const cat of ['movimento', 'pessoa', 'estados', 'continua', 'carro', 'cachorro']) {
+      const tone = (cls: string) => cls.replace(/^(bg|border|stroke)-/, '')
+      expect(tone(categoryBorderColor(cat))).toBe(tone(categoryColor(cat)))
+      expect(tone(categoryStrokeColor(cat))).toBe(tone(categoryColor(cat)))
+    }
+  })
+})
+
 describe('eventTitle', () => {
   it('título por categoria', () => {
     expect(eventTitle({})).toBe('Movimento detectado')
     expect(eventTitle({ label: 'pessoa' })).toBe('Pessoa detectada')
-    expect(eventTitle({ label: 'carro' })).toBe('carro')
+    expect(eventTitle({ label: 'carro' })).toBe('Carro')
   })
 })
 
@@ -124,8 +255,8 @@ describe('eventCardLines', () => {
       subtitle: 'Cam1',
     })
   })
-  it('ia: label no título, câmera no subtítulo', () => {
-    expect(eventCardLines({ label: 'carro' }, 'Cam1')).toEqual({ title: 'carro', subtitle: 'Cam1' })
+  it('label específico: título capitalizado, câmera no subtítulo', () => {
+    expect(eventCardLines({ label: 'carro' }, 'Cam1')).toEqual({ title: 'Carro', subtitle: 'Cam1' })
   })
 })
 
@@ -146,8 +277,8 @@ describe('filterEventsByCategory', () => {
   it('filtra por pessoa', () => {
     expect(filterEventsByCategory(evs, 'pessoa').map((e) => e.id)).toEqual([2, 4])
   })
-  it('filtra por ia', () => {
-    expect(filterEventsByCategory(evs, 'ia').map((e) => e.id)).toEqual([3])
+  it('filtra por um label específico (ex.: carro) — fiel ao label real, não mais um bucket "ia"', () => {
+    expect(filterEventsByCategory(evs, 'carro').map((e) => e.id)).toEqual([3])
   })
   it('filtra por estados (transições kind=state)', () => {
     expect(filterEventsByCategory(evs, 'estados').map((e) => e.id)).toEqual([5])
@@ -160,26 +291,35 @@ describe('matchesTimelineFilter', () => {
     expect(matchesTimelineFilter('movimento', 'todos')).toBe(true)
     expect(matchesTimelineFilter('pessoa', 'todos')).toBe(true)
     expect(matchesTimelineFilter('estados', 'todos')).toBe(true)
+    expect(matchesTimelineFilter('carro', 'todos')).toBe(true)
   })
-  it('"continua" só casa com a categoria continua', () => {
+  it('CA6dropdown: fora de "todos", a igualdade é ESTRITA — o dropdown lista labels reais, não dicotomias amplas', () => {
+    // Modelo antigo (chips fixos): "movimento" casava com QUALQUER categoria de evento
+    // (dicotomia grossa "tem evento" vs "não tem"). No modelo de dropdown dinâmico isso
+    // deixa de fazer sentido — "movimento" é só mais uma opção entre outras, "Tudo" já
+    // cobre o caso "qualquer evento".
+    expect(matchesTimelineFilter('movimento', 'movimento')).toBe(true)
+    expect(matchesTimelineFilter('pessoa', 'movimento')).toBe(false)
+    expect(matchesTimelineFilter('carro', 'movimento')).toBe(false)
+    expect(matchesTimelineFilter('estados', 'movimento')).toBe(false)
+    expect(matchesTimelineFilter('continua', 'movimento')).toBe(false)
+  })
+  it('CA6dropdown: "pessoa" casa só com a categoria pessoa', () => {
+    expect(matchesTimelineFilter('pessoa', 'pessoa')).toBe(true)
+    expect(matchesTimelineFilter('movimento', 'pessoa')).toBe(false)
+    expect(matchesTimelineFilter('carro', 'pessoa')).toBe(false)
+    expect(matchesTimelineFilter('estados', 'pessoa')).toBe(false)
+    expect(matchesTimelineFilter('continua', 'pessoa')).toBe(false)
+  })
+  it('CA6dropdown: "continua" casa só com a categoria continua', () => {
     expect(matchesTimelineFilter('continua', 'continua')).toBe(true)
     expect(matchesTimelineFilter('movimento', 'continua')).toBe(false)
     expect(matchesTimelineFilter('pessoa', 'continua')).toBe(false)
   })
-  it('"movimento" casa com QUALQUER categoria de evento (não só a literal "movimento") — dicotomia mais grossa que EventFilter', () => {
-    expect(matchesTimelineFilter('movimento', 'movimento')).toBe(true)
-    expect(matchesTimelineFilter('pessoa', 'movimento')).toBe(true)
-    expect(matchesTimelineFilter('ia', 'movimento')).toBe(true)
-    expect(matchesTimelineFilter('estados', 'movimento')).toBe(true)
-    expect(matchesTimelineFilter('continua', 'movimento')).toBe(false)
-  })
-  it('CA2: "pessoa" casa só com a categoria pessoa (igualdade estrita, não altera "movimento")', () => {
-    expect(matchesTimelineFilter('pessoa', 'pessoa')).toBe(true)
-    expect(matchesTimelineFilter('movimento', 'pessoa')).toBe(false)
-    expect(matchesTimelineFilter('ia', 'pessoa')).toBe(false)
-    expect(matchesTimelineFilter('estados', 'pessoa')).toBe(false)
-    expect(matchesTimelineFilter('continua', 'pessoa')).toBe(false)
-    // "movimento" continua inalterado — pessoa ainda casa com ele também.
-    expect(matchesTimelineFilter('pessoa', 'movimento')).toBe(true)
+  it('CA6dropdown: um label específico dinâmico (ex.: "carro") casa só com ele mesmo', () => {
+    expect(matchesTimelineFilter('carro', 'carro')).toBe(true)
+    expect(matchesTimelineFilter('cachorro', 'carro')).toBe(false)
+    expect(matchesTimelineFilter('pessoa', 'carro')).toBe(false)
+    expect(matchesTimelineFilter('continua', 'carro')).toBe(false)
   })
 })

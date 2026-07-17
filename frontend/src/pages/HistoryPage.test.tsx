@@ -279,8 +279,8 @@ describe('HistoryPage', () => {
     expect(main.parentElement?.className).toContain('lg:flex-row')
     const header = document.getElementById('history-header')!
     expect(main.parentElement?.contains(header)).toBe(false)
-    // Chips de filtro moram no sidebar, junto da lista.
-    expect(sidebar.contains(document.getElementById('history-filter-todos'))).toBe(true)
+    // Dropdown de filtro mora no sidebar, junto da lista.
+    expect(sidebar.contains(document.getElementById('history-filter-dropdown'))).toBe(true)
   })
 
   it('toca a gravação mais recente do dia por padrão e lista as demais na lista lateral', async () => {
@@ -467,7 +467,7 @@ describe('HistoryPage', () => {
     // de dia mesmo sem nenhuma gravação), mas sem chips/lista (nada pra filtrar/mostrar).
     expect(document.getElementById('history-recordings-list')).not.toBeNull()
     expect(document.querySelector('[data-testid="history-datepicker"]')).not.toBeNull()
-    expect(document.getElementById('history-filter-chips')).toBeNull()
+    expect(document.getElementById('history-filter-dropdown')).toBeNull()
     expect(document.getElementById('history-recordings-groups')).toBeNull()
     expect(document.querySelector('#history-player video')).toBeNull()
     expect(document.getElementById('history-player')?.textContent).toContain(
@@ -838,9 +838,18 @@ describe('HistoryPage', () => {
   })
 
   describe('filtros e lista agrupada por hora', () => {
-    it('chips Tudo/Movimento/Contínua esmaecem (não removem) os cards fora do filtro, sem recarregar a página', async () => {
+    // selectFilter troca o valor do dropdown (`history-filter-dropdown`) e dispara o
+    // `change` nativo — mesmo padrão de manipulação direta do DOM já usado no resto
+    // deste arquivo (dispatchEvent), aplicado a um `<select>` controlado pelo React.
+    function selectFilter(value: string) {
+      const select = document.getElementById('history-filter-dropdown') as HTMLSelectElement
+      select.value = value
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+
+    it('dropdown Tudo/Movimento/Contínua esmaece (não remove) os cards fora do filtro, sem recarregar a página', async () => {
       // a.mp4 (07:12:00Z) sem evento → categoria "continua"; b.mp4 (08:03:00Z) com evento no
-      // mesmo intervalo → categoria de movimento (ia).
+      // mesmo intervalo → categoria fiel ao label real ("carro").
       stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'carro' }])
       renderAt('/history/cam1')
       await waitFor(() => {
@@ -848,25 +857,19 @@ describe('HistoryPage', () => {
         expect(document.getElementById('history-recording-2')).not.toBeNull()
       })
 
-      document
-        .getElementById('history-filter-continua')!
-        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      selectFilter('continua')
       await waitFor(() => {
         expect(document.getElementById('history-recording-2')!.className).toContain('opacity-40')
       })
       expect(document.getElementById('history-recording-1')!.className).not.toContain('opacity-40')
 
-      document
-        .getElementById('history-filter-movimento')!
-        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      selectFilter('carro')
       await waitFor(() => {
         expect(document.getElementById('history-recording-1')!.className).toContain('opacity-40')
       })
       expect(document.getElementById('history-recording-2')!.className).not.toContain('opacity-40')
 
-      document
-        .getElementById('history-filter-todos')!
-        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      selectFilter('todos')
       await waitFor(() => {
         expect(document.getElementById('history-recording-1')!.className).not.toContain(
           'opacity-40',
@@ -875,39 +878,94 @@ describe('HistoryPage', () => {
       expect(document.getElementById('history-recording-2')!.className).not.toContain('opacity-40')
     })
 
-    it('CA3pessoa: chip "Pessoa" existe entre "Movimento" e "Contínua"', async () => {
+    it('CA6dropdown: o filtro é um DROPDOWN (não mais chips fixos) com Tudo + Contínua sempre presentes e só os labels que de fato existem nas gravações do dia', async () => {
+      stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'carro' }])
       renderAt('/history/cam1')
       await waitFor(() => {
         expect(document.getElementById('history-recording-1')).not.toBeNull()
       })
-      const chips = Array.from(
-        document.getElementById('history-filter-chips')!.querySelectorAll('button'),
-      ).map((b) => b.id)
-      expect(chips).toEqual([
-        'history-filter-todos',
-        'history-filter-movimento',
-        'history-filter-pessoa',
-        'history-filter-continua',
-      ])
+      expect(document.getElementById('history-filter-chips')).toBeNull()
+      const select = document.getElementById('history-filter-dropdown') as HTMLSelectElement
+      expect(select.tagName).toBe('SELECT')
+      const options = Array.from(select.options).map((o) => o.value)
+      // a.mp4 (07:12Z, sem evento) → continua; b.mp4 (08:03Z, label "carro") → categoria "carro".
+      // "movimento"/"pessoa" NÃO aparecem — nenhuma gravação do dia cai nessas categorias.
+      expect(options).toEqual(['todos', 'carro', 'continua'])
     })
 
-    it('CA4pessoa: clique no chip "Pessoa" esmaece os cards que não são de pessoa (não remove)', async () => {
-      // a.mp4 (07:12:00Z) sem evento → continua; b.mp4 (08:03:00Z) com evento "pessoa
-      // detectada" no mesmo intervalo → categoria pessoa.
-      stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'pessoa detectada' }])
+    it('CA6dropdown: categorias dinâmicas aparecem ordenadas — pessoa primeiro, movimento depois, resto em ordem alfabética, Tudo/Contínua fixos nas pontas', async () => {
+      stubFetch(recordings, [
+        { time: '2026-07-05T07:12:30Z', label: 'gato' },
+        { time: '2026-07-05T08:03:30Z', label: 'pessoa detectada' },
+      ])
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+      })
+      const select = document.getElementById('history-filter-dropdown') as HTMLSelectElement
+      const options = Array.from(select.options).map((o) => o.value)
+      expect(options).toEqual(['todos', 'pessoa', 'gato', 'continua'])
+    })
+
+    it('CA6dropdown: rótulos do dropdown são capitalizados (categoryLabel) — "Tudo"/"Carro"/"Contínua"', async () => {
+      stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'carro' }])
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+      })
+      const select = document.getElementById('history-filter-dropdown') as HTMLSelectElement
+      const labels = Array.from(select.options).map((o) => o.textContent)
+      expect(labels).toEqual(['Tudo', 'Carro', 'Contínua'])
+    })
+
+    it('filtra por um label específico dinâmico (ex.: "carro") — esmaece os cards que não batem, sem remover', async () => {
+      // a.mp4 (07:12:00Z) sem evento → continua; b.mp4 (08:03:00Z) com evento "carro" no
+      // mesmo intervalo → categoria "carro".
+      stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'carro' }])
       renderAt('/history/cam1')
       await waitFor(() => {
         expect(document.getElementById('history-recording-1')).not.toBeNull()
         expect(document.getElementById('history-recording-2')).not.toBeNull()
       })
 
-      document
-        .getElementById('history-filter-pessoa')!
-        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      selectFilter('carro')
       await waitFor(() => {
         expect(document.getElementById('history-recording-1')!.className).toContain('opacity-40')
       })
       expect(document.getElementById('history-recording-2')!.className).not.toContain('opacity-40')
+    })
+
+    it('REGRESSÃO: um filtro específico ativo (ex.: "carro") reseta pra "Tudo" ao trocar pro dia sem essa categoria — o dropdown nunca "mente" sobre o filtro realmente aplicado', async () => {
+      // Bug relatado pelo code-reviewer: as opções do dropdown são dinâmicas por dia — sem
+      // reset, o <select> caía sozinho pra "todos" no DOM (nenhuma <option> bate o value
+      // antigo, comportamento padrão do HTML) mas o estado React continuava com o filtro
+      // antigo, esmaecendo TUDO no dia novo sem explicação visível (dropdown mostrando
+      // "Tudo" enquanto na prática um filtro impossível de bater continuava ativo).
+      stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'carro' }])
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+      })
+      selectFilter('carro')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-1')!.className).toContain('opacity-40')
+      })
+
+      // Troca pro dia 04/07 — só tem c.mp4 (recordingsJul4), sem nenhum evento "carro" (o
+      // mock de /motion devolve os mesmos eventos pra qualquer data, mas nenhum cai dentro
+      // do intervalo de c.mp4 — vira "continua").
+      document
+        .querySelector('[data-testid="history-datepicker"] button')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-3')).not.toBeNull()
+      })
+
+      const select = document.getElementById('history-filter-dropdown') as HTMLSelectElement
+      expect(select.value).toBe('todos')
+      // Não é só o <select> mentindo — o filtro de VERDADE (estado React) também voltou pra
+      // "Tudo": nenhum card fica esmaecido.
+      expect(document.getElementById('history-recording-3')!.className).not.toContain('opacity-40')
     })
 
     it('CA2filtro: a régua do HistoryTimeline sempre colore os blocos de hora considerando TODAS as gravações (independente do filtro ativo)', async () => {
@@ -933,9 +991,7 @@ describe('HistoryPage', () => {
       expect(line7.className).toContain('bg-blue-500') // continua
       expect(line8.className).toContain('bg-red-500') // pessoa
 
-      document
-        .getElementById('history-filter-pessoa')!
-        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      selectFilter('pessoa')
       await waitFor(() => {
         expect(document.getElementById('history-recording-1')!.className).toContain('opacity-40')
       })
@@ -967,9 +1023,7 @@ describe('HistoryPage', () => {
         expect(document.getElementById('history-recording-2')).not.toBeNull()
       })
 
-      document
-        .getElementById('history-filter-pessoa')!
-        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      selectFilter('pessoa')
       await waitFor(() => {
         expect(document.getElementById('history-recording-1')!.className).toContain('opacity-40')
       })
@@ -1001,6 +1055,34 @@ describe('HistoryPage', () => {
       await waitFor(() => {
         expect(document.getElementById('history-recording-1')).not.toBeNull()
       })
+    })
+
+    it('REGRESSÃO: fechar o grupo da hora que já contém o item ATIVO (ex.: a mais recente, selecionada por padrão) mantém o grupo fechado — não reabre sozinho', async () => {
+      // Bug relatado pelo navigator ("a primeira hora eu não consigo fechar na seta"): o
+      // ajuste-durante-o-render que reabre o grupo do item ativo rodava em TODO render, não
+      // só quando a seleção de fato mudava — fechar manualmente o grupo que já continha o
+      // item ativo era desfeito no próprio render seguinte, parecendo que o clique não
+      // "pegava". b.mp4 (08:03Z, id 2) é a gravação mais recente — selecionada por padrão,
+      // cai no grupo da hora 8.
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
+      })
+      expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBe(
+        'true',
+      )
+      const group8 = document.getElementById('history-hour-group-8')!
+      group8.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-2')).toBeNull()
+      })
+      // Continua fechado (não é só um instante entre renders) — aguarda mais um ciclo e
+      // confirma que não reapareceu sozinho.
+      await act(() => Promise.resolve())
+      expect(document.getElementById('history-recording-2')).toBeNull()
+      expect(document.getElementById('history-hour-group-8')?.getAttribute('aria-expanded')).toBe(
+        'false',
+      )
     })
   })
 })
