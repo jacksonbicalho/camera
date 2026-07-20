@@ -118,8 +118,6 @@ docker run --rm \
 
 Nunca afirmar que os testes do frontend passaram sem ter rodado o comando acima (ou visto o CI verde).
 
-**Alternativa: dev container isolado do host.** `.devcontainer/` traz Go/Node/yarn/ffmpeg já instalados numa imagem própria, com dockerd, credenciais `gh`/git e toolchain isolados do host (só o código-fonte é compartilhado, via bind mount) — evita depender do Docker/credenciais da máquina do navigator. Ver `.devcontainer/README.md` para uso e trade-offs.
-
 ### Serviço YOLO (`services/yolo/`)
 
 Microserviço Python/FastAPI opcional para análise de gravações e fine-tuning. Expõe:
