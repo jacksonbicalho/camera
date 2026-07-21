@@ -34,6 +34,10 @@ type Classifier struct {
 	FooterEnabled bool    `json:"footer_enabled"`
 	NotifyUserIDs []int64 `json:"notify_user_ids"`
 	FooterUserIDs []int64 `json:"footer_user_ids"`
+	// HistoryRetentionMinutes sobrescreve storage.state_history_minutes (global)
+	// só para este classificador. nil = herda o default global; um valor
+	// explícito (incluindo 0 = manter para sempre) vale só para ele.
+	HistoryRetentionMinutes *int `json:"history_retention_minutes"`
 }
 
 // State é o estado corrente (ou histórico) de um classificador — escrito pela S3.

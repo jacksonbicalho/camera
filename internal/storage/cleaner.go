@@ -745,24 +745,32 @@ func (c *Cleaner) effectiveStateHistoryMinutes() int {
 }
 
 // purgeStateHistory removes camera_state_history transitions (and their
-// backing JPEGs) older than storage.state_history_minutes, for every
-// classifier that currently exists. 0 disables the purge (keeps forever).
+// backing JPEGs) older than the effective retention window of each
+// classifier: its own history_retention_minutes override when set (including
+// 0 = keep forever, just for that classifier), otherwise the global
+// storage.state_history_minutes default. A resolved window of 0 skips that
+// classifier (keeps forever).
 func (c *Cleaner) purgeStateHistory() {
-	minutes := c.effectiveStateHistoryMinutes()
-	if minutes <= 0 {
-		return
-	}
-	cutoff := time.Now().UTC().Add(-time.Duration(minutes) * time.Minute)
+	globalMinutes := c.effectiveStateHistoryMinutes()
 
-	ids, err := db.ListStateClassifierIDs(c.db)
+	retentions, err := db.ListStateClassifierRetentions(c.db)
 	if err != nil {
-		c.log.Warn("failed to list state classifier ids", "err", err)
+		c.log.Warn("failed to list state classifier retentions", "err", err)
 		return
 	}
-	for _, cid := range ids {
-		framePaths, err := db.PurgeStateHistoryOlderThan(c.db, cid, cutoff)
+	for _, r := range retentions {
+		minutes := globalMinutes
+		if r.HistoryRetentionMinutes != nil {
+			minutes = *r.HistoryRetentionMinutes
+		}
+		if minutes <= 0 {
+			continue
+		}
+		cutoff := time.Now().UTC().Add(-time.Duration(minutes) * time.Minute)
+
+		framePaths, err := db.PurgeStateHistoryOlderThan(c.db, r.ID, cutoff)
 		if err != nil {
-			c.log.Warn("failed to purge state history", "classifier_id", cid, "err", err)
+			c.log.Warn("failed to purge state history", "classifier_id", r.ID, "err", err)
 			continue
 		}
 		for _, fp := range framePaths {

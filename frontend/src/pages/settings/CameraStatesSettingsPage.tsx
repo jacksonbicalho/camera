@@ -1148,6 +1148,38 @@ export function ClassifierForm({
               />
               <span className="text-sm text-foreground">Ativado</span>
             </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                id="state-history-retention-toggle"
+                type="checkbox"
+                className="accent-primary"
+                checked={value.history_retention_minutes == null}
+                onChange={(e) =>
+                  onChange({
+                    ...value,
+                    history_retention_minutes: e.target.checked ? null : 0,
+                  })
+                }
+              />
+              <span className="text-sm text-foreground">Usar retenção padrão do histórico</span>
+            </label>
+            {value.history_retention_minutes != null && (
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">
+                  Retenção do histórico deste estado (minutos, 0 = manter para sempre)
+                </label>
+                <input
+                  id="state-history-retention-minutes"
+                  type="number"
+                  min={0}
+                  className={inputCls}
+                  value={value.history_retention_minutes}
+                  onChange={(e) =>
+                    onChange({ ...value, history_retention_minutes: Number(e.target.value) })
+                  }
+                />
+              </div>
+            )}
           </div>
 
           {/* Notificação e rodapé: gate + destinatários por usuário (canais independentes) */}
