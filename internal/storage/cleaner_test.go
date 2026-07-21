@@ -1338,6 +1338,71 @@ func TestClean_KeepsRecentOrphanMotionEvents(t *testing.T) {
 	}
 }
 
+// TestClean_SweepsOrphanedMotionJPEGsOlderThanRetention: rede de segurança em
+// disco, independente do banco — um diretório {camera}/{ano}/{mes}/{dia} sem
+// nenhum .mp4 (já removido por qualquer caminho, inclusive um bug futuro que
+// escape de purgeMotionAssets/purgeOrphanEvents) mas mais velho que a
+// retenção com-movimento tem os _motion.jpg residuais removidos (CA3).
+func TestClean_SweepsOrphanedMotionJPEGsOlderThanRetention(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, old.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, jpegPath, old)
+
+	// with_motion_minutes = 3 dias (4320); "old" tem 10 dias — bem além da
+	// janela, e o diretório não tem nenhum .mp4 (nem linha no banco).
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
+		t.Error("jpg órfão mais velho que a retenção com-movimento deveria ter sido removido pela varredura")
+	}
+}
+
+// Diretório mais recente que a retenção não é tocado, mesmo sem .mp4 —
+// evita apagar um snapshot que ainda deveria estar disponível.
+func TestClean_KeepsOrphanedMotionJPEGsWithinRetention(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	recent := time.Now().UTC().Add(-1 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", recent.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, recent.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, jpegPath, recent)
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(jpegPath); err != nil {
+		t.Errorf("jpg dentro da retenção não deveria ter sido removido: %v", err)
+	}
+}
+
+// Diretório que ainda tem .mp4 nunca é tocado pela varredura, mesmo mais
+// velho que a retenção — evita colidir com um chunk ainda em uso/pendente
+// de processamento pelos outros caminhos de limpeza.
+func TestClean_DoesNotSweepDirWithMP4Present(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, old.Format("20060102150405")+"_motion.jpg")
+	mp4Path := filepath.Join(dayDir, old.Format("20060102150405")+".mp4")
+	writeFile(t, jpegPath, old)
+	writeFile(t, mp4Path, old)
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(jpegPath); err != nil {
+		t.Errorf("jpg num diretório com .mp4 presente não deveria ter sido removido: %v", err)
+	}
+}
+
 // Ao cruzar o limite de Alerta(%), cada admin recebe uma notificação; viewers não.
 // Edge-triggered: não duplica enquanto continua acima.
 func TestCheckSize_NotifiesAdminsOnThresholdCrossing(t *testing.T) {

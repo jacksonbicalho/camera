@@ -678,8 +678,101 @@ func (c *Cleaner) Clean() {
 		c.syncRecordings()
 		c.cleanFromDB()
 		c.purgeOrphanEvents()
+		c.sweepOrphanedMotionDirs()
 	} else {
 		c.cleanFromFS()
+	}
+}
+
+// sweepOrphanedMotionDirs is a filesystem-level safety net, independent of any
+// DB row: a {camera}/{year}/{month}/{day} directory that no longer has any
+// .mp4 (removed by any path, including a future bug that escapes
+// purgeMotionAssets/purgeOrphanEvents) but is older than the with-motion
+// retention window still gets its leftover _motion.jpg snapshots removed.
+func (c *Cleaner) sweepOrphanedMotionDirs() {
+	if c.withMotionMinutes <= 0 {
+		return
+	}
+	cutoff := time.Now().UTC().Add(-time.Duration(c.withMotionMinutes) * time.Minute)
+
+	cameraEntries, err := os.ReadDir(c.storagePath)
+	if err != nil {
+		return
+	}
+	for _, camEntry := range cameraEntries {
+		if !camEntry.IsDir() {
+			continue
+		}
+		camDir := filepath.Join(c.storagePath, camEntry.Name())
+		yearEntries, err := os.ReadDir(camDir)
+		if err != nil {
+			continue
+		}
+		for _, yearEntry := range yearEntries {
+			year, err := strconv.Atoi(yearEntry.Name())
+			if !yearEntry.IsDir() || err != nil || len(yearEntry.Name()) != 4 {
+				continue
+			}
+			yearDir := filepath.Join(camDir, yearEntry.Name())
+			monthEntries, err := os.ReadDir(yearDir)
+			if err != nil {
+				continue
+			}
+			for _, monthEntry := range monthEntries {
+				month, err := strconv.Atoi(monthEntry.Name())
+				if !monthEntry.IsDir() || err != nil {
+					continue
+				}
+				monthDir := filepath.Join(yearDir, monthEntry.Name())
+				dayEntries, err := os.ReadDir(monthDir)
+				if err != nil {
+					continue
+				}
+				for _, dayEntry := range dayEntries {
+					day, err := strconv.Atoi(dayEntry.Name())
+					if !dayEntry.IsDir() || err != nil {
+						continue
+					}
+					dayEnd := time.Date(year, time.Month(month), day, 23, 59, 59, 0, time.UTC)
+					if !dayEnd.Before(cutoff) {
+						continue
+					}
+					c.sweepMotionDayDir(filepath.Join(monthDir, dayEntry.Name()))
+				}
+			}
+		}
+	}
+}
+
+// sweepMotionDayDir removes leftover _motion.jpg files from a day directory
+// that no longer has any .mp4 in it. Never touches a directory still holding
+// a chunk, closed or not.
+func (c *Cleaner) sweepMotionDayDir(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	hasMP4 := false
+	var jpegs []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		switch {
+		case filepath.Ext(e.Name()) == ".mp4":
+			hasMP4 = true
+		case strings.HasSuffix(e.Name(), "_motion.jpg"):
+			jpegs = append(jpegs, e.Name())
+		}
+	}
+	if hasMP4 {
+		return
+	}
+	for _, name := range jpegs {
+		path := filepath.Join(dir, name)
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			c.log.Warn("failed to remove orphaned motion jpeg", "path", path, "err", err)
+		}
 	}
 }
 
