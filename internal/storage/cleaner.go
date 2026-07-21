@@ -789,10 +789,11 @@ func (c *Cleaner) purgeStateHistory() {
 // purgeMotionAssets/purgeOrphanEvents) but is older than the with-motion
 // retention window still gets its leftover _motion.jpg snapshots removed.
 func (c *Cleaner) sweepOrphanedMotionDirs() {
-	if c.withMotionMinutes <= 0 {
+	withMotion, _ := c.effectiveRetentionMinutes()
+	if withMotion <= 0 {
 		return
 	}
-	cutoff := time.Now().UTC().Add(-time.Duration(c.withMotionMinutes) * time.Minute)
+	cutoff := time.Now().UTC().Add(-time.Duration(withMotion) * time.Minute)
 
 	cameraEntries, err := os.ReadDir(c.storagePath)
 	if err != nil {

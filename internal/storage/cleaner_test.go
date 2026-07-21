@@ -1405,6 +1405,45 @@ func TestClean_DoesNotSweepDirWithMP4Present(t *testing.T) {
 	}
 }
 
+// TestClean_SweepOrphanedMotionDirsUsesLiveDBOverride: o admin pode mudar
+// with_motion_minutes via UI depois que o processo já subiu — cleanFromDB()
+// já lê o valor ao vivo do banco (effectiveRetentionMinutes), mas a varredura
+// de diretórios órfãos não pode ficar presa ao valor de construção do
+// Cleaner (lido só uma vez no boot em main.go), senão uma mudança de retenção
+// em runtime nunca é respeitada por ela até o processo reiniciar — bug real
+// reportado pelo navigator (configurou 2 dias, diretórios de mais de 2 dias
+// continuavam intactos).
+func TestClean_SweepOrphanedMotionDirsUsesLiveDBOverride(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	// Cleaner construído com with_motion_minutes GRANDE (7 dias) — simula o
+	// valor lido no boot do processo.
+	c := storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger())
+
+	// Admin muda a retenção via UI DEPOIS do boot — só grava em system_config,
+	// não reconstrói o Cleaner.
+	if err := db.SetConfig(database, "storage.with_motion_minutes", "1440"); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	// 3 dias de idade: viola o override do banco (1 dia), mas NÃO violaria o
+	// valor de construção (7 dias) — só passa se a varredura usar o override.
+	// A varredura opera em granularidade de dia (dayEnd = fim do dia daquele
+	// diretório), então o teste precisa cruzar um dia inteiro, não só horas.
+	old := time.Now().UTC().Add(-3 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, old.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, jpegPath, old)
+
+	c.Clean()
+
+	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
+		t.Error("varredura deveria ter usado o override do banco (1 dia), não o valor de construção (7 dias) — jpg deveria ter sido removido")
+	}
+}
+
 // TestClean_SweepsOrphanedStateHistoryDirs: varredura retroativa — um
 // diretório state_history/state_samples cujo {cid} não existe mais em
 // camera_state_classifiers (classificador já excluído) é removido; o
