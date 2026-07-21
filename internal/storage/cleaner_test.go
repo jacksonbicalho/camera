@@ -1408,6 +1408,107 @@ func TestClean_SweepsOrphanedMotionJPEGsOlderThanRetention(t *testing.T) {
 	}
 }
 
+// Depois de remover o último jpg órfão de um diretório, o diretório do DIA em
+// si (agora vazio) também é removido — sem isso o filesystem acumula uma
+// árvore de diretórios vazios pra sempre, mesmo com o conteúdo já limpo
+// (reportado pelo navigator: "tem diretórios até do mês passado... vazios").
+func TestClean_RemovesEmptyDayDirAfterSweep(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, old.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, jpegPath, old)
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(dayDir); !os.IsNotExist(err) {
+		t.Error("diretório do dia deveria ter sido removido depois de esvaziado pela varredura")
+	}
+}
+
+// A remoção do diretório do dia é conservadora: só some se a varredura
+// esvaziou o diretório (nenhum .mp4, jpg mais velho que a retenção). Um
+// diretório que ainda tem .mp4 nunca é removido, mesmo mais velho que a
+// retenção — mesma regra de nunca tocar num diretório com chunk.
+func TestClean_KeepsDayDirWithMP4Present(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	mp4Path := filepath.Join(dayDir, old.Format("20060102150405")+".mp4")
+	writeFile(t, mp4Path, old)
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(dayDir); err != nil {
+		t.Errorf("diretório do dia com .mp4 presente não deveria ter sido removido: %v", err)
+	}
+}
+
+// Se TODOS os dias de um mês esvaziam (e o diretório do dia some), o
+// diretório do MÊS também é removido quando fica vazio — e o mesmo em
+// cascata pro diretório do ANO, se todos os meses também esvaziarem.
+func TestClean_RemovesEmptyMonthAndYearDirsWhenAllDaysCleared(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, old.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, jpegPath, old)
+
+	monthDir := filepath.Join(dir, "cam1", old.Format("2006/01"))
+	yearDir := filepath.Join(dir, "cam1", old.Format("2006"))
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(monthDir); !os.IsNotExist(err) {
+		t.Error("diretório do mês deveria ter sido removido — único dia dentro dele já esvaziou")
+	}
+	if _, err := os.Stat(yearDir); !os.IsNotExist(err) {
+		t.Error("diretório do ano deveria ter sido removido — único mês dentro dele já esvaziou")
+	}
+}
+
+// Mês com outro dia ainda ativo (dentro da retenção) não é removido, mesmo
+// que o dia antigo dentro dele já tenha esvaziado e sumido.
+func TestClean_KeepsMonthDirWithAnotherActiveDay(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	oldDayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	oldJpegPath := filepath.Join(oldDayDir, old.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, oldJpegPath, old)
+
+	recent := time.Now().UTC().Add(-1 * time.Hour)
+	recentDayDir := filepath.Join(dir, "cam1", recent.Format("2006/01/02"))
+	recentMP4Path := filepath.Join(recentDayDir, recent.Format("20060102150405")+".mp4")
+	writeFile(t, recentMP4Path, recent)
+
+	monthDir := filepath.Join(dir, "cam1", old.Format("2006/01"))
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(oldDayDir); !os.IsNotExist(err) {
+		t.Error("diretório do dia antigo deveria ter sido removido")
+	}
+	// Só verifica a preservação do mês se old e recent caírem no mesmo mês
+	// (podem não cair, dependendo de quando o teste roda perto da virada).
+	if old.Format("2006/01") == recent.Format("2006/01") {
+		if _, err := os.Stat(monthDir); err != nil {
+			t.Errorf("diretório do mês não deveria ter sido removido — ainda tem o dia recente: %v", err)
+		}
+	}
+}
+
 // A varredura também remove _frame.jpg órfão (companion do _motion.jpg,
 // internal/motion/detector.go) — mesmo diretório-sem-mp4 pode ter só o
 // _frame.jpg sobrando (achado real: seu _motion.jpg já foi purgado por outro

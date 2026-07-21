@@ -857,16 +857,34 @@ func (c *Cleaner) sweepOrphanedMotionDirs() {
 					}
 					c.sweepMotionDayDir(filepath.Join(monthDir, dayEntry.Name()))
 				}
+				removeDirIfEmpty(monthDir, c.log)
 			}
+			removeDirIfEmpty(yearDir, c.log)
 		}
+	}
+}
+
+// removeDirIfEmpty removes dir if it has no entries left. Used to prune
+// {year}/{month}/{day} directories once every day (or every .mp4/jpg within a
+// day) underneath them has been cleaned up — otherwise the filesystem
+// accumulates an ever-growing tree of empty directories even after their
+// content is gone.
+func removeDirIfEmpty(dir string, log *slog.Logger) {
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) > 0 {
+		return
+	}
+	if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
+		log.Warn("failed to remove empty directory", "dir", dir, "err", err)
 	}
 }
 
 // sweepMotionDayDir removes leftover _motion.jpg (and their _frame.jpg
 // companion, the clean unannotated frame saved alongside by
 // internal/motion/detector.go — never tracked in the DB, only derivable by
-// suffix) from a day directory that no longer has any .mp4 in it. Never
-// touches a directory still holding a chunk, closed or not.
+// suffix) from a day directory that no longer has any .mp4 in it, then
+// removes the directory itself if that leaves it empty. Never touches a
+// directory still holding a chunk, closed or not.
 func (c *Cleaner) sweepMotionDayDir(dir string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -894,6 +912,7 @@ func (c *Cleaner) sweepMotionDayDir(dir string) {
 			c.log.Warn("failed to remove orphaned motion jpeg", "path", path, "err", err)
 		}
 	}
+	removeDirIfEmpty(dir, c.log)
 }
 
 // AnalyzeNew runs one pass of YOLO analysis over recordings not yet analyzed.
