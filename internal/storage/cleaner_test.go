@@ -1212,6 +1212,54 @@ func TestSyncRecordings_RemovesCorruptRecordingAlreadyInDB(t *testing.T) {
 	}
 }
 
+// TestSyncRecordings_CorruptChunkPurgesMotionAssets verifica que descartar um
+// chunk corrompido (moov atom ausente) também purga o motion_event e o
+// _motion.jpg cuja janela caía dentro daquele chunk — sem isso o evento fica
+// órfão pra sempre, já que nada mais volta a revisitar aquele arquivo depois
+// que a linha de motion_events some do banco (CA2).
+func TestSyncRecordings_CorruptChunkPurgesMotionAssets(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+
+	// pathA: corrompido (sem moov atom), tem sucessor conhecido (pathB) —
+	// syncRecordings descarta pathA como corrupto.
+	pathA := mp4WithTimestamp(dir, "cam1", base)
+	writeCorruptMP4(t, pathA, base)
+
+	pathB := mp4WithTimestamp(dir, "cam1", base.Add(30*time.Second))
+	writeFile(t, pathB, base.Add(30*time.Second))
+
+	// evento de movimento com frame_path dentro da janela de pathA.
+	evTime := base.Add(10 * time.Second)
+	jpegName := evTime.UTC().Format("20060102150405") + "_motion.jpg"
+	jpegPath := filepath.Join(filepath.Dir(pathA), jpegName)
+	writeFile(t, jpegPath, evTime)
+
+	if _, err := database.Exec(
+		`INSERT INTO motion_events(camera_id, occurred_at, score, frame_path) VALUES(?,?,?,?)`,
+		"cam1", evTime.UTC().Format(time.RFC3339), 0.1, jpegName,
+	); err != nil {
+		t.Fatalf("insert motion event: %v", err)
+	}
+
+	storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(pathA); !os.IsNotExist(err) {
+		t.Error("corrupt pathA should have been deleted from disk")
+	}
+	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
+		t.Error("_motion.jpg do evento dentro do chunk corrompido deveria ter sido purgado junto")
+	}
+	var count int
+	database.QueryRow(`SELECT COUNT(*) FROM motion_events WHERE camera_id='cam1'`).Scan(&count)
+	if count != 0 {
+		t.Errorf("motion_events deveria estar vazio após purge do chunk corrompido, mas tem %d linhas", count)
+	}
+}
+
 func TestAnalyzeNewRecordings_DisabledDoesNotLog(t *testing.T) {
 	dir := t.TempDir()
 	database := openTestDB(t)

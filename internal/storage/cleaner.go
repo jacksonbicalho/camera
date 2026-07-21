@@ -220,6 +220,7 @@ func (c *Cleaner) syncRecordings() {
 					if err := db.DeleteRecording(c.db, fullPath); err != nil {
 						c.log.Warn("failed to delete corrupt recording from db", "path", fullPath, "err", err)
 					}
+					c.purgeMotionAssets(fullPath, chunkStart, chunkEnd)
 				}
 				continue
 			}
