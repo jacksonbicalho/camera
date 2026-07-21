@@ -2729,6 +2729,74 @@ func TestDeleteRecordingCleansMotionEvents(t *testing.T) {
 	}
 }
 
+// handleDeleteRecording já limpava as linhas de motion_events, mas nunca
+// removia os JPEGs correspondentes (nem _motion.jpg, nem seu companion
+// _frame.jpg) — diferente de purgeMotionAssets (internal/storage), que lista
+// os eventos ANTES de apagar as linhas, exatamente pra poder resolver os
+// arquivos. Achado ao investigar T8/T9 contra um ambiente real: excluir uma
+// gravação manualmente pela UI deixava os jpgs do evento órfãos pra sempre
+// (o diretório do dia normalmente ainda tem outros chunks .mp4 irmãos, então
+// a varredura best-effort do T2 — que só age quando o diretório inteiro não
+// tem nenhum .mp4 — nunca alcança esse vazamento).
+func TestDeleteRecordingRemovesMotionJPEGs(t *testing.T) {
+	tmpDir := t.TempDir()
+	cameraID := "cam1"
+	filename := "20260511100000.mp4"
+	dateDir := filepath.Join(tmpDir, cameraID, "2026", "05", "11")
+	if err := os.MkdirAll(dateDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dateDir, filename), []byte("fake"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	database := openServerTestDB(t)
+	if _, err := db.CreateCamera(database, config.CameraConfig{ID: cameraID}, nil); err != nil {
+		t.Fatal(err)
+	}
+	chunkStart := time.Date(2026, 5, 11, 10, 0, 0, 0, time.UTC)
+	evTime := chunkStart.Add(time.Minute)
+	jpegName := evTime.UTC().Format("20060102150405") + "_motion.jpg"
+	jpegPath := filepath.Join(dateDir, jpegName)
+	framePath := filepath.Join(dateDir, evTime.UTC().Format("20060102150405")+"_frame.jpg")
+	if err := os.WriteFile(jpegPath, []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(framePath, []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.InsertMotionEvent(database, db.MotionEvent{
+		CameraID:   cameraID,
+		OccurredAt: evTime,
+		Score:      0.05,
+		FramePath:  jpegName,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := db.CreateUser(database, "u", "p", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.ServerConfig{RecordingsPath: tmpDir}
+	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{{ID: cameraID}}, discardLogger(), nil).WithDB(database)
+	token := loginAndGetToken(t, srv, "u", "p")
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/cameras/"+cameraID+"/recordings/"+filename, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
+		t.Error("_motion.jpg deveria ter sido removido junto com a gravação")
+	}
+	if _, err := os.Stat(framePath); !os.IsNotExist(err) {
+		t.Error("_frame.jpg companion deveria ter sido removido junto")
+	}
+}
+
 func TestDeleteRecordingCleansMotionEventsUsingActualEndedAt(t *testing.T) {
 	tmpDir := t.TempDir()
 	cameraID := "cam1"

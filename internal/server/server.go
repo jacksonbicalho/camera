@@ -1250,6 +1250,14 @@ func (s *Server) handleDeleteRecording(w http.ResponseWriter, r *http.Request) {
 		if actualEnd, err := db.EndedAtByStartedAt(s.db, id, chunkStart); err == nil && !actualEnd.IsZero() {
 			chunkEnd = actualEnd
 		}
+		// List before delete so the JPEGs (frame_path + its _frame.jpg
+		// companion) can still be resolved — DeleteMotionEventsInRange alone
+		// only clears the DB rows, leaving the files orphaned on disk forever.
+		if events, err := db.ListMotionEvents(s.db, id, chunkStart, chunkEnd); err != nil {
+			s.log.Warn("failed to list motion events before recording deletion", "camera", id, "err", err)
+		} else {
+			storage.RemoveMotionEventJPEGs(s.cfg.RecordingsPath, s.log, events)
+		}
 		if err := db.DeleteMotionEventsInRange(s.db, id, chunkStart, chunkEnd); err != nil {
 			s.log.Warn("failed to clean motion events after recording deletion", "camera", id, "err", err)
 		}

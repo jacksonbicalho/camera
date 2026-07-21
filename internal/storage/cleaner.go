@@ -453,25 +453,34 @@ func (c *Cleaner) purgeMotionAssets(path string, startedAt, endedAt time.Time) {
 	}
 }
 
-// removeEventJPEGs deletes the snapshot JPEG of each event from disk, resolving
-// the path from the camera, the UTC day and frame_path, plus its companion
-// clean frame (_frame.jpg, saved alongside by internal/motion/detector.go for
-// the carousel picker — never tracked in the DB itself, only derivable by
-// replacing the _motion.jpg suffix). Missing files are ignored.
+// removeEventJPEGs deletes the snapshot JPEG of each event from disk, plus its
+// companion clean frame. See RemoveMotionEventJPEGs.
 func (c *Cleaner) removeEventJPEGs(events []db.MotionEvent) {
+	RemoveMotionEventJPEGs(c.storagePath, c.log, events)
+}
+
+// RemoveMotionEventJPEGs deletes the snapshot JPEG of each event from disk,
+// resolving the path from the camera, the UTC day and frame_path, plus its
+// companion clean frame (_frame.jpg, saved alongside by
+// internal/motion/detector.go for the carousel picker — never tracked in the
+// DB itself, only derivable by replacing the _motion.jpg suffix). Missing
+// files are ignored. Exported so callers outside this package (one-off
+// recording/event deletes in internal/server) reuse the same logic instead of
+// each duplicating (and potentially missing) the _frame.jpg companion.
+func RemoveMotionEventJPEGs(storagePath string, log *slog.Logger, events []db.MotionEvent) {
 	for _, ev := range events {
 		if ev.FramePath == "" {
 			continue
 		}
 		dayDir := ev.OccurredAt.UTC().Format("2006/01/02")
-		jpegPath := filepath.Join(c.storagePath, ev.CameraID, filepath.FromSlash(dayDir), ev.FramePath)
+		jpegPath := filepath.Join(storagePath, ev.CameraID, filepath.FromSlash(dayDir), ev.FramePath)
 		if err := os.Remove(jpegPath); err != nil && !os.IsNotExist(err) {
-			c.log.Warn("failed to delete motion jpeg", "path", jpegPath, "err", err)
+			log.Warn("failed to delete motion jpeg", "path", jpegPath, "err", err)
 		}
 		if strings.HasSuffix(jpegPath, "_motion.jpg") {
 			framePath := strings.TrimSuffix(jpegPath, "_motion.jpg") + "_frame.jpg"
 			if err := os.Remove(framePath); err != nil && !os.IsNotExist(err) {
-				c.log.Warn("failed to delete clean frame jpeg", "path", framePath, "err", err)
+				log.Warn("failed to delete clean frame jpeg", "path", framePath, "err", err)
 			}
 		}
 	}

@@ -303,9 +303,8 @@ func TestBulkDeleteEvents_DeletesRows(t *testing.T) {
 // Excluir eventos em lote (DELETE /api/events/bulk) apaga não só o _motion.jpg
 // (já coberto) como também o _frame.jpg companion (frame limpo, salvo no
 // mesmo instante por internal/motion/detector.go, nunca rastreado no banco —
-// só derivável por sufixo). Esse handler tem seu próprio código de remoção de
-// arquivo (não reaproveita internal/storage.removeEventJPEGs), então precisa
-// do mesmo tratamento em separado.
+// só derivável por sufixo), via storage.RemoveMotionEventJPEGs (T10 —
+// consolidou o código de remoção de arquivo que antes vivia duplicado aqui).
 func TestBulkDeleteEvents_RemovesCleanFrameCompanion(t *testing.T) {
 	database := openServerTestDB(t)
 	if _, err := db.CreateUser(database, "master", "secret", "admin", false); err != nil {
