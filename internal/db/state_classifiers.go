@@ -398,6 +398,28 @@ func ListCameraStateTransitions(database *DB, cameraID string, start, end time.T
 	return out, rows.Err()
 }
 
+// ListStateClassifierIDs returns the ids of every classifier that currently
+// exists, across all cameras — used to tell apart live vs. orphaned disk
+// directories (state_history/state_samples), which are keyed by classifier id
+// but don't carry a FK back to the DB row.
+func ListStateClassifierIDs(database *DB) ([]int64, error) {
+	rows, err := database.Query(`SELECT id FROM camera_state_classifiers`)
+	if err != nil {
+		return nil, fmt.Errorf("list state classifier ids: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // GetCurrentState returns the latest state of a classifier, or nil when none yet.
 func GetCurrentState(database *DB, classifierID int64) (*stateclass.State, error) {
 	row := database.QueryRow(

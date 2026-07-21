@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"camera/internal/analysis"
 	"camera/internal/config"
 	"camera/internal/db"
+	"camera/internal/stateclass"
 	"camera/internal/storage"
 )
 
@@ -1400,6 +1402,53 @@ func TestClean_DoesNotSweepDirWithMP4Present(t *testing.T) {
 
 	if _, err := os.Stat(jpegPath); err != nil {
 		t.Errorf("jpg num diretório com .mp4 presente não deveria ter sido removido: %v", err)
+	}
+}
+
+// TestClean_SweepsOrphanedStateHistoryDirs: varredura retroativa — um
+// diretório state_history/state_samples cujo {cid} não existe mais em
+// camera_state_classifiers (classificador já excluído) é removido; o
+// diretório do classificador ainda vivo não é tocado (parte do T3, junto do
+// os.RemoveAll explícito em handleStateClassifierDelete — cobre o backlog já
+// órfão hoje e qualquer futuro delete que escape do caminho da API).
+func TestClean_SweepsOrphanedStateHistoryDirs(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
+		CameraID: "cam1", Name: "Portão", Model: "custom-cls-1", Threshold: 0.8,
+		TriggerMotion: true, MinConsecutive: 1, Enabled: true,
+		Classes: []string{"aberto", "fechado"},
+	})
+	if err != nil {
+		t.Fatalf("CreateStateClassifier: %v", err)
+	}
+	cidStr := strconv.FormatInt(cid, 10)
+
+	liveHistory := filepath.Join(dir, "state_history", cidStr, "1.jpg")
+	orphanHistory := filepath.Join(dir, "state_history", "999", "1.jpg")
+	liveSamples := filepath.Join(dir, "state_samples", cidStr, "aberto", "1.jpg")
+	orphanSamples := filepath.Join(dir, "state_samples", "999", "aberto", "1.jpg")
+	now := time.Now()
+	writeFile(t, liveHistory, now)
+	writeFile(t, orphanHistory, now)
+	writeFile(t, liveSamples, now)
+	writeFile(t, orphanSamples, now)
+
+	storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(liveHistory); err != nil {
+		t.Errorf("state_history do classificador vivo não deveria ter sido removido: %v", err)
+	}
+	if _, err := os.Stat(liveSamples); err != nil {
+		t.Errorf("state_samples do classificador vivo não deveria ter sido removido: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "state_history", "999")); !os.IsNotExist(err) {
+		t.Error("state_history de classificador já excluído deveria ter sido removido")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "state_samples", "999")); !os.IsNotExist(err) {
+		t.Error("state_samples de classificador já excluído deveria ter sido removido")
 	}
 }
 

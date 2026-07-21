@@ -679,8 +679,46 @@ func (c *Cleaner) Clean() {
 		c.cleanFromDB()
 		c.purgeOrphanEvents()
 		c.sweepOrphanedMotionDirs()
+		c.sweepOrphanedStateDirs()
 	} else {
 		c.cleanFromFS()
+	}
+}
+
+// sweepOrphanedStateDirs removes state_history/{cid} and state_samples/{cid}
+// directories whose classifier no longer exists in camera_state_classifiers.
+// Covers both the backlog left by classifiers deleted before
+// handleStateClassifierDelete cleaned up disk, and any future delete path
+// that bypasses that handler (e.g. a direct DB delete).
+func (c *Cleaner) sweepOrphanedStateDirs() {
+	ids, err := db.ListStateClassifierIDs(c.db)
+	if err != nil {
+		c.log.Warn("failed to list state classifier ids", "err", err)
+		return
+	}
+	live := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		live[strconv.FormatInt(id, 10)] = true
+	}
+
+	for _, sub := range []string{"state_history", "state_samples"} {
+		base := filepath.Join(c.storagePath, sub)
+		entries, err := os.ReadDir(base)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() || live[e.Name()] {
+				continue
+			}
+			if _, err := strconv.ParseInt(e.Name(), 10, 64); err != nil {
+				continue // not a classifier id — leave unrecognized dirs alone
+			}
+			dir := filepath.Join(base, e.Name())
+			if err := os.RemoveAll(dir); err != nil {
+				c.log.Warn("failed to remove orphaned classifier dir", "dir", dir, "err", err)
+			}
+		}
 	}
 }
 
