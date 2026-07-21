@@ -905,6 +905,50 @@ func TestClean_PurgesMotionJPEGsOnDelete(t *testing.T) {
 	}
 }
 
+// TestClean_PurgesCleanFrameCompanionOnDelete: todo evento de movimento salva
+// DOIS jpgs no mesmo instante — o `_motion.jpg` anotado (com bbox/score,
+// rastreado em motion_events.frame_path) e um `_frame.jpg` limpo, companion,
+// usado pelo picker do carrossel (internal/motion/detector.go, saveSnapshot)
+// — mas o `_frame.jpg` NUNCA é gravado no banco, só existe em disco. Purgar o
+// evento via purgeMotionAssets/removeEventJPEGs só removia o `_motion.jpg`,
+// deixando o `_frame.jpg` companion órfão pra sempre (achado real: diretórios
+// de 20+ dias cheios só de `_frame.jpg`, reportado pelo navigator).
+func TestClean_PurgesCleanFrameCompanionOnDelete(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCameraWithMotion(t, database, "cam1", 0, 0)
+
+	base := time.Now().UTC().Add(-120 * time.Minute).Truncate(time.Second)
+	pathA := mp4WithTimestamp(dir, "cam1", base)
+	pathB := mp4WithTimestamp(dir, "cam1", base.Add(time.Minute))
+	writeFile(t, pathA, base)
+	writeFile(t, pathB, base.Add(time.Minute))
+
+	evTime := base.Add(10 * time.Second)
+	jpegName := evTime.UTC().Format("20060102150405") + "_motion.jpg"
+	jpegPath := filepath.Join(filepath.Dir(pathA), jpegName)
+	framePath := filepath.Join(filepath.Dir(pathA), evTime.UTC().Format("20060102150405")+"_frame.jpg")
+	writeFile(t, jpegPath, evTime)
+	writeFile(t, framePath, evTime)
+
+	_, err := database.Exec(
+		`INSERT INTO motion_events(camera_id, occurred_at, score, frame_path) VALUES(?,?,?,?)`,
+		"cam1", evTime.UTC().Format(time.RFC3339), 0.1, jpegName,
+	)
+	if err != nil {
+		t.Fatalf("insert motion event: %v", err)
+	}
+
+	storage.New(dir, 60, 60, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
+		t.Error("_motion.jpg deve ser apagado junto com a gravação")
+	}
+	if _, err := os.Stat(framePath); !os.IsNotExist(err) {
+		t.Error("_frame.jpg companion deve ser apagado junto com o _motion.jpg")
+	}
+}
+
 // TestSyncRecordings_ResetsHasMotionWhenEventsDeleted verifica que syncRecordings
 // reseta has_motion=0 para gravações cujos eventos foram deletados fora do ciclo
 // normal de limpeza (ex: via bulk delete pela API).
@@ -1361,6 +1405,28 @@ func TestClean_SweepsOrphanedMotionJPEGsOlderThanRetention(t *testing.T) {
 
 	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
 		t.Error("jpg órfão mais velho que a retenção com-movimento deveria ter sido removido pela varredura")
+	}
+}
+
+// A varredura também remove _frame.jpg órfão (companion do _motion.jpg,
+// internal/motion/detector.go) — mesmo diretório-sem-mp4 pode ter só o
+// _frame.jpg sobrando (achado real: seu _motion.jpg já foi purgado por outro
+// caminho, mas nada nunca soube limpar o companion, já que ele não tem
+// nenhuma linha própria no banco).
+func TestClean_SweepsOrphanedCleanFrameJPEGsOlderThanRetention(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	framePath := filepath.Join(dayDir, old.Format("20060102150405")+"_frame.jpg")
+	writeFile(t, framePath, old)
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(framePath); !os.IsNotExist(err) {
+		t.Error("_frame.jpg órfão mais velho que a retenção com-movimento deveria ter sido removido pela varredura")
 	}
 }
 

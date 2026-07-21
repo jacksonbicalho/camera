@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -295,6 +297,74 @@ func TestBulkDeleteEvents_DeletesRows(t *testing.T) {
 	n, _ := db.CountMotionEvents(database, "cam1")
 	if n != 1 {
 		t.Errorf("expected 1 remaining, got %d", n)
+	}
+}
+
+// Excluir eventos em lote (DELETE /api/events/bulk) apaga não só o _motion.jpg
+// (já coberto) como também o _frame.jpg companion (frame limpo, salvo no
+// mesmo instante por internal/motion/detector.go, nunca rastreado no banco —
+// só derivável por sufixo). Esse handler tem seu próprio código de remoção de
+// arquivo (não reaproveita internal/storage.removeEventJPEGs), então precisa
+// do mesmo tratamento em separado.
+func TestBulkDeleteEvents_RemovesCleanFrameCompanion(t *testing.T) {
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "master", "secret", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CreateCamera(database, config.CameraConfig{ID: "cam1"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	storagePath := t.TempDir()
+
+	occurredAt := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	jpegName := occurredAt.Format("20060102150405") + "_motion.jpg"
+	if err := db.InsertMotionEvent(database, db.MotionEvent{
+		CameraID:   "cam1",
+		OccurredAt: occurredAt,
+		Score:      0.5,
+		FramePath:  jpegName,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	events, _ := db.ListMotionEvents(database, "cam1", occurredAt, occurredAt.Add(time.Hour))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+
+	dayDir := filepath.Join(storagePath, "cam1", occurredAt.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, jpegName)
+	framePath := filepath.Join(dayDir, occurredAt.Format("20060102150405")+"_frame.jpg")
+	if err := os.MkdirAll(dayDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(jpegPath, []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(framePath, []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.ServerConfig{}
+	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{{ID: "cam1"}}, discardLogger(), nil).
+		WithDB(database).
+		WithStorageConfig(config.StorageConfig{Path: storagePath})
+	token := loginAndGetToken(t, srv, "master", "secret")
+
+	body := fmt.Sprintf(`{"ids":[%d]}`, events[0].ID)
+	req := httptest.NewRequest(http.MethodDelete, "/api/events/bulk", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
+		t.Error("_motion.jpg deveria ter sido removido")
+	}
+	if _, err := os.Stat(framePath); !os.IsNotExist(err) {
+		t.Error("_frame.jpg companion deveria ter sido removido junto")
 	}
 }
 

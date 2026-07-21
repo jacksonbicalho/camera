@@ -454,7 +454,10 @@ func (c *Cleaner) purgeMotionAssets(path string, startedAt, endedAt time.Time) {
 }
 
 // removeEventJPEGs deletes the snapshot JPEG of each event from disk, resolving
-// the path from the camera, the UTC day and frame_path. Missing files are ignored.
+// the path from the camera, the UTC day and frame_path, plus its companion
+// clean frame (_frame.jpg, saved alongside by internal/motion/detector.go for
+// the carousel picker — never tracked in the DB itself, only derivable by
+// replacing the _motion.jpg suffix). Missing files are ignored.
 func (c *Cleaner) removeEventJPEGs(events []db.MotionEvent) {
 	for _, ev := range events {
 		if ev.FramePath == "" {
@@ -464,6 +467,12 @@ func (c *Cleaner) removeEventJPEGs(events []db.MotionEvent) {
 		jpegPath := filepath.Join(c.storagePath, ev.CameraID, filepath.FromSlash(dayDir), ev.FramePath)
 		if err := os.Remove(jpegPath); err != nil && !os.IsNotExist(err) {
 			c.log.Warn("failed to delete motion jpeg", "path", jpegPath, "err", err)
+		}
+		if strings.HasSuffix(jpegPath, "_motion.jpg") {
+			framePath := strings.TrimSuffix(jpegPath, "_motion.jpg") + "_frame.jpg"
+			if err := os.Remove(framePath); err != nil && !os.IsNotExist(err) {
+				c.log.Warn("failed to delete clean frame jpeg", "path", framePath, "err", err)
+			}
 		}
 	}
 }
@@ -844,9 +853,11 @@ func (c *Cleaner) sweepOrphanedMotionDirs() {
 	}
 }
 
-// sweepMotionDayDir removes leftover _motion.jpg files from a day directory
-// that no longer has any .mp4 in it. Never touches a directory still holding
-// a chunk, closed or not.
+// sweepMotionDayDir removes leftover _motion.jpg (and their _frame.jpg
+// companion, the clean unannotated frame saved alongside by
+// internal/motion/detector.go — never tracked in the DB, only derivable by
+// suffix) from a day directory that no longer has any .mp4 in it. Never
+// touches a directory still holding a chunk, closed or not.
 func (c *Cleaner) sweepMotionDayDir(dir string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -861,7 +872,7 @@ func (c *Cleaner) sweepMotionDayDir(dir string) {
 		switch {
 		case filepath.Ext(e.Name()) == ".mp4":
 			hasMP4 = true
-		case strings.HasSuffix(e.Name(), "_motion.jpg"):
+		case strings.HasSuffix(e.Name(), "_motion.jpg"), strings.HasSuffix(e.Name(), "_frame.jpg"):
 			jpegs = append(jpegs, e.Name())
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"camera/internal/db"
@@ -238,6 +239,15 @@ func (s *Server) handleBulkDeleteEvents(w http.ResponseWriter, r *http.Request) 
 			p := filepath.Join(s.storageCfg.Path, ev.CameraID, filepath.FromSlash(day), ev.FramePath)
 			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 				s.log.Warn("delete motion jpeg", "path", p, "err", err)
+			}
+			// Frame limpo companion (sem box/score), salvo no mesmo instante por
+			// internal/motion/detector.go — nunca rastreado no banco, só
+			// derivável trocando o sufixo do _motion.jpg.
+			if strings.HasSuffix(p, "_motion.jpg") {
+				framePath := strings.TrimSuffix(p, "_motion.jpg") + "_frame.jpg"
+				if err := os.Remove(framePath); err != nil && !os.IsNotExist(err) {
+					s.log.Warn("delete clean frame jpeg", "path", framePath, "err", err)
+				}
 			}
 		}
 	}
