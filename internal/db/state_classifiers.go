@@ -420,6 +420,44 @@ func ListStateClassifierIDs(database *DB) ([]int64, error) {
 	return ids, rows.Err()
 }
 
+// PurgeStateHistoryOlderThan deletes camera_state_history rows of the given
+// classifier older than cutoff, returning the frame_path of each deleted row
+// that had one (empty ones excluded) so the caller can remove the backing
+// JPEGs from disk.
+func PurgeStateHistoryOlderThan(database *DB, classifierID int64, cutoff time.Time) ([]string, error) {
+	cutoffStr := cutoff.UTC().Format("2006-01-02 15:04:05")
+
+	rows, err := database.Query(
+		`SELECT frame_path FROM camera_state_history
+		 WHERE classifier_id = ? AND datetime(changed_at) < datetime(?) AND frame_path != ''`,
+		classifierID, cutoffStr,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("select state history: %w", err)
+	}
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if _, err := database.Exec(
+		`DELETE FROM camera_state_history WHERE classifier_id = ? AND datetime(changed_at) < datetime(?)`,
+		classifierID, cutoffStr,
+	); err != nil {
+		return nil, fmt.Errorf("delete state history: %w", err)
+	}
+	return paths, nil
+}
+
 // GetCurrentState returns the latest state of a classifier, or nil when none yet.
 func GetCurrentState(database *DB, classifierID int64) (*stateclass.State, error) {
 	row := database.QueryRow(

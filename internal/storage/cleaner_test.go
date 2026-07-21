@@ -1452,6 +1452,67 @@ func TestClean_SweepsOrphanedStateHistoryDirs(t *testing.T) {
 	}
 }
 
+// TestCleaner_PurgesStateHistoryOlderThanGlobalRetention: a rotina de purge
+// remove do banco e do disco as transições de camera_state_history mais
+// velhas que storage.state_history_minutes (config global, mesmo padrão de
+// with_motion_minutes/without_motion_minutes), preservando as mais recentes
+// que a janela (CA5).
+func TestCleaner_PurgesStateHistoryOlderThanGlobalRetention(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
+		CameraID: "cam1", Name: "Portão", Model: "custom-cls-1", Threshold: 0.8,
+		TriggerMotion: true, MinConsecutive: 1, Enabled: true,
+		Classes: []string{"aberto", "fechado"},
+	})
+	if err != nil {
+		t.Fatalf("CreateStateClassifier: %v", err)
+	}
+	cidStr := strconv.FormatInt(cid, 10)
+
+	if err := db.SetConfig(database, "storage.state_history_minutes", "60"); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	oldFrame := "/recordings/state_history/" + cidStr + "/old.jpg"
+	recentFrame := "/recordings/state_history/" + cidStr + "/recent.jpg"
+	oldPath := filepath.Join(dir, "state_history", cidStr, "old.jpg")
+	recentPath := filepath.Join(dir, "state_history", cidStr, "recent.jpg")
+	writeFile(t, oldPath, time.Now())
+	writeFile(t, recentPath, time.Now())
+
+	oldChanged := time.Now().UTC().Add(-2 * time.Hour).Format("2006-01-02 15:04:05")
+	recentChanged := time.Now().UTC().Add(-1 * time.Minute).Format("2006-01-02 15:04:05")
+	if _, err := database.Exec(
+		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?,?,?,?,?)`,
+		cid, "aberto", 0.9, oldFrame, oldChanged,
+	); err != nil {
+		t.Fatalf("insert old history: %v", err)
+	}
+	if _, err := database.Exec(
+		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?,?,?,?,?)`,
+		cid, "fechado", 0.9, recentFrame, recentChanged,
+	); err != nil {
+		t.Fatalf("insert recent history: %v", err)
+	}
+
+	storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Error("jpg da transição mais velha que a janela deveria ter sido removido")
+	}
+	if _, err := os.Stat(recentPath); err != nil {
+		t.Errorf("jpg da transição dentro da janela não deveria ter sido removido: %v", err)
+	}
+	var count int
+	database.QueryRow(`SELECT COUNT(*) FROM camera_state_history WHERE classifier_id=?`, cid).Scan(&count)
+	if count != 1 {
+		t.Errorf("esperava 1 linha de camera_state_history após purge (a recente), got %d", count)
+	}
+}
+
 // Ao cruzar o limite de Alerta(%), cada admin recebe uma notificação; viewers não.
 // Edge-triggered: não duplica enquanto continua acima.
 func TestCheckSize_NotifiesAdminsOnThresholdCrossing(t *testing.T) {

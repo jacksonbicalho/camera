@@ -690,7 +690,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			"recordings_path": s.cfg.RecordingsPath,
 		},
 		"storage": func() map[string]any {
-			wm, wom, interval, maxGB, warnPct := s.effectiveStorageSettings()
+			wm, wom, interval, maxGB, warnPct, stateHistory := s.effectiveStorageSettings()
 			return map[string]any{
 				"path":                   s.storageCfg.Path,
 				"with_motion_minutes":    wm,
@@ -698,6 +698,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 				"interval_minutes":       interval,
 				"max_size_gb":            maxGB,
 				"warn_percent":           warnPct,
+				"state_history_minutes":  stateHistory,
 			}
 		}(),
 		"defaults": map[string]any{
@@ -1294,7 +1295,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		diskTotal, diskFree = diskStats(s.cfg.RecordingsPath)
 	}
 
-	_, _, _, maxGB, warnPct := s.effectiveStorageSettings()
+	_, _, _, maxGB, warnPct, _ := s.effectiveStorageSettings()
 	maxSizeBytes := int64(maxGB * 1024 * 1024 * 1024)
 
 	chunkSec := int64(config.DefaultChunkDuration.Seconds())

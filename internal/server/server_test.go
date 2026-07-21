@@ -1962,6 +1962,48 @@ func TestGetSettingsReturnsFullConfig(t *testing.T) {
 	}
 }
 
+// PUT /api/settings/storage aceita e persiste state_history_minutes
+// isoladamente (sem exigir os outros campos), e o valor volta tanto na
+// resposta do PUT quanto no GET /api/settings subsequente — os demais campos
+// de storage mantêm seus defaults, confirmando que é um update parcial.
+func TestUpdateStorageSettings_PersistsStateHistoryMinutes(t *testing.T) {
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
+	token := loginAndGetToken(t, srv, "admin", "pw")
+
+	w := doJSON(t, srv, http.MethodPut, "/api/settings/storage", token, map[string]any{
+		"state_history_minutes": 43200,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("PUT storage: %d %s", w.Code, w.Body.String())
+	}
+	var putResp struct {
+		StateHistoryMinutes int `json:"state_history_minutes"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &putResp)
+	if putResp.StateHistoryMinutes != 43200 {
+		t.Fatalf("PUT response: expected state_history_minutes 43200, got %d", putResp.StateHistoryMinutes)
+	}
+
+	w = doJSON(t, srv, http.MethodGet, "/api/settings", token, nil)
+	var getResp struct {
+		Storage struct {
+			StateHistoryMinutes int `json:"state_history_minutes"`
+			WithMotionMinutes   int `json:"with_motion_minutes"`
+		} `json:"storage"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &getResp)
+	if getResp.Storage.StateHistoryMinutes != 43200 {
+		t.Fatalf("GET storage.state_history_minutes: expected 43200, got %d", getResp.Storage.StateHistoryMinutes)
+	}
+	if getResp.Storage.WithMotionMinutes != 10080 {
+		t.Fatalf("GET storage.with_motion_minutes: expected default 10080 unchanged, got %d", getResp.Storage.WithMotionMinutes)
+	}
+}
+
 func TestGetSettingsIncludesDebugAndLog(t *testing.T) {
 	cfg := config.ServerConfig{}
 	logCfg := config.LogConfig{Output: "file", Path: "/var/log/camera"}

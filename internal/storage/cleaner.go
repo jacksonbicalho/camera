@@ -680,6 +680,7 @@ func (c *Cleaner) Clean() {
 		c.purgeOrphanEvents()
 		c.sweepOrphanedMotionDirs()
 		c.sweepOrphanedStateDirs()
+		c.purgeStateHistory()
 	} else {
 		c.cleanFromFS()
 	}
@@ -717,6 +718,58 @@ func (c *Cleaner) sweepOrphanedStateDirs() {
 			dir := filepath.Join(base, e.Name())
 			if err := os.RemoveAll(dir); err != nil {
 				c.log.Warn("failed to remove orphaned classifier dir", "dir", dir, "err", err)
+			}
+		}
+	}
+}
+
+// effectiveStateHistoryMinutes reads the storage.state_history_minutes DB
+// override, falling back to db.DefaultStorageSettings.StateHistoryMinutes
+// when the key is absent, unparseable, or there's no DB (mirrors
+// effectiveRetentionMinutes above).
+func (c *Cleaner) effectiveStateHistoryMinutes() int {
+	minutes := db.DefaultStorageSettings.StateHistoryMinutes
+	if c.db == nil {
+		return minutes
+	}
+	all, err := db.GetAllConfig(c.db)
+	if err != nil {
+		return minutes
+	}
+	if v, ok := all["storage.state_history_minutes"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			minutes = n
+		}
+	}
+	return minutes
+}
+
+// purgeStateHistory removes camera_state_history transitions (and their
+// backing JPEGs) older than storage.state_history_minutes, for every
+// classifier that currently exists. 0 disables the purge (keeps forever).
+func (c *Cleaner) purgeStateHistory() {
+	minutes := c.effectiveStateHistoryMinutes()
+	if minutes <= 0 {
+		return
+	}
+	cutoff := time.Now().UTC().Add(-time.Duration(minutes) * time.Minute)
+
+	ids, err := db.ListStateClassifierIDs(c.db)
+	if err != nil {
+		c.log.Warn("failed to list state classifier ids", "err", err)
+		return
+	}
+	for _, cid := range ids {
+		framePaths, err := db.PurgeStateHistoryOlderThan(c.db, cid, cutoff)
+		if err != nil {
+			c.log.Warn("failed to purge state history", "classifier_id", cid, "err", err)
+			continue
+		}
+		for _, fp := range framePaths {
+			rel := strings.TrimPrefix(fp, "/recordings/")
+			path := filepath.Join(c.storagePath, filepath.FromSlash(rel))
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				c.log.Warn("failed to remove state history jpeg", "path", path, "err", err)
 			}
 		}
 	}

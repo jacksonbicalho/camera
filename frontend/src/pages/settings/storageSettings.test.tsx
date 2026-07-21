@@ -21,6 +21,7 @@ vi.mock('../../hooks/useSettings', () => ({
         interval_minutes: 60,
         max_size_gb: 0,
         warn_percent: 90,
+        state_history_minutes: 129600,
       },
     },
     reload: vi.fn(),
