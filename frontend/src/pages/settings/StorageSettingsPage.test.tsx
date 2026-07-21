@@ -31,6 +31,7 @@ const settings = {
     interval_minutes: 60,
     max_size_gb: 100,
     warn_percent: 80,
+    state_history_minutes: 129600,
   },
   defaults: { chunk_duration: '10m', reconnect_interval: '5s' },
   cameras: [],

@@ -220,6 +220,7 @@ func (c *Cleaner) syncRecordings() {
 					if err := db.DeleteRecording(c.db, fullPath); err != nil {
 						c.log.Warn("failed to delete corrupt recording from db", "path", fullPath, "err", err)
 					}
+					c.purgeMotionAssets(fullPath, chunkStart, chunkEnd)
 				}
 				continue
 			}
@@ -452,17 +453,35 @@ func (c *Cleaner) purgeMotionAssets(path string, startedAt, endedAt time.Time) {
 	}
 }
 
-// removeEventJPEGs deletes the snapshot JPEG of each event from disk, resolving
-// the path from the camera, the UTC day and frame_path. Missing files are ignored.
+// removeEventJPEGs deletes the snapshot JPEG of each event from disk, plus its
+// companion clean frame. See RemoveMotionEventJPEGs.
 func (c *Cleaner) removeEventJPEGs(events []db.MotionEvent) {
+	RemoveMotionEventJPEGs(c.storagePath, c.log, events)
+}
+
+// RemoveMotionEventJPEGs deletes the snapshot JPEG of each event from disk,
+// resolving the path from the camera, the UTC day and frame_path, plus its
+// companion clean frame (_frame.jpg, saved alongside by
+// internal/motion/detector.go for the carousel picker — never tracked in the
+// DB itself, only derivable by replacing the _motion.jpg suffix). Missing
+// files are ignored. Exported so callers outside this package (one-off
+// recording/event deletes in internal/server) reuse the same logic instead of
+// each duplicating (and potentially missing) the _frame.jpg companion.
+func RemoveMotionEventJPEGs(storagePath string, log *slog.Logger, events []db.MotionEvent) {
 	for _, ev := range events {
 		if ev.FramePath == "" {
 			continue
 		}
 		dayDir := ev.OccurredAt.UTC().Format("2006/01/02")
-		jpegPath := filepath.Join(c.storagePath, ev.CameraID, filepath.FromSlash(dayDir), ev.FramePath)
+		jpegPath := filepath.Join(storagePath, ev.CameraID, filepath.FromSlash(dayDir), ev.FramePath)
 		if err := os.Remove(jpegPath); err != nil && !os.IsNotExist(err) {
-			c.log.Warn("failed to delete motion jpeg", "path", jpegPath, "err", err)
+			log.Warn("failed to delete motion jpeg", "path", jpegPath, "err", err)
+		}
+		if strings.HasSuffix(jpegPath, "_motion.jpg") {
+			framePath := strings.TrimSuffix(jpegPath, "_motion.jpg") + "_frame.jpg"
+			if err := os.Remove(framePath); err != nil && !os.IsNotExist(err) {
+				log.Warn("failed to delete clean frame jpeg", "path", framePath, "err", err)
+			}
 		}
 	}
 }
@@ -677,9 +696,223 @@ func (c *Cleaner) Clean() {
 		c.syncRecordings()
 		c.cleanFromDB()
 		c.purgeOrphanEvents()
+		c.sweepOrphanedMotionDirs()
+		c.sweepOrphanedStateDirs()
+		c.purgeStateHistory()
 	} else {
 		c.cleanFromFS()
 	}
+}
+
+// sweepOrphanedStateDirs removes state_history/{cid} and state_samples/{cid}
+// directories whose classifier no longer exists in camera_state_classifiers.
+// Covers both the backlog left by classifiers deleted before
+// handleStateClassifierDelete cleaned up disk, and any future delete path
+// that bypasses that handler (e.g. a direct DB delete).
+func (c *Cleaner) sweepOrphanedStateDirs() {
+	ids, err := db.ListStateClassifierIDs(c.db)
+	if err != nil {
+		c.log.Warn("failed to list state classifier ids", "err", err)
+		return
+	}
+	live := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		live[strconv.FormatInt(id, 10)] = true
+	}
+
+	for _, sub := range []string{"state_history", "state_samples"} {
+		base := filepath.Join(c.storagePath, sub)
+		entries, err := os.ReadDir(base)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() || live[e.Name()] {
+				continue
+			}
+			if _, err := strconv.ParseInt(e.Name(), 10, 64); err != nil {
+				continue // not a classifier id — leave unrecognized dirs alone
+			}
+			dir := filepath.Join(base, e.Name())
+			if err := os.RemoveAll(dir); err != nil {
+				c.log.Warn("failed to remove orphaned classifier dir", "dir", dir, "err", err)
+			}
+		}
+	}
+}
+
+// effectiveStateHistoryMinutes reads the storage.state_history_minutes DB
+// override, falling back to db.DefaultStorageSettings.StateHistoryMinutes
+// when the key is absent, unparseable, or there's no DB (mirrors
+// effectiveRetentionMinutes above).
+func (c *Cleaner) effectiveStateHistoryMinutes() int {
+	minutes := db.DefaultStorageSettings.StateHistoryMinutes
+	if c.db == nil {
+		return minutes
+	}
+	all, err := db.GetAllConfig(c.db)
+	if err != nil {
+		return minutes
+	}
+	if v, ok := all["storage.state_history_minutes"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			minutes = n
+		}
+	}
+	return minutes
+}
+
+// purgeStateHistory removes camera_state_history transitions (and their
+// backing JPEGs) older than the effective retention window of each
+// classifier: its own history_retention_minutes override when set (including
+// 0 = keep forever, just for that classifier), otherwise the global
+// storage.state_history_minutes default. A resolved window of 0 skips that
+// classifier (keeps forever).
+func (c *Cleaner) purgeStateHistory() {
+	globalMinutes := c.effectiveStateHistoryMinutes()
+
+	retentions, err := db.ListStateClassifierRetentions(c.db)
+	if err != nil {
+		c.log.Warn("failed to list state classifier retentions", "err", err)
+		return
+	}
+	for _, r := range retentions {
+		minutes := globalMinutes
+		if r.HistoryRetentionMinutes != nil {
+			minutes = *r.HistoryRetentionMinutes
+		}
+		if minutes <= 0 {
+			continue
+		}
+		cutoff := time.Now().UTC().Add(-time.Duration(minutes) * time.Minute)
+
+		framePaths, err := db.PurgeStateHistoryOlderThan(c.db, r.ID, cutoff)
+		if err != nil {
+			c.log.Warn("failed to purge state history", "classifier_id", r.ID, "err", err)
+			continue
+		}
+		for _, fp := range framePaths {
+			rel := strings.TrimPrefix(fp, "/recordings/")
+			path := filepath.Join(c.storagePath, filepath.FromSlash(rel))
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				c.log.Warn("failed to remove state history jpeg", "path", path, "err", err)
+			}
+		}
+	}
+}
+
+// sweepOrphanedMotionDirs is a filesystem-level safety net, independent of any
+// DB row: a {camera}/{year}/{month}/{day} directory that no longer has any
+// .mp4 (removed by any path, including a future bug that escapes
+// purgeMotionAssets/purgeOrphanEvents) but is older than the with-motion
+// retention window still gets its leftover _motion.jpg snapshots removed.
+func (c *Cleaner) sweepOrphanedMotionDirs() {
+	withMotion, _ := c.effectiveRetentionMinutes()
+	if withMotion <= 0 {
+		return
+	}
+	cutoff := time.Now().UTC().Add(-time.Duration(withMotion) * time.Minute)
+
+	cameraEntries, err := os.ReadDir(c.storagePath)
+	if err != nil {
+		return
+	}
+	for _, camEntry := range cameraEntries {
+		if !camEntry.IsDir() {
+			continue
+		}
+		camDir := filepath.Join(c.storagePath, camEntry.Name())
+		yearEntries, err := os.ReadDir(camDir)
+		if err != nil {
+			continue
+		}
+		for _, yearEntry := range yearEntries {
+			year, err := strconv.Atoi(yearEntry.Name())
+			if !yearEntry.IsDir() || err != nil || len(yearEntry.Name()) != 4 {
+				continue
+			}
+			yearDir := filepath.Join(camDir, yearEntry.Name())
+			monthEntries, err := os.ReadDir(yearDir)
+			if err != nil {
+				continue
+			}
+			for _, monthEntry := range monthEntries {
+				month, err := strconv.Atoi(monthEntry.Name())
+				if !monthEntry.IsDir() || err != nil {
+					continue
+				}
+				monthDir := filepath.Join(yearDir, monthEntry.Name())
+				dayEntries, err := os.ReadDir(monthDir)
+				if err != nil {
+					continue
+				}
+				for _, dayEntry := range dayEntries {
+					day, err := strconv.Atoi(dayEntry.Name())
+					if !dayEntry.IsDir() || err != nil {
+						continue
+					}
+					dayEnd := time.Date(year, time.Month(month), day, 23, 59, 59, 0, time.UTC)
+					if !dayEnd.Before(cutoff) {
+						continue
+					}
+					c.sweepMotionDayDir(filepath.Join(monthDir, dayEntry.Name()))
+				}
+				removeDirIfEmpty(monthDir, c.log)
+			}
+			removeDirIfEmpty(yearDir, c.log)
+		}
+	}
+}
+
+// removeDirIfEmpty removes dir if it has no entries left. Used to prune
+// {year}/{month}/{day} directories once every day (or every .mp4/jpg within a
+// day) underneath them has been cleaned up — otherwise the filesystem
+// accumulates an ever-growing tree of empty directories even after their
+// content is gone.
+func removeDirIfEmpty(dir string, log *slog.Logger) {
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) > 0 {
+		return
+	}
+	if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
+		log.Warn("failed to remove empty directory", "dir", dir, "err", err)
+	}
+}
+
+// sweepMotionDayDir removes leftover _motion.jpg (and their _frame.jpg
+// companion, the clean unannotated frame saved alongside by
+// internal/motion/detector.go — never tracked in the DB, only derivable by
+// suffix) from a day directory that no longer has any .mp4 in it, then
+// removes the directory itself if that leaves it empty. Never touches a
+// directory still holding a chunk, closed or not.
+func (c *Cleaner) sweepMotionDayDir(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	hasMP4 := false
+	var jpegs []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		switch {
+		case filepath.Ext(e.Name()) == ".mp4":
+			hasMP4 = true
+		case strings.HasSuffix(e.Name(), "_motion.jpg"), strings.HasSuffix(e.Name(), "_frame.jpg"):
+			jpegs = append(jpegs, e.Name())
+		}
+	}
+	if hasMP4 {
+		return
+	}
+	for _, name := range jpegs {
+		path := filepath.Join(dir, name)
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			c.log.Warn("failed to remove orphaned motion jpeg", "path", path, "err", err)
+		}
+	}
+	removeDirIfEmpty(dir, c.log)
 }
 
 // AnalyzeNew runs one pass of YOLO analysis over recordings not yet analyzed.

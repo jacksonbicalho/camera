@@ -690,7 +690,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			"recordings_path": s.cfg.RecordingsPath,
 		},
 		"storage": func() map[string]any {
-			wm, wom, interval, maxGB, warnPct := s.effectiveStorageSettings()
+			wm, wom, interval, maxGB, warnPct, stateHistory := s.effectiveStorageSettings()
 			return map[string]any{
 				"path":                   s.storageCfg.Path,
 				"with_motion_minutes":    wm,
@@ -698,6 +698,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 				"interval_minutes":       interval,
 				"max_size_gb":            maxGB,
 				"warn_percent":           warnPct,
+				"state_history_minutes":  stateHistory,
 			}
 		}(),
 		"defaults": map[string]any{
@@ -1249,6 +1250,14 @@ func (s *Server) handleDeleteRecording(w http.ResponseWriter, r *http.Request) {
 		if actualEnd, err := db.EndedAtByStartedAt(s.db, id, chunkStart); err == nil && !actualEnd.IsZero() {
 			chunkEnd = actualEnd
 		}
+		// List before delete so the JPEGs (frame_path + its _frame.jpg
+		// companion) can still be resolved — DeleteMotionEventsInRange alone
+		// only clears the DB rows, leaving the files orphaned on disk forever.
+		if events, err := db.ListMotionEvents(s.db, id, chunkStart, chunkEnd); err != nil {
+			s.log.Warn("failed to list motion events before recording deletion", "camera", id, "err", err)
+		} else {
+			storage.RemoveMotionEventJPEGs(s.cfg.RecordingsPath, s.log, events)
+		}
 		if err := db.DeleteMotionEventsInRange(s.db, id, chunkStart, chunkEnd); err != nil {
 			s.log.Warn("failed to clean motion events after recording deletion", "camera", id, "err", err)
 		}
@@ -1294,7 +1303,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		diskTotal, diskFree = diskStats(s.cfg.RecordingsPath)
 	}
 
-	_, _, _, maxGB, warnPct := s.effectiveStorageSettings()
+	_, _, _, maxGB, warnPct, _ := s.effectiveStorageSettings()
 	maxSizeBytes := int64(maxGB * 1024 * 1024 * 1024)
 
 	chunkSec := int64(config.DefaultChunkDuration.Seconds())

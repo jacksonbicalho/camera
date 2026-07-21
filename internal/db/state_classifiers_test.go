@@ -266,6 +266,52 @@ func TestStateClassifierCRUD(t *testing.T) {
 	}
 }
 
+// HistoryRetentionMinutes é nil por padrão (herda o default global), pode ser
+// setado explicitamente (incluindo 0 = manter pra sempre só pra esse
+// classificador) e voltar a nil (limpa o override) — round-trip via
+// Create/Get/Update.
+func TestStateClassifierHistoryRetentionMinutes_RoundTrip(t *testing.T) {
+	database := openTestDB(t)
+	seedCamera(t, database, "cam1")
+
+	id, err := db.CreateStateClassifier(database, makeClassifier("cam1"))
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	got, err := db.GetStateClassifier(database, id)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.HistoryRetentionMinutes != nil {
+		t.Fatalf("expected nil override by default, got %+v", got.HistoryRetentionMinutes)
+	}
+
+	keepForever := 0
+	got.HistoryRetentionMinutes = &keepForever
+	if err := db.UpdateStateClassifier(database, got); err != nil {
+		t.Fatalf("update (set override): %v", err)
+	}
+	got, err = db.GetStateClassifier(database, id)
+	if err != nil {
+		t.Fatalf("get after set: %v", err)
+	}
+	if got.HistoryRetentionMinutes == nil || *got.HistoryRetentionMinutes != 0 {
+		t.Fatalf("expected override 0, got %+v", got.HistoryRetentionMinutes)
+	}
+
+	got.HistoryRetentionMinutes = nil
+	if err := db.UpdateStateClassifier(database, got); err != nil {
+		t.Fatalf("update (clear override): %v", err)
+	}
+	got, err = db.GetStateClassifier(database, id)
+	if err != nil {
+		t.Fatalf("get after clear: %v", err)
+	}
+	if got.HistoryRetentionMinutes != nil {
+		t.Fatalf("expected nil override after clearing, got %+v", got.HistoryRetentionMinutes)
+	}
+}
+
 func TestStateClassifierCascadeOnCameraDelete(t *testing.T) {
 	database := openTestDB(t)
 	seedCamera(t, database, "cam1")

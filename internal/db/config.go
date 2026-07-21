@@ -44,6 +44,7 @@ type ResolvedStorageSettings struct {
 	IntervalMinutes      int
 	MaxSizeGB            float64
 	WarnPercent          float64
+	StateHistoryMinutes  int
 }
 
 // DefaultStorageSettings are the hardcoded defaults used when a key is absent from the database.
@@ -51,8 +52,9 @@ var DefaultStorageSettings = ResolvedStorageSettings{
 	WithMotionMinutes:    10080, // 7 days
 	WithoutMotionMinutes: 1440,  // 1 day
 	IntervalMinutes:      60,
-	MaxSizeGB:            0,  // unlimited
+	MaxSizeGB:            0, // unlimited
 	WarnPercent:          70,
+	StateHistoryMinutes:  129600, // 90 days — thumbs outlive video retention on purpose, but not forever
 }
 
 // StorageSettingsFromDB reads storage settings from the database, falling back to
@@ -92,6 +94,11 @@ func StorageSettingsFromDB(database *DB) ResolvedStorageSettings {
 			result.WarnPercent = f
 		}
 	}
+	if v, ok := all["storage.state_history_minutes"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			result.StateHistoryMinutes = n
+		}
+	}
 	return result
 }
 
@@ -105,6 +112,7 @@ func EnsureStorageDefaults(database *DB) error {
 		"storage.interval_minutes":       strconv.Itoa(d.IntervalMinutes),
 		"storage.max_size_gb":            strconv.FormatFloat(d.MaxSizeGB, 'f', -1, 64),
 		"storage.warn_percent":           strconv.FormatFloat(d.WarnPercent, 'f', -1, 64),
+		"storage.state_history_minutes":  strconv.Itoa(d.StateHistoryMinutes),
 	}
 	for k, v := range pairs {
 		if _, err := database.Exec(

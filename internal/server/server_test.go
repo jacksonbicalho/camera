@@ -1962,6 +1962,48 @@ func TestGetSettingsReturnsFullConfig(t *testing.T) {
 	}
 }
 
+// PUT /api/settings/storage aceita e persiste state_history_minutes
+// isoladamente (sem exigir os outros campos), e o valor volta tanto na
+// resposta do PUT quanto no GET /api/settings subsequente — os demais campos
+// de storage mantêm seus defaults, confirmando que é um update parcial.
+func TestUpdateStorageSettings_PersistsStateHistoryMinutes(t *testing.T) {
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
+	token := loginAndGetToken(t, srv, "admin", "pw")
+
+	w := doJSON(t, srv, http.MethodPut, "/api/settings/storage", token, map[string]any{
+		"state_history_minutes": 43200,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("PUT storage: %d %s", w.Code, w.Body.String())
+	}
+	var putResp struct {
+		StateHistoryMinutes int `json:"state_history_minutes"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &putResp)
+	if putResp.StateHistoryMinutes != 43200 {
+		t.Fatalf("PUT response: expected state_history_minutes 43200, got %d", putResp.StateHistoryMinutes)
+	}
+
+	w = doJSON(t, srv, http.MethodGet, "/api/settings", token, nil)
+	var getResp struct {
+		Storage struct {
+			StateHistoryMinutes int `json:"state_history_minutes"`
+			WithMotionMinutes   int `json:"with_motion_minutes"`
+		} `json:"storage"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &getResp)
+	if getResp.Storage.StateHistoryMinutes != 43200 {
+		t.Fatalf("GET storage.state_history_minutes: expected 43200, got %d", getResp.Storage.StateHistoryMinutes)
+	}
+	if getResp.Storage.WithMotionMinutes != 10080 {
+		t.Fatalf("GET storage.with_motion_minutes: expected default 10080 unchanged, got %d", getResp.Storage.WithMotionMinutes)
+	}
+}
+
 func TestGetSettingsIncludesDebugAndLog(t *testing.T) {
 	cfg := config.ServerConfig{}
 	logCfg := config.LogConfig{Output: "file", Path: "/var/log/camera"}
@@ -2684,6 +2726,74 @@ func TestDeleteRecordingCleansMotionEvents(t *testing.T) {
 	}
 	if count != 0 {
 		t.Errorf("expected 0 motion events after recording deletion, got %d", count)
+	}
+}
+
+// handleDeleteRecording já limpava as linhas de motion_events, mas nunca
+// removia os JPEGs correspondentes (nem _motion.jpg, nem seu companion
+// _frame.jpg) — diferente de purgeMotionAssets (internal/storage), que lista
+// os eventos ANTES de apagar as linhas, exatamente pra poder resolver os
+// arquivos. Achado ao investigar T8/T9 contra um ambiente real: excluir uma
+// gravação manualmente pela UI deixava os jpgs do evento órfãos pra sempre
+// (o diretório do dia normalmente ainda tem outros chunks .mp4 irmãos, então
+// a varredura best-effort do T2 — que só age quando o diretório inteiro não
+// tem nenhum .mp4 — nunca alcança esse vazamento).
+func TestDeleteRecordingRemovesMotionJPEGs(t *testing.T) {
+	tmpDir := t.TempDir()
+	cameraID := "cam1"
+	filename := "20260511100000.mp4"
+	dateDir := filepath.Join(tmpDir, cameraID, "2026", "05", "11")
+	if err := os.MkdirAll(dateDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dateDir, filename), []byte("fake"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	database := openServerTestDB(t)
+	if _, err := db.CreateCamera(database, config.CameraConfig{ID: cameraID}, nil); err != nil {
+		t.Fatal(err)
+	}
+	chunkStart := time.Date(2026, 5, 11, 10, 0, 0, 0, time.UTC)
+	evTime := chunkStart.Add(time.Minute)
+	jpegName := evTime.UTC().Format("20060102150405") + "_motion.jpg"
+	jpegPath := filepath.Join(dateDir, jpegName)
+	framePath := filepath.Join(dateDir, evTime.UTC().Format("20060102150405")+"_frame.jpg")
+	if err := os.WriteFile(jpegPath, []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(framePath, []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.InsertMotionEvent(database, db.MotionEvent{
+		CameraID:   cameraID,
+		OccurredAt: evTime,
+		Score:      0.05,
+		FramePath:  jpegName,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := db.CreateUser(database, "u", "p", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.ServerConfig{RecordingsPath: tmpDir}
+	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{{ID: cameraID}}, discardLogger(), nil).WithDB(database)
+	token := loginAndGetToken(t, srv, "u", "p")
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/cameras/"+cameraID+"/recordings/"+filename, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
+		t.Error("_motion.jpg deveria ter sido removido junto com a gravação")
+	}
+	if _, err := os.Stat(framePath); !os.IsNotExist(err) {
+		t.Error("_frame.jpg companion deveria ter sido removido junto")
 	}
 }
 

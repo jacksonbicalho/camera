@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"camera/internal/analysis"
 	"camera/internal/config"
 	"camera/internal/db"
+	"camera/internal/stateclass"
 	"camera/internal/storage"
 )
 
@@ -903,6 +905,50 @@ func TestClean_PurgesMotionJPEGsOnDelete(t *testing.T) {
 	}
 }
 
+// TestClean_PurgesCleanFrameCompanionOnDelete: todo evento de movimento salva
+// DOIS jpgs no mesmo instante — o `_motion.jpg` anotado (com bbox/score,
+// rastreado em motion_events.frame_path) e um `_frame.jpg` limpo, companion,
+// usado pelo picker do carrossel (internal/motion/detector.go, saveSnapshot)
+// — mas o `_frame.jpg` NUNCA é gravado no banco, só existe em disco. Purgar o
+// evento via purgeMotionAssets/removeEventJPEGs só removia o `_motion.jpg`,
+// deixando o `_frame.jpg` companion órfão pra sempre (achado real: diretórios
+// de 20+ dias cheios só de `_frame.jpg`, reportado pelo navigator).
+func TestClean_PurgesCleanFrameCompanionOnDelete(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCameraWithMotion(t, database, "cam1", 0, 0)
+
+	base := time.Now().UTC().Add(-120 * time.Minute).Truncate(time.Second)
+	pathA := mp4WithTimestamp(dir, "cam1", base)
+	pathB := mp4WithTimestamp(dir, "cam1", base.Add(time.Minute))
+	writeFile(t, pathA, base)
+	writeFile(t, pathB, base.Add(time.Minute))
+
+	evTime := base.Add(10 * time.Second)
+	jpegName := evTime.UTC().Format("20060102150405") + "_motion.jpg"
+	jpegPath := filepath.Join(filepath.Dir(pathA), jpegName)
+	framePath := filepath.Join(filepath.Dir(pathA), evTime.UTC().Format("20060102150405")+"_frame.jpg")
+	writeFile(t, jpegPath, evTime)
+	writeFile(t, framePath, evTime)
+
+	_, err := database.Exec(
+		`INSERT INTO motion_events(camera_id, occurred_at, score, frame_path) VALUES(?,?,?,?)`,
+		"cam1", evTime.UTC().Format(time.RFC3339), 0.1, jpegName,
+	)
+	if err != nil {
+		t.Fatalf("insert motion event: %v", err)
+	}
+
+	storage.New(dir, 60, 60, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
+		t.Error("_motion.jpg deve ser apagado junto com a gravação")
+	}
+	if _, err := os.Stat(framePath); !os.IsNotExist(err) {
+		t.Error("_frame.jpg companion deve ser apagado junto com o _motion.jpg")
+	}
+}
+
 // TestSyncRecordings_ResetsHasMotionWhenEventsDeleted verifica que syncRecordings
 // reseta has_motion=0 para gravações cujos eventos foram deletados fora do ciclo
 // normal de limpeza (ex: via bulk delete pela API).
@@ -1212,6 +1258,54 @@ func TestSyncRecordings_RemovesCorruptRecordingAlreadyInDB(t *testing.T) {
 	}
 }
 
+// TestSyncRecordings_CorruptChunkPurgesMotionAssets verifica que descartar um
+// chunk corrompido (moov atom ausente) também purga o motion_event e o
+// _motion.jpg cuja janela caía dentro daquele chunk — sem isso o evento fica
+// órfão pra sempre, já que nada mais volta a revisitar aquele arquivo depois
+// que a linha de motion_events some do banco (CA2).
+func TestSyncRecordings_CorruptChunkPurgesMotionAssets(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+
+	// pathA: corrompido (sem moov atom), tem sucessor conhecido (pathB) —
+	// syncRecordings descarta pathA como corrupto.
+	pathA := mp4WithTimestamp(dir, "cam1", base)
+	writeCorruptMP4(t, pathA, base)
+
+	pathB := mp4WithTimestamp(dir, "cam1", base.Add(30*time.Second))
+	writeFile(t, pathB, base.Add(30*time.Second))
+
+	// evento de movimento com frame_path dentro da janela de pathA.
+	evTime := base.Add(10 * time.Second)
+	jpegName := evTime.UTC().Format("20060102150405") + "_motion.jpg"
+	jpegPath := filepath.Join(filepath.Dir(pathA), jpegName)
+	writeFile(t, jpegPath, evTime)
+
+	if _, err := database.Exec(
+		`INSERT INTO motion_events(camera_id, occurred_at, score, frame_path) VALUES(?,?,?,?)`,
+		"cam1", evTime.UTC().Format(time.RFC3339), 0.1, jpegName,
+	); err != nil {
+		t.Fatalf("insert motion event: %v", err)
+	}
+
+	storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(pathA); !os.IsNotExist(err) {
+		t.Error("corrupt pathA should have been deleted from disk")
+	}
+	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
+		t.Error("_motion.jpg do evento dentro do chunk corrompido deveria ter sido purgado junto")
+	}
+	var count int
+	database.QueryRow(`SELECT COUNT(*) FROM motion_events WHERE camera_id='cam1'`).Scan(&count)
+	if count != 0 {
+		t.Errorf("motion_events deveria estar vazio após purge do chunk corrompido, mas tem %d linhas", count)
+	}
+}
+
 func TestAnalyzeNewRecordings_DisabledDoesNotLog(t *testing.T) {
 	dir := t.TempDir()
 	database := openTestDB(t)
@@ -1287,6 +1381,420 @@ func TestClean_KeepsRecentOrphanMotionEvents(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("expected recent orphan kept, got %d", n)
+	}
+}
+
+// TestClean_SweepsOrphanedMotionJPEGsOlderThanRetention: rede de segurança em
+// disco, independente do banco — um diretório {camera}/{ano}/{mes}/{dia} sem
+// nenhum .mp4 (já removido por qualquer caminho, inclusive um bug futuro que
+// escape de purgeMotionAssets/purgeOrphanEvents) mas mais velho que a
+// retenção com-movimento tem os _motion.jpg residuais removidos (CA3).
+func TestClean_SweepsOrphanedMotionJPEGsOlderThanRetention(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, old.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, jpegPath, old)
+
+	// with_motion_minutes = 3 dias (4320); "old" tem 10 dias — bem além da
+	// janela, e o diretório não tem nenhum .mp4 (nem linha no banco).
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
+		t.Error("jpg órfão mais velho que a retenção com-movimento deveria ter sido removido pela varredura")
+	}
+}
+
+// Depois de remover o último jpg órfão de um diretório, o diretório do DIA em
+// si (agora vazio) também é removido — sem isso o filesystem acumula uma
+// árvore de diretórios vazios pra sempre, mesmo com o conteúdo já limpo
+// (reportado pelo navigator: "tem diretórios até do mês passado... vazios").
+func TestClean_RemovesEmptyDayDirAfterSweep(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, old.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, jpegPath, old)
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(dayDir); !os.IsNotExist(err) {
+		t.Error("diretório do dia deveria ter sido removido depois de esvaziado pela varredura")
+	}
+}
+
+// A remoção do diretório do dia é conservadora: só some se a varredura
+// esvaziou o diretório (nenhum .mp4, jpg mais velho que a retenção). Um
+// diretório que ainda tem .mp4 nunca é removido, mesmo mais velho que a
+// retenção — mesma regra de nunca tocar num diretório com chunk.
+func TestClean_KeepsDayDirWithMP4Present(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	mp4Path := filepath.Join(dayDir, old.Format("20060102150405")+".mp4")
+	writeFile(t, mp4Path, old)
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(dayDir); err != nil {
+		t.Errorf("diretório do dia com .mp4 presente não deveria ter sido removido: %v", err)
+	}
+}
+
+// Se TODOS os dias de um mês esvaziam (e o diretório do dia some), o
+// diretório do MÊS também é removido quando fica vazio — e o mesmo em
+// cascata pro diretório do ANO, se todos os meses também esvaziarem.
+func TestClean_RemovesEmptyMonthAndYearDirsWhenAllDaysCleared(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, old.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, jpegPath, old)
+
+	monthDir := filepath.Join(dir, "cam1", old.Format("2006/01"))
+	yearDir := filepath.Join(dir, "cam1", old.Format("2006"))
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(monthDir); !os.IsNotExist(err) {
+		t.Error("diretório do mês deveria ter sido removido — único dia dentro dele já esvaziou")
+	}
+	if _, err := os.Stat(yearDir); !os.IsNotExist(err) {
+		t.Error("diretório do ano deveria ter sido removido — único mês dentro dele já esvaziou")
+	}
+}
+
+// Mês com outro dia ainda ativo (dentro da retenção) não é removido, mesmo
+// que o dia antigo dentro dele já tenha esvaziado e sumido.
+func TestClean_KeepsMonthDirWithAnotherActiveDay(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	oldDayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	oldJpegPath := filepath.Join(oldDayDir, old.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, oldJpegPath, old)
+
+	recent := time.Now().UTC().Add(-1 * time.Hour)
+	recentDayDir := filepath.Join(dir, "cam1", recent.Format("2006/01/02"))
+	recentMP4Path := filepath.Join(recentDayDir, recent.Format("20060102150405")+".mp4")
+	writeFile(t, recentMP4Path, recent)
+
+	monthDir := filepath.Join(dir, "cam1", old.Format("2006/01"))
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(oldDayDir); !os.IsNotExist(err) {
+		t.Error("diretório do dia antigo deveria ter sido removido")
+	}
+	// Só verifica a preservação do mês se old e recent caírem no mesmo mês
+	// (podem não cair, dependendo de quando o teste roda perto da virada).
+	if old.Format("2006/01") == recent.Format("2006/01") {
+		if _, err := os.Stat(monthDir); err != nil {
+			t.Errorf("diretório do mês não deveria ter sido removido — ainda tem o dia recente: %v", err)
+		}
+	}
+}
+
+// A varredura também remove _frame.jpg órfão (companion do _motion.jpg,
+// internal/motion/detector.go) — mesmo diretório-sem-mp4 pode ter só o
+// _frame.jpg sobrando (achado real: seu _motion.jpg já foi purgado por outro
+// caminho, mas nada nunca soube limpar o companion, já que ele não tem
+// nenhuma linha própria no banco).
+func TestClean_SweepsOrphanedCleanFrameJPEGsOlderThanRetention(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	framePath := filepath.Join(dayDir, old.Format("20060102150405")+"_frame.jpg")
+	writeFile(t, framePath, old)
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(framePath); !os.IsNotExist(err) {
+		t.Error("_frame.jpg órfão mais velho que a retenção com-movimento deveria ter sido removido pela varredura")
+	}
+}
+
+// Diretório mais recente que a retenção não é tocado, mesmo sem .mp4 —
+// evita apagar um snapshot que ainda deveria estar disponível.
+func TestClean_KeepsOrphanedMotionJPEGsWithinRetention(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	recent := time.Now().UTC().Add(-1 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", recent.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, recent.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, jpegPath, recent)
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(jpegPath); err != nil {
+		t.Errorf("jpg dentro da retenção não deveria ter sido removido: %v", err)
+	}
+}
+
+// Diretório que ainda tem .mp4 nunca é tocado pela varredura, mesmo mais
+// velho que a retenção — evita colidir com um chunk ainda em uso/pendente
+// de processamento pelos outros caminhos de limpeza.
+func TestClean_DoesNotSweepDirWithMP4Present(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, old.Format("20060102150405")+"_motion.jpg")
+	mp4Path := filepath.Join(dayDir, old.Format("20060102150405")+".mp4")
+	writeFile(t, jpegPath, old)
+	writeFile(t, mp4Path, old)
+
+	storage.New(dir, 4320, 1440, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(jpegPath); err != nil {
+		t.Errorf("jpg num diretório com .mp4 presente não deveria ter sido removido: %v", err)
+	}
+}
+
+// TestClean_SweepOrphanedMotionDirsUsesLiveDBOverride: o admin pode mudar
+// with_motion_minutes via UI depois que o processo já subiu — cleanFromDB()
+// já lê o valor ao vivo do banco (effectiveRetentionMinutes), mas a varredura
+// de diretórios órfãos não pode ficar presa ao valor de construção do
+// Cleaner (lido só uma vez no boot em main.go), senão uma mudança de retenção
+// em runtime nunca é respeitada por ela até o processo reiniciar — bug real
+// reportado pelo navigator (configurou 2 dias, diretórios de mais de 2 dias
+// continuavam intactos).
+func TestClean_SweepOrphanedMotionDirsUsesLiveDBOverride(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	// Cleaner construído com with_motion_minutes GRANDE (7 dias) — simula o
+	// valor lido no boot do processo.
+	c := storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger())
+
+	// Admin muda a retenção via UI DEPOIS do boot — só grava em system_config,
+	// não reconstrói o Cleaner.
+	if err := db.SetConfig(database, "storage.with_motion_minutes", "1440"); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	// 3 dias de idade: viola o override do banco (1 dia), mas NÃO violaria o
+	// valor de construção (7 dias) — só passa se a varredura usar o override.
+	// A varredura opera em granularidade de dia (dayEnd = fim do dia daquele
+	// diretório), então o teste precisa cruzar um dia inteiro, não só horas.
+	old := time.Now().UTC().Add(-3 * 24 * time.Hour)
+	dayDir := filepath.Join(dir, "cam1", old.Format("2006/01/02"))
+	jpegPath := filepath.Join(dayDir, old.Format("20060102150405")+"_motion.jpg")
+	writeFile(t, jpegPath, old)
+
+	c.Clean()
+
+	if _, err := os.Stat(jpegPath); !os.IsNotExist(err) {
+		t.Error("varredura deveria ter usado o override do banco (1 dia), não o valor de construção (7 dias) — jpg deveria ter sido removido")
+	}
+}
+
+// TestClean_SweepsOrphanedStateHistoryDirs: varredura retroativa — um
+// diretório state_history/state_samples cujo {cid} não existe mais em
+// camera_state_classifiers (classificador já excluído) é removido; o
+// diretório do classificador ainda vivo não é tocado (parte do T3, junto do
+// os.RemoveAll explícito em handleStateClassifierDelete — cobre o backlog já
+// órfão hoje e qualquer futuro delete que escape do caminho da API).
+func TestClean_SweepsOrphanedStateHistoryDirs(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
+		CameraID: "cam1", Name: "Portão", Model: "custom-cls-1", Threshold: 0.8,
+		TriggerMotion: true, MinConsecutive: 1, Enabled: true,
+		Classes: []string{"aberto", "fechado"},
+	})
+	if err != nil {
+		t.Fatalf("CreateStateClassifier: %v", err)
+	}
+	cidStr := strconv.FormatInt(cid, 10)
+
+	liveHistory := filepath.Join(dir, "state_history", cidStr, "1.jpg")
+	orphanHistory := filepath.Join(dir, "state_history", "999", "1.jpg")
+	liveSamples := filepath.Join(dir, "state_samples", cidStr, "aberto", "1.jpg")
+	orphanSamples := filepath.Join(dir, "state_samples", "999", "aberto", "1.jpg")
+	now := time.Now()
+	writeFile(t, liveHistory, now)
+	writeFile(t, orphanHistory, now)
+	writeFile(t, liveSamples, now)
+	writeFile(t, orphanSamples, now)
+
+	storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(liveHistory); err != nil {
+		t.Errorf("state_history do classificador vivo não deveria ter sido removido: %v", err)
+	}
+	if _, err := os.Stat(liveSamples); err != nil {
+		t.Errorf("state_samples do classificador vivo não deveria ter sido removido: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "state_history", "999")); !os.IsNotExist(err) {
+		t.Error("state_history de classificador já excluído deveria ter sido removido")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "state_samples", "999")); !os.IsNotExist(err) {
+		t.Error("state_samples de classificador já excluído deveria ter sido removido")
+	}
+}
+
+// TestCleaner_PurgesStateHistoryOlderThanGlobalRetention: a rotina de purge
+// remove do banco e do disco as transições de camera_state_history mais
+// velhas que storage.state_history_minutes (config global, mesmo padrão de
+// with_motion_minutes/without_motion_minutes), preservando as mais recentes
+// que a janela (CA5).
+func TestCleaner_PurgesStateHistoryOlderThanGlobalRetention(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
+		CameraID: "cam1", Name: "Portão", Model: "custom-cls-1", Threshold: 0.8,
+		TriggerMotion: true, MinConsecutive: 1, Enabled: true,
+		Classes: []string{"aberto", "fechado"},
+	})
+	if err != nil {
+		t.Fatalf("CreateStateClassifier: %v", err)
+	}
+	cidStr := strconv.FormatInt(cid, 10)
+
+	if err := db.SetConfig(database, "storage.state_history_minutes", "60"); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	oldFrame := "/recordings/state_history/" + cidStr + "/old.jpg"
+	recentFrame := "/recordings/state_history/" + cidStr + "/recent.jpg"
+	oldPath := filepath.Join(dir, "state_history", cidStr, "old.jpg")
+	recentPath := filepath.Join(dir, "state_history", cidStr, "recent.jpg")
+	writeFile(t, oldPath, time.Now())
+	writeFile(t, recentPath, time.Now())
+
+	oldChanged := time.Now().UTC().Add(-2 * time.Hour).Format("2006-01-02 15:04:05")
+	recentChanged := time.Now().UTC().Add(-1 * time.Minute).Format("2006-01-02 15:04:05")
+	if _, err := database.Exec(
+		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?,?,?,?,?)`,
+		cid, "aberto", 0.9, oldFrame, oldChanged,
+	); err != nil {
+		t.Fatalf("insert old history: %v", err)
+	}
+	if _, err := database.Exec(
+		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?,?,?,?,?)`,
+		cid, "fechado", 0.9, recentFrame, recentChanged,
+	); err != nil {
+		t.Fatalf("insert recent history: %v", err)
+	}
+
+	storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Error("jpg da transição mais velha que a janela deveria ter sido removido")
+	}
+	if _, err := os.Stat(recentPath); err != nil {
+		t.Errorf("jpg da transição dentro da janela não deveria ter sido removido: %v", err)
+	}
+	var count int
+	database.QueryRow(`SELECT COUNT(*) FROM camera_state_history WHERE classifier_id=?`, cid).Scan(&count)
+	if count != 1 {
+		t.Errorf("esperava 1 linha de camera_state_history após purge (a recente), got %d", count)
+	}
+}
+
+// TestCleaner_ClassifierOverrideTakesPrecedenceOverGlobalStateHistoryRetention:
+// um classificador com history_retention_minutes=0 (override explícito de
+// "manter pra sempre") preserva sua transição antiga mesmo com o global
+// configurado bem mais curto; um classificador SEM override, no mesmo Clean(),
+// usa o global normalmente e tem a transição antiga purgada (CA6).
+func TestCleaner_ClassifierOverrideTakesPrecedenceOverGlobalStateHistoryRetention(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCamera(t, database, "cam1")
+
+	keepForever := 0
+	withOverride, err := db.CreateStateClassifier(database, stateclass.Classifier{
+		CameraID: "cam1", Name: "Portão", Model: "custom-cls-a", Threshold: 0.8,
+		TriggerMotion: true, MinConsecutive: 1, Enabled: true,
+		Classes:                 []string{"aberto", "fechado"},
+		HistoryRetentionMinutes: &keepForever,
+	})
+	if err != nil {
+		t.Fatalf("CreateStateClassifier (com override): %v", err)
+	}
+	withoutOverride, err := db.CreateStateClassifier(database, stateclass.Classifier{
+		CameraID: "cam1", Name: "Garagem", Model: "custom-cls-b", Threshold: 0.8,
+		TriggerMotion: true, MinConsecutive: 1, Enabled: true,
+		Classes: []string{"aberto", "fechado"},
+	})
+	if err != nil {
+		t.Fatalf("CreateStateClassifier (sem override): %v", err)
+	}
+
+	// global bem mais curto (60 min) que a idade das transições (2h) — sem
+	// override, purgaria; com override=0, o classificador ignora o global.
+	if err := db.SetConfig(database, "storage.state_history_minutes", "60"); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	overrideCidStr := strconv.FormatInt(withOverride, 10)
+	noOverrideCidStr := strconv.FormatInt(withoutOverride, 10)
+	overrideFrame := "/recordings/state_history/" + overrideCidStr + "/old.jpg"
+	noOverrideFrame := "/recordings/state_history/" + noOverrideCidStr + "/old.jpg"
+	overridePath := filepath.Join(dir, "state_history", overrideCidStr, "old.jpg")
+	noOverridePath := filepath.Join(dir, "state_history", noOverrideCidStr, "old.jpg")
+	writeFile(t, overridePath, time.Now())
+	writeFile(t, noOverridePath, time.Now())
+
+	oldChanged := time.Now().UTC().Add(-2 * time.Hour).Format("2006-01-02 15:04:05")
+	if _, err := database.Exec(
+		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?,?,?,?,?)`,
+		withOverride, "aberto", 0.9, overrideFrame, oldChanged,
+	); err != nil {
+		t.Fatalf("insert history (com override): %v", err)
+	}
+	if _, err := database.Exec(
+		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?,?,?,?,?)`,
+		withoutOverride, "aberto", 0.9, noOverrideFrame, oldChanged,
+	); err != nil {
+		t.Fatalf("insert history (sem override): %v", err)
+	}
+
+	storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if _, err := os.Stat(overridePath); err != nil {
+		t.Errorf("classificador com override=0 deveria ter mantido a transição antiga (jpg): %v", err)
+	}
+	var overrideCount int
+	database.QueryRow(`SELECT COUNT(*) FROM camera_state_history WHERE classifier_id=?`, withOverride).Scan(&overrideCount)
+	if overrideCount != 1 {
+		t.Errorf("classificador com override=0 deveria ter mantido a linha de histórico, got %d", overrideCount)
+	}
+
+	if _, err := os.Stat(noOverridePath); !os.IsNotExist(err) {
+		t.Error("classificador sem override deveria ter usado o global e purgado a transição antiga (jpg)")
+	}
+	var noOverrideCount int
+	database.QueryRow(`SELECT COUNT(*) FROM camera_state_history WHERE classifier_id=?`, withoutOverride).Scan(&noOverrideCount)
+	if noOverrideCount != 0 {
+		t.Errorf("classificador sem override deveria ter purgado a linha de histórico (global 60min), got %d", noOverrideCount)
 	}
 }
 

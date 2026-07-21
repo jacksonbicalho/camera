@@ -55,6 +55,7 @@ export interface Settings {
     interval_minutes: number
     max_size_gb: number
     warn_percent: number
+    state_history_minutes: number
   }
   defaults: {
     chunk_duration: string

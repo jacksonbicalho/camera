@@ -27,6 +27,22 @@ import { type StateClassifier, bboxToCrop, cropToBbox, validateClassifier } from
 import { loadPicked, loadPickerScroll, savePicked, savePickerScroll } from './eventPickerMemory'
 import { eventCleanFrameURL } from './stateEventFrames'
 
+// formatRetentionMinutes traduz minutos pra um texto curto (dias/horas/min),
+// pra mostrar ao usuário o que "usar o padrão global" significa na prática —
+// sem isso o toggle marcado não dizia quanto tempo o histórico ficaria guardado.
+function formatRetentionMinutes(m: number): string {
+  if (m <= 0) return 'para sempre'
+  if (m % (60 * 24) === 0) {
+    const d = m / (60 * 24)
+    return `${d} dia${d === 1 ? '' : 's'}`
+  }
+  if (m % 60 === 0) {
+    const h = m / 60
+    return `${h} hora${h === 1 ? '' : 's'}`
+  }
+  return `${m} min`
+}
+
 function emptyClassifier(): StateClassifier {
   return {
     name: '',
@@ -737,6 +753,9 @@ export function ClassifierForm({
   const inputCls =
     'w-full bg-surface-2 text-foreground text-sm rounded px-3 py-1.5 border border-border focus:outline-none focus:border-ring'
 
+  const { settings } = useSettings()
+  const globalHistoryRetention = settings?.storage?.state_history_minutes ?? 0
+
   // Retângulo do recorte DERIVADO de value.crop_* — sempre reflete o que está
   // salvo/recarregado (sem estado separado que possa divergir). O recorte é
   // obrigatório, então o BboxCanvas roda com deletable={false}: o usuário só
@@ -1148,6 +1167,46 @@ export function ClassifierForm({
               />
               <span className="text-sm text-foreground">Ativado</span>
             </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                id="state-history-retention-toggle"
+                type="checkbox"
+                className="accent-primary"
+                checked={value.history_retention_minutes == null}
+                onChange={(e) =>
+                  onChange({
+                    ...value,
+                    history_retention_minutes: e.target.checked ? null : 0,
+                  })
+                }
+              />
+              <span className="text-sm text-foreground">
+                Usar retenção padrão do histórico
+                {value.history_retention_minutes == null && settings && (
+                  <span className="text-muted-foreground">
+                    {' '}
+                    (atualmente {formatRetentionMinutes(globalHistoryRetention)})
+                  </span>
+                )}
+              </span>
+            </label>
+            {value.history_retention_minutes != null && (
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">
+                  Retenção do histórico deste estado (minutos, 0 = manter para sempre)
+                </label>
+                <input
+                  id="state-history-retention-minutes"
+                  type="number"
+                  min={0}
+                  className={inputCls}
+                  value={value.history_retention_minutes}
+                  onChange={(e) =>
+                    onChange({ ...value, history_retention_minutes: Number(e.target.value) })
+                  }
+                />
+              </div>
+            )}
           </div>
 
           {/* Notificação e rodapé: gate + destinatários por usuário (canais independentes) */}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"camera/internal/db"
+	"camera/internal/storage"
 )
 
 const bulkEventMaxIDs = 500
@@ -230,16 +231,7 @@ func (s *Server) handleBulkDeleteEvents(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if s.storageCfg.Path != "" {
-		for _, ev := range snaps {
-			if ev.FramePath == "" {
-				continue
-			}
-			day := ev.OccurredAt.UTC().Format("2006/01/02")
-			p := filepath.Join(s.storageCfg.Path, ev.CameraID, filepath.FromSlash(day), ev.FramePath)
-			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-				s.log.Warn("delete motion jpeg", "path", p, "err", err)
-			}
-		}
+		storage.RemoveMotionEventJPEGs(s.storageCfg.Path, s.log, snaps)
 	}
 	if err := db.ResetHasMotionOrphaned(s.db, ""); err != nil {
 		s.log.Warn("reset has_motion after bulk delete", "err", err)

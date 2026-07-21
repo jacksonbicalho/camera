@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -113,6 +115,14 @@ func (s *Server) handleStateClassifierDelete(w http.ResponseWriter, r *http.Requ
 		if err := db.DeleteStateClassifier(s.db, cid); err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
+		}
+		if s.storageCfg.Path != "" {
+			cidStr := strconv.FormatInt(cid, 10)
+			for _, sub := range []string{"state_history", "state_samples"} {
+				if err := os.RemoveAll(filepath.Join(s.storageCfg.Path, sub, cidStr)); err != nil {
+					s.log.Warn("delete classifier disk dir", "dir", sub, "classifier_id", cid, "err", err)
+				}
+			}
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)

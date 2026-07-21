@@ -85,22 +85,29 @@ func loadClasses(q interface {
 func scanClassifier(s interface{ Scan(...any) error }) (stateclass.Classifier, error) {
 	var c stateclass.Classifier
 	var triggerMotion, enabled, notifyEnabled, footerEnabled int
+	var historyRetention sql.NullInt64
 	err := s.Scan(
 		&c.ID, &c.CameraID, &c.Name, &c.Model, &c.Threshold,
 		&triggerMotion, &c.TriggerIntervalSeconds,
 		&c.CropX, &c.CropY, &c.CropW, &c.CropH,
 		&c.MinConsecutive, &enabled, &notifyEnabled, &footerEnabled,
+		&historyRetention,
 	)
 	c.TriggerMotion = triggerMotion != 0
 	c.Enabled = enabled != 0
 	c.NotifyEnabled = notifyEnabled != 0
 	c.FooterEnabled = footerEnabled != 0
+	if historyRetention.Valid {
+		v := int(historyRetention.Int64)
+		c.HistoryRetentionMinutes = &v
+	}
 	return c, err
 }
 
 const classifierCols = `id, camera_id, name, model, threshold,
 	trigger_motion, trigger_interval_seconds,
-	crop_x, crop_y, crop_w, crop_h, min_consecutive, enabled, notify_enabled, footer_enabled`
+	crop_x, crop_y, crop_w, crop_h, min_consecutive, enabled, notify_enabled, footer_enabled,
+	history_retention_minutes`
 
 // CreateStateClassifier inserts a classifier and its classes, returning the new id.
 func CreateStateClassifier(database *DB, c stateclass.Classifier) (int64, error) {
@@ -113,11 +120,12 @@ func CreateStateClassifier(database *DB, c stateclass.Classifier) (int64, error)
 	res, err := tx.Exec(
 		`INSERT INTO camera_state_classifiers
 		 (camera_id, name, model, threshold, trigger_motion, trigger_interval_seconds,
-		  crop_x, crop_y, crop_w, crop_h, min_consecutive, enabled, notify_enabled, footer_enabled)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  crop_x, crop_y, crop_w, crop_h, min_consecutive, enabled, notify_enabled, footer_enabled,
+		  history_retention_minutes)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		c.CameraID, c.Name, c.Model, c.Threshold, boolToInt(c.TriggerMotion), c.TriggerIntervalSeconds,
 		c.CropX, c.CropY, c.CropW, c.CropH, c.MinConsecutive, boolToInt(c.Enabled),
-		boolToInt(c.NotifyEnabled), boolToInt(c.FooterEnabled),
+		boolToInt(c.NotifyEnabled), boolToInt(c.FooterEnabled), nullIntPtr(c.HistoryRetentionMinutes),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert classifier: %w", err)
@@ -219,11 +227,11 @@ func UpdateStateClassifier(database *DB, c stateclass.Classifier) error {
 		`UPDATE camera_state_classifiers SET
 		   name = ?, model = ?, threshold = ?, trigger_motion = ?, trigger_interval_seconds = ?,
 		   crop_x = ?, crop_y = ?, crop_w = ?, crop_h = ?, min_consecutive = ?, enabled = ?,
-		   notify_enabled = ?, footer_enabled = ?
+		   notify_enabled = ?, footer_enabled = ?, history_retention_minutes = ?
 		 WHERE id = ?`,
 		c.Name, c.Model, c.Threshold, boolToInt(c.TriggerMotion), c.TriggerIntervalSeconds,
 		c.CropX, c.CropY, c.CropW, c.CropH, c.MinConsecutive, boolToInt(c.Enabled),
-		boolToInt(c.NotifyEnabled), boolToInt(c.FooterEnabled), c.ID,
+		boolToInt(c.NotifyEnabled), boolToInt(c.FooterEnabled), nullIntPtr(c.HistoryRetentionMinutes), c.ID,
 	); err != nil {
 		return fmt.Errorf("update classifier: %w", err)
 	}
@@ -396,6 +404,101 @@ func ListCameraStateTransitions(database *DB, cameraID string, start, end time.T
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// ClassifierRetention pairs a classifier id with its optional history
+// retention override (nil = inherits the global storage.state_history_minutes
+// default).
+type ClassifierRetention struct {
+	ID                      int64
+	HistoryRetentionMinutes *int
+}
+
+// ListStateClassifierRetentions returns id + history_retention_minutes for
+// every classifier — used by the Cleaner to resolve the effective retention
+// window per classifier (an explicit override, including 0, takes precedence
+// over the global default).
+func ListStateClassifierRetentions(database *DB) ([]ClassifierRetention, error) {
+	rows, err := database.Query(`SELECT id, history_retention_minutes FROM camera_state_classifiers`)
+	if err != nil {
+		return nil, fmt.Errorf("list state classifier retentions: %w", err)
+	}
+	defer rows.Close()
+
+	var out []ClassifierRetention
+	for rows.Next() {
+		var r ClassifierRetention
+		var v sql.NullInt64
+		if err := rows.Scan(&r.ID, &v); err != nil {
+			return nil, err
+		}
+		if v.Valid {
+			n := int(v.Int64)
+			r.HistoryRetentionMinutes = &n
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// ListStateClassifierIDs returns the ids of every classifier that currently
+// exists, across all cameras — used to tell apart live vs. orphaned disk
+// directories (state_history/state_samples), which are keyed by classifier id
+// but don't carry a FK back to the DB row.
+func ListStateClassifierIDs(database *DB) ([]int64, error) {
+	rows, err := database.Query(`SELECT id FROM camera_state_classifiers`)
+	if err != nil {
+		return nil, fmt.Errorf("list state classifier ids: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// PurgeStateHistoryOlderThan deletes camera_state_history rows of the given
+// classifier older than cutoff, returning the frame_path of each deleted row
+// that had one (empty ones excluded) so the caller can remove the backing
+// JPEGs from disk.
+func PurgeStateHistoryOlderThan(database *DB, classifierID int64, cutoff time.Time) ([]string, error) {
+	cutoffStr := cutoff.UTC().Format("2006-01-02 15:04:05")
+
+	rows, err := database.Query(
+		`SELECT frame_path FROM camera_state_history
+		 WHERE classifier_id = ? AND datetime(changed_at) < datetime(?) AND frame_path != ''`,
+		classifierID, cutoffStr,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("select state history: %w", err)
+	}
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if _, err := database.Exec(
+		`DELETE FROM camera_state_history WHERE classifier_id = ? AND datetime(changed_at) < datetime(?)`,
+		classifierID, cutoffStr,
+	); err != nil {
+		return nil, fmt.Errorf("delete state history: %w", err)
+	}
+	return paths, nil
 }
 
 // GetCurrentState returns the latest state of a classifier, or nil when none yet.
