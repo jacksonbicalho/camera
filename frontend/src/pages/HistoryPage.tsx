@@ -348,21 +348,21 @@ export default function HistoryPage() {
   }
   // Agrupa por hora local (0-23) do início da gravação — cada grupo é colapsável, com
   // contagem no cabeçalho ("18h — 12 gravações"). A ordem dos grupos (desc) e dos itens
-  // dentro de cada grupo (desc) segue a mesma ordem de `recordings`. Deriva de
-  // `recordingItems` (TODAS as gravações do dia, não filtradas) — a lista/régua nunca
-  // removem gravação nenhuma por causa do filtro de categoria ativo, só esmaecem (ver
-  // `matchesTimelineFilter` abaixo, no card); reprodução contínua já dependia dessa mesma
-  // lista completa (`recordings`), sem filtro.
+  // dentro de cada grupo (desc) segue a mesma ordem de `recordings`. Deriva dos itens que
+  // batem com o filtro ativo (`matchesTimelineFilter`) — hora sem nenhum item
+  // correspondente não gera grupo nenhum (some inteira, não só esmaece). Reprodução
+  // contínua continua usando `recordings` (a lista completa, sem filtro) — inalterado.
   const groupsByHour = useMemo(() => {
     const map = new Map<number, typeof recordingItems>()
     for (const item of recordingItems) {
+      if (!matchesTimelineFilter(item.category, filter)) continue
       const hour = new Date(item.rec.start).getHours()
       const list = map.get(hour)
       if (list) list.push(item)
       else map.set(hour, [item])
     }
     return [...map.entries()].sort((a, b) => b[0] - a[0])
-  }, [recordingItems])
+  }, [recordingItems, filter])
 
   // Grupos COLAPSADOS (o padrão é todo mundo aberto — dia normal de câmera residencial tem
   // poucas horas com conteúdo; abrir tudo por padrão favorece escanear a lista inteira,
@@ -801,80 +801,87 @@ export default function HistoryPage() {
                           </option>
                         ))}
                       </select>
-                      <div
-                        id="history-recordings-groups"
-                        className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
-                      >
-                        {groupsByHour.map(([hour, items]) => {
-                          const isOpen = !closedHours.has(hour)
-                          return (
-                            <div key={hour} className="rounded border border-border">
-                              <button
-                                id={`history-hour-group-${hour}`}
-                                type="button"
-                                onClick={() => toggleHour(hour)}
-                                aria-expanded={isOpen}
-                                className="flex w-full items-center justify-between px-2 py-1.5 text-caption font-medium text-muted hover:text-foreground"
-                              >
-                                <span>
-                                  {String(hour).padStart(2, '0')}h — {items.length}{' '}
-                                  {items.length === 1 ? 'gravação' : 'gravações'}
-                                </span>
-                                <ChevronDown
-                                  className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                                />
-                              </button>
-                              {isOpen && (
-                                <div className="flex flex-col gap-1 border-t border-border p-1.5">
-                                  {items.map(({ rec, duration, category: cat }) => {
-                                    const active = rec.id === selectedId
-                                    const blinkStyle =
-                                      active && playing
-                                        ? { animation: 'filmstrip-blink 1.1s ease-in-out infinite' }
-                                        : undefined
-                                    // Esmaece (não remove) gravações fora do filtro ativo — mesmo
-                                    // tratamento das linhas verticais da régua (HistoryTimeline).
-                                    const dimmed = !matchesTimelineFilter(cat, filter)
-                                    return (
-                                      <button
-                                        key={rec.id}
-                                        id={`history-recording-${rec.id}`}
-                                        ref={active ? activeCardRef : undefined}
-                                        type="button"
-                                        onClick={() => selectRecording(rec.id)}
-                                        aria-current={active ? 'true' : undefined}
-                                        style={blinkStyle}
-                                        className={`flex items-center justify-between rounded border-2 px-2 py-1 text-left transition-colors ${
-                                          dimmed ? 'opacity-40' : ''
-                                        } ${
-                                          active
-                                            ? 'border-primary bg-primary/15'
-                                            : `bg-surface-2 ${categoryBorderColor(cat)}`
-                                        }`}
-                                      >
-                                        <span className="flex items-center gap-2">
-                                          <Play className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                          <span className="text-caption font-medium tabular-nums text-foreground">
-                                            {formatClockTime(rec.start)}
+                      {groupsByHour.length === 0 ? (
+                        <div
+                          id="history-recordings-empty"
+                          className="flex flex-1 items-center justify-center px-2 py-4 text-center text-caption text-muted"
+                        >
+                          Nenhuma gravação para esse filtro
+                        </div>
+                      ) : (
+                        <div
+                          id="history-recordings-groups"
+                          className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
+                        >
+                          {groupsByHour.map(([hour, items]) => {
+                            const isOpen = !closedHours.has(hour)
+                            return (
+                              <div key={hour} className="rounded border border-border">
+                                <button
+                                  id={`history-hour-group-${hour}`}
+                                  type="button"
+                                  onClick={() => toggleHour(hour)}
+                                  aria-expanded={isOpen}
+                                  className="flex w-full items-center justify-between px-2 py-1.5 text-caption font-medium text-muted hover:text-foreground"
+                                >
+                                  <span>
+                                    {String(hour).padStart(2, '0')}h — {items.length}{' '}
+                                    {items.length === 1 ? 'gravação' : 'gravações'}
+                                  </span>
+                                  <ChevronDown
+                                    className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                                  />
+                                </button>
+                                {isOpen && (
+                                  <div className="flex flex-col gap-1 border-t border-border p-1.5">
+                                    {items.map(({ rec, duration, category: cat }) => {
+                                      const active = rec.id === selectedId
+                                      const blinkStyle =
+                                        active && playing
+                                          ? {
+                                              animation:
+                                                'filmstrip-blink 1.1s ease-in-out infinite',
+                                            }
+                                          : undefined
+                                      return (
+                                        <button
+                                          key={rec.id}
+                                          id={`history-recording-${rec.id}`}
+                                          ref={active ? activeCardRef : undefined}
+                                          type="button"
+                                          onClick={() => selectRecording(rec.id)}
+                                          aria-current={active ? 'true' : undefined}
+                                          style={blinkStyle}
+                                          className={`flex items-center justify-between rounded border-2 px-2 py-1 text-left transition-colors ${
+                                            active
+                                              ? 'border-primary bg-primary/15'
+                                              : `bg-surface-2 ${categoryBorderColor(cat)}`
+                                          }`}
+                                        >
+                                          <span className="flex items-center gap-2">
+                                            <Play className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                            <span className="text-caption font-medium tabular-nums text-foreground">
+                                              {formatClockTime(rec.start)}
+                                            </span>
+                                            <span className="text-caption capitalize text-muted">
+                                              {cat}
+                                            </span>
                                           </span>
-                                          <span className="text-caption capitalize text-muted">
-                                            {cat}
-                                          </span>
-                                        </span>
-                                        {duration && (
-                                          <span className="rounded bg-foreground/10 px-1 text-caption text-foreground">
-                                            {duration}
-                                          </span>
-                                        )}
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
+                                          {duration && (
+                                            <span className="rounded bg-foreground/10 px-1 text-caption text-foreground">
+                                              {duration}
+                                            </span>
+                                          )}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
