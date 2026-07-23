@@ -33,6 +33,11 @@ suja `develop` nem exige commit nenhum):
      `- [] CA1: Backend e frontend verdes (auto: scripts/check.sh)`.
      Cada CA seguinte referencia seu cenário:
      `- [] CAn: <critério> (auto: tests/functional/can_<slug>.sh)`.
+     **Exceção (frontend):** se o critério já é (ou vira, neste ticket) um
+     `describe('CAn: <critério>', ...)` dentro de um `*.test.tsx`/`.test.ts`,
+     use `(auto: scripts/check.sh)` em vez de um script dedicado — a suíte
+     inteira do CA1 já o cobre; não crie `tests/functional/canN_<slug>.sh`
+     pra esse CA (ver "Testes funcionais" em `docs/workflow.md`).
    - `## Gates`:
      ```
      - [] História revisada
@@ -41,13 +46,15 @@ suja `develop` nem exige commit nenhum):
      ```
    - Seções vazias `## Code Review` e `## Revisão` ao final.
 3. **Escreva os cenários funcionais AGORA** — um `tests/functional/caNN_<slug>.sh`
-   executável por CA (exceto CA1), exit 0 = critério atendido. O navigator
-   revisa os cenários junto com a story: eles fazem parte do que o G2 aprova.
-   Cenário que ainda não pode passar (código não existe) deve FALHAR de forma
-   clara, não dar erro de sintaxe. Esses arquivos SÃO versionados, mas ainda
-   NÃO existe branch nem commit — ficam como untracked em `develop` até o
-   passo 7 abaixo (nenhum problema: `develop` só é protegido contra
-   commit/push direto, não contra arquivos soltos no working tree).
+   executável por CA (exceto CA1 e os CAs de frontend cobertos por
+   `describe('CAn: ...')`, ver exceção acima), exit 0 = critério atendido. O
+   navigator revisa os cenários junto com a story: eles fazem parte do que o
+   G2 aprova. Cenário que ainda não pode passar (código não existe) deve
+   FALHAR de forma clara, não dar erro de sintaxe. Esses arquivos SÃO
+   versionados, mas ainda NÃO existe branch nem commit — ficam como untracked
+   em `develop` até o passo 7 abaixo (nenhum problema: `develop` só é
+   protegido contra commit/push direto, não contra arquivos soltos no
+   working tree).
 4. Apresente a story ao navigator e rode em background:
    `bash scripts/await-gate.sh revisao`
 5. **Gate G2:** nenhuma branch nova, linha de código de produção ou teste

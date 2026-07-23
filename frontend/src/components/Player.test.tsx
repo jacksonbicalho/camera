@@ -96,27 +96,29 @@ describe('Player', () => {
     expect(document.getElementById('p1-mute')).toBeNull()
   })
 
-  it('CA5: sem title mas com controls, rodapé existe (mudo/tela cheia) sem mostrar nome', async () => {
-    render(<Player id="p1" src="/stream/cam1/index.m3u8" controls />)
-    await flush()
-    const footer = document.getElementById('p1-footer')
-    expect(footer).toBeTruthy()
-    expect(footer!.textContent).not.toContain('Corredor de entrada')
-    expect(document.getElementById('p1-mute')).toBeTruthy()
-    expect(document.getElementById('p1-fullscreen')).toBeTruthy()
-  })
+  describe('CA5: rodapé existe sem `title`, desde que haja controls ou footerTrailing', () => {
+    it('sem title mas com controls, rodapé existe (mudo/tela cheia) sem mostrar nome', async () => {
+      render(<Player id="p1" src="/stream/cam1/index.m3u8" controls />)
+      await flush()
+      const footer = document.getElementById('p1-footer')
+      expect(footer).toBeTruthy()
+      expect(footer!.textContent).not.toContain('Corredor de entrada')
+      expect(document.getElementById('p1-mute')).toBeTruthy()
+      expect(document.getElementById('p1-fullscreen')).toBeTruthy()
+    })
 
-  it('CA5: sem title e sem controls, mas com footerTrailing, rodapé existe mesmo assim', async () => {
-    render(
-      <Player
-        id="p1"
-        src="/stream/cam1/index.m3u8"
-        footerTrailing={<span id="p1-tabs">tabs</span>}
-      />,
-    )
-    await flush()
-    expect(document.getElementById('p1-footer')).toBeTruthy()
-    expect(document.getElementById('p1-tabs')).toBeTruthy()
+    it('sem title e sem controls, mas com footerTrailing, rodapé existe mesmo assim', async () => {
+      render(
+        <Player
+          id="p1"
+          src="/stream/cam1/index.m3u8"
+          footerTrailing={<span id="p1-tabs">tabs</span>}
+        />,
+      )
+      await flush()
+      expect(document.getElementById('p1-footer')).toBeTruthy()
+      expect(document.getElementById('p1-tabs')).toBeTruthy()
+    })
   })
 
   it('com title, mostra o rodapé com o nome — sem controls, sem botões', async () => {

@@ -226,7 +226,7 @@ mesmo checkbox. **`push-pr.sh` nunca roda sem esse checkbox marcado** —
 regra permanente, sem exceção.
 
 Regras:
-- **Todo critério de aceite tem um cenário funcional executável** em `tests/functional/caNN_<slug>.sh` (exit 0 = passou), exceto o CA1 (`scripts/check.sh`). Escrito pelo driver **antes** do G2 — o navigator revisa os cenários junto com a story.
+- **Todo critério de aceite tem um cenário funcional executável** em `tests/functional/caNN_<slug>.sh` (exit 0 = passou), exceto o CA1 (`scripts/check.sh`). Escrito pelo driver **antes** do G2 — o navigator revisa os cenários junto com a story. **Exceção:** um CA de **frontend** cuja verificação já é um `describe('CAX: <critério>', ...)` dentro do próprio `*.test.tsx`/`.test.ts` (ver "Testes funcionais" abaixo) usa `(auto: scripts/check.sh)` em vez de um script dedicado — a suíte inteira (CA1) já o cobre; o code review confirma que o describe existe e corresponde ao critério.
 - `[x] Review: APPROVED` só é escrito por `record-review.sh` (todos os tickets aprovados pelo subagent).
 - `[x] Aprovado` só é escrito por `finalize-story.sh` (nunca pelo driver à mão) quando: História revisada ✓ + Review APPROVED ✓ + todos os CAs ✓. Isso mantém `commit.sh`/`push-pr.sh`/hooks funcionando sem alteração de contrato.
 - `[x] Pré-push: revisado e aprovado` (seção `## Revisão`) só é marcado pelo NAVIGATOR, nunca pelo driver — é o único gate cujo checkbox não é preenchido por nenhum script. `scripts/push-pr.sh` nunca roda sem ele marcado, mesmo com a story já `[x] Aprovado`.
@@ -255,6 +255,7 @@ Loop por ticket:
 
 - `tests/functional/` (versionado). Convenção: `caNN_<slug>.sh`, executável, exit 0 = critério atendido. Pode chamar `go test -run`, `curl` contra o binário, `yarn test --testNamePattern`, etc. — o contrato é só o exit code. Ver template em `tests/functional/ca2_exemplo.sh.template`.
 - `scripts/functional-check.sh`: roda `check.sh` (marca CA1) e depois cada `caNN_*.sh` referenciado na story, marcando `[x]` no CA correspondente ao passar. Falhou → CA fica `[]` e o script sai com erro (driver corrige e re-roda; se a correção mexer em lógica, o ticket volta ao loop de review).
+- **CAs de frontend sem script dedicado:** critério cuja verificação já existe como `describe('CAX: <critério>', () => it('<comportamento>', ...))` dentro de um `*.test.tsx`/`.test.ts` é anotado `(auto: scripts/check.sh)` em vez de `tests/functional/caNN.sh` — `functional-check.sh` marca `[x]` esses CAs direto (já cobertos pela suíte inteira do CA1), sem rodar nada além do `check.sh` do topo. Existe porque um script dedicado nesses casos só reproduzia o mesmo `yarn test -t '<padrão>'` + `grep 'passed'` (workaround pro Vitest não falhar quando `-t` não casa nenhum teste) repetido dezenas de vezes; a garantia real do critério é o `describe`/`it` existir no código E a suíte inteira estar verde — verificável por code review, não por script. Convenção adotada na história `refactor/frontend-testes-ca-describe` (`work_progress/analysis/202607232012_frontend-testes-ca-describe.md`).
 - Substitui o antigo `story-approval.sh` interativo: critério verificável por máquina é marcado pela máquina. Critério genuinamente não-automatizável deve ser questionado no G1/G2 — ou vira automatizável, ou não é critério.
 
 ### Commits semânticos
