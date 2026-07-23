@@ -617,7 +617,7 @@ describe('HistoryTimeline', () => {
     expect(line.className).toContain('rounded-[1px]')
   })
 
-  it('CA2semfiltro: gravações fora do filtro ativo ficam esmaecidas, nunca removidas (linhas continuam com a própria cor)', () => {
+  it('CA3FiltroOcultaRegua: gravações fora do filtro ativo são REMOVIDAS da régua (a linha não é renderizada)', () => {
     const items = [
       item(1, '2026-07-05T18:00:00Z', 'continua'),
       item(2, '2026-07-05T18:10:00Z', 'pessoa'),
@@ -625,24 +625,33 @@ describe('HistoryTimeline', () => {
     render(
       <HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" filter="pessoa" />,
     )
-    // Nenhuma gravação foi removida: as duas linhas continuam no DOM.
-    expect(document.getElementById('history-timeline-hour-18-rec-1')).not.toBeNull()
+    // A linha fora do filtro (item 1, "continua") não existe mais no DOM.
+    expect(document.getElementById('history-timeline-hour-18-rec-1')).toBeNull()
     expect(document.getElementById('history-timeline-hour-18-rec-2')).not.toBeNull()
-    // Só a linha fora do filtro (item 1, "continua") fica esmaecida.
-    expect(document.getElementById('history-timeline-hour-18-rec-1')!.className).toContain(
-      'opacity-40',
-    )
-    expect(document.getElementById('history-timeline-hour-18-rec-2')!.className).not.toContain(
-      'opacity-40',
-    )
   })
 
-  it('CA2semfiltro: sem a prop `filter`, nenhuma linha fica esmaecida (retrocompatível)', () => {
+  it('CA3FiltroOcultaRegua: bloco de hora sem NENHUM item correspondente ao filtro some inteiro (não fica vazio)', () => {
+    const items = [
+      item(1, '2026-07-05T18:00:00Z', 'continua'),
+      item(2, '2026-07-05T19:00:00Z', 'pessoa'),
+    ]
+    render(
+      <HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" filter="pessoa" />,
+    )
+    // Hora 18 só tinha "continua" (fora do filtro) — o card da hora inteiro desaparece.
+    expect(document.getElementById('history-timeline-hour-18')).toBeNull()
+    expect(document.getElementById('history-timeline-hour-19')).not.toBeNull()
+    expect(document.getElementById('history-timeline-hour-19-rec-2')).not.toBeNull()
+  })
+
+  it('CA3FiltroOcultaRegua: sem a prop `filter`, nenhuma linha é removida (retrocompatível)', () => {
     const items = [
       item(1, '2026-07-05T18:00:00Z', 'continua'),
       item(2, '2026-07-05T18:10:00Z', 'pessoa'),
     ]
     render(<HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />)
+    expect(document.getElementById('history-timeline-hour-18-rec-1')).not.toBeNull()
+    expect(document.getElementById('history-timeline-hour-18-rec-2')).not.toBeNull()
     expect(document.getElementById('history-timeline-hour-18-rec-1')!.className).not.toContain(
       'opacity-40',
     )

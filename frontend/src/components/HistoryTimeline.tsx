@@ -21,9 +21,8 @@ interface RecordingItem {
 }
 
 interface HistoryTimelineProps {
-  /** TODAS as gravações do dia (mesmo universo de dados da lista agrupada abaixo — a lista
-   * e a régua sempre mostram todas as gravações existentes, nunca um subconjunto: o filtro
-   * de categoria não remove nada daqui, só esmaece via `filter` abaixo). */
+  /** TODAS as gravações do dia (mesmo universo de dados da lista agrupada abaixo — o
+   * filtro ativo (`filter` abaixo) reduz o que é de fato exibido). */
   recordingItems: RecordingItem[]
   /** Chamado com o id da gravação escolhida (clique na trilha ou soltar a alça). */
   onSelect: (id: number) => void
@@ -32,10 +31,10 @@ interface HistoryTimelineProps {
   /** Gravação selecionada atualmente — posiciona a alça em repouso (fora de um arraste
    * em andamento). Sem seleção, a alça não aparece. */
   selectedId?: number | null
-  /** Filtro de categoria ativo (chip Tudo/Movimento/Pessoa/Contínua) — só esmaece
-   * (`opacity`) as linhas verticais de gravações que não batem com ele; NUNCA remove
-   * nenhuma gravação de `recordingItems`. Omitido = sem esmaecimento (todas as linhas
-   * full-opacity) — comportamento retrocompatível pra quem não passar a prop. */
+  /** Filtro de categoria ativo (chip Tudo/Movimento/Pessoa/Contínua) — REMOVE as linhas
+   * (e o bloco de hora inteiro, se nenhuma linha da hora bater) de gravações que não
+   * batem com ele. Omitido = sem filtro nenhum (mostra tudo) — comportamento
+   * retrocompatível pra quem não passar a prop. */
   filter?: TimelineFilter
   /** Dia sendo exibido (qualquer instante dele — só ano/mês/dia local importam). Sem
    * nenhuma gravação, a régua ainda assim aparece (resumo "0 gravações" + trilha vazia)
@@ -189,10 +188,21 @@ export default function HistoryTimeline({
   // antigo, mantido pra não quebrar chamadores que não têm um "dia" próprio pra passar).
   // Com `day`, a régua aparece mesmo sem NENHUM item (ex.: filtro ativo sem nenhuma
   // gravação da categoria naquele dia) — resumo "0 gravações" + trilha vazia, não some.
+  // Essa checagem usa `recordingItems` BRUTO (não filtrado) — decide só se o componente
+  // tem contexto suficiente pra renderizar, independente do filtro ativo.
   if (recordingItems.length === 0 && !day) return null
 
+  // Com `filter`, remove de verdade os itens fora dele (bloco de hora sem nenhum item
+  // correspondente não é gerado — ver `byHour`/`hourCards` abaixo). Sem `filter` (prop
+  // opcional), mostra tudo — retrocompatibilidade com chamadores/testes que não passam a
+  // prop.
+  const visibleItems =
+    filter != null
+      ? recordingItems.filter((item) => matchesTimelineFilter(item.category, filter))
+      : recordingItems
+
   const byHour = new Map<number, RecordingItem[]>()
-  for (const item of recordingItems) {
+  for (const item of visibleItems) {
     const hour = new Date(item.rec.start).getHours()
     const list = byHour.get(hour)
     if (list) list.push(item)
@@ -393,7 +403,7 @@ export default function HistoryTimeline({
   return (
     <div id="history-timeline" className="mt-1 flex flex-col gap-1">
       <div id="history-timeline-summary" className="text-body text-muted">
-        {recordingItems.length} gravações
+        {visibleItems.length} gravações
       </div>
       <div className="relative flex flex-col gap-1">
         {previewMs != null && (
@@ -511,19 +521,16 @@ export default function HistoryTimeline({
                   >
                     {card.items.map((item) => {
                       const clamped = card.positions.get(item.rec.id)!
-                      // Esmaece (não remove) gravações fora do filtro ativo — a régua
-                      // sempre mostra TODAS as gravações da hora; `filter` só reduz a
-                      // opacidade das que não batem, igual ao card correspondente na
-                      // lista lateral (HistoryPage.tsx). A cor de base é a da PRÓPRIA
-                      // categoria da gravação — medidas do protótipo: altura 75% (não
-                      // 100%), cantos arredondados, centralizada verticalmente.
-                      const dimmed = filter != null && !matchesTimelineFilter(item.category, filter)
+                      // Gravações fora do filtro ativo já foram removidas de `visibleItems`
+                      // (não chegam a este card/hora) — aqui só resta desenhar a linha da
+                      // PRÓPRIA categoria da gravação: altura 75% (não 100%, medida do
+                      // protótipo), cantos arredondados, centralizada verticalmente.
                       return (
                         <span
                           key={item.rec.id}
                           id={`history-timeline-hour-${card.hour}-rec-${item.rec.id}`}
                           ref={item.rec.id === selectedId ? activeLineRef : undefined}
-                          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-[1px] ${categoryColor(item.category)} ${dimmed ? 'opacity-40' : ''}`}
+                          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-[1px] ${categoryColor(item.category)}`}
                           style={{
                             left: `${clamped * 100}%`,
                             width: LINE_WIDTH_PX,
