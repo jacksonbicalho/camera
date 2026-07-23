@@ -5,9 +5,10 @@ import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import DatePicker from '../components/DatePicker'
 import { Button } from '../components/ui/button'
-import { authHeaders, onUnauthorized, getToken } from '../auth'
+import { authHeaders, onUnauthorized } from '../auth'
 import { resolveEventRecordingUrl } from '../lib/eventNavigation'
 import { categoryColor, categoryLabel } from './eventCategory'
+import { useMoments, momentThumb } from '../hooks/useMoments'
 
 const WINDOWS = [1, 2, 4, 6, 12, 24] as const
 
@@ -49,16 +50,6 @@ interface CameraOption {
   id: string
   name: string
 }
-interface Moment {
-  camera_id: string
-  camera_name: string
-  time: string
-  kind: 'motion' | 'state'
-  label?: string
-  category: string
-  frame?: string
-  score: number
-}
 
 interface RecordingItem {
   id: number
@@ -67,19 +58,6 @@ interface RecordingItem {
   start: string
   has_motion: boolean
   url: string
-}
-
-const pad = (n: number) => String(n).padStart(2, '0')
-
-// momentThumb resolve a URL do thumbnail: estado já vem como caminho absoluto
-// (/recordings/state_history/...); movimento é só o nome do arquivo, montado a partir
-// da câmera + dia UTC do instante.
-function momentThumb(m: Moment): string | null {
-  if (!m.frame) return null
-  if (m.frame.startsWith('/')) return `${m.frame}?token=${getToken()}`
-  const d = new Date(m.time)
-  const dir = `${d.getUTCFullYear()}/${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())}`
-  return `/recordings/${m.camera_id}/${dir}/${m.frame}?token=${getToken()}`
 }
 
 export default function RecordingsPage() {
@@ -96,10 +74,7 @@ export default function RecordingsPage() {
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [date, setDate] = useState<Date>(() => parseLocalDate(dateParam))
-  const [moments, setMoments] = useState<Moment[]>([])
-  const [hasMore, setHasMore] = useState(false)
   const [page, setPage] = useState(1)
-  const [loaded, setLoaded] = useState(false)
   // Default 'moments' quando o segmento :view vem ausente/inválido na URL (troca do
   // default anterior, que era 'recordings' — pedido do navigator).
   const [view, setView] = useState<'recordings' | 'moments'>(() =>
@@ -110,6 +85,13 @@ export default function RecordingsPage() {
   const [recordings, setRecordings] = useState<RecordingItem[]>([])
   const [recLoaded, setRecLoaded] = useState(false)
   const [contentDays, setContentDays] = useState<string[]>([])
+  const { moments, hasMore, loaded } = useMoments({
+    date,
+    category,
+    cameras: selectedCams,
+    query,
+    page,
+  })
 
   // Opções do filtro de categoria (`#recordings-category-chips`) — dinâmicas, derivadas
   // dos momentos efetivamente carregados (pedido do navigator: nada de chips fixos
@@ -173,36 +155,6 @@ export default function RecordingsPage() {
     }, 300)
     return () => clearTimeout(t)
   }, [search])
-
-  useEffect(() => {
-    let cancelled = false
-    const params = new URLSearchParams({
-      date: format(date, 'yyyy-MM-dd'),
-      page: String(page),
-      limit: '120',
-    })
-    if (category !== 'todos') params.set('category', category)
-    if (selectedCams.size > 0) params.set('cameras', [...selectedCams].join(','))
-    if (query) params.set('q', query)
-    fetch(`/api/moments?${params}`, { headers: authHeaders() })
-      .then((r) => {
-        if (r.status === 401) {
-          onUnauthorized()
-          return null
-        }
-        return r.json()
-      })
-      .then((d) => {
-        if (cancelled || !d) return
-        setMoments((prev) => (page === 1 ? d.moments : [...prev, ...d.moments]))
-        setHasMore(d.hasMore)
-        setLoaded(true)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [date, category, page, selectedCams, query])
 
   // Modo Gravações: lista os chunks do dia (tabela recordings) com janela + só-movimento.
   useEffect(() => {

@@ -20,6 +20,7 @@ import {
   Film,
   History,
   Settings,
+  Zap,
 } from './Icons'
 
 interface NavItem {
@@ -44,6 +45,12 @@ const items: NavItem[] = [
     to: '/recordings',
     label: 'Gravações',
     icon: <Film className="h-5 w-5" />,
+  },
+  {
+    id: 'sidebar-motions',
+    to: '/motions',
+    label: 'Momentos',
+    icon: <Zap className="h-5 w-5" />,
   },
 ]
 
