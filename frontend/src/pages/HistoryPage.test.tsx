@@ -966,7 +966,7 @@ describe('HistoryPage', () => {
       expect(document.getElementById('history-recording-3')).not.toBeNull()
     })
 
-    it('CA2filtro: a régua do HistoryTimeline sempre colore os blocos de hora considerando TODAS as gravações (independente do filtro ativo)', async () => {
+    it('CA3FiltroOcultaRegua: a régua do HistoryTimeline remove o bloco de hora fora do filtro ativo, em vez de colorir todas as horas do dia', async () => {
       // a.mp4 (07:12:00Z) sem evento → continua; b.mp4 (08:03:00Z) com evento "pessoa
       // detectada" no mesmo intervalo → categoria pessoa.
       stubFetch(recordings, [{ time: '2026-07-05T08:03:30Z', label: 'pessoa detectada' }])
@@ -976,38 +976,22 @@ describe('HistoryPage', () => {
         expect(document.getElementById('history-recording-2')).not.toBeNull()
       })
 
-      // sem filtro (Tudo): o card de cada hora é sempre neutro; cada LINHA usa a cor da
-      // PRÓPRIA categoria (não mais o card colorido pela categoria dominante).
-      expect(document.getElementById('history-timeline-hour-7')!.className).toContain(
-        'bg-surface-2',
-      )
-      expect(document.getElementById('history-timeline-hour-8')!.className).toContain(
-        'bg-surface-2',
-      )
+      // sem filtro (Tudo): as duas horas aparecem na régua, cada LINHA com a cor da própria
+      // categoria.
+      expect(document.getElementById('history-timeline-hour-7')).not.toBeNull()
+      expect(document.getElementById('history-timeline-hour-8')).not.toBeNull()
       const line7 = document.querySelector('#history-timeline-hour-7 span')!
       const line8 = document.querySelector('#history-timeline-hour-8 span')!
       expect(line7.className).toContain('bg-blue-500') // continua
       expect(line8.className).toContain('bg-red-500') // pessoa
 
       selectFilter('pessoa')
-      // Sinal de que o filtro assentou: a lista lateral já remove o card fora do filtro
-      // (T1) — a régua abaixo é o que este teste de fato verifica (T2).
+      // com o filtro "Pessoa" ativo: a hora 7 (só tinha "continua", fora do filtro) some
+      // inteira da régua; a hora 8 ("pessoa") continua, com a mesma cor de linha.
       await waitFor(() => {
-        expect(document.getElementById('history-recording-1')).toBeNull()
+        expect(document.getElementById('history-timeline-hour-7')).toBeNull()
       })
-
-      // com o filtro "Pessoa" ativo: os cards continuam neutros e as linhas continuam com
-      // suas cores reais — só a linha da hora 7 (fora do filtro) fica esmaecida, nenhuma
-      // linha some nem muda de cor.
-      expect(document.getElementById('history-timeline-hour-7')!.className).toContain(
-        'bg-surface-2',
-      )
-      expect(document.getElementById('history-timeline-hour-8')!.className).toContain(
-        'bg-surface-2',
-      )
-      expect(document.querySelector('#history-timeline-hour-7 span')!.className).toContain(
-        'bg-blue-500',
-      )
+      expect(document.getElementById('history-timeline-hour-8')).not.toBeNull()
       expect(document.querySelector('#history-timeline-hour-8 span')!.className).toContain(
         'bg-red-500',
       )
