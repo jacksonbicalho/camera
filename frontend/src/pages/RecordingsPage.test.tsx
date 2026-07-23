@@ -259,7 +259,7 @@ describe('RecordingsPage', () => {
     expect(called).toBe(true)
   })
 
-  describe('CA5dinamico: filtro de categoria dinâmico (modo Momentos)', () => {
+  describe('CA5: filtro de categoria dinâmico (modo Momentos)', () => {
     // Momentos com um label específico dinâmico (ex.: "carro") além dos 2 padrão
     // (estados/pessoa) — servidor filtra por `category` quando presente, igual à API real.
     const dynamicMoments = [

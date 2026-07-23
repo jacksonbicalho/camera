@@ -182,7 +182,7 @@ describe('ReportsPage rota (câmera/data/range na URL)', () => {
   })
 })
 
-describe('CA5dinamico: categorias dinâmicas (barras/donut/modal), não mais um bucket fixo "IA"', () => {
+describe('CA5: categorias dinâmicas (barras/donut/modal), não mais um bucket fixo "IA"', () => {
   function stubDynamicReport() {
     vi.stubGlobal(
       'fetch',

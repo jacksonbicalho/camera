@@ -170,25 +170,27 @@ describe('LivePage', () => {
     expect(document.getElementById('live-fullscreen-toggle')).toBeNull()
   })
 
-  it('CA4: passa controls pro Player, mas não title — nome já está no cabeçalho, sem duplicar no rodapé', async () => {
-    renderAt('/live/cam1')
-    await waitFor(() => {
-      expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
+  describe('CA4: título do cabeçalho fixo "Ao vivo", nome da câmera no subtítulo', () => {
+    it('passa controls pro Player, mas não title — nome já está no cabeçalho, sem duplicar no rodapé', async () => {
+      renderAt('/live/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
+      })
+      const hls = screen.getByTestId('hls')
+      expect(hls.getAttribute('data-title')).toBeNull()
+      expect(hls.getAttribute('data-controls')).toBe('true')
     })
-    const hls = screen.getByTestId('hls')
-    expect(hls.getAttribute('data-title')).toBeNull()
-    expect(hls.getAttribute('data-controls')).toBe('true')
-  })
 
-  it('CA4: título do cabeçalho vira "Ao vivo" (fixo) e o nome da câmera desce pro subtítulo', async () => {
-    renderAt('/live/cam1')
-    await waitFor(() => {
-      expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
+    it('título do cabeçalho vira "Ao vivo" (fixo) e o nome da câmera desce pro subtítulo', async () => {
+      renderAt('/live/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('live-header')?.textContent).toContain('Entrada')
+      })
+      const title = screen.getByRole('heading', { level: 2 })
+      expect(title.textContent).toBe('Ao vivo')
+      const subtitle = screen.getByRole('heading', { level: 3 })
+      expect(subtitle.textContent).toContain('Entrada')
     })
-    const title = screen.getByRole('heading', { level: 2 })
-    expect(title.textContent).toBe('Ao vivo')
-    const subtitle = screen.getByRole('heading', { level: 3 })
-    expect(subtitle.textContent).toContain('Entrada')
   })
 
   it('tabs Ao vivo/Histórico vão pro rodapé do Player (footerTrailing), não pro cabeçalho', async () => {

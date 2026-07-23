@@ -42,15 +42,17 @@ describe('PlayerFooter', () => {
     expect(document.getElementById('p1-footer-actions')).toBeNull()
   })
 
-  it('CA5: modo linha sem title (não freeform), mostra as ações sem o nome', () => {
-    render(
-      <PlayerFooter id="p1-footer">
-        <button id="p1-footer-mute">mudo</button>
-      </PlayerFooter>,
-    )
-    const el = document.getElementById('p1-footer')!
-    expect(el.textContent).not.toContain('Corredor de entrada')
-    expect(document.getElementById('p1-footer-actions')).not.toBeNull()
-    expect(document.getElementById('p1-footer-mute')).not.toBeNull()
+  describe('CA5: modo linha sem `title` (não freeform) mostra as ações sem o nome', () => {
+    it('modo linha sem title (não freeform), mostra as ações sem o nome', () => {
+      render(
+        <PlayerFooter id="p1-footer">
+          <button id="p1-footer-mute">mudo</button>
+        </PlayerFooter>,
+      )
+      const el = document.getElementById('p1-footer')!
+      expect(el.textContent).not.toContain('Corredor de entrada')
+      expect(document.getElementById('p1-footer-actions')).not.toBeNull()
+      expect(document.getElementById('p1-footer-mute')).not.toBeNull()
+    })
   })
 })
