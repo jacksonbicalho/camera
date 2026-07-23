@@ -358,6 +358,24 @@ describe('Sidebar — Gravações (link global, sem seletor de câmera)', () => 
   })
 })
 
+// "Momentos" (sidebar-motions) — item novo, ao lado de "Gravações", pra página dedicada
+// /motions (coexiste com a aba "Momentos" já existente dentro de Gravações).
+describe('Sidebar — Momentos (link global, sem seletor de câmera)', () => {
+  it('é um NavLink com id sidebar-motions, href "/motions"', () => {
+    renderAt('/')
+    const el = document.getElementById('sidebar-motions')!
+    expect(el).toBeTruthy()
+    expect(el.tagName).toBe('A')
+    expect(el.getAttribute('href')).toBe('/motions')
+    expect(el.getAttribute('aria-label')).toBe('Momentos')
+  })
+
+  it('fica ativo em /motions e em /motions/:date', () => {
+    renderAt('/motions/2026-07-07')
+    expect(document.getElementById('sidebar-motions')?.getAttribute('aria-current')).toBe('page')
+  })
+})
+
 // MotionNotificationsBell — extraído do sidebar legado (AppSidebar.tsx, id antigo
 // "sidebar-notifications") pra dentro do sidebar novo, como 1º item do nav
 // (mesma posição que tinha no legado). Cobertura própria de comportamento (clique,
