@@ -41,6 +41,9 @@ interface CameraStageHeaderProps {
    *  deixa `false` (default) — título acompanha a largura cheia, igual ao
    *  player abaixo dele. */
   twoColumnCap?: boolean
+  /** Ações à direita do título (ex.: `HistoryPage` usa pro `<select>` de troca
+   *  de câmera — repassado direto pro `actions` do `PageHeader`). */
+  actions?: ReactNode
   /** O player (Player/<video>) renderizado logo abaixo do cabeçalho. */
   children: ReactNode
 }
@@ -55,6 +58,7 @@ export default function CameraStageHeader({
   recordingEnabled,
   pageTitle,
   twoColumnCap,
+  actions,
   children,
 }: CameraStageHeaderProps) {
   const cameraLine = (
@@ -81,6 +85,7 @@ export default function CameraStageHeader({
           className="items-center mb-0"
           title={pageTitle ?? cameraLine}
           subtitle={pageTitle ? cameraLine : undefined}
+          actions={actions}
         />
       </div>
       {children}

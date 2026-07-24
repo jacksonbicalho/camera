@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { cleanup, render, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import HistoryLandingPage from './HistoryLandingPage'
 
@@ -31,8 +31,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('CA6: /history lista câmeras pra escolher; com 1 só, pula direto pra ela', () => {
-  it('busca /api/cameras e lista uma câmera por botão', async () => {
+describe('CA6: /history nunca mostra um picker — navega direto pra a 1ª câmera assim que a lista carrega', () => {
+  it('com várias câmeras, navega pra a 1ª (troca de câmera depois é via o <select> dentro de HistoryPage)', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>
@@ -47,41 +47,12 @@ describe('CA6: /history lista câmeras pra escolher; com 1 só, pula direto pra 
       ),
     )
     renderAt()
-    await waitFor(() => {
-      expect(document.getElementById('history-landing-camera-cam1')?.textContent).toContain(
-        'Corredor',
-      )
-      expect(document.getElementById('history-landing-camera-cam2')?.textContent).toContain(
-        'Quintal',
-      )
-    })
-  })
-
-  it('clicar numa câmera navega pra /history/:cameraId', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve([
-              { id: 'cam1', name: 'Corredor' },
-              { id: 'cam2', name: 'Quintal' },
-            ]),
-        }),
-      ),
-    )
-    renderAt()
-    await waitFor(() => {
-      expect(document.getElementById('history-landing-camera-cam1')).toBeTruthy()
-    })
-    fireEvent.click(document.getElementById('history-landing-camera-cam1')!)
     await waitFor(() => {
       expect(document.getElementById('test-location')!.textContent).toBe('/history/cam1')
     })
   })
 
-  it('com uma única câmera, pula o picker e navega direto pra /history/:cameraId', async () => {
+  it('com uma única câmera, navega direto pra /history/:cameraId', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>
@@ -95,10 +66,9 @@ describe('CA6: /history lista câmeras pra escolher; com 1 só, pula direto pra 
     await waitFor(() => {
       expect(document.getElementById('test-location')!.textContent).toBe('/history/cam1')
     })
-    expect(document.getElementById('history-landing-camera-cam1')).toBeNull()
   })
 
-  it('sem câmeras, mostra "Nenhuma câmera disponível."', async () => {
+  it('sem câmeras, mostra "Nenhuma câmera disponível." (sem navegar pra lugar nenhum)', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve([]) })),
@@ -107,5 +77,6 @@ describe('CA6: /history lista câmeras pra escolher; com 1 só, pula direto pra 
     await waitFor(() => {
       expect(document.body.textContent).toContain('Nenhuma câmera disponível.')
     })
+    expect(document.getElementById('test-location')!.textContent).toBe('/history')
   })
 })
