@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import ServerSettingsPage from './ServerSettingsPage'
-import SystemSettingsPage from './SystemSettingsPage'
 import StorageSettingsPage from './StorageSettingsPage'
 import CamerasSettingsPage from './CamerasSettingsPage'
 
@@ -22,7 +21,7 @@ vi.mock('../../hooks/useSettings', () => ({
   useSettings: () => ({ settings: null, reload: vi.fn() }),
 }))
 
-// ServerSettingsPage/SystemSettingsPage/StorageSettingsPage/CamerasSettingsPage usam o
+// ServerSettingsPage/StorageSettingsPage/CamerasSettingsPage usam o
 // Layout novo — mocka esse (Layout real puxaria Sidebar -> MotionNotificationsBell ->
 // useNotifications(), sem provider aqui).
 vi.mock('../../components/SettingsLayout', () => ({
@@ -40,16 +39,6 @@ describe('viewer — restricted pages', () => {
     render(
       <MemoryRouter>
         <ServerSettingsPage />
-      </MemoryRouter>,
-    )
-    expect(screen.getAllByText('Acesso restrito.').length).toBeGreaterThan(0)
-    expect(screen.queryByText('Carregando...')).toBeNull()
-  })
-
-  it('SystemSettingsPage shows Acesso restrito for viewer', () => {
-    render(
-      <MemoryRouter>
-        <SystemSettingsPage />
       </MemoryRouter>,
     )
     expect(screen.getAllByText('Acesso restrito.').length).toBeGreaterThan(0)

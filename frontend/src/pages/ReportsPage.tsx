@@ -150,6 +150,18 @@ export default function ReportsPage() {
       .catch(() => {})
   }, [])
 
+  // Rota "/reports" (sem :cameraId, ver Sidebar — "Relatórios" virou link direto em
+  // vez de flyout de câmera: a própria página já tem o <select> de câmera, então
+  // escolher antes de navegar era redundante) cai aqui sem câmera nenhuma — assim
+  // que a lista carrega, seleciona a 1ª pra ter algo pra mostrar; o <select> deixa
+  // trocar depois. O efeito de sincronização de URL acima cuida de navegar pra
+  // `/reports/:id/:date/:days` assim que `camera` deixa de ser vazio. Ajuste
+  // durante o render (não useEffect+setState): `!camera` deixa de ser verdadeiro
+  // assim que este `setCamera` roda, então nunca dispara de novo neste mount.
+  if (!camera && cameras.length > 0) {
+    setCamera(cameras[0].id)
+  }
+
   useEffect(() => {
     if (!camera) return
     const bucket = dayMode ? '&bucket=hour' : ''

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 
 // RecordingsGateway captura globalThis.fetch no construtor e a instância nasce no nível do
@@ -130,6 +130,7 @@ const recordingsJul4 = [
 function stubFetch(
   defaultDayRecordings: typeof recordings = recordings,
   events: Array<{ time: string; label?: string; kind?: 'motion' | 'state' }> = [],
+  cameraList: typeof cameras = cameras,
 ) {
   vi.stubGlobal(
     'fetch',
@@ -157,7 +158,7 @@ function stubFetch(
         })
       }
       if (url.startsWith('/api/cameras')) {
-        return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+        return Promise.resolve({ status: 200, json: () => Promise.resolve(cameraList) })
       }
       return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
     }),
@@ -233,6 +234,71 @@ describe('HistoryPage', () => {
         const header = document.getElementById('history-header')!
         expect(header.className).toContain('mx-auto')
         expect(header.className).toContain('max-w-[92.75rem]')
+      })
+
+      it('com mais de 1 câmera, mostra um <select> no cabeçalho pra trocar de câmera (mesmo padrão de ReportsPage); com 1 só, não mostra', async () => {
+        stubFetch(
+          recordings,
+          [],
+          [
+            { id: 'cam1', name: 'Corredor de entrada', recording_enabled: true },
+            { id: 'cam2', name: 'Quintal', recording_enabled: true },
+          ],
+        )
+        renderAt('/history/cam1')
+        await waitFor(() => {
+          expect(document.getElementById('history-camera-select')).not.toBeNull()
+        })
+        const select = document.getElementById('history-camera-select') as HTMLSelectElement
+        expect(select.value).toBe('cam1')
+        fireEvent.change(select, { target: { value: 'cam2' } })
+        // A URL vira /history/cam2 na hora; assim que as gravações do dia carregam pra
+        // cam2, o efeito de sincronização (já existente) acrescenta o :recordingId
+        // selecionado — mesmo comportamento de sempre, não específico deste <select>.
+        await waitFor(() => {
+          expect(currentPathname()).toMatch(/^\/history\/cam2(\/\d+)?$/)
+        })
+      })
+
+      it('trocar de câmera com um link compartilhável (/:recordingId na URL original) não reaplica a resolução do recordingId contra a câmera nova', async () => {
+        stubFetch(
+          recordings,
+          [],
+          [
+            { id: 'cam1', name: 'Corredor de entrada', recording_enabled: true },
+            { id: 'cam2', name: 'Quintal', recording_enabled: true },
+          ],
+        )
+        // recordingId=3 pertence à cam1 (dia 04/07) — resolvido uma única vez, na
+        // carga inicial.
+        gateway.getRecording.mockResolvedValue({ filename: 'c.mp4', date: '2026-07-04' })
+        renderAt('/history/cam1/3')
+        await waitFor(() => {
+          expect(document.getElementById('history-camera-select')).not.toBeNull()
+        })
+        expect(gateway.getRecording).toHaveBeenCalledTimes(1)
+        expect(gateway.getRecording).toHaveBeenCalledWith('cam1', '3')
+
+        fireEvent.change(document.getElementById('history-camera-select')!, {
+          target: { value: 'cam2' },
+        })
+        await waitFor(() => {
+          expect(currentPathname()).toMatch(/^\/history\/cam2(\/\d+)?$/)
+        })
+        // Não reexecuta gateway.getRecording('cam2', '3') — recordingId=3 nunca
+        // pertenceu à cam2, então isso quase sempre daria 404 e disparava
+        // "Gravação não encontrada" + resetava a data pra hoje sem o usuário ter
+        // pedido nenhuma gravação (bug real, achado do code-reviewer).
+        expect(gateway.getRecording).toHaveBeenCalledTimes(1)
+        expect(document.getElementById('history-recording-not-found')).toBeNull()
+      })
+
+      it('com 1 câmera só, não mostra o <select> de troca (nada pra trocar)', async () => {
+        renderAt('/history/cam1')
+        await waitFor(() => {
+          expect(document.getElementById('history-header')).not.toBeNull()
+        })
+        expect(document.getElementById('history-camera-select')).toBeNull()
       })
     })
   })

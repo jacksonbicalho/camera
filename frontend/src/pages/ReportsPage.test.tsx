@@ -21,6 +21,7 @@ function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
+        <Route path="/reports" element={<ReportsPage />} />
         <Route path="/reports/:cameraId/:date/:days" element={<ReportsPage />} />
       </Routes>
       <LocationProbe />
@@ -50,7 +51,7 @@ beforeEach(() => {
     'fetch',
     vi.fn((url: string) => {
       if (url.startsWith('/api/cameras'))
-        return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(cameras) })
       if (url.includes('bucket=heatmap'))
         return Promise.resolve({
           status: 200,
@@ -177,6 +178,15 @@ describe('ReportsPage rota (câmera/data/range na URL)', () => {
     await waitFor(() => {
       expect(document.getElementById('test-location')!.textContent).toBe(
         '/reports/cam1/2026-06-24/14',
+      )
+    })
+  })
+
+  it('/reports (sem :cameraId — link direto do Sidebar) seleciona a 1ª câmera assim que a lista carrega', async () => {
+    renderAt('/reports')
+    await waitFor(() => {
+      expect(document.getElementById('test-location')!.textContent).toMatch(
+        /^\/reports\/cam1\/\d{4}-\d{2}-\d{2}\/1$/,
       )
     })
   })

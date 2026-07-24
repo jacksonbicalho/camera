@@ -6,6 +6,7 @@ import StatsPage from './StatsPage'
 vi.mock('../auth', () => ({
   authHeaders: () => ({}),
   onUnauthorized: vi.fn(),
+  getRole: () => 'admin',
 }))
 // Mocka SettingsLayout (shallow) — isola o conteúdo da página da coluna de
 // navegação/Layout real, que exigiria NotificationProvider/router completo.
@@ -59,29 +60,6 @@ describe('StatsPage', () => {
     )
     await waitFor(() => {
       expect(document.body.textContent).toContain('Estatísticas')
-    })
-  })
-
-  it('mostra a tab-bar Sistema/Estatísticas com a aba Estatísticas ativa', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.startsWith('/api/stats'))
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(stats) })
-        if (url.startsWith('/api/cameras'))
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
-        return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
-      }),
-    )
-    render(
-      <MemoryRouter initialEntries={['/settings/stats']}>
-        <StatsPage />
-      </MemoryRouter>,
-    )
-    await waitFor(() => {
-      const statsTab = document.querySelector('a[href="/settings/stats"]')
-      expect(statsTab?.getAttribute('aria-current')).toBe('page')
-      expect(document.querySelector('a[href="/settings/system"]')).not.toBeNull()
     })
   })
 })

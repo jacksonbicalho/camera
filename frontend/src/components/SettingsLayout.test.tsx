@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import SettingsLayout from './SettingsLayout'
-import { getRole } from '../auth'
 
 vi.mock('../auth', () => ({
   getRole: vi.fn(() => 'admin'),
@@ -31,10 +30,7 @@ vi.mock('../contexts/NotificationContext', () => ({
   }),
 }))
 
-afterEach(() => {
-  cleanup()
-  vi.mocked(getRole).mockReturnValue('admin')
-})
+afterEach(cleanup)
 
 function renderAt(path: string) {
   render(
@@ -47,28 +43,10 @@ function renderAt(path: string) {
 }
 
 describe('SettingsLayout', () => {
-  it('renderiza os filhos e as seções de configuração (admin)', () => {
+  it('renderiza os filhos dentro do Layout, com largura fluida (.page-content)', () => {
     renderAt('/settings/about')
     expect(document.body.textContent).toContain('conteúdo')
-    expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/users"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/system"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
-  })
-
-  it('viewer só vê as seções permitidas', () => {
-    vi.mocked(getRole).mockReturnValue('viewer')
-    renderAt('/settings/about')
-    expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/users"]')).toBeNull()
-    expect(document.querySelector('a[href="/settings/server"]')).toBeNull()
-  })
-
-  it('marca a seção atual como ativa', () => {
-    renderAt('/settings/about')
-    const link = document.querySelector('a[href="/settings/about"]')
-    expect(link?.getAttribute('aria-current')).toBe('page')
+    expect(document.getElementById('about-page-content')?.className).toContain('page-content')
   })
 
   it('repassa id/footerId pro Layout', () => {

@@ -95,11 +95,24 @@ export default function HistoryPage() {
   const { cameraId, recordingId } = useParams<{ cameraId: string; recordingId?: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  // Congela o :recordingId da URL só no 1º render — navegações subsequentes que a própria
-  // página disparar (URL sync abaixo) não devem re-disparar a resolução.
+  // Congela o :recordingId (e a câmera a que ele pertence) da URL só no 1º render —
+  // navegações subsequentes que a própria página disparar (URL sync abaixo, ou o
+  // `<select>` de troca de câmera) não devem re-disparar a resolução. Sem
+  // `initialCameraId`, trocar de câmera pelo `<select>` reexecutava o efeito abaixo
+  // (que só depende de `cameraId`/`initialRecordingId`) tentando resolver o MESMO
+  // :recordingId — que pertence à câmera original — contra a câmera nova; quase
+  // sempre 404 (`getRecording` é escopado por câmera no backend), disparando
+  // "Gravação não encontrada" e resetando a data escolhida sem o usuário ter pedido
+  // nenhuma gravação (bug real, achado do code-reviewer).
   const [initialRecordingId] = useState(recordingId)
+  const [initialCameraId] = useState(cameraId)
   const pendingSelectRef = useRef<number | null>(null)
   const [camera, setCamera] = useState<Camera | null>(null)
+  // Lista completa (não só a câmera ativa) — alimenta o `<select>` de troca de
+  // câmera no cabeçalho (mesmo padrão do `report-camera-select` em
+  // `ReportsPage`), pedido do navigator: "porque não um dropdown como temos em
+  // Relatórios".
+  const [cameras, setCameras] = useState<Camera[]>([])
   const [error, setError] = useState<string | null>(null)
   // Gravação da URL (:recordingId) não encontrada — mostrado como overlay no PLAYER (tela preta
   // + mensagem centralizada), não como banner no topo da página: só faz sentido junto do player,
@@ -126,9 +139,11 @@ export default function HistoryPage() {
   // encadear (tomado no instante em que liga — ver comentário no `toggleContinuous`).
   const [continuousRecordings, setContinuousRecordings] = useState<Recording[] | null>(null)
 
-  // Resolve o :recordingId da URL (se veio um) pro dia que ele pertence — só na carga inicial.
+  // Resolve o :recordingId da URL (se veio um) pro dia que ele pertence — só na carga
+  // inicial, e só pra câmera com que a página montou (`cameraId !== initialCameraId`
+  // depois de uma troca pelo `<select>` — ver comentário de `initialCameraId` acima).
   useEffect(() => {
-    if (!cameraId) return
+    if (!cameraId || cameraId !== initialCameraId) return
     const targetId = initialRecordingId
     if (!targetId) return
     let cancelled = false
@@ -175,9 +190,9 @@ export default function HistoryPage() {
         }
         const data = await res.json()
         if (cancelled) return
-        const cam = Array.isArray(data)
-          ? (data as Camera[]).find((c) => c.id === cameraId)
-          : undefined
+        const list = Array.isArray(data) ? (data as Camera[]) : []
+        setCameras(list)
+        const cam = list.find((c) => c.id === cameraId)
         if (!cam) {
           setError('Câmera não encontrada.')
           return
@@ -387,6 +402,15 @@ export default function HistoryPage() {
       setClosedHours(next)
     }
   }
+  // `closedHours` guarda números de HORA (0-23), reaproveitados entre câmeras
+  // distintas — sem resetar ao trocar de câmera pelo `<select>` do cabeçalho, um
+  // grupo fechado manualmente numa câmera nasceria fechado sem motivo na próxima
+  // (mesmo padrão de ajuste-durante-o-render de `continuousResetFor` abaixo).
+  const [closedHoursResetForCamera, setClosedHoursResetForCamera] = useState(cameraId)
+  if (cameraId !== closedHoursResetForCamera) {
+    setClosedHoursResetForCamera(cameraId)
+    setClosedHours(new Set())
+  }
   function toggleHour(hour: number) {
     setClosedHours((prev) => {
       const next = new Set(prev)
@@ -582,11 +606,16 @@ export default function HistoryPage() {
     setVideoError(false)
   }
 
-  // Reprodução contínua não atravessa a troca de dia — reseta ao trocar (mesmo padrão de
-  // ajuste-durante-o-render usado acima, não useEffect+setState).
-  const [continuousResetForDate, setContinuousResetForDate] = useState(selectedDate)
-  if (selectedDate !== continuousResetForDate) {
-    setContinuousResetForDate(selectedDate)
+  // Reprodução contínua não atravessa a troca de dia NEM a troca de câmera pelo
+  // `<select>` do cabeçalho (o snapshot de gravações é de UMA câmera específica) —
+  // reseta ao trocar qualquer um dos dois (mesmo padrão de ajuste-durante-o-render
+  // usado acima, não useEffect+setState).
+  const [continuousResetFor, setContinuousResetFor] = useState({ cameraId, selectedDate })
+  if (
+    cameraId !== continuousResetFor.cameraId ||
+    selectedDate !== continuousResetFor.selectedDate
+  ) {
+    setContinuousResetFor({ cameraId, selectedDate })
     setContinuousRecordings(null)
   }
 
@@ -642,6 +671,23 @@ export default function HistoryPage() {
             cameraName={camera.name}
             recordingEnabled={camera.recording_enabled}
             pageTitle="Histórico"
+            twoColumnCap
+            actions={
+              cameras.length > 1 ? (
+                <select
+                  id="history-camera-select"
+                  value={cameraId}
+                  onChange={(e) => navigate(`/history/${e.target.value}`)}
+                  className="bg-surface-2 text-foreground text-xs rounded px-2 py-1 border border-border max-w-44"
+                >
+                  {cameras.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              ) : undefined
+            }
           >
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-center">
               <div

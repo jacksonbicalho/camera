@@ -1,346 +1,149 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { format } from 'date-fns'
+import { type ReactNode } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
-import { authHeaders, clearToken, getRole, getUsername } from '../auth'
-import { useUserNotifications } from '../contexts/UserNotificationContext'
+import { getRole } from '../auth'
 import { useDisplayMode, useSetDisplayMode } from '../contexts/DisplayModeContext'
-import { ADMIN_SETTINGS_LINKS, VIEWER_SETTINGS_LINKS } from './settingsNavLinks'
 import ThemeModeNav from './ThemeModeNav'
-import AccentSwatchNav from './AccentSwatchNav'
 import MotionNotificationsBell from './MotionNotificationsBell'
-import { navItemClass, useFlyout } from './sidebarFlyout'
+import { navItemClass } from './sidebarFlyout'
 import {
   BarChart2,
   CameraLogo,
   Cctv,
-  ChevronLeft,
-  CircleUser,
+  Eye,
   Film,
+  Gauge,
+  HardDrive,
   History,
-  Settings,
+  Menu,
+  Palette,
+  Pencil,
+  Search,
+  Server,
+  Users,
   Zap,
 } from './Icons'
 
-interface NavItem {
+interface NavItemDef {
   id: string
   to: string
   label: string
   icon: ReactNode
   /** `/` só fica ativo na rota exata (senão casaria toda rota). */
   end?: boolean
+  /**
+   * Só relevante quando outro item da mesma seção aponta pro MESMO pathname
+   * com um hash diferente (ex.: "Análise de vídeo" `/settings/analysis` e
+   * "Rotular eventos" `/settings/analysis#label-events`) — o `isActive`
+   * nativo do NavLink ignora o hash, então os dois acenderiam juntos sem
+   * isso. Quando definido, o item só fica ativo se `location.hash` bater
+   * exatamente com este valor (`''` = sem hash nenhum).
+   */
+  matchHash?: string
 }
 
-const items: NavItem[] = [
-  {
-    id: 'sidebar-all-cameras',
-    to: '/',
-    label: 'Todas as câmeras',
-    icon: <Cctv className="h-5 w-5" />,
-    end: true,
-  },
-  {
-    id: 'sidebar-recordings',
-    to: '/recordings',
-    label: 'Gravações',
-    icon: <Film className="h-5 w-5" />,
-  },
-  {
-    id: 'sidebar-motions',
-    to: '/motions',
-    label: 'Momentos',
-    icon: <Zap className="h-5 w-5" />,
-  },
-]
-
-interface CameraOption {
-  id: string
-  name: string
-}
-
-interface CameraListFlyoutProps {
-  id: string
-  label: string
-  icon: ReactNode
-  showLabel: boolean
-  /** Prefixo de rota que acende o botão como ativo (ex.: "/reports"). */
-  activePrefix: string
-  /** Constrói a URL de destino a partir do id da câmera clicada. */
-  buildTarget: (cameraId: string) => string
-}
-
-// CameraListFlyout — botão do nav principal que abre um flyout (mesmo mecanismo do
-// SettingsFlyout, ancorado pelo TOPO — ver useFlyout) com a lista de câmeras do
-// usuário; clicar numa câmera navega pro destino calculado por `buildTarget`.
-// Reaproveitado por "Relatórios" e "Gravações" — mesmo estilo de submenu pros dois,
-// só muda o destino da navegação.
-function CameraListFlyout({
-  id,
-  label,
-  icon,
-  showLabel,
-  activePrefix,
-  buildTarget,
-}: CameraListFlyoutProps) {
+// SidebarNavLink — item de navegação comum (NavLink), usado dentro das
+// seções do rail.
+function SidebarNavLink({ item, showLabel }: { item: NavItemDef; showLabel: boolean }) {
   const location = useLocation()
-  const navigate = useNavigate()
-  const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
-  const [cameras, setCameras] = useState<CameraOption[]>([])
-  const active = location.pathname.startsWith(activePrefix)
-
-  useEffect(() => {
-    if (!open) return
-    fetch('/api/cameras', { headers: authHeaders() })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((list: CameraOption[]) => setCameras(list))
-      .catch(() => {})
-  }, [open])
-
-  function selectCamera(cameraId: string) {
-    setOpen(false)
-    navigate(buildTarget(cameraId))
-  }
-
-  return (
-    <>
-      <button
-        id={id}
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        title={label}
-        aria-label={label}
-        className={navItemClass(active || open, showLabel)}
-      >
-        {icon}
-        {showLabel && <span className="truncate text-sm">{label}</span>}
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={panelRef}
-            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-            className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
-          >
-            {cameras.length === 0 ? (
-              <p className="px-3 py-1.5 text-xs text-faint">Nenhuma câmera</p>
-            ) : (
-              cameras.map((c) => (
-                <button
-                  key={c.id}
-                  id={`${id}-camera-${c.id}`}
-                  type="button"
-                  onClick={() => selectCamera(c.id)}
-                  className="block w-full truncate px-3 py-1.5 text-left text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-                >
-                  {c.name}
-                </button>
-              ))
-            )}
-          </div>,
-          document.body,
-        )}
-    </>
-  )
-}
-
-function ReportsFlyout({ showLabel }: { showLabel: boolean }) {
-  return (
-    <CameraListFlyout
-      id="sidebar-relatorios"
-      label="Relatórios"
-      icon={<BarChart2 className="h-5 w-5 shrink-0" />}
-      showLabel={showLabel}
-      activePrefix="/reports"
-      buildTarget={(cameraId) => `/reports/${cameraId}/${format(new Date(), 'yyyy-MM-dd')}/1`}
-    />
-  )
-}
-
-// HistoryFlyout — "Histórico" segue o mesmo estilo de submenu de "Relatórios"
-// (pedido do navigator): lista de câmeras → histórico da câmera clicada
-// (/history/:cameraId, a página nova por câmera — ver routes.tsx).
-// Distinto de "Gravações" (sidebar-recordings, em `items`): este é POR câmera;
-// aquele é a página global multi-câmera (/recordings).
-function HistoryFlyout({ showLabel }: { showLabel: boolean }) {
-  return (
-    <CameraListFlyout
-      id="sidebar-history"
-      label="Histórico"
-      icon={<History className="h-5 w-5 shrink-0" />}
-      showLabel={showLabel}
-      activePrefix="/history"
-      buildTarget={(cameraId) => `/history/${cameraId}`}
-    />
-  )
-}
-
-// Link do flyout — mesmo estilo usado pelo SettingsFlyout.
-function FlyoutNavLink({
-  to,
-  id,
-  onSelect,
-  children,
-}: {
-  to: string
-  id?: string
-  onSelect: () => void
-  children: React.ReactNode
-}) {
   return (
     <NavLink
-      to={to}
-      id={id}
-      onClick={onSelect}
-      className={({ isActive }) =>
-        cn(
-          'block px-3 py-1.5 text-body transition-colors',
-          isActive
-            ? 'bg-surface-2 text-foreground'
-            : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
-        )
-      }
+      id={item.id}
+      to={item.to}
+      end={item.end}
+      title={item.label}
+      aria-label={item.label}
+      className={({ isActive }) => {
+        const active =
+          item.matchHash !== undefined ? isActive && location.hash === item.matchHash : isActive
+        return navItemClass(active, showLabel)
+      }}
     >
-      {children}
+      {item.icon}
+      {showLabel && <span className="truncate text-sm">{item.label}</span>}
     </NavLink>
   )
 }
 
-// SettingsFlyout — botão único "Configurações" (id sidebar-config): itera
-// ADMIN_SETTINGS_LINKS/VIEWER_SETTINGS_LINKS (settingsNavLinks.ts, compartilhada
-// com SettingsLayout, a coluna persistente das páginas top-level de /settings/*)
-// e intercala ThemeModeNav/AccentSwatchNav (widgets, não itens de navegação)
-// logo antes do link Sobre. Unificado com o antigo PreferencesFlyout
-// (sidebar-settings) — não há mais split entre "configuração administrativa" e
-// "preferências pessoais".
-function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
-  const location = useLocation()
-  const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
-  const active = location.pathname.startsWith('/settings') || location.pathname.startsWith('/stats')
-  const links = getRole() === 'admin' ? ADMIN_SETTINGS_LINKS : VIEWER_SETTINGS_LINKS
-
+// DisabledSidebarItem — item "em construção" (pedido do navigator): visível,
+// com o mesmo estilo do rail, mas não clicável — sinaliza que a
+// funcionalidade existe no roadmap sem linkar pra lugar nenhum ainda.
+function DisabledSidebarItem({
+  id,
+  label,
+  icon,
+  showLabel,
+}: {
+  id: string
+  label: string
+  icon: ReactNode
+  showLabel: boolean
+}) {
   return (
-    <>
-      <button
-        id="sidebar-config"
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        title="Configurações"
-        aria-label="Configurações"
-        className={navItemClass(active || open, showLabel)}
-      >
-        <Settings className="h-5 w-5 shrink-0" />
-        {showLabel && <span className="truncate text-sm">Configurações</span>}
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={panelRef}
-            style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
-            className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
-          >
-            {links.map(({ to, label }) => (
-              <Fragment key={to}>
-                {to === '/settings/about' && <ThemeModeNav onSelect={() => setOpen(false)} />}
-                {to === '/settings/about' && <AccentSwatchNav onSelect={() => setOpen(false)} />}
-                <FlyoutNavLink to={to} onSelect={() => setOpen(false)}>
-                  {label}
-                </FlyoutNavLink>
-              </Fragment>
-            ))}
-          </div>,
-          document.body,
-        )}
-    </>
+    <button
+      id={id}
+      type="button"
+      disabled
+      title={`${label} — em construção`}
+      aria-label={`${label} — em construção`}
+      className={cn(navItemClass(false, showLabel), 'cursor-not-allowed opacity-55')}
+    >
+      {icon}
+      {showLabel && <span className="truncate text-sm">{label}</span>}
+    </button>
   )
 }
 
-// UserMenu — avatar do usuário logado no rodapé do rail, mesmo padrão de flyout
-// do SettingsFlyout: Notificações, Perfil e Sair.
-function UserMenu({ showLabel }: { showLabel: boolean }) {
-  const navigate = useNavigate()
-  const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
-  const { unreadCount } = useUserNotifications()
-  const username = getUsername() ?? 'usuário'
-  const roleLabel = getRole() === 'admin' ? 'Administrador' : 'Visualizador'
-
-  function logout() {
-    clearToken()
-    setOpen(false)
-    navigate('/login')
-  }
-
+// SidebarSection — agrupa itens do rail sob um cabeçalho (só visível quando
+// expandido) e um separador discreto acima — pedido do navigator: seções
+// sempre visíveis empilhadas no rail (não mais um flyout popup por trás de
+// um único ícone "Configurações").
+function SidebarSection({
+  label,
+  showLabel,
+  divider,
+  children,
+}: {
+  label?: string
+  showLabel: boolean
+  /** Separador discreto acima da seção — todas menos a 1ª. */
+  divider?: boolean
+  children: ReactNode
+}) {
   return (
-    <>
-      <button
-        id="sidebar-user"
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        title={username}
-        aria-label={username}
-        className={navItemClass(open, showLabel)}
-      >
-        {/* badge de não-lidas ancorado ao ícone (span relative própria) — não ao botão
-            inteiro, senão com showLabel (botão largo) o badge ficaria longe do ícone. */}
-        <span className="relative inline-flex shrink-0">
-          <CircleUser className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-on-primary">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
-        </span>
-        {showLabel && <span className="truncate text-sm">{username}</span>}
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={panelRef}
-            style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
-            className="w-44 rounded-lg border border-border bg-surface py-1 shadow-xl"
-          >
-            <div className="truncate border-b border-border px-3 py-2 text-caption text-faint">
-              {username} · {roleLabel}
-            </div>
-            <NavLink
-              to="/notifications"
-              onClick={() => setOpen(false)}
-              className="block px-3 py-1.5 text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-            >
-              Notificações
-            </NavLink>
-            <NavLink
-              to="/profile"
-              onClick={() => setOpen(false)}
-              className="block px-3 py-1.5 text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-            >
-              Perfil
-            </NavLink>
-            <button
-              type="button"
-              onClick={logout}
-              className="block w-full px-3 py-1.5 text-left text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-            >
-              Sair
-            </button>
-          </div>,
-          document.body,
-        )}
-    </>
+    // Lei da proximidade: mais espaço ACIMA do título (pt-4, separa do grupo
+    // anterior) do que ABAIXO dele (pb-0.5, gruda visualmente nos próprios
+    // itens) — pedido do navigator: os dois estavam quase iguais, e o
+    // cabeçalho parecia "no meio do caminho" entre as duas seções em vez de
+    // claramente pertencer à que vem depois.
+    <div className={cn(divider && 'border-t border-border/70 pt-4', showLabel ? 'w-full' : 'w-10')}>
+      {showLabel && label && (
+        <p className="px-3 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-faint">
+          {label}
+        </p>
+      )}
+      <div className="flex flex-col gap-1">{children}</div>
+    </div>
   )
 }
 
-// Sidebar — rail de navegação enxuto para o Layout (páginas novas). Links +
-// recolher/expandir (DisplayModeContext global, só 2 modos: icons-only/icons-text
-// — ver o tipo DisplayMode) + flyout de Configurações + UserMenu.
+// Sidebar — rail de navegação agrupado em seções sempre visíveis (pedido do
+// navigator — substitui o antigo flyout popup por trás de um único ícone
+// "Configurações"): recolhido mostra só ícones; expandido mostra também os
+// cabeçalhos de seção e rola (scrollbar-thin) quando o conteúdo excede a
+// altura da viewport. Só "Sistema" (Câmeras)/"Aparência"/"Sobre" ficam
+// visíveis pra todo mundo — Movimentos/Administração/Governança (e
+// "Rastrear câmeras", dentro de Sistema) são admin-only, mesma regra de
+// acesso que essas páginas já tinham. Nem o logo nem o avatar do usuário
+// moram mais aqui — os dois migraram pra `TopBar.tsx` (barra full-width
+// acima da linha Sidebar+conteúdo, renderizada pelo `Layout`) — o rail em si
+// começa direto pelo botão "Recolher menu".
 export default function Sidebar() {
   const { sidebar: sidebarMode } = useDisplayMode()
   const setDisplayMode = useSetDisplayMode()
   const collapsed = sidebarMode === 'icons-only'
   const showLabel = !collapsed
+  const isAdmin = getRole() === 'admin'
 
   function toggleCollapse() {
     setDisplayMode('sidebar', collapsed ? 'icons-text' : 'icons-only')
@@ -355,65 +158,185 @@ export default function Sidebar() {
         showLabel ? 'w-48 items-stretch' : 'w-14 items-center',
       )}
     >
-      <Link
-        to="/"
-        id="sidebar-logo"
-        className={cn(
-          'flex items-center h-14 hover:opacity-80 transition-opacity border-b border-border flex-none',
-          showLabel ? 'gap-2 px-4' : 'justify-center',
-        )}
-        title="os-camera"
-      >
-        <CameraLogo className="w-8 h-8 shrink-0" />
-        {showLabel && (
-          <span className="text-sm font-semibold text-foreground truncate">os-camera</span>
-        )}
-      </Link>
       <div
         className={cn(
-          'flex flex-1 flex-col gap-1 py-3',
+          'scrollbar-thin flex flex-1 flex-col gap-2 overflow-y-auto py-3',
           showLabel ? 'items-stretch px-2' : 'items-center',
         )}
       >
-        <MotionNotificationsBell showLabel={showLabel} />
-        {items.map((item) => (
-          <NavLink
-            key={item.id}
-            id={item.id}
-            to={item.to}
-            end={item.end}
-            title={item.label}
-            aria-label={item.label}
-            className={({ isActive }) => navItemClass(isActive, showLabel)}
-          >
-            {item.icon}
-            {showLabel && <span className="truncate text-sm">{item.label}</span>}
-          </NavLink>
-        ))}
-        <HistoryFlyout showLabel={showLabel} />
-        <ReportsFlyout showLabel={showLabel} />
-        <div className="flex-1" />
-        <div
-          id="sidebar-bottom"
-          className={cn(
-            'flex flex-col gap-1 border-t border-border pt-2',
-            showLabel ? 'items-stretch' : 'items-center',
-          )}
+        <button
+          id="sidebar-collapse"
+          type="button"
+          onClick={toggleCollapse}
+          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          className={cn(navItemClass(false, showLabel))}
         >
-          <button
-            id="sidebar-collapse"
-            type="button"
-            onClick={toggleCollapse}
-            title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-            aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-            className={cn(navItemClass(false, showLabel))}
-          >
-            <ChevronLeft className={cn('h-5 w-5 shrink-0', collapsed && 'rotate-180')} />
-            {showLabel && <span className="truncate text-sm">Recolher menu</span>}
-          </button>
-          <SettingsFlyout showLabel={showLabel} />
-          <UserMenu showLabel={showLabel} />
-        </div>
+          <Menu className="h-5 w-5 shrink-0" />
+          {showLabel && <span className="truncate text-sm">Recolher menu</span>}
+        </button>
+
+        <SidebarSection label="Eventos" showLabel={showLabel} divider>
+          <MotionNotificationsBell showLabel={showLabel} />
+          <DisabledSidebarItem
+            id="sidebar-live-view"
+            label="Live View"
+            icon={<Eye className="h-5 w-5 shrink-0" />}
+            showLabel={showLabel}
+          />
+        </SidebarSection>
+
+        <SidebarSection label="Sistema" showLabel={showLabel} divider>
+          <SidebarNavLink
+            item={{
+              id: 'sidebar-cameras',
+              to: '/settings/cameras',
+              label: 'Câmeras',
+              icon: <Cctv className="h-5 w-5 shrink-0" />,
+            }}
+            showLabel={showLabel}
+          />
+          {isAdmin && (
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-discover',
+                to: '/settings/discover',
+                label: 'Rastrear câmeras',
+                icon: <Search className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+          )}
+        </SidebarSection>
+
+        {isAdmin && (
+          <SidebarSection label="Movimentos" showLabel={showLabel}>
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-analysis',
+                to: '/settings/analysis',
+                label: 'Análise de vídeo',
+                icon: <Zap className="h-5 w-5 shrink-0" />,
+                matchHash: '',
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-label-events',
+                to: '/settings/analysis#label-events',
+                label: 'Rotular eventos',
+                icon: <Pencil className="h-5 w-5 shrink-0" />,
+                matchHash: '#label-events',
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-history',
+                to: '/history',
+                label: 'Histórico',
+                icon: <History className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+          </SidebarSection>
+        )}
+
+        {isAdmin && (
+          <SidebarSection label="Administração" showLabel={showLabel} divider>
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-storage',
+                to: '/settings/storage',
+                label: 'Armazenamento',
+                icon: <HardDrive className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-server',
+                to: '/settings/server',
+                label: 'Servidor',
+                icon: <Server className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-users',
+                to: '/settings/users',
+                label: 'Usuários',
+                icon: <Users className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+          </SidebarSection>
+        )}
+
+        {isAdmin && (
+          <SidebarSection label="Governança" showLabel={showLabel}>
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-recordings',
+                to: '/recordings',
+                label: 'Gravações',
+                icon: <Film className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-stats',
+                to: '/settings/stats',
+                label: 'Estatísticas',
+                icon: <Gauge className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-relatorios',
+                to: '/reports',
+                label: 'Relatórios',
+                icon: <BarChart2 className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+          </SidebarSection>
+        )}
+
+        <SidebarSection label="Aparência" showLabel={showLabel} divider>
+          <ThemeModeNav showLabel={showLabel} />
+          <SidebarNavLink
+            item={{
+              id: 'sidebar-appearance-accent',
+              to: '/settings/appearance',
+              label: 'Cor de destaque',
+              icon: <Palette className="h-5 w-5 shrink-0" />,
+            }}
+            showLabel={showLabel}
+          />
+          <DisabledSidebarItem
+            id="sidebar-background-color"
+            label="Cor de fundo"
+            icon={<Palette className="h-5 w-5 shrink-0" />}
+            showLabel={showLabel}
+          />
+        </SidebarSection>
+
+        <SidebarSection showLabel={showLabel}>
+          <SidebarNavLink
+            item={{
+              id: 'sidebar-about',
+              to: '/settings/about',
+              label: 'Sobre',
+              icon: <CameraLogo className="h-5 w-5 shrink-0" />,
+            }}
+            showLabel={showLabel}
+          />
+        </SidebarSection>
       </div>
     </nav>
   )

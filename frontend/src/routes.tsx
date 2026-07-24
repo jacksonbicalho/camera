@@ -5,6 +5,7 @@ import { getToken, mustChangePassword } from './auth'
 
 const LivePage = lazy(() => import('./pages/LivePage'))
 const HistoryPage = lazy(() => import('./pages/HistoryPage'))
+const HistoryLandingPage = lazy(() => import('./pages/HistoryLandingPage'))
 const VideoBrowserPage = lazy(() => import('./pages/VideoBrowserPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const AllCamerasPage = lazy(() => import('./pages/AllCamerasPage'))
@@ -12,7 +13,6 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const RecordingsPage = lazy(() => import('./pages/RecordingsPage'))
 const MotionsPage = lazy(() => import('./pages/MotionsPage'))
 const StatsPage = lazy(() => import('./pages/StatsPage'))
-const SystemSettingsPage = lazy(() => import('./pages/settings/SystemSettingsPage'))
 const ServerSettingsPage = lazy(() => import('./pages/settings/ServerSettingsPage'))
 const StorageSettingsPage = lazy(() => import('./pages/settings/StorageSettingsPage'))
 const UsersSettingsPage = lazy(() => import('./pages/settings/UsersSettingsPage'))
@@ -69,6 +69,14 @@ export const routes = (
       }
     />
     <Route
+      path="/history"
+      element={
+        <Lazy>
+          <HistoryLandingPage />
+        </Lazy>
+      }
+    />
+    <Route
       path="/history/:cameraId"
       element={
         <Lazy>
@@ -97,14 +105,6 @@ export const routes = (
       element={
         <Lazy>
           <VideoBrowserPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/reports/:cameraId/:date/:days"
-      element={
-        <Lazy>
-          <ReportsPage />
         </Lazy>
       }
     />
@@ -184,14 +184,6 @@ export const routes = (
       }
     />
     <Route
-      path="/settings/system"
-      element={
-        <Lazy>
-          <SystemSettingsPage />
-        </Lazy>
-      }
-    />
-    <Route
       path="/settings/server"
       element={
         <Lazy>
@@ -204,6 +196,22 @@ export const routes = (
       element={
         <Lazy>
           <StorageSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/reports"
+      element={
+        <Lazy>
+          <ReportsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/reports/:cameraId/:date/:days"
+      element={
+        <Lazy>
+          <ReportsPage />
         </Lazy>
       }
     />

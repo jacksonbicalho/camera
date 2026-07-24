@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import BboxCanvas, { type BboxRect } from '../../components/BboxCanvas'
@@ -94,7 +95,16 @@ function ReanalyzePanel() {
 
 export default function AnalysisSettingsPage() {
   const { settings } = useSettings()
+  const location = useLocation()
   const cameras: CameraSettings[] = settings?.cameras ?? []
+
+  // Rola até a seção "Rotular eventos" quando chega via link com âncora
+  // (#label-events — item "Rotular eventos" do rail, Sidebar.tsx). O React
+  // Router não faz esse scroll sozinho.
+  useEffect(() => {
+    if (location.hash !== '#label-events') return
+    document.getElementById('label-events')?.scrollIntoView({ block: 'start' })
+  }, [location.hash])
   const [cfg, setCfg] = useState<AnalysisConfig>({
     enabled: false,
     service_url: '',
@@ -886,7 +896,10 @@ export default function AnalysisSettingsPage() {
             </div>
           )}
         </div>
-        <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
+        <div
+          id="label-events"
+          className="bg-surface-2 rounded-lg border border-border divide-y divide-border scroll-mt-6"
+        >
           <div className="p-4 flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h4 className="text-sm font-semibold text-foreground mb-1">Rotular eventos</h4>
