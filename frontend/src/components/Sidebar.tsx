@@ -1,15 +1,16 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
-import { authHeaders, clearToken, getRole, getUsername } from '../auth'
+import { clearToken, getRole, getUsername } from '../auth'
 import { useUserNotifications } from '../contexts/UserNotificationContext'
 import { useDisplayMode, useSetDisplayMode } from '../contexts/DisplayModeContext'
 import { ADMIN_SETTINGS_LINKS, VIEWER_SETTINGS_LINKS } from './settingsNavLinks'
 import ThemeModeNav from './ThemeModeNav'
 import AccentSwatchNav from './AccentSwatchNav'
 import MotionNotificationsBell from './MotionNotificationsBell'
+import CameraPickerFlyout from './CameraPickerFlyout'
 import { navItemClass, useFlyout } from './sidebarFlyout'
 import {
   BarChart2,
@@ -54,100 +55,12 @@ const items: NavItem[] = [
   },
 ]
 
-interface CameraOption {
-  id: string
-  name: string
-}
-
-interface CameraListFlyoutProps {
-  id: string
-  label: string
-  icon: ReactNode
-  showLabel: boolean
-  /** Prefixo de rota que acende o botão como ativo (ex.: "/reports"). */
-  activePrefix: string
-  /** Constrói a URL de destino a partir do id da câmera clicada. */
-  buildTarget: (cameraId: string) => string
-}
-
-// CameraListFlyout — botão do nav principal que abre um flyout (mesmo mecanismo do
-// SettingsFlyout, ancorado pelo TOPO — ver useFlyout) com a lista de câmeras do
-// usuário; clicar numa câmera navega pro destino calculado por `buildTarget`.
-// Reaproveitado por "Relatórios" e "Gravações" — mesmo estilo de submenu pros dois,
-// só muda o destino da navegação.
-function CameraListFlyout({
-  id,
-  label,
-  icon,
-  showLabel,
-  activePrefix,
-  buildTarget,
-}: CameraListFlyoutProps) {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
-  const [cameras, setCameras] = useState<CameraOption[]>([])
-  const active = location.pathname.startsWith(activePrefix)
-
-  useEffect(() => {
-    if (!open) return
-    fetch('/api/cameras', { headers: authHeaders() })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((list: CameraOption[]) => setCameras(list))
-      .catch(() => {})
-  }, [open])
-
-  function selectCamera(cameraId: string) {
-    setOpen(false)
-    navigate(buildTarget(cameraId))
-  }
-
-  return (
-    <>
-      <button
-        id={id}
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        title={label}
-        aria-label={label}
-        className={navItemClass(active || open, showLabel)}
-      >
-        {icon}
-        {showLabel && <span className="truncate text-sm">{label}</span>}
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={panelRef}
-            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-            className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
-          >
-            {cameras.length === 0 ? (
-              <p className="px-3 py-1.5 text-xs text-faint">Nenhuma câmera</p>
-            ) : (
-              cameras.map((c) => (
-                <button
-                  key={c.id}
-                  id={`${id}-camera-${c.id}`}
-                  type="button"
-                  onClick={() => selectCamera(c.id)}
-                  className="block w-full truncate px-3 py-1.5 text-left text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-                >
-                  {c.name}
-                </button>
-              ))
-            )}
-          </div>,
-          document.body,
-        )}
-    </>
-  )
-}
-
+// ReportsFlyout — "Relatórios" reaproveita CameraPickerFlyout (extraído,
+// components/CameraPickerFlyout.tsx): lista de câmeras → relatório da câmera
+// clicada.
 function ReportsFlyout({ showLabel }: { showLabel: boolean }) {
   return (
-    <CameraListFlyout
+    <CameraPickerFlyout
       id="sidebar-relatorios"
       label="Relatórios"
       icon={<BarChart2 className="h-5 w-5 shrink-0" />}
@@ -165,7 +78,7 @@ function ReportsFlyout({ showLabel }: { showLabel: boolean }) {
 // aquele é a página global multi-câmera (/recordings).
 function HistoryFlyout({ showLabel }: { showLabel: boolean }) {
   return (
-    <CameraListFlyout
+    <CameraPickerFlyout
       id="sidebar-history"
       label="Histórico"
       icon={<History className="h-5 w-5 shrink-0" />}
