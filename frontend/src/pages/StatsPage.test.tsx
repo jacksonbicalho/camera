@@ -62,27 +62,4 @@ describe('StatsPage', () => {
       expect(document.body.textContent).toContain('Estatísticas')
     })
   })
-
-  it('mostra a tab-bar de Servidor (5 abas) com a aba Estatísticas ativa', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.startsWith('/api/stats'))
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(stats) })
-        if (url.startsWith('/api/cameras'))
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
-        return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
-      }),
-    )
-    render(
-      <MemoryRouter initialEntries={['/settings/stats']}>
-        <StatsPage />
-      </MemoryRouter>,
-    )
-    await waitFor(() => {
-      const statsTab = document.querySelector('a[href="/settings/stats"]')
-      expect(statsTab?.getAttribute('aria-current')).toBe('page')
-      expect(document.querySelector('a[href="/settings/system"]')).not.toBeNull()
-    })
-  })
 })

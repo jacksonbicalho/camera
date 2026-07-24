@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/utils'
 import PageHeader from './PageHeader'
 
 interface PlayerBadgesProps {
@@ -33,6 +34,13 @@ interface CameraStageHeaderProps {
    *  nome da câmera — comportamento padrão, usado pelo Ao vivo. Quando
    *  informado, o nome da câmera (+ badge) migra pro subtítulo. */
   pageTitle?: string
+  /** Só o Histórico (layout de duas colunas, fora de `.page-content` — ver
+   *  CLAUDE.md "Largura do conteúdo") passa `true`: capa o título em
+   *  92.75rem pra bater com a largura intrínseca de `history-main` +
+   *  `history-recordings-list` + gap. O Ao vivo (`.page-content`, fluido)
+   *  deixa `false` (default) — título acompanha a largura cheia, igual ao
+   *  player abaixo dele. */
+  twoColumnCap?: boolean
   /** O player (Player/<video>) renderizado logo abaixo do cabeçalho. */
   children: ReactNode
 }
@@ -46,6 +54,7 @@ export default function CameraStageHeader({
   cameraName,
   recordingEnabled,
   pageTitle,
+  twoColumnCap,
   children,
 }: CameraStageHeaderProps) {
   const cameraLine = (
@@ -56,16 +65,18 @@ export default function CameraStageHeader({
   )
   return (
     <>
-      {/* mx-auto + max-w-[92.75rem]: mesmo idioma de centralização do
-          `.page-content` (mx-auto w-full max-w-[80rem]), com o cap ajustado à
-          largura intrínseca do bloco de duas colunas do Histórico
-          (history-main 72rem + history-recordings-list 20rem + gap-3 0.75rem
-          = 92.75rem) — sem isso, o título ficava flush na borda esquerda
-          enquanto esse bloco se autocentraliza (lg:justify-center) em telas
-          largas. No Ao vivo, que envolve o CameraStageHeader inteiro em
-          `.page-content` (cap 80rem, mais estreito), esse cap nunca chega a
-          restringir nada — zero mudança visual ali. */}
-      <div id={`${idPrefix}-header`} className="mx-auto w-full max-w-[92.75rem] mb-2">
+      {/* max-w-[92.75rem] só no Histórico (twoColumnCap): largura intrínseca do
+          bloco de duas colunas (history-main 72rem + history-recordings-list
+          20rem + gap-3 0.75rem = 92.75rem) — sem isso, o título ficava flush na
+          borda esquerda enquanto esse bloco se autocentraliza (lg:justify-center)
+          em telas largas. Nos demais (Ao vivo), sem cap — `.page-content` já é
+          fluido (ver CLAUDE.md "Largura do conteúdo"), então o título deve
+          acompanhar a largura cheia igual ao player abaixo dele; um cap fixo
+          aqui destoaria do player, que não tem cap nenhum. */}
+      <div
+        id={`${idPrefix}-header`}
+        className={cn('mx-auto w-full mb-2', twoColumnCap && 'max-w-[92.75rem]')}
+      >
         <PageHeader
           className="items-center mb-0"
           title={pageTitle ?? cameraLine}

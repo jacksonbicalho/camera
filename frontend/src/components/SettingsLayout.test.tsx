@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import SettingsLayout from './SettingsLayout'
-import { getRole } from '../auth'
 
 vi.mock('../auth', () => ({
   getRole: vi.fn(() => 'admin'),
@@ -31,10 +30,7 @@ vi.mock('../contexts/NotificationContext', () => ({
   }),
 }))
 
-afterEach(() => {
-  cleanup()
-  vi.mocked(getRole).mockReturnValue('admin')
-})
+afterEach(cleanup)
 
 function renderAt(path: string) {
   render(
@@ -47,30 +43,10 @@ function renderAt(path: string) {
 }
 
 describe('SettingsLayout', () => {
-  it('renderiza os filhos e os dois grupos de configuração (admin)', () => {
+  it('renderiza os filhos dentro do Layout, com largura fluida (.page-content)', () => {
     renderAt('/settings/about')
     expect(document.body.textContent).toContain('conteúdo')
-    expect(document.body.textContent).toContain('Configurações')
-    expect(document.body.textContent).toContain('Configurações do Sistema')
-    expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/users"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/storage"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/storage"]')?.textContent).toBe('Servidor')
-  })
-
-  it('viewer só vê as seções permitidas', () => {
-    vi.mocked(getRole).mockReturnValue('viewer')
-    renderAt('/settings/about')
-    expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/stats"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/users"]')).toBeNull()
-    expect(document.querySelector('a[href="/settings/storage"]')).toBeNull()
-  })
-
-  it('marca "Servidor" como ativo quando a rota é uma das que ainda vão virar aba (ex.: /settings/about)', () => {
-    renderAt('/settings/about')
-    const link = document.querySelector('a[href="/settings/storage"]')
-    expect(link?.className).toContain('font-medium')
+    expect(document.getElementById('about-page-content')?.className).toContain('page-content')
   })
 
   it('repassa id/footerId pro Layout', () => {

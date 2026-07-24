@@ -1,226 +1,149 @@
 import { type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
-import { clearToken, getRole, getUsername } from '../auth'
-import { useUserNotifications } from '../contexts/UserNotificationContext'
+import { getRole } from '../auth'
 import { useDisplayMode, useSetDisplayMode } from '../contexts/DisplayModeContext'
-import {
-  ADMIN_SETTINGS_GROUPS,
-  VIEWER_SETTINGS_GROUPS,
-  isNavItemActive,
-  type SettingsNavGroup,
-} from './settingsNavLinks'
 import ThemeModeNav from './ThemeModeNav'
-import AccentSwatchNav from './AccentSwatchNav'
 import MotionNotificationsBell from './MotionNotificationsBell'
-import SettingsNavGroups from './SettingsNavGroups'
-import { navItemClass, useFlyout } from './sidebarFlyout'
-import { CameraLogo, Cctv, ChevronLeft, CircleUser, HardDrive, Settings, Zap } from './Icons'
+import { navItemClass } from './sidebarFlyout'
+import {
+  BarChart2,
+  CameraLogo,
+  Cctv,
+  Eye,
+  Film,
+  Gauge,
+  HardDrive,
+  History,
+  Menu,
+  Palette,
+  Pencil,
+  Search,
+  Server,
+  Users,
+  Zap,
+} from './Icons'
 
-interface NavItem {
+interface NavItemDef {
   id: string
   to: string
   label: string
   icon: ReactNode
   /** `/` só fica ativo na rota exata (senão casaria toda rota). */
   end?: boolean
+  /**
+   * Só relevante quando outro item da mesma seção aponta pro MESMO pathname
+   * com um hash diferente (ex.: "Análise de vídeo" `/settings/analysis` e
+   * "Rotular eventos" `/settings/analysis#label-events`) — o `isActive`
+   * nativo do NavLink ignora o hash, então os dois acenderiam juntos sem
+   * isso. Quando definido, o item só fica ativo se `location.hash` bater
+   * exatamente com este valor (`''` = sem hash nenhum).
+   */
+  matchHash?: string
 }
 
-const items: NavItem[] = [
-  {
-    id: 'sidebar-events',
-    to: '/events',
-    label: 'Eventos',
-    icon: <Zap className="h-5 w-5" />,
-  },
-  {
-    id: 'sidebar-all-cameras',
-    to: '/',
-    label: 'Todas as câmeras',
-    icon: <Cctv className="h-5 w-5" />,
-    end: true,
-  },
-]
+// SidebarNavLink — item de navegação comum (NavLink), usado dentro das
+// seções do rail.
+function SidebarNavLink({ item, showLabel }: { item: NavItemDef; showLabel: boolean }) {
+  const location = useLocation()
+  return (
+    <NavLink
+      id={item.id}
+      to={item.to}
+      end={item.end}
+      title={item.label}
+      aria-label={item.label}
+      className={({ isActive }) => {
+        const active =
+          item.matchHash !== undefined ? isActive && location.hash === item.matchHash : isActive
+        return navItemClass(active, showLabel)
+      }}
+    >
+      {item.icon}
+      {showLabel && <span className="truncate text-sm">{item.label}</span>}
+    </NavLink>
+  )
+}
 
-// ConfigGroupFlyout — botão que abre um flyout com UM grupo de
-// settingsNavLinks.ts (SettingsNavGroups, mesmo renderer da coluna
-// persistente de SettingsLayout). O Sidebar tem dois desses lado a lado
-// (Câmeras / Sistema) em vez do único flyout "Configurações" de antes —
-// pedido do navigator (ver a análise/story). `extra`, quando presente, é
-// renderizado logo depois da lista do grupo (usado só pelo grupo Sistema,
-// pros widgets ThemeModeNav/AccentSwatchNav — ficam logo após "Aparência",
-// que é o último item desse grupo).
-function ConfigGroupFlyout({
+// DisabledSidebarItem — item "em construção" (pedido do navigator): visível,
+// com o mesmo estilo do rail, mas não clicável — sinaliza que a
+// funcionalidade existe no roadmap sem linkar pra lugar nenhum ainda.
+function DisabledSidebarItem({
   id,
   label,
   icon,
   showLabel,
-  group,
-  extra,
 }: {
   id: string
   label: string
   icon: ReactNode
   showLabel: boolean
-  group: SettingsNavGroup
-  extra?: (onSelect: () => void) => ReactNode
 }) {
-  const { pathname } = useLocation()
-  const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
-  const active = group.items.some((item) => isNavItemActive(item, pathname))
-
   return (
-    <>
-      <button
-        id={id}
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        title={label}
-        aria-label={label}
-        className={navItemClass(active || open, showLabel)}
-      >
-        {icon}
-        {showLabel && <span className="truncate text-sm">{label}</span>}
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={panelRef}
-            style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
-            className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
-          >
-            <SettingsNavGroups groups={[group]} ariaLabel={label} onSelect={() => setOpen(false)} />
-            {extra?.(() => setOpen(false))}
-          </div>,
-          document.body,
-        )}
-    </>
+    <button
+      id={id}
+      type="button"
+      disabled
+      title={`${label} — em construção`}
+      aria-label={`${label} — em construção`}
+      className={cn(navItemClass(false, showLabel), 'cursor-not-allowed opacity-55')}
+    >
+      {icon}
+      {showLabel && <span className="truncate text-sm">{label}</span>}
+    </button>
   )
 }
 
-// ConfiguracoesFlyout — 1º ícone de configuração: grupo "Câmeras" (Câmeras,
-// Rastrear câmeras, Gravações, Momentos, Histórico).
-function ConfiguracoesFlyout({ showLabel }: { showLabel: boolean }) {
-  const group = (getRole() === 'admin' ? ADMIN_SETTINGS_GROUPS : VIEWER_SETTINGS_GROUPS)[0]
+// SidebarSection — agrupa itens do rail sob um cabeçalho (só visível quando
+// expandido) e um separador discreto acima — pedido do navigator: seções
+// sempre visíveis empilhadas no rail (não mais um flyout popup por trás de
+// um único ícone "Configurações").
+function SidebarSection({
+  label,
+  showLabel,
+  divider,
+  children,
+}: {
+  label?: string
+  showLabel: boolean
+  /** Separador discreto acima da seção — todas menos a 1ª. */
+  divider?: boolean
+  children: ReactNode
+}) {
   return (
-    <ConfigGroupFlyout
-      id="sidebar-config"
-      label="Configurações"
-      icon={<Settings className="h-5 w-5 shrink-0" />}
-      showLabel={showLabel}
-      group={group}
-    />
-  )
-}
-
-// ConfiguracoesSistemaFlyout — 2º ícone de configuração: grupo "Sistema"
-// (Servidor, Análise de vídeo, Usuários, Aparência) + os widgets de
-// tema/accent logo depois de "Aparência".
-function ConfiguracoesSistemaFlyout({ showLabel }: { showLabel: boolean }) {
-  const group = (getRole() === 'admin' ? ADMIN_SETTINGS_GROUPS : VIEWER_SETTINGS_GROUPS)[1]
-  return (
-    <ConfigGroupFlyout
-      id="sidebar-config-sistema"
-      label="Configurações do Sistema"
-      icon={<HardDrive className="h-5 w-5 shrink-0" />}
-      showLabel={showLabel}
-      group={group}
-      extra={(onSelect) => (
-        <>
-          <ThemeModeNav onSelect={onSelect} />
-          <AccentSwatchNav onSelect={onSelect} />
-        </>
+    // Lei da proximidade: mais espaço ACIMA do título (pt-4, separa do grupo
+    // anterior) do que ABAIXO dele (pb-0.5, gruda visualmente nos próprios
+    // itens) — pedido do navigator: os dois estavam quase iguais, e o
+    // cabeçalho parecia "no meio do caminho" entre as duas seções em vez de
+    // claramente pertencer à que vem depois.
+    <div className={cn(divider && 'border-t border-border/70 pt-4', showLabel ? 'w-full' : 'w-10')}>
+      {showLabel && label && (
+        <p className="px-3 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-faint">
+          {label}
+        </p>
       )}
-    />
+      <div className="flex flex-col gap-1">{children}</div>
+    </div>
   )
 }
 
-// UserMenu — avatar do usuário logado no rodapé do rail, mesmo padrão de flyout
-// do SettingsFlyout: Notificações, Perfil e Sair.
-function UserMenu({ showLabel }: { showLabel: boolean }) {
-  const navigate = useNavigate()
-  const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
-  const { unreadCount } = useUserNotifications()
-  const username = getUsername() ?? 'usuário'
-  const roleLabel = getRole() === 'admin' ? 'Administrador' : 'Visualizador'
-
-  function logout() {
-    clearToken()
-    setOpen(false)
-    navigate('/login')
-  }
-
-  return (
-    <>
-      <button
-        id="sidebar-user"
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        title={username}
-        aria-label={username}
-        className={navItemClass(open, showLabel)}
-      >
-        {/* badge de não-lidas ancorado ao ícone (span relative própria) — não ao botão
-            inteiro, senão com showLabel (botão largo) o badge ficaria longe do ícone. */}
-        <span className="relative inline-flex shrink-0">
-          <CircleUser className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-on-primary">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
-        </span>
-        {showLabel && <span className="truncate text-sm">{username}</span>}
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={panelRef}
-            style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
-            className="w-44 rounded-lg border border-border bg-surface py-1 shadow-xl"
-          >
-            <div className="truncate border-b border-border px-3 py-2 text-caption text-faint">
-              {username} · {roleLabel}
-            </div>
-            <NavLink
-              to="/notifications"
-              onClick={() => setOpen(false)}
-              className="block px-3 py-1.5 text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-            >
-              Notificações
-            </NavLink>
-            <NavLink
-              to="/profile"
-              onClick={() => setOpen(false)}
-              className="block px-3 py-1.5 text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-            >
-              Perfil
-            </NavLink>
-            <button
-              type="button"
-              onClick={logout}
-              className="block w-full px-3 py-1.5 text-left text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-            >
-              Sair
-            </button>
-          </div>,
-          document.body,
-        )}
-    </>
-  )
-}
-
-// Sidebar — rail de navegação enxuto para o Layout (páginas novas). Links +
-// recolher/expandir (DisplayModeContext global, só 2 modos: icons-only/icons-text
-// — ver o tipo DisplayMode) + os dois flyouts de Configurações + UserMenu.
+// Sidebar — rail de navegação agrupado em seções sempre visíveis (pedido do
+// navigator — substitui o antigo flyout popup por trás de um único ícone
+// "Configurações"): recolhido mostra só ícones; expandido mostra também os
+// cabeçalhos de seção e rola (scrollbar-thin) quando o conteúdo excede a
+// altura da viewport. Só "Sistema" (Câmeras)/"Aparência"/"Sobre" ficam
+// visíveis pra todo mundo — Movimentos/Administração/Governança (e
+// "Rastrear câmeras", dentro de Sistema) são admin-only, mesma regra de
+// acesso que essas páginas já tinham. Nem o logo nem o avatar do usuário
+// moram mais aqui — os dois migraram pra `TopBar.tsx` (barra full-width
+// acima da linha Sidebar+conteúdo, renderizada pelo `Layout`) — o rail em si
+// começa direto pelo botão "Recolher menu".
 export default function Sidebar() {
   const { sidebar: sidebarMode } = useDisplayMode()
   const setDisplayMode = useSetDisplayMode()
   const collapsed = sidebarMode === 'icons-only'
   const showLabel = !collapsed
+  const isAdmin = getRole() === 'admin'
 
   function toggleCollapse() {
     setDisplayMode('sidebar', collapsed ? 'icons-text' : 'icons-only')
@@ -235,64 +158,185 @@ export default function Sidebar() {
         showLabel ? 'w-48 items-stretch' : 'w-14 items-center',
       )}
     >
-      <Link
-        to="/"
-        id="sidebar-logo"
-        className={cn(
-          'flex items-center h-14 hover:opacity-80 transition-opacity border-b border-border flex-none',
-          showLabel ? 'gap-2 px-4' : 'justify-center',
-        )}
-        title="os-camera"
-      >
-        <CameraLogo className="w-8 h-8 shrink-0" />
-        {showLabel && (
-          <span className="text-sm font-semibold text-foreground truncate">os-camera</span>
-        )}
-      </Link>
       <div
         className={cn(
-          'flex flex-1 flex-col gap-1 py-3',
+          'scrollbar-thin flex flex-1 flex-col gap-2 overflow-y-auto py-3',
           showLabel ? 'items-stretch px-2' : 'items-center',
         )}
       >
-        <MotionNotificationsBell showLabel={showLabel} />
-        {items.map((item) => (
-          <NavLink
-            key={item.id}
-            id={item.id}
-            to={item.to}
-            end={item.end}
-            title={item.label}
-            aria-label={item.label}
-            className={({ isActive }) => navItemClass(isActive, showLabel)}
-          >
-            {item.icon}
-            {showLabel && <span className="truncate text-sm">{item.label}</span>}
-          </NavLink>
-        ))}
-        <div className="flex-1" />
-        <div
-          id="sidebar-bottom"
-          className={cn(
-            'flex flex-col gap-1 border-t border-border pt-2',
-            showLabel ? 'items-stretch' : 'items-center',
-          )}
+        <button
+          id="sidebar-collapse"
+          type="button"
+          onClick={toggleCollapse}
+          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          className={cn(navItemClass(false, showLabel))}
         >
-          <button
-            id="sidebar-collapse"
-            type="button"
-            onClick={toggleCollapse}
-            title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-            aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-            className={cn(navItemClass(false, showLabel))}
-          >
-            <ChevronLeft className={cn('h-5 w-5 shrink-0', collapsed && 'rotate-180')} />
-            {showLabel && <span className="truncate text-sm">Recolher menu</span>}
-          </button>
-          <ConfiguracoesFlyout showLabel={showLabel} />
-          <ConfiguracoesSistemaFlyout showLabel={showLabel} />
-          <UserMenu showLabel={showLabel} />
-        </div>
+          <Menu className="h-5 w-5 shrink-0" />
+          {showLabel && <span className="truncate text-sm">Recolher menu</span>}
+        </button>
+
+        <SidebarSection label="Eventos" showLabel={showLabel} divider>
+          <MotionNotificationsBell showLabel={showLabel} />
+          <DisabledSidebarItem
+            id="sidebar-live-view"
+            label="Live View"
+            icon={<Eye className="h-5 w-5 shrink-0" />}
+            showLabel={showLabel}
+          />
+        </SidebarSection>
+
+        <SidebarSection label="Sistema" showLabel={showLabel} divider>
+          <SidebarNavLink
+            item={{
+              id: 'sidebar-cameras',
+              to: '/settings/cameras',
+              label: 'Câmeras',
+              icon: <Cctv className="h-5 w-5 shrink-0" />,
+            }}
+            showLabel={showLabel}
+          />
+          {isAdmin && (
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-discover',
+                to: '/settings/discover',
+                label: 'Rastrear câmeras',
+                icon: <Search className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+          )}
+        </SidebarSection>
+
+        {isAdmin && (
+          <SidebarSection label="Movimentos" showLabel={showLabel}>
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-analysis',
+                to: '/settings/analysis',
+                label: 'Análise de vídeo',
+                icon: <Zap className="h-5 w-5 shrink-0" />,
+                matchHash: '',
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-label-events',
+                to: '/settings/analysis#label-events',
+                label: 'Rotular eventos',
+                icon: <Pencil className="h-5 w-5 shrink-0" />,
+                matchHash: '#label-events',
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-history',
+                to: '/history',
+                label: 'Histórico',
+                icon: <History className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+          </SidebarSection>
+        )}
+
+        {isAdmin && (
+          <SidebarSection label="Administração" showLabel={showLabel} divider>
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-storage',
+                to: '/settings/storage',
+                label: 'Armazenamento',
+                icon: <HardDrive className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-server',
+                to: '/settings/server',
+                label: 'Servidor',
+                icon: <Server className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-users',
+                to: '/settings/users',
+                label: 'Usuários',
+                icon: <Users className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+          </SidebarSection>
+        )}
+
+        {isAdmin && (
+          <SidebarSection label="Governança" showLabel={showLabel}>
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-recordings',
+                to: '/recordings',
+                label: 'Gravações',
+                icon: <Film className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-stats',
+                to: '/settings/stats',
+                label: 'Estatísticas',
+                icon: <Gauge className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-relatorios',
+                to: '/reports',
+                label: 'Relatórios',
+                icon: <BarChart2 className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+          </SidebarSection>
+        )}
+
+        <SidebarSection label="Aparência" showLabel={showLabel} divider>
+          <ThemeModeNav showLabel={showLabel} />
+          <SidebarNavLink
+            item={{
+              id: 'sidebar-appearance-accent',
+              to: '/settings/appearance',
+              label: 'Cor de destaque',
+              icon: <Palette className="h-5 w-5 shrink-0" />,
+            }}
+            showLabel={showLabel}
+          />
+          <DisabledSidebarItem
+            id="sidebar-background-color"
+            label="Cor de fundo"
+            icon={<Palette className="h-5 w-5 shrink-0" />}
+            showLabel={showLabel}
+          />
+        </SidebarSection>
+
+        <SidebarSection showLabel={showLabel}>
+          <SidebarNavLink
+            item={{
+              id: 'sidebar-about',
+              to: '/settings/about',
+              label: 'Sobre',
+              icon: <CameraLogo className="h-5 w-5 shrink-0" />,
+            }}
+            showLabel={showLabel}
+          />
+        </SidebarSection>
       </div>
     </nav>
   )

@@ -642,6 +642,7 @@ export default function HistoryPage() {
             cameraName={camera.name}
             recordingEnabled={camera.recording_enabled}
             pageTitle="Histórico"
+            twoColumnCap
           >
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-center">
               <div

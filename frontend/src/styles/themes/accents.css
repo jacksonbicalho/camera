@@ -15,8 +15,9 @@
 /* Nunca aplicado no <html> (ThemeContext remove o atributo em vez de setar
    "default" — o fallback ambiente continua vindo de themes/default.css
    intocado). Existe só pra permitir que os swatches de preview
-   (AccentSwatchGroup/AccentSwatchNav) escopem localmente a própria cor com
-   data-accent="default", em vez de herdar o accent globalmente ativo. */
+   (AccentSwatchGroup, em AppearanceSettingsPage.tsx) escopem localmente a
+   própria cor com data-accent="default", em vez de herdar o accent
+   globalmente ativo. */
 [data-accent='default'] {
   --color-primary: #1976d2;
   --color-primary-strong: #1565c0;

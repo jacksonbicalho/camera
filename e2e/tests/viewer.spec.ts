@@ -29,17 +29,15 @@ test('viewer: acessa a câmera concedida, sem seções admin-only', async ({ pag
   await expect(live.video).toBeAttached({ timeout: 15_000 })
 
   const sidebar = new Sidebar(page)
-  // "Usuários" vive no grupo "Configurações do Sistema" (settingsNavLinks.ts,
-  // ADMIN_SETTINGS_GROUPS) — exclusivo de admin; um viewer nunca deve ver
-  // essa seção no 2º flyout de Configurações.
-  await sidebar.openConfiguracoesSistemaFlyout()
-  await expect(sidebar.settingsLink('/settings/users')).toHaveCount(0)
 
-  // Controle: "Câmeras" está no 1º flyout (grupo "Configurações"), em ambos
-  // os papéis — confirma que os flyouts renderizam de verdade (não é uma
-  // ausência por o painel nunca ter aberto).
-  await sidebar.openConfiguracoesFlyout()
+  // Controle: "Câmeras" (seção "Sistema", sempre visível) confirma que o
+  // rail renderizou de verdade (não é uma ausência por algo não ter
+  // montado).
   await expect(sidebar.settingsLink('/settings/cameras')).toBeVisible()
+
+  // "Usuários" vive na seção "Administração" (Sidebar.tsx), que só existe
+  // pra admin — a seção inteira some pro viewer, não só o link.
+  await expect(sidebar.settingsLink('/settings/users')).toHaveCount(0)
 })
 
 test('viewer: não acessa uma câmera concedida só ao admin', async ({ page }) => {

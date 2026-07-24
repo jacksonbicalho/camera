@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { authHeaders, onUnauthorized } from '../auth'
 import SettingsLayout from '../components/SettingsLayout'
 import PageHeader from '../components/PageHeader'
-import ServerSettingsTabs from '../components/ServerSettingsTabs'
 import MotionScoreChart from '../components/MotionScoreChart'
 import { useStats } from '../hooks/useStats'
 import { formatBytes, formatDuration } from './statsUtils'
@@ -64,28 +63,11 @@ export default function StatsPage() {
     })
   }
 
-  const hasLimit = (stats?.max_size_bytes ?? 0) > 0
-  const limitRef = hasLimit ? stats!.max_size_bytes : (stats?.disk_total_bytes ?? 0)
-  const usedPercent =
-    limitRef > 0 ? Math.min(100, Math.round((stats!.recordings_bytes / limitRef) * 100)) : 0
-  const warnThreshold = hasLimit && stats ? stats.warn_percent : 0
-  const isWarning = warnThreshold > 0 && usedPercent >= warnThreshold
-  const isOver = hasLimit && stats ? stats.recordings_bytes >= stats.max_size_bytes : false
-  const barColor = isOver
-    ? 'bg-gradient-to-r from-red-700 to-red-500'
-    : isWarning
-      ? 'bg-gradient-to-r from-yellow-600 to-yellow-400'
-      : 'bg-gradient-to-r from-blue-700 to-blue-400'
-
   const cameraHealthMap = Object.fromEntries((stats?.cameras ?? []).map((c) => [c.id, c]))
-
-  const cpuPct = stats?.cpu_percent ?? -1
-  const sysMemUsed = (stats?.sys_mem_total_bytes ?? 0) - (stats?.sys_mem_free_bytes ?? 0)
 
   return (
     <SettingsLayout id="stats-page" footerId="stats-footer">
-      <PageHeader title="Estatísticas" subtitle="Uso de disco, sistema e saúde das câmeras." />
-      <ServerSettingsTabs active="stats" />
+      <PageHeader title="Estatísticas" subtitle="Atividade e saúde das câmeras." />
 
       {!stats ? (
         <p className="text-faint text-sm">Carregando...</p>
@@ -116,106 +98,6 @@ export default function StatsPage() {
                 {stats.connected_clients} cliente{stats.connected_clients !== 1 ? 's' : ''}{' '}
                 conectado{stats.connected_clients !== 1 ? 's' : ''}
               </p>
-            </div>
-          </div>
-
-          {/* Disco */}
-          <div className="bg-surface border border-border rounded-xl p-5">
-            <p className="text-xs text-faint uppercase tracking-wider mb-5">Armazenamento</p>
-            <div className="grid grid-cols-3 gap-6 mb-5">
-              <div>
-                <p className="text-xs text-faint mb-1">{hasLimit ? 'Limite' : 'Total'}</p>
-                <p className="text-2xl font-bold text-foreground">
-                  {formatBytes(hasLimit ? stats.max_size_bytes : stats.disk_total_bytes)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-faint mb-1">Gravações</p>
-                <p
-                  className={`text-2xl font-bold ${isOver ? 'text-red-400' : isWarning ? 'text-yellow-400' : 'text-blue-400'}`}
-                >
-                  {formatBytes(stats.recordings_bytes)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-faint mb-1">Disponível</p>
-                <p className="text-2xl font-bold text-green-400">
-                  {formatBytes(
-                    hasLimit
-                      ? Math.max(0, stats.max_size_bytes - stats.recordings_bytes)
-                      : stats.disk_free_bytes,
-                  )}
-                </p>
-              </div>
-            </div>
-            <div className="h-3 bg-surface-2 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-                style={{ width: `${usedPercent}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between mt-2">
-              <p className="text-xs text-faint">
-                {usedPercent}%{' '}
-                {hasLimit ? `do limite de ${formatBytes(stats.max_size_bytes)}` : 'do disco'}
-              </p>
-              {isWarning && !isOver && (
-                <p className="text-xs text-yellow-500">⚠ próximo do limite</p>
-              )}
-              {isOver && <p className="text-xs text-red-500">⚠ limite atingido</p>}
-            </div>
-            {stats.forecast_seconds > 0 && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <p className="text-xs text-faint">
-                  Previsão de capacidade:{' '}
-                  <span className="text-foreground font-medium">
-                    {formatDuration(stats.forecast_seconds)} restantes
-                  </span>
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Sistema */}
-          <div className="bg-surface border border-border rounded-xl p-5">
-            <p className="text-xs text-faint uppercase tracking-wider mb-4">Sistema</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-4">
-              <div>
-                <p className="text-xs text-faint mb-1">OS</p>
-                <p className="text-sm font-medium text-foreground truncate">{stats.os || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-faint mb-1">PID</p>
-                <p className="text-sm font-mono text-foreground">{stats.pid}</p>
-              </div>
-              <div>
-                <p className="text-xs text-faint mb-1">CPU</p>
-                <p className="text-sm font-mono text-foreground">
-                  {cpuPct < 0 ? '—' : `${cpuPct.toFixed(1)}%`}
-                </p>
-                {cpuPct >= 0 && <p className="text-xs text-faint">amostra 30 s</p>}
-              </div>
-              <div>
-                <p className="text-xs text-faint mb-1">Mem. processo</p>
-                <p className="text-sm font-mono text-foreground">
-                  {stats.mem_rss_bytes > 0 ? formatBytes(stats.mem_rss_bytes) : '—'}
-                </p>
-              </div>
-              {stats.sys_mem_total_bytes > 0 && (
-                <div>
-                  <p className="text-xs text-faint mb-1">RAM host</p>
-                  <p className="text-sm font-mono text-foreground">
-                    {formatBytes(sysMemUsed)} / {formatBytes(stats.sys_mem_total_bytes)}
-                  </p>
-                  <p className="text-xs text-faint">
-                    livre: {formatBytes(stats.sys_mem_free_bytes)}
-                  </p>
-                </div>
-              )}
-              <div>
-                <p className="text-xs text-faint mb-1">Goroutines</p>
-                <p className="text-sm font-mono text-foreground">{stats.goroutines}</p>
-              </div>
             </div>
           </div>
 

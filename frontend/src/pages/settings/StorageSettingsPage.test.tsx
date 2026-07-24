@@ -37,6 +37,45 @@ const settings = {
   cameras: [],
 }
 
+const stats = {
+  recordings_bytes: 20_000_000_000,
+  recordings_count: 10,
+  recordings_duration_seconds: 3600,
+  forecast_seconds: 0,
+  disk_total_bytes: 100_000_000_000,
+  disk_free_bytes: 50_000_000_000,
+  camera_count: 1,
+  connected_clients: 0,
+  max_size_bytes: 0,
+  warn_percent: 0,
+  cameras: [],
+  os: 'linux',
+  pid: 1,
+  cpu_percent: 1,
+  net_mbps: 0,
+  mem_rss_bytes: 0,
+  sys_mem_total_bytes: 0,
+  sys_mem_free_bytes: 0,
+  goroutines: 1,
+}
+
+function stubFetch() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string) => {
+      if (url.startsWith('/api/settings'))
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(settings) })
+      if (url.startsWith('/api/drives'))
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
+      if (url.startsWith('/api/retention'))
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
+      if (url.startsWith('/api/stats'))
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(stats) })
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+    }),
+  )
+}
+
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -44,18 +83,7 @@ afterEach(() => {
 
 describe('StorageSettingsPage', () => {
   it('renderiza o título dentro do SettingsLayout', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.startsWith('/api/settings'))
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(settings) })
-        if (url.startsWith('/api/drives'))
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
-        if (url.startsWith('/api/retention'))
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
-        return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
-      }),
-    )
+    stubFetch()
     render(
       <MemoryRouter initialEntries={['/settings/storage']}>
         <StorageSettingsPage />
@@ -63,6 +91,19 @@ describe('StorageSettingsPage', () => {
     )
     await waitFor(() => {
       expect(document.body.textContent).toContain('Armazenamento')
+    })
+  })
+
+  it('mostra o card "Uso de disco" (Total/Gravações/Disponível), migrado de StatsPage', async () => {
+    stubFetch()
+    render(
+      <MemoryRouter initialEntries={['/settings/storage']}>
+        <StorageSettingsPage />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('Uso de disco')
+      expect(document.body.textContent).toContain('Disponível')
     })
   })
 })

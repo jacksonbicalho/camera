@@ -22,25 +22,29 @@ afterEach(() => {
 const trigger = () => document.getElementById('theme-nav-current')!
 
 describe('ThemeModeNav', () => {
-  it('colapsado: o gatilho mostra "Estilo (<modo>)" e as opções ficam ocultas', () => {
+  it('colapsado: o gatilho mostra só o rótulo "Estilo" (sem o modo) e as opções ficam ocultas', () => {
     currentMode = 'dark'
     render(<ThemeModeNav />)
-    expect(trigger().textContent).toContain('Estilo (Dark)')
+    expect(trigger().textContent).toContain('Estilo')
+    expect(trigger().textContent).not.toContain('Dark')
     expect(document.getElementById('theme-mode-light')).toBeNull()
     expect(document.getElementById('theme-mode-system')).toBeNull()
   })
 
-  it('o gatilho reflete o modo concreto (light/dark explícito)', () => {
+  it('o ícone do gatilho reflete o modo resolvido: lua no dark, sol no light', () => {
+    currentMode = 'dark'
+    const { rerender } = render(<ThemeModeNav />)
+    expect(trigger().querySelectorAll('svg circle').length).toBe(0) // lua não tem <circle>
+
     currentMode = 'light'
-    render(<ThemeModeNav />)
-    expect(trigger().textContent).toContain('Light')
+    rerender(<ThemeModeNav />)
+    expect(trigger().querySelectorAll('svg circle').length).toBeGreaterThan(0) // sol tem <circle>
   })
 
-  it('com "Sistema" escolhido: gatilho e ✓ mostram "Sistema" (independe do SO)', () => {
+  it('com "Sistema" escolhido: o ✓ da opção reflete "Sistema" (independe do SO)', () => {
     currentMode = 'system'
     osDark = true
     render(<ThemeModeNav />)
-    expect(trigger().textContent).toContain('Sistema')
     fireEvent.click(trigger())
     expect(document.getElementById('theme-mode-system')!.getAttribute('aria-current')).toBe('true')
     expect(document.getElementById('theme-mode-dark')!.getAttribute('aria-current')).toBeNull()
@@ -69,11 +73,14 @@ describe('ThemeModeNav', () => {
     expect(document.getElementById('theme-mode-system')).toBeTruthy()
   })
 
-  it('as opções abrem num flyout para a direita (left-full)', () => {
+  it('as opções abrem num flyout portalizado (position: fixed), não clipado pelo scroll do rail', () => {
     render(<ThemeModeNav />)
     fireEvent.click(trigger())
     const flyout = document.getElementById('theme-mode-flyout')!
-    expect(flyout.className).toContain('left-full')
+    expect(flyout.style.position).toBe('fixed')
+    // portalizado direto no body — não é descendente do wrapper (que pode
+    // estar dentro de um container com overflow, ex.: o rail).
+    expect(document.getElementById('theme-mode-nav')!.contains(flyout)).toBe(false)
   })
 
   it('selecionar uma opção aplica o modo e fecha a lista', () => {
@@ -139,5 +146,50 @@ describe('ThemeModeNav', () => {
     fireEvent.mouseEnter(document.getElementById('theme-mode-nav')!)
     fireEvent.click(document.getElementById('theme-mode-light')!)
     expect(onSelect).toHaveBeenCalledTimes(1)
+  })
+
+  it('posicionamento inteligente: perto do fim da viewport, o painel ancora por baixo (bottom) em vez de por cima (top)', () => {
+    render(<ThemeModeNav />)
+    const nav = document.getElementById('theme-mode-nav')!
+    // Simula o gatilho perto do rodapé da viewport (pouco espaço abaixo dele
+    // até window.innerHeight) — mesmo cenário do bug relatado pelo navigator
+    // (opção "Sistema" ficava fora da tela quando "Estilo" caía no fim do rail).
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(600)
+    vi.spyOn(nav, 'getBoundingClientRect').mockReturnValue({
+      top: 580,
+      bottom: 600,
+      left: 0,
+      right: 40,
+      width: 40,
+      height: 20,
+      x: 0,
+      y: 580,
+      toJSON: () => {},
+    })
+    fireEvent.mouseEnter(nav)
+    const flyout = document.getElementById('theme-mode-flyout')!
+    expect(flyout.style.top).toBe('')
+    expect(flyout.style.bottom).not.toBe('')
+  })
+
+  it('posicionamento inteligente: com espaço de sobra abaixo, o painel ancora por cima (top)', () => {
+    render(<ThemeModeNav />)
+    const nav = document.getElementById('theme-mode-nav')!
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900)
+    vi.spyOn(nav, 'getBoundingClientRect').mockReturnValue({
+      top: 100,
+      bottom: 120,
+      left: 0,
+      right: 40,
+      width: 40,
+      height: 20,
+      x: 0,
+      y: 100,
+      toJSON: () => {},
+    })
+    fireEvent.mouseEnter(nav)
+    const flyout = document.getElementById('theme-mode-flyout')!
+    expect(flyout.style.bottom).toBe('')
+    expect(flyout.style.top).not.toBe('')
   })
 })

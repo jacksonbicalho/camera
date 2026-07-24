@@ -11,12 +11,13 @@ vi.mock('./auth', () => ({
 
 vi.mock('./pages/LivePage', () => ({ default: () => <div id="marker-live-page" /> }))
 vi.mock('./pages/HistoryPage', () => ({ default: () => <div id="marker-history-page" /> }))
+vi.mock('./pages/HistoryLandingPage', () => ({
+  default: () => <div id="marker-history-landing-page" />,
+}))
 vi.mock('./pages/VideoBrowserPage', () => ({
   default: () => <div id="marker-video-browser-page" />,
 }))
-vi.mock('./pages/settings/SettingsReportsPage', () => ({
-  default: () => <div id="marker-reports-page" />,
-}))
+vi.mock('./pages/ReportsPage', () => ({ default: () => <div id="marker-reports-page" /> }))
 vi.mock('./pages/AllCamerasPage', () => ({ default: () => <div id="marker-all-cameras-page" /> }))
 vi.mock('./pages/DashboardPage', () => ({ default: () => <div id="marker-dashboard-page" /> }))
 
@@ -44,12 +45,12 @@ describe('routes', () => {
   it.each([
     ['/', 'marker-all-cameras-page'],
     ['/live/cam1', 'marker-live-page'],
+    ['/history', 'marker-history-landing-page'],
     ['/history/cam1', 'marker-history-page'],
     ['/history/cam1/42', 'marker-history-page'],
     ['/recording/cam1/42', 'marker-video-browser-page'],
     ['/recording/cam1/42/7', 'marker-video-browser-page'],
-    ['/settings/reports', 'marker-reports-page'],
-    ['/settings/reports/cam1/2026-07-07/1', 'marker-reports-page'],
+    ['/reports/cam1/2026-07-07/1', 'marker-reports-page'],
     ['/dashboard', 'marker-dashboard-page'],
   ])('%s renderiza a página correspondente', async (path, markerId) => {
     renderPath(path)

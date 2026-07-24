@@ -53,13 +53,14 @@ describe('Layout', () => {
     expect(screen.getByRole('contentinfo').id).toBe('page-footer')
   })
 
-  it('inclui o rail de navegação (#sidebar); hideNav o esconde', () => {
+  it('inclui o rail de navegação (#sidebar) e a TopBar (#top-bar); hideNav esconde os dois', () => {
     renderLayout(
       <Layout>
         <span>x</span>
       </Layout>,
     )
     expect(document.getElementById('sidebar')).toBeTruthy()
+    expect(document.getElementById('top-bar')).toBeTruthy()
     cleanup()
     renderLayout(
       <Layout hideNav>
@@ -67,9 +68,10 @@ describe('Layout', () => {
       </Layout>,
     )
     expect(document.getElementById('sidebar')).toBeNull()
+    expect(document.getElementById('top-bar')).toBeNull()
   })
 
-  it('Sidebar fica num wrapper sticky+h-screen — acompanha a altura da página igual ao AppLayout', () => {
+  it('Sidebar fica num wrapper sticky, abaixo da TopBar (top-14, altura calc(100vh-3.5rem)) — acompanha a altura da página igual ao AppLayout', () => {
     renderLayout(
       <Layout>
         <span>x</span>
@@ -78,8 +80,8 @@ describe('Layout', () => {
     const sidebar = document.getElementById('sidebar')!
     const wrapper = sidebar.parentElement!
     expect(wrapper.className).toContain('sticky')
-    expect(wrapper.className).toContain('h-screen')
-    expect(wrapper.className).toContain('top-0')
+    expect(wrapper.className).toContain('top-14')
+    expect(wrapper.className).toContain('h-[calc(100vh-3.5rem)]')
   })
 
   it('fixa o rodapé no fundo: coluna de conteúdo é flex-col e o conteúdo cresce (flex-1)', () => {

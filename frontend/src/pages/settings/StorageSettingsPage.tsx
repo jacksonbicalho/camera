@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
-import ServerSettingsTabs from '../../components/ServerSettingsTabs'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { useSettings } from '../../hooks/useSettings'
+import { useStats } from '../../hooks/useStats'
+import { formatBytes, formatDuration } from '../statsUtils'
 import { authHeaders, getRole } from '../../auth'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { Button } from '@/components/ui/button'
@@ -102,6 +103,19 @@ export default function StorageSettingsPage() {
   const isAdmin = getRole() === 'admin'
   const { settings, reload } = useSettings()
   const s = settings?.storage
+  const { stats } = useStats()
+  const hasLimit = (stats?.max_size_bytes ?? 0) > 0
+  const limitRef = hasLimit ? stats!.max_size_bytes : (stats?.disk_total_bytes ?? 0)
+  const usedPercent =
+    limitRef > 0 ? Math.min(100, Math.round((stats!.recordings_bytes / limitRef) * 100)) : 0
+  const warnThreshold = hasLimit && stats ? stats.warn_percent : 0
+  const isWarning = warnThreshold > 0 && usedPercent >= warnThreshold
+  const isOver = hasLimit && stats ? stats.recordings_bytes >= stats.max_size_bytes : false
+  const barColor = isOver
+    ? 'bg-gradient-to-r from-red-700 to-red-500'
+    : isWarning
+      ? 'bg-gradient-to-r from-yellow-600 to-yellow-400'
+      : 'bg-gradient-to-r from-blue-700 to-blue-400'
 
   const [drives, setDrives] = useState<Drive[]>([])
   const [retention, setRetention] = useState<RetentionConfig[]>([])
@@ -273,7 +287,6 @@ export default function StorageSettingsPage() {
           title="Armazenamento"
           subtitle="Retenção, limpeza automática e espaço em disco."
         />
-        <ServerSettingsTabs active="storage" />
         <p className="text-muted-foreground text-sm">Acesso restrito.</p>
       </SettingsLayout>
     )
@@ -285,8 +298,64 @@ export default function StorageSettingsPage() {
         title="Armazenamento"
         subtitle="Retenção, limpeza automática e espaço em disco."
       />
-      <ServerSettingsTabs active="storage" />
-
+      {/* Uso de disco — migrado de StatsPage (pedido do navigator: "a sessão
+          Armazenamento de estatísticas deve ir para a página armazenamento"),
+          via useStats/`/api/stats`, mesmo card que já existia lá. */}
+      {stats && (
+        <div className="bg-surface border border-border rounded-xl p-5 mb-4">
+          <p className="text-xs text-faint uppercase tracking-wider mb-5">Uso de disco</p>
+          <div className="grid grid-cols-3 gap-6 mb-5">
+            <div>
+              <p className="text-xs text-faint mb-1">{hasLimit ? 'Limite' : 'Total'}</p>
+              <p className="text-2xl font-bold text-foreground">
+                {formatBytes(hasLimit ? stats.max_size_bytes : stats.disk_total_bytes)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-faint mb-1">Gravações</p>
+              <p
+                className={`text-2xl font-bold ${isOver ? 'text-red-400' : isWarning ? 'text-yellow-400' : 'text-blue-400'}`}
+              >
+                {formatBytes(stats.recordings_bytes)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-faint mb-1">Disponível</p>
+              <p className="text-2xl font-bold text-green-400">
+                {formatBytes(
+                  hasLimit
+                    ? Math.max(0, stats.max_size_bytes - stats.recordings_bytes)
+                    : stats.disk_free_bytes,
+                )}
+              </p>
+            </div>
+          </div>
+          <div className="h-3 bg-surface-2 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+              style={{ width: `${usedPercent}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-faint">
+              {usedPercent}%{' '}
+              {hasLimit ? `do limite de ${formatBytes(stats.max_size_bytes)}` : 'do disco'}
+            </p>
+            {isWarning && !isOver && <p className="text-xs text-yellow-500">⚠ próximo do limite</p>}
+            {isOver && <p className="text-xs text-red-500">⚠ limite atingido</p>}
+          </div>
+          {stats.forecast_seconds > 0 && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <p className="text-xs text-faint">
+                Previsão de capacidade:{' '}
+                <span className="text-foreground font-medium">
+                  {formatDuration(stats.forecast_seconds)} restantes
+                </span>
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       {form ? (
         <div className="space-y-2 mb-4">
           {/* Diretório + Máximo + Alerta + Intervalo */}
