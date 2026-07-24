@@ -1,0 +1,556 @@
+import { useEffect, useState } from 'react'
+import { format } from 'date-fns'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import SettingsLayout from '../../components/SettingsLayout'
+import ServerSettingsTabs from '../../components/ServerSettingsTabs'
+import PageHeader from '../../components/PageHeader'
+import DatePicker from '../../components/DatePicker'
+import CameraPickerFlyout from '../../components/CameraPickerFlyout'
+import { authHeaders, onUnauthorized } from '../../auth'
+import { categoryBuckets, axisTicks, categoryDetail, type EventReport } from '../reportsUtils'
+import {
+  categoryColor,
+  categoryLabel,
+  categoryStrokeColor,
+  type EventCategory,
+} from '../eventCategory'
+
+const RANGE_OPTS = [1, 2, 3, 4, 5, 6, 7, 14, 30, 90]
+
+// nearestRange — resolve um valor de :days da URL pro range válido mais próximo
+// (ex.: alguém edita a URL na mão pra um valor fora de RANGE_OPTS). NaN nunca bate
+// nenhuma comparação, então o reduce mantém o 1º candidato (1 dia) como fallback.
+function nearestRange(n: number): number {
+  if (RANGE_OPTS.includes(n)) return n
+  return RANGE_OPTS.reduce(
+    (best, opt) => (Math.abs(opt - n) < Math.abs(best - n) ? opt : best),
+    RANGE_OPTS[0],
+  )
+}
+
+// parseLocalDate — parseia "yyyy-MM-dd" como data LOCAL (sem o deslocamento de fuso
+// de `new Date(string)`, que interpreta como UTC). Sem :date válido, cai em hoje.
+function parseLocalDate(s: string | undefined): Date {
+  const [y, m, d] = (s ?? '').split('-').map(Number)
+  if (!y || !m || !d) return new Date()
+  return new Date(y, m - 1, d)
+}
+
+// categoryDescription — texto do modal de detalhe da categoria; movimento/pessoa/estados
+// têm frase própria (comportamento conhecido do produto), qualquer outro label (dinâmico,
+// fiel à classificação real do YOLO) usa uma frase genérica com o próprio label — não mais
+// um bucket "Detecções de modelos de IA" que escondia o que foi de fato detectado.
+function categoryDescription(cat: string): string {
+  switch (cat) {
+    case 'movimento':
+      return 'Movimento detectado por diferença de pixels, sem classificação.'
+    case 'pessoa':
+      return 'Detecções classificadas como pessoa.'
+    case 'estados':
+      return 'Transições de classificadores de estado.'
+    default:
+      return `Detecções classificadas como "${categoryLabel(cat)}".`
+  }
+}
+
+// sortCategories ordena a pilha/legenda: pessoa primeiro, movimento depois, resto em
+// ordem alfabética, `estados` sempre por último (mesma convenção do dropdown do
+// Histórico — HistoryPage.tsx —, com `estados` adicionalmente empurrado pro fim aqui).
+function sortCategories(categories: Iterable<string>): string[] {
+  const rank = (cat: string) =>
+    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat === 'estados' ? 3 : 2
+  return [...categories].sort((a, b) => {
+    const diff = rank(a) - rank(b)
+    return diff !== 0 ? diff : a.localeCompare(b)
+  })
+}
+
+interface CameraOption {
+  id: string
+  name: string
+}
+interface Bar {
+  key: string
+  count: number
+  bc: Record<string, number>
+}
+
+const WEEKDAY_LABEL = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+export default function SettingsReportsPage() {
+  const {
+    cameraId,
+    date: dateParam,
+    days: daysParam,
+  } = useParams<{ cameraId: string; date: string; days: string }>()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const [report, setReport] = useState<EventReport | null>(null)
+  const [heatmap, setHeatmap] = useState<EventReport | null>(null)
+  const [days, setDays] = useState(() => nearestRange(Number(daysParam)))
+  const [date, setDate] = useState<Date>(() => parseLocalDate(dateParam))
+  const [cameras, setCameras] = useState<CameraOption[]>([])
+  const [camera, setCamera] = useState(cameraId ?? '')
+  const [contentDays, setContentDays] = useState<string[]>([])
+  const [modalCat, setModalCat] = useState<EventCategory | null>(null)
+
+  // Mantém a URL sincronizada com câmera/data/range (fonte compartilhável) — mesmo
+  // padrão de HistoryPage.tsx: só navega quando o alvo difere da rota atual, senão
+  // entraria em loop com a navegação disparada por esta própria troca.
+  useEffect(() => {
+    if (!camera) return
+    const target = `/settings/reports/${camera}/${format(date, 'yyyy-MM-dd')}/${days}`
+    if (location.pathname !== target) navigate(target, { replace: true })
+  }, [camera, date, days, location.pathname, navigate])
+
+  // Dias com evento da câmera selecionada — habilitam só esses no calendário.
+  useEffect(() => {
+    if (!camera) return
+    fetch(`/api/cameras/${camera}/content-days?kind=events`, { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : { days: [] }))
+      .then((d: { days?: string[] }) => setContentDays(d.days ?? []))
+      .catch(() => {})
+  }, [camera])
+
+  // Fecha o modal de categoria no Esc.
+  useEffect(() => {
+    if (!modalCat) return
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModalCat(null)
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [modalCat])
+
+  // A data = FIM do período; `days` = tamanho da janela. "1 dia" = barras por hora do
+  // dia; >1 dia = N dias terminando na data.
+  const camName = cameras.find((c) => c.id === camera)?.name
+  const dayMode = days === 1
+  const periodEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1, 0, 0, 0, 0)
+  const periodStart = dayMode
+    ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0)
+    : new Date(periodEnd.getTime() - days * 86_400_000)
+  const periodLabel = dayMode
+    ? `${WEEKDAY_LABEL[date.getDay()]} ${format(date, 'dd/MM')}`
+    : `${format(periodStart, 'dd/MM')} – ${format(date, 'dd/MM')}`
+
+  // Lista de câmeras do usuário → popula o seletor. A câmera ativa vem da URL
+  // (:cameraId); esta lista só alimenta o <select> e o nome exibido no cabeçalho.
+  useEffect(() => {
+    fetch('/api/cameras', { headers: authHeaders() })
+      .then((r) => {
+        if (r.status === 401) {
+          onUnauthorized()
+          return null
+        }
+        return r.json()
+      })
+      .then((list: CameraOption[] | null) => {
+        if (list) setCameras(list)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!camera) return
+    const bucket = dayMode ? '&bucket=hour' : ''
+    const url = `/api/reports/events?from=${periodStart.toISOString()}&to=${periodEnd.toISOString()}&camera=${encodeURIComponent(camera)}${bucket}`
+    fetch(url, { headers: authHeaders() })
+      .then((r) => {
+        if (r.status === 401) {
+          onUnauthorized()
+          return null
+        }
+        return r.json()
+      })
+      .then((d) => {
+        if (d) setReport(d)
+      })
+      .catch(() => {})
+    // periodStart/periodEnd derivam de date+days; date/days nas deps cobrem.
+  }, [days, camera, date]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Heatmap (dia da semana × hora): só faz sentido multi-dia, então usa a MESMA janela
+  // do período (N dias terminando na data) e não roda no modo "1 dia".
+  useEffect(() => {
+    if (!camera || dayMode) return
+    const url = `/api/reports/events?from=${periodStart.toISOString()}&to=${periodEnd.toISOString()}&camera=${encodeURIComponent(camera)}&bucket=heatmap`
+    fetch(url, { headers: authHeaders() })
+      .then((r) => {
+        if (r.status === 401) {
+          onUnauthorized()
+          return null
+        }
+        return r.json()
+      })
+      .then((d) => {
+        if (d) setHeatmap(d)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days, camera, date])
+
+  const bars: Bar[] = dayMode
+    ? (report?.by_hour ?? []).map((h) => ({
+        key: `${h.hour}`,
+        count: h.count,
+        bc: h.by_category ?? {},
+      }))
+    : (report?.by_day ?? []).map((d) => ({ key: d.day, count: d.count, bc: d.by_category ?? {} }))
+  const maxVal = Math.max(1, ...bars.map((b) => b.count))
+
+  const cats = report ? categoryBuckets(report.by_label, report.by_category) : {}
+  // Ordem de empilhamento das barras/legenda — dinâmica, derivada das categorias que de
+  // fato aparecem no relatório (pessoa, movimento, resto alfabético, estados por último).
+  const stackOrder = sortCategories(Object.keys(cats))
+  const catEntries = Object.entries(cats).filter(([, n]) => n > 0)
+  const catTotal = catEntries.reduce((s, [, n]) => s + n, 0) || 1
+
+  // donut (categorias)
+  const R = 54
+  const CIRC = 2 * Math.PI * R
+  let acc = 0
+  const segments = catEntries.map(([cat, n]) => {
+    const len = (n / catTotal) * CIRC
+    const seg = { cat, n, len, offset: acc }
+    acc += len
+    return seg
+  })
+
+  // Heatmap: uma linha por dia (cronológico). Agrupa as células por data preservando a
+  // ordem (o backend já devolve por data asc) e monta a contagem por hora de cada dia.
+  const heatCells = heatmap?.heatmap ?? []
+  const heatRows: { date: string; hours: number[] }[] = []
+  const heatRowIdx = new Map<string, number>()
+  for (const c of heatCells) {
+    let i = heatRowIdx.get(c.date)
+    if (i === undefined) {
+      i = heatRows.length
+      heatRowIdx.set(c.date, i)
+      heatRows.push({ date: c.date, hours: Array(24).fill(0) })
+    }
+    if (c.hour >= 0 && c.hour < 24) heatRows[i].hours[c.hour] = c.count
+  }
+  // Exibe do mais recente (topo) ao mais antigo: quando o range excede os dados, os dias
+  // com atividade ficam no topo (visíveis) e os dias vazios mais antigos escorrem p/ baixo.
+  const heatRowsDesc = [...heatRows].reverse()
+  const heatMax = Math.max(1, ...heatCells.map((c) => c.count))
+  const heatTotal = heatCells.reduce((s, c) => s + c.count, 0)
+  // "27/03/2026 Sex" — data dd/mm/yyyy + dia da semana (data local, sem deslocamento de fuso).
+  const heatRowLabel = (date: string) => {
+    const [y, m, d] = date.split('-').map(Number)
+    const dt = new Date(y, m - 1, d)
+    return `${format(dt, 'dd/MM/yyyy')} ${WEEKDAY_LABEL[dt.getDay()]}`
+  }
+
+  const barTitle = (b: Bar) => {
+    const head = dayMode ? `${b.key}h` : b.key
+    const parts = stackOrder
+      .filter((c) => (b.bc[c] ?? 0) > 0)
+      .map((c) => `${categoryLabel(c)}: ${b.bc[c]}`)
+    return parts.length > 0 ? `${head} — ${parts.join(', ')}` : `${head}: ${b.count}`
+  }
+
+  // Sem :cameraId (rota "/settings/reports", sem sub-rota): mostra um seletor
+  // de câmera (mesmo CameraPickerFlyout do item "Histórico" no menu de
+  // Configurações) em vez do relatório em si — a página só faz sentido por
+  // câmera. Selecionar navega pra "/settings/reports/:cameraId/hoje/1", que
+  // remonta este componente já com :cameraId presente.
+  if (!cameraId) {
+    return (
+      <SettingsLayout id="settings-reports-page" footerId="settings-reports-footer">
+        <PageHeader title="Relatórios" subtitle="Estatísticas de eventos por câmera." />
+        <ServerSettingsTabs active="reports" />
+        <div className="rounded-lg border border-border bg-surface p-8 text-center">
+          <p className="text-sm text-muted-foreground mb-4">
+            Escolha uma câmera para ver o relatório de eventos.
+          </p>
+          <div className="inline-flex">
+            <CameraPickerFlyout
+              id="settings-reports-camera-picker"
+              label="Escolher câmera"
+              showLabel
+              activePrefix="/settings/reports"
+              buildTarget={(id) => `/settings/reports/${id}/${format(new Date(), 'yyyy-MM-dd')}/1`}
+              variant="list"
+            />
+          </div>
+        </div>
+      </SettingsLayout>
+    )
+  }
+
+  return (
+    <SettingsLayout id="settings-reports-page" footerId="settings-reports-footer">
+      <PageHeader
+        title="Relatórios"
+        subtitle={
+          <>
+            {camName && (
+              <span id="report-camera-name" className="block text-base font-medium text-foreground">
+                {camName}
+              </span>
+            )}
+            <span id="report-stats-line" className="block text-sm text-muted mt-1">
+              Estatísticas de eventos — {report?.total ?? 0} no período.
+            </span>
+          </>
+        }
+        actions={
+          <>
+            <select
+              id="report-camera-select"
+              value={camera}
+              onChange={(e) => setCamera(e.target.value)}
+              disabled={cameras.length <= 1}
+              className="bg-surface-2 text-foreground text-xs rounded px-2 py-1 border border-border max-w-44 disabled:opacity-70"
+            >
+              {cameras.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <DatePicker
+              id="report-day-picker"
+              value={date}
+              onChange={(d) => setDate(d)}
+              disableFuture
+              availableDays={camera ? contentDays : []}
+              align="right"
+            />
+            <select
+              id="report-range-select"
+              value={String(days)}
+              onChange={(e) => setDays(Number(e.target.value))}
+              className="bg-surface-2 text-foreground text-xs rounded px-2 py-1 border border-border"
+            >
+              {RANGE_OPTS.map((n) => (
+                <option key={n} value={n}>
+                  {n === 1 ? '1 dia' : `${n} dias`}
+                </option>
+              ))}
+            </select>
+          </>
+        }
+      />
+      <ServerSettingsTabs active="reports" />
+
+      {/* Barras empilhadas — por dia (intervalo) ou por hora (modo dia) */}
+      <div className="bg-surface border border-border rounded-lg p-4 mb-4">
+        <p className="text-xs font-medium text-faint uppercase tracking-wider mb-3">
+          {dayMode ? `Eventos por hora — ${periodLabel}` : `Eventos por dia — ${periodLabel}`}
+        </p>
+        {bars.length === 0 ? (
+          <p className="text-sm text-muted">Sem eventos no período.</p>
+        ) : (
+          <>
+            <div id="report-bars" className="flex items-end gap-1 h-40 border-b border-border">
+              {bars.map((b) => (
+                <div
+                  key={b.key}
+                  className="flex-1 flex flex-col-reverse h-full"
+                  title={barTitle(b)}
+                >
+                  {stackOrder.map((c) => {
+                    const n = b.bc[c] ?? 0
+                    if (n === 0) return null
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setModalCat(c)}
+                        className={`w-full ${categoryColor(c)} min-h-[2px] relative cursor-pointer transition-transform duration-150 origin-center hover:scale-110 hover:brightness-110 hover:z-10`}
+                        style={{ height: `${(n / maxVal) * 100}%` }}
+                        title={`${categoryLabel(c)}: ${n}`}
+                      />
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+            <div className="relative h-3 mt-1 text-[9px] text-faint tabular-nums">
+              {dayMode
+                ? Array.from({ length: 24 }, (_, h) => (
+                    <span
+                      key={h}
+                      className="absolute -translate-x-1/2 whitespace-nowrap"
+                      style={{ left: `${((h + 0.5) / 24) * 100}%` }}
+                    >
+                      {h}
+                    </span>
+                  ))
+                : axisTicks(
+                    bars.map((b) => b.key),
+                    6,
+                  ).map((t) => (
+                    <span
+                      key={t.index}
+                      className="absolute -translate-x-1/2 whitespace-nowrap"
+                      style={{ left: `${((t.index + 0.5) / bars.length) * 100}%` }}
+                    >
+                      {t.label}
+                    </span>
+                  ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Mapa de atividade — uma linha por dia × hora (só no modo intervalo) */}
+      {!dayMode && (
+        <div className="bg-surface border border-border rounded-lg p-4 mb-4">
+          <p className="text-xs font-medium text-faint uppercase tracking-wider mb-3">
+            Mapa de atividade — dia × hora — {periodLabel}
+          </p>
+          {heatTotal === 0 ? (
+            <p className="text-sm text-muted">Sem eventos no período.</p>
+          ) : (
+            <div id="report-heatmap" className="overflow-x-auto">
+              <div className="inline-block min-w-full">
+                {/* Cabeçalho de horas (0–23) */}
+                <div className="flex pl-28 mb-1">
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <div key={h} className="flex-1 text-[9px] text-faint tabular-nums text-center">
+                      {h}
+                    </div>
+                  ))}
+                </div>
+                <div className="max-h-[420px] overflow-y-auto">
+                  {heatRowsDesc.map((row) => {
+                    const label = heatRowLabel(row.date)
+                    return (
+                      <div
+                        key={row.date}
+                        id={`report-heatmap-row-${row.date}`}
+                        className="flex items-center"
+                      >
+                        <div className="w-28 shrink-0 text-[10px] text-muted pr-1 text-right tabular-nums">
+                          {label}
+                        </div>
+                        {row.hours.map((n, h) => {
+                          const intensity = n === 0 ? 0 : 0.18 + 0.82 * (n / heatMax)
+                          return (
+                            <div
+                              key={h}
+                              id={`report-heatmap-cell-${row.date}-${h}`}
+                              className={`flex-1 h-6 m-px rounded-sm ${n === 0 ? 'bg-surface-2' : 'bg-primary'}`}
+                              style={n === 0 ? undefined : { opacity: intensity }}
+                              title={`${label} ${String(h).padStart(2, '0')}h — ${n} ${n === 1 ? 'evento' : 'eventos'}`}
+                            />
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Donut por categoria */}
+      <div className="bg-surface border border-border rounded-lg p-4 max-w-md">
+        <p className="text-xs font-medium text-faint uppercase tracking-wider mb-3">
+          Por categoria
+        </p>
+        {segments.length === 0 ? (
+          <p className="text-sm text-muted">—</p>
+        ) : (
+          <div className="flex items-center gap-4">
+            <svg viewBox="0 0 140 140" className="w-32 h-32 shrink-0 -rotate-90">
+              <circle
+                cx="70"
+                cy="70"
+                r={R}
+                fill="none"
+                stroke="#ffffff"
+                strokeOpacity="0.06"
+                strokeWidth="18"
+              />
+              {segments.map((s) => (
+                <circle
+                  key={s.cat}
+                  cx="70"
+                  cy="70"
+                  r={R}
+                  fill="none"
+                  className={categoryStrokeColor(s.cat)}
+                  strokeWidth="18"
+                  strokeDasharray={`${s.len} ${CIRC - s.len}`}
+                  strokeDashoffset={-s.offset}
+                >
+                  <title>{`${categoryLabel(s.cat)}: ${s.n}`}</title>
+                </circle>
+              ))}
+            </svg>
+            <div className="flex-1 min-w-0">
+              {sortCategories(Object.keys(cats)).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setModalCat(cat as EventCategory)}
+                  className="w-full flex items-center gap-2 text-sm mb-1.5 hover:bg-surface-2 rounded px-1 -mx-1 transition-colors"
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${categoryColor(cat)}`} />
+                  <span className="text-foreground flex-1 text-left">{categoryLabel(cat)}</span>
+                  <span className="text-muted tabular-nums">{cats[cat]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modal de detalhe da categoria (clique no segmento ou na legenda) */}
+      {modalCat &&
+        (() => {
+          const det = categoryDetail(modalCat, report?.by_label ?? {}, report?.by_category)
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+              onClick={() => setModalCat(null)}
+            >
+              <div
+                id="report-category-modal"
+                className="bg-surface border border-border rounded-lg p-5 w-full max-w-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`w-3 h-3 rounded-full shrink-0 ${categoryColor(modalCat)}`} />
+                  <h3 className="text-base font-semibold text-foreground flex-1">
+                    {categoryLabel(modalCat)} — {det.total} {det.total === 1 ? 'evento' : 'eventos'}
+                  </h3>
+                  <button
+                    onClick={() => setModalCat(null)}
+                    className="text-faint hover:text-foreground"
+                    aria-label="Fechar"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="text-sm text-muted mb-3">{categoryDescription(modalCat)}</p>
+                {det.labels.length > 0 && (
+                  <>
+                    <p className="text-xs font-medium text-faint uppercase tracking-wider mb-1">
+                      Por label
+                    </p>
+                    <ul className="text-sm max-h-60 overflow-y-auto">
+                      {det.labels.map((l) => (
+                        <li key={l.label} className="flex justify-between py-0.5">
+                          <span className="text-foreground truncate">{l.label}</span>
+                          <span className="text-muted tabular-nums ml-2 shrink-0">{l.count}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })()}
+    </SettingsLayout>
+  )
+}

@@ -6,7 +6,7 @@ import { getToken, mustChangePassword } from './auth'
 const LivePage = lazy(() => import('./pages/LivePage'))
 const HistoryPage = lazy(() => import('./pages/HistoryPage'))
 const VideoBrowserPage = lazy(() => import('./pages/VideoBrowserPage'))
-const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const SettingsReportsPage = lazy(() => import('./pages/settings/SettingsReportsPage'))
 const AllCamerasPage = lazy(() => import('./pages/AllCamerasPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const RecordingsPage = lazy(() => import('./pages/RecordingsPage'))
@@ -100,14 +100,6 @@ export const routes = (
       }
     />
     <Route
-      path="/reports/:cameraId/:date/:days"
-      element={
-        <Lazy>
-          <ReportsPage />
-        </Lazy>
-      }
-    />
-    <Route
       path="/dashboard"
       element={
         <Lazy>
@@ -195,6 +187,22 @@ export const routes = (
       element={
         <Lazy>
           <StorageSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/reports"
+      element={
+        <Lazy>
+          <SettingsReportsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/reports/:cameraId/:date/:days"
+      element={
+        <Lazy>
+          <SettingsReportsPage />
         </Lazy>
       }
     />

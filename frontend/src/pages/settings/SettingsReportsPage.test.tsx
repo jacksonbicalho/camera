@@ -1,16 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
-import ReportsPage from './ReportsPage'
+import SettingsReportsPage from './SettingsReportsPage'
 
-vi.mock('../auth', () => ({
+vi.mock('../../auth', () => ({
   authHeaders: () => ({}),
   onUnauthorized: vi.fn(),
+  getRole: () => 'admin',
 }))
-vi.mock('../components/Layout', () => ({
+vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
-vi.mock('../components/DatePicker', () => ({ default: () => <div data-testid="datepicker" /> }))
+vi.mock('../../components/DatePicker', () => ({ default: () => <div data-testid="datepicker" /> }))
 
 function LocationProbe() {
   const location = useLocation()
@@ -21,7 +22,8 @@ function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/reports/:cameraId/:date/:days" element={<ReportsPage />} />
+        <Route path="/settings/reports" element={<SettingsReportsPage />} />
+        <Route path="/settings/reports/:cameraId/:date/:days" element={<SettingsReportsPage />} />
       </Routes>
       <LocationProbe />
     </MemoryRouter>,
@@ -50,7 +52,7 @@ beforeEach(() => {
     'fetch',
     vi.fn((url: string) => {
       if (url.startsWith('/api/cameras'))
-        return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(cameras) })
       if (url.includes('bucket=heatmap'))
         return Promise.resolve({
           status: 200,
@@ -72,7 +74,7 @@ afterEach(() => {
 
 describe('ReportsPage cabeçalho', () => {
   it('mostra o nome da câmera selecionada como subtítulo, acima da linha de estatísticas', async () => {
-    renderAt('/reports/cam1/2026-06-24/7')
+    renderAt('/settings/reports/cam1/2026-06-24/7')
     const name = await waitFor(() => {
       const el = document.getElementById('report-camera-name')
       if (!el) throw new Error('nome da câmera não renderizou')
@@ -89,7 +91,7 @@ describe('ReportsPage cabeçalho', () => {
 
 describe('ReportsPage heatmap', () => {
   it('busca o bucket=heatmap e renderiza uma linha por dia, rotulada DD + dia da semana', async () => {
-    renderAt('/reports/cam1/2026-06-24/7')
+    renderAt('/settings/reports/cam1/2026-06-24/7')
 
     await waitFor(() => {
       const grid = document.getElementById('report-heatmap')
@@ -119,7 +121,7 @@ describe('ReportsPage heatmap', () => {
   })
 
   it('rotula todas as 24 horas (0–23) no cabeçalho do heatmap', async () => {
-    renderAt('/reports/cam1/2026-06-24/7')
+    renderAt('/settings/reports/cam1/2026-06-24/7')
     const grid = await waitFor(() => {
       const el = document.getElementById('report-heatmap')
       if (!el) throw new Error('heatmap não renderizou')
@@ -132,7 +134,7 @@ describe('ReportsPage heatmap', () => {
 
   it('no modo "1 dia" esconde o heatmap e busca barras por hora', async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
-    renderAt('/reports/cam1/2026-06-24/7')
+    renderAt('/settings/reports/cam1/2026-06-24/7')
     await waitFor(() => {
       if (!document.getElementById('report-heatmap')) throw new Error('heatmap não renderizou')
     })
@@ -150,7 +152,7 @@ describe('ReportsPage heatmap', () => {
 
 describe('ReportsPage rota (câmera/data/range na URL)', () => {
   it('inicializa câmera e range a partir dos parâmetros da URL', async () => {
-    renderAt('/reports/cam1/2026-06-24/3')
+    renderAt('/settings/reports/cam1/2026-06-24/3')
     await waitFor(() => {
       if (!document.getElementById('report-camera-name')) throw new Error('não renderizou')
     })
@@ -161,7 +163,7 @@ describe('ReportsPage rota (câmera/data/range na URL)', () => {
   })
 
   it('range inválido na URL cai pro mais próximo em vez de quebrar', async () => {
-    renderAt('/reports/cam1/2026-06-24/999')
+    renderAt('/settings/reports/cam1/2026-06-24/999')
     await waitFor(() => {
       if (!document.getElementById('report-camera-name')) throw new Error('não renderizou')
     })
@@ -169,14 +171,14 @@ describe('ReportsPage rota (câmera/data/range na URL)', () => {
   })
 
   it('trocar o range pelo seletor atualiza a URL (compartilhável)', async () => {
-    renderAt('/reports/cam1/2026-06-24/7')
+    renderAt('/settings/reports/cam1/2026-06-24/7')
     await waitFor(() => {
       if (!document.getElementById('report-camera-name')) throw new Error('não renderizou')
     })
     fireEvent.change(document.getElementById('report-range-select')!, { target: { value: '14' } })
     await waitFor(() => {
       expect(document.getElementById('test-location')!.textContent).toBe(
-        '/reports/cam1/2026-06-24/14',
+        '/settings/reports/cam1/2026-06-24/14',
       )
     })
   })
@@ -218,7 +220,7 @@ describe('CA5: categorias dinâmicas (barras/donut/modal), não mais um bucket f
 
   it('barras empilhadas: um label específico dinâmico (ex.: "carro") aparece com sua PRÓPRIA cor, não mais bucket "ia"', async () => {
     stubDynamicReport()
-    renderAt('/reports/cam1/2026-06-24/1')
+    renderAt('/settings/reports/cam1/2026-06-24/1')
     await waitFor(() => {
       expect(document.getElementById('report-bars')).not.toBeNull()
     })
@@ -232,7 +234,7 @@ describe('CA5: categorias dinâmicas (barras/donut/modal), não mais um bucket f
 
   it('donut: legenda mostra o label real capitalizado ("Carro"), com a cor determinística de categoryColor', async () => {
     stubDynamicReport()
-    renderAt('/reports/cam1/2026-06-24/1')
+    renderAt('/settings/reports/cam1/2026-06-24/1')
     await waitFor(() => {
       expect(document.getElementById('report-bars')).not.toBeNull()
     })
@@ -247,7 +249,7 @@ describe('CA5: categorias dinâmicas (barras/donut/modal), não mais um bucket f
 
   it('clicar no segmento/legenda de um label dinâmico abre o modal com título capitalizado e descrição fiel ao label (não mais "Detecções de modelos de IA")', async () => {
     stubDynamicReport()
-    renderAt('/reports/cam1/2026-06-24/1')
+    renderAt('/settings/reports/cam1/2026-06-24/1')
     await waitFor(() => {
       expect(document.getElementById('report-bars')).not.toBeNull()
     })
@@ -263,5 +265,42 @@ describe('CA5: categorias dinâmicas (barras/donut/modal), não mais um bucket f
     expect(modal.textContent).toContain('Carro — 5 eventos')
     expect(modal.textContent).toContain('Detecções classificadas como "Carro"')
     expect(modal.textContent).not.toContain('IA')
+  })
+})
+
+// CA6: aba Relatórios dentro de Servidor — sem câmera pré-selecionada mostra
+// o seletor (não o relatório); com câmera selecionada (testes acima, todos
+// renderizados a partir de /settings/reports/:cameraId/:date/:days) mostra o
+// relatório de verdade.
+describe('CA6: aba Relatórios — seletor de câmera sem :cameraId, relatório com :cameraId', () => {
+  it('sem :cameraId (rota "/settings/reports") mostra o seletor de câmera, não o relatório', async () => {
+    renderAt('/settings/reports')
+    await waitFor(() => {
+      expect(document.getElementById('settings-reports-camera-picker')).toBeTruthy()
+    })
+    expect(document.getElementById('report-bars')).toBeNull()
+    expect(document.getElementById('report-camera-select')).toBeNull()
+  })
+
+  it('escolher uma câmera no seletor navega pra "/settings/reports/:cameraId/hoje/1"', async () => {
+    renderAt('/settings/reports')
+    fireEvent.click(document.getElementById('settings-reports-camera-picker')!)
+    await waitFor(() => {
+      expect(document.getElementById('settings-reports-camera-picker-camera-cam1')).toBeTruthy()
+    })
+    fireEvent.click(document.getElementById('settings-reports-camera-picker-camera-cam1')!)
+    await waitFor(() => {
+      expect(document.getElementById('test-location')!.textContent).toMatch(
+        /^\/settings\/reports\/cam1\/\d{4}-\d{2}-\d{2}\/1$/,
+      )
+    })
+  })
+
+  it('com :cameraId mostra o relatório (não o seletor)', async () => {
+    renderAt('/settings/reports/cam1/2026-06-24/7')
+    await waitFor(() => {
+      expect(document.getElementById('report-camera-select')).toBeTruthy()
+    })
+    expect(document.getElementById('settings-reports-camera-picker')).toBeNull()
   })
 })
