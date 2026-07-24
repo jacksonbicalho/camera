@@ -1,15 +1,22 @@
 import type { Page, Locator } from '@playwright/test'
 
-// Sidebar — rail de navegação único do app (ver CLAUDE.md). O flyout de
-// Configurações abre via clique no botão #sidebar-config e lista seções
-// diferentes por papel (ADMIN_SETTINGS_LINKS/VIEWER_SETTINGS_LINKS,
-// settingsNavLinks.ts) — usado pelo cenário viewer pra confirmar que uma
-// seção admin-only (ex: Usuários) não aparece pra quem não é admin.
+// Sidebar — rail de navegação único do app (ver CLAUDE.md). Dois flyouts de
+// Configurações, cada um com o seu grupo (ADMIN_SETTINGS_GROUPS/
+// VIEWER_SETTINGS_GROUPS, settingsNavLinks.ts): #sidebar-config (grupo
+// "Configurações" — Câmeras/Rastrear câmeras/Gravações/Momentos/Histórico) e
+// #sidebar-config-sistema (grupo "Configurações do Sistema" — Servidor/
+// Análise de vídeo/Usuários/Aparência). Usado pelo cenário viewer pra
+// confirmar que uma seção admin-only (ex: Usuários, no grupo Sistema) não
+// aparece pra quem não é admin.
 export class Sidebar {
   constructor(private readonly page: Page) {}
 
-  async openSettingsFlyout() {
+  async openConfiguracoesFlyout() {
     await this.page.click('#sidebar-config')
+  }
+
+  async openConfiguracoesSistemaFlyout() {
+    await this.page.click('#sidebar-config-sistema')
   }
 
   settingsLink(href: string): Locator {
