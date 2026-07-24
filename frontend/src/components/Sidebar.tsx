@@ -1,28 +1,22 @@
-import { Fragment, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { clearToken, getRole, getUsername } from '../auth'
 import { useUserNotifications } from '../contexts/UserNotificationContext'
 import { useDisplayMode, useSetDisplayMode } from '../contexts/DisplayModeContext'
-import { ADMIN_SETTINGS_LINKS, VIEWER_SETTINGS_LINKS } from './settingsNavLinks'
+import {
+  ADMIN_SETTINGS_GROUPS,
+  VIEWER_SETTINGS_GROUPS,
+  isNavItemActive,
+  type SettingsNavGroup,
+} from './settingsNavLinks'
 import ThemeModeNav from './ThemeModeNav'
 import AccentSwatchNav from './AccentSwatchNav'
 import MotionNotificationsBell from './MotionNotificationsBell'
-import CameraPickerFlyout from './CameraPickerFlyout'
+import SettingsNavGroups from './SettingsNavGroups'
 import { navItemClass, useFlyout } from './sidebarFlyout'
-import {
-  BarChart2,
-  CameraLogo,
-  Cctv,
-  ChevronLeft,
-  CircleUser,
-  Film,
-  History,
-  Settings,
-  Zap,
-} from './Icons'
+import { CameraLogo, Cctv, ChevronLeft, CircleUser, HardDrive, Settings, Zap } from './Icons'
 
 interface NavItem {
   id: string
@@ -35,117 +29,60 @@ interface NavItem {
 
 const items: NavItem[] = [
   {
+    id: 'sidebar-events',
+    to: '/events',
+    label: 'Eventos',
+    icon: <Zap className="h-5 w-5" />,
+  },
+  {
     id: 'sidebar-all-cameras',
     to: '/',
     label: 'Todas as câmeras',
     icon: <Cctv className="h-5 w-5" />,
     end: true,
   },
-  {
-    id: 'sidebar-recordings',
-    to: '/recordings',
-    label: 'Gravações',
-    icon: <Film className="h-5 w-5" />,
-  },
-  {
-    id: 'sidebar-motions',
-    to: '/motions',
-    label: 'Momentos',
-    icon: <Zap className="h-5 w-5" />,
-  },
 ]
 
-// ReportsFlyout — "Relatórios" reaproveita CameraPickerFlyout (extraído,
-// components/CameraPickerFlyout.tsx): lista de câmeras → relatório da câmera
-// clicada.
-function ReportsFlyout({ showLabel }: { showLabel: boolean }) {
-  return (
-    <CameraPickerFlyout
-      id="sidebar-relatorios"
-      label="Relatórios"
-      icon={<BarChart2 className="h-5 w-5 shrink-0" />}
-      showLabel={showLabel}
-      activePrefix="/reports"
-      buildTarget={(cameraId) => `/reports/${cameraId}/${format(new Date(), 'yyyy-MM-dd')}/1`}
-    />
-  )
-}
-
-// HistoryFlyout — "Histórico" segue o mesmo estilo de submenu de "Relatórios"
-// (pedido do navigator): lista de câmeras → histórico da câmera clicada
-// (/history/:cameraId, a página nova por câmera — ver routes.tsx).
-// Distinto de "Gravações" (sidebar-recordings, em `items`): este é POR câmera;
-// aquele é a página global multi-câmera (/recordings).
-function HistoryFlyout({ showLabel }: { showLabel: boolean }) {
-  return (
-    <CameraPickerFlyout
-      id="sidebar-history"
-      label="Histórico"
-      icon={<History className="h-5 w-5 shrink-0" />}
-      showLabel={showLabel}
-      activePrefix="/history"
-      buildTarget={(cameraId) => `/history/${cameraId}`}
-    />
-  )
-}
-
-// Link do flyout — mesmo estilo usado pelo SettingsFlyout.
-function FlyoutNavLink({
-  to,
+// ConfigGroupFlyout — botão que abre um flyout com UM grupo de
+// settingsNavLinks.ts (SettingsNavGroups, mesmo renderer da coluna
+// persistente de SettingsLayout). O Sidebar tem dois desses lado a lado
+// (Câmeras / Sistema) em vez do único flyout "Configurações" de antes —
+// pedido do navigator (ver a análise/story). `extra`, quando presente, é
+// renderizado logo depois da lista do grupo (usado só pelo grupo Sistema,
+// pros widgets ThemeModeNav/AccentSwatchNav — ficam logo após "Aparência",
+// que é o último item desse grupo).
+function ConfigGroupFlyout({
   id,
-  onSelect,
-  children,
+  label,
+  icon,
+  showLabel,
+  group,
+  extra,
 }: {
-  to: string
-  id?: string
-  onSelect: () => void
-  children: React.ReactNode
+  id: string
+  label: string
+  icon: ReactNode
+  showLabel: boolean
+  group: SettingsNavGroup
+  extra?: (onSelect: () => void) => ReactNode
 }) {
-  return (
-    <NavLink
-      to={to}
-      id={id}
-      onClick={onSelect}
-      className={({ isActive }) =>
-        cn(
-          'block px-3 py-1.5 text-body transition-colors',
-          isActive
-            ? 'bg-surface-2 text-foreground'
-            : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
-        )
-      }
-    >
-      {children}
-    </NavLink>
-  )
-}
-
-// SettingsFlyout — botão único "Configurações" (id sidebar-config): itera
-// ADMIN_SETTINGS_LINKS/VIEWER_SETTINGS_LINKS (settingsNavLinks.ts, compartilhada
-// com SettingsLayout, a coluna persistente das páginas top-level de /settings/*)
-// e intercala ThemeModeNav/AccentSwatchNav (widgets, não itens de navegação)
-// logo antes do link Sobre. Unificado com o antigo PreferencesFlyout
-// (sidebar-settings) — não há mais split entre "configuração administrativa" e
-// "preferências pessoais".
-function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
-  const location = useLocation()
+  const { pathname } = useLocation()
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
-  const active = location.pathname.startsWith('/settings') || location.pathname.startsWith('/stats')
-  const links = getRole() === 'admin' ? ADMIN_SETTINGS_LINKS : VIEWER_SETTINGS_LINKS
+  const active = group.items.some((item) => isNavItemActive(item, pathname))
 
   return (
     <>
       <button
-        id="sidebar-config"
+        id={id}
         ref={btnRef}
         type="button"
         onClick={toggle}
-        title="Configurações"
-        aria-label="Configurações"
+        title={label}
+        aria-label={label}
         className={navItemClass(active || open, showLabel)}
       >
-        <Settings className="h-5 w-5 shrink-0" />
-        {showLabel && <span className="truncate text-sm">Configurações</span>}
+        {icon}
+        {showLabel && <span className="truncate text-sm">{label}</span>}
       </button>
       {open &&
         createPortal(
@@ -154,19 +91,49 @@ function SettingsFlyout({ showLabel }: { showLabel: boolean }) {
             style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
             className="w-48 rounded-lg border border-border bg-surface py-1 shadow-xl"
           >
-            {links.map(({ to, label }) => (
-              <Fragment key={to}>
-                {to === '/settings/about' && <ThemeModeNav onSelect={() => setOpen(false)} />}
-                {to === '/settings/about' && <AccentSwatchNav onSelect={() => setOpen(false)} />}
-                <FlyoutNavLink to={to} onSelect={() => setOpen(false)}>
-                  {label}
-                </FlyoutNavLink>
-              </Fragment>
-            ))}
+            <SettingsNavGroups groups={[group]} ariaLabel={label} onSelect={() => setOpen(false)} />
+            {extra?.(() => setOpen(false))}
           </div>,
           document.body,
         )}
     </>
+  )
+}
+
+// ConfiguracoesFlyout — 1º ícone de configuração: grupo "Câmeras" (Câmeras,
+// Rastrear câmeras, Gravações, Momentos, Histórico).
+function ConfiguracoesFlyout({ showLabel }: { showLabel: boolean }) {
+  const group = (getRole() === 'admin' ? ADMIN_SETTINGS_GROUPS : VIEWER_SETTINGS_GROUPS)[0]
+  return (
+    <ConfigGroupFlyout
+      id="sidebar-config"
+      label="Configurações"
+      icon={<Settings className="h-5 w-5 shrink-0" />}
+      showLabel={showLabel}
+      group={group}
+    />
+  )
+}
+
+// ConfiguracoesSistemaFlyout — 2º ícone de configuração: grupo "Sistema"
+// (Servidor, Análise de vídeo, Usuários, Aparência) + os widgets de
+// tema/accent logo depois de "Aparência".
+function ConfiguracoesSistemaFlyout({ showLabel }: { showLabel: boolean }) {
+  const group = (getRole() === 'admin' ? ADMIN_SETTINGS_GROUPS : VIEWER_SETTINGS_GROUPS)[1]
+  return (
+    <ConfigGroupFlyout
+      id="sidebar-config-sistema"
+      label="Configurações do Sistema"
+      icon={<HardDrive className="h-5 w-5 shrink-0" />}
+      showLabel={showLabel}
+      group={group}
+      extra={(onSelect) => (
+        <>
+          <ThemeModeNav onSelect={onSelect} />
+          <AccentSwatchNav onSelect={onSelect} />
+        </>
+      )}
+    />
   )
 }
 
@@ -248,7 +215,7 @@ function UserMenu({ showLabel }: { showLabel: boolean }) {
 
 // Sidebar — rail de navegação enxuto para o Layout (páginas novas). Links +
 // recolher/expandir (DisplayModeContext global, só 2 modos: icons-only/icons-text
-// — ver o tipo DisplayMode) + flyout de Configurações + UserMenu.
+// — ver o tipo DisplayMode) + os dois flyouts de Configurações + UserMenu.
 export default function Sidebar() {
   const { sidebar: sidebarMode } = useDisplayMode()
   const setDisplayMode = useSetDisplayMode()
@@ -303,8 +270,6 @@ export default function Sidebar() {
             {showLabel && <span className="truncate text-sm">{item.label}</span>}
           </NavLink>
         ))}
-        <HistoryFlyout showLabel={showLabel} />
-        <ReportsFlyout showLabel={showLabel} />
         <div className="flex-1" />
         <div
           id="sidebar-bottom"
@@ -324,7 +289,8 @@ export default function Sidebar() {
             <ChevronLeft className={cn('h-5 w-5 shrink-0', collapsed && 'rotate-180')} />
             {showLabel && <span className="truncate text-sm">Recolher menu</span>}
           </button>
-          <SettingsFlyout showLabel={showLabel} />
+          <ConfiguracoesFlyout showLabel={showLabel} />
+          <ConfiguracoesSistemaFlyout showLabel={showLabel} />
           <UserMenu showLabel={showLabel} />
         </div>
       </div>

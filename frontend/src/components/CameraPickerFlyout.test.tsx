@@ -94,4 +94,43 @@ describe('CameraPickerFlyout', () => {
     )
     expect(document.getElementById('picker')?.className).toContain('bg-primary')
   })
+
+  it('variant="list" sempre mostra o label (ignora showLabel) e usa o estilo de item de coluna', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <CameraPickerFlyout
+          id="picker"
+          label="Escolher câmera"
+          showLabel={false}
+          activePrefix="/picked"
+          buildTarget={(cameraId) => `/picked/${cameraId}`}
+          variant="list"
+        />
+      </MemoryRouter>,
+    )
+    const btn = document.getElementById('picker')!
+    expect(btn.textContent).toContain('Escolher câmera')
+    expect(btn.className).toContain('rounded-md')
+    expect(btn.className).not.toContain('bg-primary')
+  })
+
+  it('chama onNavigate (além de fechar o próprio flyout) ao selecionar uma câmera', async () => {
+    const onNavigate = vi.fn()
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <CameraPickerFlyout
+          id="picker"
+          label="Escolher câmera"
+          showLabel={false}
+          activePrefix="/picked"
+          buildTarget={(cameraId) => `/picked/${cameraId}`}
+          onNavigate={onNavigate}
+        />
+      </MemoryRouter>,
+    )
+    fireEvent.click(document.getElementById('picker')!)
+    await waitFor(() => expect(document.getElementById('picker-camera-cam1')).toBeTruthy())
+    fireEvent.click(document.getElementById('picker-camera-cam1')!)
+    expect(onNavigate).toHaveBeenCalledTimes(1)
+  })
 })

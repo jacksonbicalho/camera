@@ -47,28 +47,30 @@ function renderAt(path: string) {
 }
 
 describe('SettingsLayout', () => {
-  it('renderiza os filhos e as seções de configuração (admin)', () => {
+  it('renderiza os filhos e os dois grupos de configuração (admin)', () => {
     renderAt('/settings/about')
     expect(document.body.textContent).toContain('conteúdo')
+    expect(document.body.textContent).toContain('Configurações')
+    expect(document.body.textContent).toContain('Configurações do Sistema')
     expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/users"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/system"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/storage"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/storage"]')?.textContent).toBe('Servidor')
   })
 
   it('viewer só vê as seções permitidas', () => {
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/settings/about')
     expect(document.querySelector('a[href="/settings/cameras"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/settings/about"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/settings/stats"]')).toBeTruthy()
     expect(document.querySelector('a[href="/settings/users"]')).toBeNull()
-    expect(document.querySelector('a[href="/settings/server"]')).toBeNull()
+    expect(document.querySelector('a[href="/settings/storage"]')).toBeNull()
   })
 
-  it('marca a seção atual como ativa', () => {
+  it('marca "Servidor" como ativo quando a rota é uma das que ainda vão virar aba (ex.: /settings/about)', () => {
     renderAt('/settings/about')
-    const link = document.querySelector('a[href="/settings/about"]')
-    expect(link?.getAttribute('aria-current')).toBe('page')
+    const link = document.querySelector('a[href="/settings/storage"]')
+    expect(link?.className).toContain('font-medium')
   })
 
   it('repassa id/footerId pro Layout', () => {
