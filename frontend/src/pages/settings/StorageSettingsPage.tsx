@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
+import ServerSettingsTabs from '../../components/ServerSettingsTabs'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { useSettings } from '../../hooks/useSettings'
 import { authHeaders, getRole } from '../../auth'
@@ -272,6 +273,7 @@ export default function StorageSettingsPage() {
           title="Armazenamento"
           subtitle="Retenção, limpeza automática e espaço em disco."
         />
+        <ServerSettingsTabs active="storage" />
         <p className="text-muted-foreground text-sm">Acesso restrito.</p>
       </SettingsLayout>
     )
@@ -283,6 +285,7 @@ export default function StorageSettingsPage() {
         title="Armazenamento"
         subtitle="Retenção, limpeza automática e espaço em disco."
       />
+      <ServerSettingsTabs active="storage" />
 
       {form ? (
         <div className="space-y-2 mb-4">

@@ -6,6 +6,7 @@ import StatsPage from './StatsPage'
 vi.mock('../auth', () => ({
   authHeaders: () => ({}),
   onUnauthorized: vi.fn(),
+  getRole: () => 'admin',
 }))
 // Mocka SettingsLayout (shallow) — isola o conteúdo da página da coluna de
 // navegação/Layout real, que exigiria NotificationProvider/router completo.
@@ -62,7 +63,7 @@ describe('StatsPage', () => {
     })
   })
 
-  it('mostra a tab-bar Sistema/Estatísticas com a aba Estatísticas ativa', async () => {
+  it('mostra a tab-bar de Servidor (5 abas) com a aba Estatísticas ativa', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {

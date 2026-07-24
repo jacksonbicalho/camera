@@ -1,6 +1,6 @@
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
-import SystemSettingsTabs from '../../components/SystemSettingsTabs'
+import ServerSettingsTabs from '../../components/ServerSettingsTabs'
 import { useSettings } from '../../hooks/useSettings'
 import { getRole } from '../../auth'
 
@@ -36,13 +36,20 @@ export default function SystemSettingsPage() {
   return (
     <SettingsLayout id="system-settings-page" footerId="system-settings-footer">
       <PageHeader title="Sistema" subtitle="Fuso horário e configurações de log." />
-      <SystemSettingsTabs active="config" />
+      <ServerSettingsTabs active="system" />
       {!isAdmin ? (
         <p className="text-faint text-sm">Acesso restrito.</p>
       ) : !settings ? (
         <p className="text-faint text-sm">Carregando...</p>
       ) : (
         <div className="space-y-4">
+          <InfoCard
+            title="Servidor web"
+            fields={[
+              { label: 'Porta HTTP', value: String(settings.server.port) },
+              { label: 'Usuário', value: settings.server.username || '—' },
+            ]}
+          />
           <InfoCard
             title="Geral"
             fields={[

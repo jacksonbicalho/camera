@@ -65,7 +65,7 @@ describe('SystemSettingsPage', () => {
     })
   })
 
-  it('mostra a tab-bar Sistema/Estatísticas com a aba Configuração ativa', async () => {
+  it('mostra a tab-bar de Servidor (5 abas) com a aba Sistema ativa', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>
@@ -78,9 +78,30 @@ describe('SystemSettingsPage', () => {
       </MemoryRouter>,
     )
     await waitFor(() => {
-      const configTab = document.querySelector('a[href="/settings/system"]')
-      expect(configTab?.getAttribute('aria-current')).toBe('page')
+      const systemTab = document.querySelector('a[href="/settings/system"]')
+      expect(systemTab?.getAttribute('aria-current')).toBe('page')
+      expect(document.querySelector('a[href="/settings/storage"]')).not.toBeNull()
       expect(document.querySelector('a[href="/settings/stats"]')).not.toBeNull()
+      expect(document.querySelector('a[href="/settings/reports"]')).not.toBeNull()
+      expect(document.querySelector('a[href="/settings/about"]')).not.toBeNull()
+    })
+  })
+
+  it('mostra o card "Servidor web" com porta e usuário (dados que antes viviam em ServerSettingsPage)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(settings) }),
+      ),
+    )
+    render(
+      <MemoryRouter initialEntries={['/settings/system']}>
+        <SystemSettingsPage />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('Servidor web')
+      expect(document.body.textContent).toContain('8080')
     })
   })
 })

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
+import ServerSettingsTabs from '../../components/ServerSettingsTabs'
 import SettingsSection from '../../components/SettingsSection'
 import ReleaseNotesMarkdown from '../../components/ReleaseNotesMarkdown'
 import { Button } from '../../components/ui/button'
@@ -135,6 +136,7 @@ export default function AboutPage() {
   return (
     <SettingsLayout id="about-page" footerId="about-footer">
       <PageHeader title="Sobre" subtitle="Versão instalada, commit e tempo de atividade." />
+      <ServerSettingsTabs active="about" />
       {!about ? (
         <p className="text-muted-foreground text-sm">Carregando...</p>
       ) : (
