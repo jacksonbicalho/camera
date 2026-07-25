@@ -12,14 +12,24 @@ export const navItemClass = (active: boolean, showLabel: boolean) =>
     active ? 'bg-primary text-on-primary' : 'text-muted hover:bg-surface-2 hover:text-foreground',
   )
 
-// useFlyout — abre/fecha um flyout posicionado (portal) à direita de um botão,
-// fechando em clique fora. Ancora pelo TOPO do botão e cresce pra baixo. Único
-// consumidor hoje é `MotionNotificationsBell` (o antigo `SettingsFlyout` foi
-// removido, e `UserMenu` — hoje dentro da `TopBar` — tem sua própria lógica de
-// posicionamento inline).
+// useFlyout — abre/fecha um flyout posicionado (portal) abaixo-à-direita de
+// um botão (mesmo padrão do `UserMenu`), fechando em clique fora. Usado
+// pelos dropdowns da TopBar (`MotionNotificationsBell`, `AppHelpMenu`,
+// `ThemeModeNav`) — todos perto do canto superior direito, onde ancorar à
+// direita do botão (como fariam se ainda vivessem no rail vertical, com
+// espaço garantido à direita) vazaria pra fora da viewport. Todos só-clique
+// (abre no clique do gatilho, fecha no clique fora) — nenhum depende de
+// `mouseenter`/`mouseleave` contínuo, o que evita uma classe inteira de bugs
+// de hover em SPA: como cada página monta seu próprio `Layout` (sem layout
+// aninhado de rota via `Outlet`), a `TopBar` remonta a cada navegação, e um
+// `mouseenter` só dispara em resposta a movimento real do cursor — se o
+// cursor já estava em repouso sobre o gatilho no instante do remount (comum,
+// o usuário acabou de navegar), hover não funciona até mover o mouse pra
+// fora e voltar. Bug real, reportado pelo navigator quando `ThemeModeNav`
+// ainda tinha um modo hover próprio (removido por causa disso).
 export function useFlyout<T extends HTMLElement>() {
   const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const [pos, setPos] = useState({ top: 0, right: 0 })
   const btnRef = useRef<T>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -38,7 +48,7 @@ export function useFlyout<T extends HTMLElement>() {
   function toggle() {
     if (btnRef.current) {
       const r = btnRef.current.getBoundingClientRect()
-      setPos({ top: r.top, left: r.right + 8 })
+      setPos({ top: r.bottom + 8, right: window.innerWidth - r.right })
     }
     setOpen((v) => !v)
   }

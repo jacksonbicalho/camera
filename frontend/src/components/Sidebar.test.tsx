@@ -103,9 +103,9 @@ describe('Sidebar (enxuto)', () => {
 // seção do sino; o link direto pra /events (existia numa versão anterior
 // desta história) foi ocultado.
 describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', () => {
-  it('sino de notificações continua o 1º item, sem link pra /events', () => {
+  it('sino de notificações saiu do Sidebar (mudou pra TopBar); sem link pra /events', () => {
     renderAt('/')
-    expect(document.getElementById('motion-notifications')).toBeTruthy()
+    expect(document.getElementById('motion-notifications')).toBeNull()
     expect(document.querySelector('a[href="/events"]')).toBeNull()
     expect(document.getElementById('sidebar-events')).toBeNull()
   })
@@ -201,6 +201,21 @@ describe('CA4: seção "Administração" (admin) — Armazenamento, Servidor, Us
   })
 })
 
+describe('CA3: seção "Administração" ganha o item "Aparência" (→ /settings/appearance)', () => {
+  it('admin vê o item Aparência dentro de Administração', () => {
+    renderAt('/')
+    expect(document.getElementById('sidebar-appearance')?.getAttribute('href')).toBe(
+      '/settings/appearance',
+    )
+  })
+
+  it('viewer não vê o item Aparência (seção Administração inteira é admin-only)', () => {
+    vi.mocked(getRole).mockReturnValue('viewer')
+    renderAt('/')
+    expect(document.getElementById('sidebar-appearance')).toBeNull()
+  })
+})
+
 describe('CA4: seção "Governança" (admin) — Gravações, Estatísticas, Relatórios', () => {
   it('admin vê os 3 itens; "Relatórios" é um link direto pra /reports (sem flyout de câmera — a própria página já tem o seletor)', () => {
     renderAt('/')
@@ -220,34 +235,28 @@ describe('CA4: seção "Governança" (admin) — Gravações, Estatísticas, Rel
   })
 })
 
-describe('CA4: seção "Aparência" (todos) — Estilo, Cor de destaque, Cor de fundo (em construção)', () => {
-  it('admin e viewer veem os 3 itens; Cor de fundo fica desabilitada', () => {
+describe('CA3: seção "Aparência" removida do Sidebar (accent + cor de fundo saíram)', () => {
+  it('nem admin nem viewer veem os itens antigos da seção Aparência', () => {
     renderAt('/')
-    expect(document.getElementById('theme-mode-nav')).toBeTruthy()
-    expect(document.getElementById('sidebar-appearance-accent')?.getAttribute('href')).toBe(
-      '/settings/appearance',
-    )
-    const bg = document.getElementById('sidebar-background-color') as HTMLButtonElement
-    expect(bg.tagName).toBe('BUTTON')
-    expect(bg.disabled).toBe(true)
+    expect(document.getElementById('sidebar-appearance-accent')).toBeNull()
+    expect(document.getElementById('sidebar-background-color')).toBeNull()
 
     cleanup()
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
-    expect(document.getElementById('theme-mode-nav')).toBeTruthy()
-    expect(document.getElementById('sidebar-appearance-accent')).toBeTruthy()
+    expect(document.getElementById('sidebar-appearance-accent')).toBeNull()
+    expect(document.getElementById('sidebar-background-color')).toBeNull()
   })
 })
 
-describe('CA4: "Sobre" solto no fim, sem cabeçalho de grupo, visível pra todos', () => {
-  it('aponta pra /settings/about', () => {
+describe('CA4: "Sobre" saiu do Sidebar (agora é o sub-link about-application do dropdown app-help na TopBar)', () => {
+  it('nem admin nem viewer veem mais o item solto no Sidebar', () => {
     renderAt('/')
-    expect(document.getElementById('sidebar-about')?.getAttribute('href')).toBe('/settings/about')
-  })
+    expect(document.getElementById('sidebar-about')).toBeNull()
 
-  it('viewer também vê "Sobre"', () => {
+    cleanup()
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
-    expect(document.getElementById('sidebar-about')).toBeTruthy()
+    expect(document.getElementById('sidebar-about')).toBeNull()
   })
 })

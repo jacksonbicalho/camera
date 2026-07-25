@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme, resolveMode, type Mode } from '../contexts/ThemeContext'
-import { navItemClass } from './sidebarFlyout'
+import { useFlyout, navItemClass } from './sidebarFlyout'
 import { Check, Moon, Sun } from './Icons'
 
 const MODE_OPTIONS: { value: Mode; label: string }[] = [
@@ -10,106 +9,49 @@ const MODE_OPTIONS: { value: Mode; label: string }[] = [
   { value: 'system', label: 'Sistema' },
 ]
 
-// Altura estimada do painel (3 opções, cada uma py-2 + text-sm ≈ 36px, + bordas) —
-// determinística (número fixo de opções, sem conteúdo dinâmico), então dá pra
-// calcular sem medir o DOM depois de montado.
-const PANEL_HEIGHT = MODE_OPTIONS.length * 36 + 2
-
-// Seletor de modo para o rail (Sidebar, seção "Aparência"). O gatilho exibe o
-// modo escolhido; clicar (ou passar o mouse) abre as opções num flyout à
-// direita; selecionar aplica o modo na hora (setMode), fecha a lista e o
-// gatilho reflete a nova seleção.
+// Seletor de modo, na TopBar (id "color-mode" — viveu antes na seção
+// "Aparência" do rail vertical, id "theme-nav-current"). O gatilho exibe o
+// modo escolhido; clicar abre/fecha as opções num flyout; selecionar aplica
+// o modo na hora (setMode), fecha a lista e o gatilho reflete a nova
+// seleção. Reusa `useFlyout` (mesmo hook do `MotionNotificationsBell`/
+// `AppHelpMenu`) — só-clique (abre no clique do gatilho, fecha no clique
+// fora) e já ancora o painel abaixo-à-direita do gatilho.
 //
-// O painel é portalizado pro body com `position: fixed` (coordenadas via
-// getBoundingClientRect do gatilho) em vez de `position: absolute` dentro do
-// próprio wrapper — o Sidebar tem `overflow-y-auto` (rola quando as seções
-// excedem a altura da viewport) e um painel `absolute` ficaria clipado por
-// esse container (bug real, visto no navegador: o flyout abria mas ficava
-// escondido atrás do corte do scroll). `onMouseEnter`/`onMouseLeave` também
-// vivem no painel portalizado (não só no wrapper) pra mover o mouse do
-// gatilho pro painel continuar contando como "dentro" — sem gap entre os
-// dois (`left: rect.right`, sem margem) pra não fechar no meio do caminho.
+// Já teve um modo hover próprio (`onMouseEnter`/`onMouseLeave`, abria/
+// mantinha aberto por hover), removido por causar um bug real reportado
+// pelo navigator: cada página monta seu próprio `Layout` (sem layout
+// aninhado de rota via `Outlet`), então a `TopBar` remonta a cada
+// navegação — e um `mouseenter` só dispara em resposta a movimento real do
+// cursor, nunca por causa de uma mudança de DOM. Se o cursor já estava em
+// repouso sobre o gatilho no instante do remount (comum, o usuário acabou
+// de navegar), hover não funcionava até mover o mouse pra fora e voltar (o
+// clique sempre funcionava, por isso parecia "só funciona depois que eu
+// clico"). Ver `useFlyout` em `sidebarFlyout.ts` pro detalhe.
 //
 // O gatilho e o ✓ refletem o modo **escolhido** (`mode`) — incl. "Sistema" —, espelhando
 // o radio de Aparência. A resolução de "Sistema" para dark/light (aplicada ao tema) fica
 // no ThemeContext; aqui só mostramos a escolha, não o resolvido — exceto pelo ÍCONE do
 // gatilho, que usa `resolveMode` pra alternar entre sol/lua (inclusive com "Sistema"
 // selecionado, mostra o resolvido no momento, já que não existe um 3º ícone neutro).
-// `onSelect` é chamado após aplicar o modo — usado pelo Sidebar para fechar também
-// o popup de configurações pai (não só o flyout interno).
-export default function ThemeModeNav({
-  showLabel = true,
-  onSelect,
-}: {
-  showLabel?: boolean
-  onSelect?: () => void
-}) {
+export default function ThemeModeNav({ showLabel = true }: { showLabel?: boolean }) {
   const { mode, setMode } = useTheme()
-  const [open, setOpen] = useState(false)
-  // Após selecionar, suprime o reabrir-por-hover enquanto o cursor segue sobre o
-  // menu — só volta a abrir quando o mouse sai e entra de novo (ou clica no gatilho).
-  const [dismissed, setDismissed] = useState(false)
-  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number }>({ left: 0 })
-  const wrapperRef = useRef<HTMLDivElement>(null)
+  const { open, setOpen, pos, btnRef, panelRef, toggle } = useFlyout<HTMLButtonElement>()
   const resolved = resolveMode(mode)
-
-  // "Inteligente": abre pra baixo (ancorado no topo do gatilho) normalmente, mas
-  // quando não sobra espaço suficiente até o fim da viewport (gatilho perto do
-  // rodapé do rail, ex.: seção "Aparência" é uma das últimas) inverte e ancora
-  // pelo fundo — sem isso o painel abria pra baixo incondicionalmente e ficava
-  // cortado pela borda da tela (bug real, visto no navegador: opção "Sistema"
-  // ficava invisível, fora da viewport).
-  function updatePos() {
-    const r = wrapperRef.current?.getBoundingClientRect()
-    if (!r) return
-    const spaceBelow = window.innerHeight - r.top
-    if (spaceBelow < PANEL_HEIGHT) {
-      setPos({ left: r.right, bottom: window.innerHeight - r.bottom })
-    } else {
-      setPos({ left: r.right, top: r.top })
-    }
-  }
-
-  function handleEnter() {
-    if (dismissed) return
-    updatePos()
-    setOpen(true)
-  }
-
-  function handleLeave() {
-    setOpen(false)
-    setDismissed(false)
-  }
 
   const select = (value: Mode) => {
     setMode(value)
     setOpen(false)
-    setDismissed(true)
-    onSelect?.()
   }
 
   return (
-    <div
-      ref={wrapperRef}
-      id="theme-mode-nav"
-      className={showLabel ? 'w-full' : undefined}
-      onMouseEnter={handleEnter}
-      onMouseLeave={handleLeave}
-    >
+    <>
       <button
-        id="theme-nav-current"
+        id="color-mode"
+        ref={btnRef}
         type="button"
         title="Estilo"
         aria-label="Estilo"
-        onClick={() => {
-          setDismissed(false)
-          if (open) {
-            setOpen(false)
-          } else {
-            updatePos()
-            setOpen(true)
-          }
-        }}
+        onClick={toggle}
         className={navItemClass(open, showLabel)}
       >
         {resolved === 'dark' ? (
@@ -124,15 +66,14 @@ export default function ThemeModeNav({
         createPortal(
           <div
             id="theme-mode-flyout"
+            ref={panelRef}
             style={{
               position: 'fixed',
-              left: pos.left,
-              ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+              top: pos.top,
+              right: pos.right,
               zIndex: 9999,
             }}
             className="w-40 bg-surface border border-border rounded shadow-lg"
-            onMouseEnter={handleEnter}
-            onMouseLeave={handleLeave}
           >
             {MODE_OPTIONS.map(({ value, label }) => {
               const active = mode === value
@@ -157,6 +98,6 @@ export default function ThemeModeNav({
           </div>,
           document.body,
         )}
-    </div>
+    </>
   )
 }

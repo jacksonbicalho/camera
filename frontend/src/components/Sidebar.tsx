@@ -3,12 +3,9 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { getRole } from '../auth'
 import { useDisplayMode, useSetDisplayMode } from '../contexts/DisplayModeContext'
-import ThemeModeNav from './ThemeModeNav'
-import MotionNotificationsBell from './MotionNotificationsBell'
 import { navItemClass } from './sidebarFlyout'
 import {
   BarChart2,
-  CameraLogo,
   Cctv,
   Eye,
   Film,
@@ -131,12 +128,13 @@ function SidebarSection({
 // navigator — substitui o antigo flyout popup por trás de um único ícone
 // "Configurações"): recolhido mostra só ícones; expandido mostra também os
 // cabeçalhos de seção e rola (scrollbar-thin) quando o conteúdo excede a
-// altura da viewport. Só "Sistema" (Câmeras)/"Aparência"/"Sobre" ficam
-// visíveis pra todo mundo — Movimentos/Administração/Governança (e
-// "Rastrear câmeras", dentro de Sistema) são admin-only, mesma regra de
-// acesso que essas páginas já tinham. Nem o logo nem o avatar do usuário
-// moram mais aqui — os dois migraram pra `TopBar.tsx` (barra full-width
-// acima da linha Sidebar+conteúdo, renderizada pelo `Layout`) — o rail em si
+// altura da viewport. Só "Sistema" (Câmeras) fica visível pra todo mundo —
+// Movimentos/Administração (inclui "Aparência")/Governança (e "Rastrear
+// câmeras", dentro de Sistema) são admin-only, mesma regra de acesso que
+// essas páginas já tinham. Nem o logo, nem o avatar do usuário, nem o item
+// "Sobre" moram mais aqui — migraram pra `TopBar.tsx` (barra full-width
+// acima da linha Sidebar+conteúdo, renderizada pelo `Layout`; "Sobre" virou
+// o sub-link `about-application` do dropdown `AppHelpMenu`) — o rail em si
 // começa direto pelo botão "Recolher menu".
 export default function Sidebar() {
   const { sidebar: sidebarMode } = useDisplayMode()
@@ -177,7 +175,6 @@ export default function Sidebar() {
         </button>
 
         <SidebarSection label="Eventos" showLabel={showLabel} divider>
-          <MotionNotificationsBell showLabel={showLabel} />
           <DisabledSidebarItem
             id="sidebar-live-view"
             label="Live View"
@@ -272,6 +269,15 @@ export default function Sidebar() {
               }}
               showLabel={showLabel}
             />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-appearance',
+                to: '/settings/appearance',
+                label: 'Aparência',
+                icon: <Palette className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
           </SidebarSection>
         )}
 
@@ -306,37 +312,6 @@ export default function Sidebar() {
             />
           </SidebarSection>
         )}
-
-        <SidebarSection label="Aparência" showLabel={showLabel} divider>
-          <ThemeModeNav showLabel={showLabel} />
-          <SidebarNavLink
-            item={{
-              id: 'sidebar-appearance-accent',
-              to: '/settings/appearance',
-              label: 'Cor de destaque',
-              icon: <Palette className="h-5 w-5 shrink-0" />,
-            }}
-            showLabel={showLabel}
-          />
-          <DisabledSidebarItem
-            id="sidebar-background-color"
-            label="Cor de fundo"
-            icon={<Palette className="h-5 w-5 shrink-0" />}
-            showLabel={showLabel}
-          />
-        </SidebarSection>
-
-        <SidebarSection showLabel={showLabel}>
-          <SidebarNavLink
-            item={{
-              id: 'sidebar-about',
-              to: '/settings/about',
-              label: 'Sobre',
-              icon: <CameraLogo className="h-5 w-5 shrink-0" />,
-            }}
-            showLabel={showLabel}
-          />
-        </SidebarSection>
       </div>
     </nav>
   )

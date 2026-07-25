@@ -27,13 +27,13 @@ function renderMenu() {
 describe('UserMenu', () => {
   it('renderiza o avatar em fluxo (não mais position: fixed — vive dentro da TopBar agora)', () => {
     renderMenu()
-    const btn = document.getElementById('sidebar-user')!
+    const btn = document.getElementById('logged-in-user')!
     expect(btn.className).not.toContain('fixed')
   })
 
   it('clicar abre menu com Notificações/Perfil/Sair; clicar de novo fecha', () => {
     renderMenu()
-    const btn = document.getElementById('sidebar-user')!
+    const btn = document.getElementById('logged-in-user')!
     expect(document.querySelector('a[href="/notifications"]')).toBeNull()
     fireEvent.click(btn)
     expect(document.querySelector('a[href="/notifications"]')).toBeTruthy()
@@ -43,7 +43,7 @@ describe('UserMenu', () => {
 
   it('"Sair" limpa o token', () => {
     renderMenu()
-    fireEvent.click(document.getElementById('sidebar-user')!)
+    fireEvent.click(document.getElementById('logged-in-user')!)
     const sairBtn = Array.from(document.querySelectorAll('button')).find(
       (b) => b.textContent === 'Sair',
     )!
