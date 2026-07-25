@@ -4,6 +4,7 @@
 #
 # - Backend SEMPRE: `go build ./...` + `go test -count=1 ./...`
 # - Frontend SE `frontend/` mudou (vs develop ou na working tree): frontend-check.sh
+# - e2e/ SE `e2e/` mudou (vs develop ou na working tree): e2e-lint-check.sh (tsc/eslint/prettier)
 #
 # Claude roda isto manualmente (não é hook). Equivale ao "CI local" da história.
 set -uo pipefail
@@ -73,6 +74,22 @@ if [ "$yolo_changed" -eq 1 ]; then
     echo "✓ yolo verde"
 else
     echo "· services/yolo não mudou — pulando"
+fi
+
+e2e_changed=0
+git diff --name-only develop...HEAD 2>/dev/null | grep -q '^e2e/' && e2e_changed=1
+git status --porcelain | grep -qE '^.. e2e/' && e2e_changed=1
+
+if [ "$e2e_changed" -eq 1 ]; then
+    echo "→ e2e/ mudou: scripts/e2e-lint-check.sh (Docker)"
+    if ! bash "$ROOT/scripts/e2e-lint-check.sh" >/tmp/check-e2e.log 2>&1; then
+        echo "❌ e2e-lint-check falhou:"
+        fail_summary /tmp/check-e2e.log
+        exit 1
+    fi
+    echo "✓ e2e (tsc/eslint/prettier) verde"
+else
+    echo "· e2e/ não mudou — pulando"
 fi
 
 # ── marca o 1º Critério de Aceitação da story ───────────────────────────────

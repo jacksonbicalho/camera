@@ -3,14 +3,21 @@
 #
 # Uso: scripts/functional-check.sh [story]
 #
-# 1. Roda `bash scripts/check.sh` (que já marca o CA1 quando verde).
-# 2. Para cada CA da story que referencia `(auto: tests/functional/<script>)`,
-#    executa o script; exit 0 → marca o CA `[x]` na story.
-# 3. Para cada CA (além do 1) anotado `(auto: scripts/check.sh)` — critério de
-#    frontend coberto por um describe('CAX: ...') na própria suíte, sem
-#    cenário dedicado — marca `[x]` direto: já foi verificado pela suíte
-#    inteira no passo 1.
-# 4. Qualquer cenário falhando → CA fica `[]` e este script sai com erro.
+# Todo CA é um teste nomeado dentro da suíte nativa correspondente (frontend:
+# describe('CAn: ...'); Go: t.Run("CAn: ..."); Python: def test_caN_...();
+# e2e/infra: named checks num script permanente reusável) — nunca um script
+# avulso por CA. A story só ANOTA qual comando prova o critério:
+# `(auto: <comando>)` — qualquer texto livre entre "auto:" e o `)` de
+# fechamento (pode ter env var prefixada, ex.: `E2E_PDF_REPORT=on bash
+# scripts/e2e-pdf-report-check.sh`).
+#
+# 1. Roda `bash scripts/check.sh` (sempre — é o comando universal, cobre
+#    CA1 e qualquer outro CA anotado `(auto: scripts/check.sh)`).
+# 2. Para cada comando ÚNICO restante referenciado na story (exceto
+#    `scripts/check.sh`, já coberto acima), roda esse comando uma vez;
+#    sucesso marca `[x]` todo CA que o referencia.
+# 3. Qualquer comando falhando → os CAs que o referenciam ficam `[]` e este
+#    script sai com erro.
 #
 # Substitui o story-approval.sh interativo: critério verificável por máquina
 # é marcado pela máquina. O driver corrige e re-roda (idempotente).
@@ -19,52 +26,75 @@ set -u
 cd "$(git rev-parse --show-toplevel)"
 . scripts/lib/story.sh
 
-# mark_check_sh_criteria <story> — marca [x] todo CA anotado
-# `(auto: scripts/check.sh)` (inclusive o próprio CA1). Extraída como função
-# pra ser testável isoladamente (scripts/functional_check_test.go, mesmo
-# padrão de CHECK_SH_LIB em check.sh) sem precisar rodar check.sh de verdade.
-mark_check_sh_criteria() {
+# extract_auto_commands <story> — imprime "CAn|comando" por linha de CA
+# anotada `(auto: <comando>)` — comando é o texto entre "auto:" e o ')' de
+# fechamento (sem parênteses aninhados, convenção do repo).
+extract_auto_commands() {
   story_file=$1
-  grep -oE 'CA[0-9]+:.*\(auto:[[:space:]]*scripts/check\.sh\)' "$story_file" \
-  | sed -E 's/^(CA[0-9]+):.*/\1/' \
-  | while IFS= read -r ca; do
+  grep -oE 'CA[0-9]+:.*\(auto:[[:space:]]*[^)]+\)' "$story_file" \
+  | sed -E 's/^(CA[0-9]+):.*\(auto:[[:space:]]*([^)]+)\).*/\1|\2/'
+}
+
+# mark_command_criteria <story> <comando> — marca [x] todo CA cujo `(auto:
+# <comando>)` bate EXATAMENTE com o comando dado (sem rodar nada — quem chama
+# já confirmou que o comando passou).
+mark_command_criteria() {
+  story_file=$1
+  command=$2
+  extract_auto_commands "$story_file" \
+  | while IFS='|' read -r ca cmd; do
+      [ "$cmd" = "$command" ] || continue
       mark_checkbox "$story_file" "$ca"
-      echo "OK — $ca marcado [x] (coberto por scripts/check.sh)"
+      echo "OK — $ca marcado [x] (coberto por: $command)"
     done
 }
 
-# Carregado como biblioteca (scripts/functional_check_test.go): só a função,
+# Mantido pelo nome antigo por compatibilidade de quem já invoca a lib
+# (scripts/functional_check_test.go) — agora só um wrapper fino sobre o
+# comando fixo "scripts/check.sh".
+mark_check_sh_criteria() {
+  mark_command_criteria "$1" "scripts/check.sh"
+}
+
+# Carregado como biblioteca (scripts/functional_check_test.go): só as funções,
 # sem rodar check.sh nem resolver a story do repo real.
 [ -n "${FUNCTIONAL_CHECK_SH_LIB:-}" ] && return 0
 
 story=$(resolve_story "${1:-}") || exit 1
 echo "story: $story"
 
-echo "── CA1: suíte padrão (scripts/check.sh) ──"
+echo "── suíte padrão (scripts/check.sh) ──"
 if ! bash scripts/check.sh; then
   echo "FALHOU: check.sh vermelho — corrija antes dos cenários funcionais" >&2
   exit 1
 fi
+mark_command_criteria "$story" "scripts/check.sh"
 
 fail=0
-# Extrai pares "CAn|caminho" das linhas de critérios que referenciam scripts
-grep -oE 'CA[0-9]+:.*\(auto:[[:space:]]*tests/functional/[^)]+\)' "$story" \
-| sed -E 's/^(CA[0-9]+):.*\(auto:[[:space:]]*(tests\/functional\/[^)[:space:]]+)\).*/\1|\2/' \
-| while IFS='|' read -r ca script; do
-    printf '── %s: %s ──\n' "$ca" "$script"
-    if [ ! -x "$script" ]; then
-      echo "FALHOU: cenário ausente ou sem permissão de execução: $script" >&2
-      echo "$ca" >> .functional-fails
-      continue
-    fi
-    if "$script"; then
-      mark_checkbox "$story" "$ca"
-      echo "OK — $ca marcado [x]"
-    else
-      echo "FALHOU: $ca ($script)" >&2
-      echo "$ca" >> .functional-fails
-    fi
-  done
+commands_file=$(mktemp)
+trap 'rm -f "$commands_file"' EXIT
+
+extract_auto_commands "$story" | cut -d'|' -f2- | sort -u > "$commands_file"
+
+while IFS= read -r cmd; do
+  [ -z "$cmd" ] && continue
+  # Comparação textual exata — assume que toda story anota a string literal
+  # "scripts/check.sh" (convenção documentada). Uma variação tipo "bash
+  # scripts/check.sh" não seria reconhecida como o mesmo comando e rodaria a
+  # suíte inteira de novo via eval (não quebra nada, só redundante).
+  [ "$cmd" = "scripts/check.sh" ] && continue
+  printf '── comando: %s ──\n' "$cmd"
+  if (eval "$cmd"); then
+    mark_command_criteria "$story" "$cmd"
+  else
+    echo "FALHOU: $cmd" >&2
+    extract_auto_commands "$story" \
+    | while IFS='|' read -r ca c; do
+        [ "$c" = "$cmd" ] && echo "$ca" >> .functional-fails
+      done
+    fail=1
+  fi
+done < "$commands_file"
 
 if [ -f .functional-fails ]; then
   echo ""
@@ -73,11 +103,9 @@ if [ -f .functional-fails ]; then
   exit 1
 fi
 
-# CAs cobertos pelo próprio check.sh (frontend com describe('CAX: ...') em vez
-# de cenário dedicado) — já garantidos verdes pela rodada do passo 1 acima;
-# só precisam ser marcados. Inclui o próprio CA1 (idempotente: mark_checkbox
-# não faz nada se já estiver `[x]`).
-mark_check_sh_criteria "$story"
+if [ "$fail" -eq 1 ]; then
+  exit 1
+fi
 
 echo ""
 echo "todos os cenários funcionais verdes."

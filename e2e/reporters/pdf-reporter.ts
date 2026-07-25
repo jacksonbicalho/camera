@@ -70,7 +70,9 @@ export default class PDFReporter implements Reporter {
       title: test.titlePath().slice(1).join(' › '),
       status: result.status,
       duration: result.duration,
-      errors: result.errors.map((error) => stripAnsi(error.stack ?? error.message ?? String(error))),
+      errors: result.errors.map((error) =>
+        stripAnsi(error.stack ?? error.message ?? String(error)),
+      ),
       screenshots,
       steps: collectSteps(result.steps),
     })

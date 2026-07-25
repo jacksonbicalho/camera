@@ -195,61 +195,63 @@ func TestClassifierUpdateDeleteAndState(t *testing.T) {
 }
 
 // Excluir um classificador remove state_history/state_samples daquele
-// classificador do disco, sem afetar os de outro classificador (CA4) — antes
-// desse fix, db.DeleteStateClassifier só limpava as linhas de banco (cascade),
+// classificador do disco, sem afetar os de outro classificador — antes desse
+// fix, db.DeleteStateClassifier só limpava as linhas de banco (cascade),
 // deixando os thumbnails órfãos pra sempre.
 func TestHandleStateClassifierDelete_RemovesDiskDirs(t *testing.T) {
-	database := openServerTestDB(t)
-	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
-		t.Fatal(err)
-	}
-	cam := config.CameraConfig{ID: "cam1", Name: "Cam", RTSPURL: "rtsp://x/"}
-	if _, err := db.CreateCamera(database, cam, nil); err != nil {
-		t.Fatal(err)
-	}
-	storagePath := t.TempDir()
-	srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{cam}, discardLogger(), nil).
-		WithDB(database).
-		WithStorageConfig(config.StorageConfig{Path: storagePath})
-	token := loginAndGetToken(t, srv, "admin", "pw")
-	base := "/api/settings/cameras/cam1/classifiers"
+	t.Run("CA4: excluir um classificador remove state_history/state_samples do disco sem afetar outro classificador", func(t *testing.T) {
+		database := openServerTestDB(t)
+		if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
+			t.Fatal(err)
+		}
+		cam := config.CameraConfig{ID: "cam1", Name: "Cam", RTSPURL: "rtsp://x/"}
+		if _, err := db.CreateCamera(database, cam, nil); err != nil {
+			t.Fatal(err)
+		}
+		storagePath := t.TempDir()
+		srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{cam}, discardLogger(), nil).
+			WithDB(database).
+			WithStorageConfig(config.StorageConfig{Path: storagePath})
+		token := loginAndGetToken(t, srv, "admin", "pw")
+		base := "/api/settings/cameras/cam1/classifiers"
 
-	w := doJSON(t, srv, http.MethodPost, base, token, validClassifierBody())
-	var c1 struct {
-		ID int64 `json:"id"`
-	}
-	json.Unmarshal(w.Body.Bytes(), &c1)
+		w := doJSON(t, srv, http.MethodPost, base, token, validClassifierBody())
+		var c1 struct {
+			ID int64 `json:"id"`
+		}
+		json.Unmarshal(w.Body.Bytes(), &c1)
 
-	w = doJSON(t, srv, http.MethodPost, base, token, validClassifierBody())
-	var c2 struct {
-		ID int64 `json:"id"`
-	}
-	json.Unmarshal(w.Body.Bytes(), &c2)
+		w = doJSON(t, srv, http.MethodPost, base, token, validClassifierBody())
+		var c2 struct {
+			ID int64 `json:"id"`
+		}
+		json.Unmarshal(w.Body.Bytes(), &c2)
 
-	cid1 := strconv.FormatInt(c1.ID, 10)
-	cid2 := strconv.FormatInt(c2.ID, 10)
-	writeTestFile(t, storagePath+"/state_history/"+cid1+"/1.jpg")
-	writeTestFile(t, storagePath+"/state_samples/"+cid1+"/aberto/1.jpg")
-	writeTestFile(t, storagePath+"/state_history/"+cid2+"/1.jpg")
-	writeTestFile(t, storagePath+"/state_samples/"+cid2+"/aberto/1.jpg")
+		cid1 := strconv.FormatInt(c1.ID, 10)
+		cid2 := strconv.FormatInt(c2.ID, 10)
+		writeTestFile(t, storagePath+"/state_history/"+cid1+"/1.jpg")
+		writeTestFile(t, storagePath+"/state_samples/"+cid1+"/aberto/1.jpg")
+		writeTestFile(t, storagePath+"/state_history/"+cid2+"/1.jpg")
+		writeTestFile(t, storagePath+"/state_samples/"+cid2+"/aberto/1.jpg")
 
-	w = doJSON(t, srv, http.MethodDelete, base+"/"+cid1, token, nil)
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("delete: %d %s", w.Code, w.Body.String())
-	}
+		w = doJSON(t, srv, http.MethodDelete, base+"/"+cid1, token, nil)
+		if w.Code != http.StatusNoContent {
+			t.Fatalf("delete: %d %s", w.Code, w.Body.String())
+		}
 
-	if _, err := os.Stat(storagePath + "/state_history/" + cid1); !os.IsNotExist(err) {
-		t.Error("state_history do classificador excluído deveria ter sido removido")
-	}
-	if _, err := os.Stat(storagePath + "/state_samples/" + cid1); !os.IsNotExist(err) {
-		t.Error("state_samples do classificador excluído deveria ter sido removido")
-	}
-	if _, err := os.Stat(storagePath + "/state_history/" + cid2); err != nil {
-		t.Errorf("state_history do OUTRO classificador não deveria ter sido afetado: %v", err)
-	}
-	if _, err := os.Stat(storagePath + "/state_samples/" + cid2); err != nil {
-		t.Errorf("state_samples do OUTRO classificador não deveria ter sido afetado: %v", err)
-	}
+		if _, err := os.Stat(storagePath + "/state_history/" + cid1); !os.IsNotExist(err) {
+			t.Error("state_history do classificador excluído deveria ter sido removido")
+		}
+		if _, err := os.Stat(storagePath + "/state_samples/" + cid1); !os.IsNotExist(err) {
+			t.Error("state_samples do classificador excluído deveria ter sido removido")
+		}
+		if _, err := os.Stat(storagePath + "/state_history/" + cid2); err != nil {
+			t.Errorf("state_history do OUTRO classificador não deveria ter sido afetado: %v", err)
+		}
+		if _, err := os.Stat(storagePath + "/state_samples/" + cid2); err != nil {
+			t.Errorf("state_samples do OUTRO classificador não deveria ter sido afetado: %v", err)
+		}
+	})
 }
 
 func writeTestFile(t *testing.T, path string) {
