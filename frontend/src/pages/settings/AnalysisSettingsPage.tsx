@@ -116,6 +116,8 @@ export default function AnalysisSettingsPage() {
   const [error, setError] = useState('')
   const [serviceModels, setServiceModels] = useState<ModelInfo[] | null>(null)
   const [serviceOffline, setServiceOffline] = useState(false)
+  const [serviceDevice, setServiceDevice] = useState<string | null>(null)
+  const [serviceVramGb, setServiceVramGb] = useState<number | null>(null)
 
   const activeBase = cfg.model.startsWith('custom+')
     ? cfg.model.slice('custom+'.length)
@@ -286,10 +288,14 @@ export default function AnalysisSettingsPage() {
       })
       .then((d) => {
         setServiceModels(d.models)
+        setServiceDevice(d.device ?? null)
+        setServiceVramGb(typeof d.vram_gb === 'number' ? d.vram_gb : null)
         setServiceOffline(false)
       })
       .catch(() => {
         setServiceModels(null)
+        setServiceDevice(null)
+        setServiceVramGb(null)
         setServiceOffline(true)
       })
   }
@@ -787,10 +793,17 @@ export default function AnalysisSettingsPage() {
             </p>
           </div>
 
-          {modelNoFinetune && (
+          {modelNoFinetune && serviceDevice === 'cpu' && (
             <div className="px-4 py-2 bg-amber-900/40 border-b border-amber-700 text-amber-300 text-xs">
-              O modelo <strong>{activeBase}</strong> não suporta fine-tuning na GPU disponível.
-              Selecione um modelo menor (ex: yolov8n, yolo11n).
+              O serviço de análise está rodando sem GPU (CPU) — fine-tuning não é viável em nenhum
+              modelo nesse modo.
+            </div>
+          )}
+          {modelNoFinetune && serviceDevice !== 'cpu' && (
+            <div className="px-4 py-2 bg-amber-900/40 border-b border-amber-700 text-amber-300 text-xs">
+              O modelo <strong>{activeBase}</strong> não suporta fine-tuning na GPU disponível
+              {serviceVramGb !== null ? ` (${serviceVramGb}GB)` : ''}. Selecione um modelo menor
+              (ex: yolov8n, yolo11n).
             </div>
           )}
           <div className="p-4 space-y-3">
