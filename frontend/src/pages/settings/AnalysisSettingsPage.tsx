@@ -39,7 +39,7 @@ function frameURL(cameraId: string, eventTime: string, frame: string, bust?: num
 
 const PAGE_SIZE_OPTIONS = [50, 100, 150, 200, 300, 500]
 
-function ReanalyzePanel() {
+function ReanalyzePanel({ ftActive }: { ftActive: boolean }) {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [err, setErr] = useState('')
@@ -78,6 +78,11 @@ function ReanalyzePanel() {
             Re-análise agendada — será processada na próxima limpeza do storage.
           </p>
         )}
+        {ftActive && (
+          <p className="text-xs text-amber-400 mt-1">
+            Fine-tuning em andamento — aguarde para reanalisar (evita disputar a GPU com o treino).
+          </p>
+        )}
       </div>
       <Button
         id="analysis-reanalyze"
@@ -85,7 +90,7 @@ function ReanalyzePanel() {
         variant="secondary"
         className="shrink-0"
         onClick={handleReanalyze}
-        disabled={busy}
+        disabled={busy || ftActive}
       >
         {busy ? 'Aguarde...' : 'Re-analisar tudo'}
       </Button>
@@ -270,6 +275,7 @@ export default function AnalysisSettingsPage() {
   } | null>(null)
   const [ftError, setFtError] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const ftActive = ftStatus?.status === 'running' || ftStatus?.status === 'pending'
 
   useEffect(() => {
     fetch('/api/settings/analysis', { headers: authHeaders() })
@@ -784,7 +790,7 @@ export default function AnalysisSettingsPage() {
           </ol>
         </div>
 
-        <ReanalyzePanel />
+        <ReanalyzePanel ftActive={ftActive} />
 
         <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
           <div className="p-4">
@@ -825,12 +831,7 @@ export default function AnalysisSettingsPage() {
               </div>
               <Button
                 type="button"
-                disabled={
-                  (!annCount && !labelCount) ||
-                  ftStatus?.status === 'running' ||
-                  ftStatus?.status === 'pending' ||
-                  modelNoFinetune
-                }
+                disabled={(!annCount && !labelCount) || ftActive || modelNoFinetune}
                 onClick={handleStartFinetune}
                 className="bg-violet-600 hover:bg-violet-500 text-white shrink-0"
               >

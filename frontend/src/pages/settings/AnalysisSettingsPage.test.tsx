@@ -131,3 +131,68 @@ describe('CA3: seletor de modelo não duplica o grupo "Custom"', () => {
     expect(customGroups).toHaveLength(1)
   })
 })
+
+function mockFetchWithFtStatus(status: 'running' | 'pending') {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: unknown) => {
+      const u = String(url)
+      if (u === '/api/settings')
+        return new Response(JSON.stringify({ cameras: [] }), { status: 200 })
+      if (u === '/api/settings/analysis')
+        return new Response(JSON.stringify(defaultAnalysisConfig), { status: 200 })
+      if (u === '/api/settings/analysis/models')
+        return new Response(JSON.stringify({ device: 'cuda', vram_gb: 4, models: [] }), {
+          status: 200,
+        })
+      if (u === '/api/settings/analysis/annotation-count')
+        return new Response(JSON.stringify({ count: 1, label_count: 65 }), { status: 200 })
+      if (u === '/api/settings/analysis/finetune/status/job1')
+        return new Response(JSON.stringify({ status, epoch: 5, total_epochs: 20, error: '' }), {
+          status: 200,
+        })
+      return new Response('{}', { status: 200 })
+    }),
+  )
+}
+
+describe('CA6: "Re-analisar tudo" desabilitado durante fine-tuning ativo', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => (key === 'ft_job_id' ? 'job1' : null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    })
+  })
+
+  it('com um job de fine-tuning running, o botão fica desabilitado e mostra aviso', async () => {
+    mockFetchWithFtStatus('running')
+    renderPage()
+
+    const btn = await screen.findByRole('button', { name: /re-analisar tudo/i })
+    await screen.findByText(/fine-tuning em andamento/i)
+    expect((btn as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('com um job de fine-tuning pending, o botão fica desabilitado e mostra aviso', async () => {
+    mockFetchWithFtStatus('pending')
+    renderPage()
+
+    const btn = await screen.findByRole('button', { name: /re-analisar tudo/i })
+    await screen.findByText(/fine-tuning em andamento/i)
+    expect((btn as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('sem job de fine-tuning ativo, o botão continua habilitado', async () => {
+    mockFetch({ device: 'cuda', vram_gb: 4, models: [] })
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    })
+    renderPage()
+
+    const btn = await screen.findByRole('button', { name: /re-analisar tudo/i })
+    expect((btn as HTMLButtonElement).disabled).toBe(false)
+  })
+})
