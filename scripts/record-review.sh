@@ -60,7 +60,14 @@ else
       # remove linhas em branco líder/final (sobram do grep -v acima)
       body=$(printf '%s\n' "$body" | sed -e '/./,$!d' -e ':a' -e '/^\n*$/{$d;N;ba' -e '}')
       indented=$(printf '%s\n' "$body" | sed 's/^/  /')
+      # Linha em branco entre o bullet do veredito e o corpo: sem ela, markdown
+      # trata "**Issues:**" como continuação (lazy) do MESMO parágrafo da linha
+      # de veredito — o \n vira espaço na renderização, colando os dois na
+      # mesma linha visual. Com a linha em branco, "Issues:" vira um novo
+      # parágrafo dentro do mesmo item de lista (lista "loose"), cada um na
+      # sua linha.
       block="$line
+
 $indented"
     fi
   fi
