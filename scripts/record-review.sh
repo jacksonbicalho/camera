@@ -3,11 +3,17 @@
 #
 # Uso: scripts/record-review.sh <Tn> <iterações> [story]
 #   ex: scripts/record-review.sh T2 1
+#   ex. com o corpo da revisão (recomendado): pipe do resultado do subagent via stdin
+#     printf '%s\n' "$review_result" | scripts/record-review.sh T2 1
 #
 # Efeitos na story:
 #   1. Adiciona `- [x] Tn: APPROVED (N iteração/iterações) — data` em ## Code Review.
-#   2. Marca o Status do ticket na tabela de ## Tickets ([] → [x]).
-#   3. Quando TODOS os tickets da tabela estiverem [x], marca o gate
+#   2. Se stdin não for um TTY (ex.: piped), lê o corpo da revisão (o texto que o
+#      subagent code-reviewer devolveu — Issues/Observações) e o insere, indentado
+#      (2 espaços, pra não colidir com regex de heading/checkbox — todas ancoradas
+#      em `^`), logo abaixo da linha de veredito. Sem stdin → só a linha, como antes.
+#   3. Marca o Status do ticket na tabela de ## Tickets ([] → [x]).
+#   4. Quando TODOS os tickets da tabela estiverem [x], marca o gate
 #      `- [] Review: APPROVED` → `- [x] Review: APPROVED`.
 #
 # O hook de pre-commit (story-approved.sh) usa a contagem de linhas APPROVED
@@ -32,14 +38,38 @@ if grep -qE "^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*${ticket}:[[:space:]]*AP
 else
   plural="iterações"; [ "$iters" = "1" ] && plural="iteração"
   line="- [x] ${ticket}: APPROVED (${iters} ${plural}) — $(date '+%Y-%m-%d %H:%M')"
+
+  # Corpo opcional da revisão (findings do subagent) via stdin. Precisa virar
+  # conteúdo ANINHADO sob a linha de veredito, nunca headings de documento:
+  #   1. remove "VERDICT:"/"TICKET:" (redundantes — já estão na linha acima);
+  #   2. rebaixa qualquer "## heading" do corpo pra "**heading:**" em negrito —
+  #      um "##" ali renderiza como heading de página inteira (mesmo peso de
+  #      "## Code Review"), quebrando a hierarquia visual;
+  #   3. indenta tudo em 2 espaços — não colide com regex ancoradas em ^
+  #      (headings, checkboxes, t.Run) E é o que faz markdown tratar as linhas
+  #      como continuação aninhada do item de lista, não um bloco solto.
+  block="$line"
+  if [ ! -t 0 ]; then
+    body=$(cat)
+    if [ -n "$body" ]; then
+      body=$(printf '%s\n' "$body" | grep -vE '^(VERDICT|TICKET):')
+      body=$(printf '%s\n' "$body" | sed -E 's/^#+[[:space:]]*(.+)$/**\1:**/')
+      # remove linhas em branco líder/final (sobram do grep -v acima)
+      body=$(printf '%s\n' "$body" | sed -e '/./,$!d' -e ':a' -e '/^\n*$/{$d;N;ba' -e '}')
+      indented=$(printf '%s\n' "$body" | sed 's/^/  /')
+      block="$line
+$indented"
+    fi
+  fi
+
   if grep -q '^## Code Review' "$story"; then
     # insere logo após o heading da seção
-    awk -v line="$line" '
+    awk -v block="$block" '
       { print }
-      /^## Code Review/ && !done { print line; done=1 }
+      /^## Code Review/ && !done { print block; done=1 }
     ' "$story" > "$story.tmp" && mv "$story.tmp" "$story"
   else
-    printf '\n## Code Review\n%s\n' "$line" >> "$story"
+    printf '\n## Code Review\n%s\n' "$block" >> "$story"
   fi
   echo "registrado: $line"
 fi
