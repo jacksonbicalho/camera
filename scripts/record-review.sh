@@ -33,11 +33,14 @@ case "$ticket" in
   *) echo "erro: ticket inválido '$ticket' (esperado T1, T2, ...)" >&2; exit 2 ;;
 esac
 
-if grep -qE "^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*${ticket}:[[:space:]]*APPROVED" "$story"; then
+if grep -qE "^[[:space:]]*-[[:space:]]*\[x\][[:space:]*]*${ticket}:[[:space:]]*APPROVED" "$story"; then
   echo "já registrado: $ticket APPROVED em $story (idempotente)"
 else
   plural="iterações"; [ "$iters" = "1" ] && plural="iteração"
-  line="- [x] ${ticket}: APPROVED (${iters} ${plural}) — $(date '+%Y-%m-%d %H:%M')"
+  # "Tn: APPROVED" em negrito (pedido do navigator) — o "**" some só entre
+  # [x] e o ticket; entre "Tn:" e "APPROVED" continua só espaço (regras acima
+  # e em scripts/hooks/story-approved.sh toleram `[[:space:]*]*` ali).
+  line="- [x] **${ticket}: APPROVED** (${iters} ${plural}) — $(date '+%Y-%m-%d %H:%M')"
 
   # Corpo opcional da revisão (findings do subagent) via stdin. Precisa virar
   # conteúdo ANINHADO sob a linha de veredito, nunca headings de documento:

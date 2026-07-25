@@ -52,7 +52,7 @@ if ! checkbox_marked "$story" '.*revisada'; then
   exit 2
 fi
 
-approved=$(grep -ciE '^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*T[0-9]+:[[:space:]]*APPROVED' "$story" || true)
+approved=$(grep -ciE '^[[:space:]]*-[[:space:]]*\[x\][[:space:]*]*T[0-9]+:[[:space:]]*APPROVED' "$story" || true)
 commits=$(git rev-list --count develop..HEAD 2>/dev/null || echo 0)
 
 if [ "${approved:-0}" -gt "${commits:-0}" ]; then
