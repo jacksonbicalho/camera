@@ -13,7 +13,7 @@ vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
-const analysisConfig = {
+const defaultAnalysisConfig = {
   enabled: true,
   service_url: 'http://yolo:8001',
   model: 'yolo12l',
@@ -21,7 +21,11 @@ const analysisConfig = {
   has_custom_model: false,
 }
 
-function mockFetch(modelsResponse: unknown) {
+function mockFetch(
+  modelsResponse: unknown,
+  configOverrides: Partial<typeof defaultAnalysisConfig> = {},
+) {
+  const analysisConfig = { ...defaultAnalysisConfig, ...configOverrides }
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown) => {
@@ -89,5 +93,41 @@ describe('CA2: mensagem de fine-tuning indisponível diferencia serviço sem GPU
 
     await screen.findByText(/selecione um modelo menor/i)
     expect(screen.getByText(/2 ?gb/i)).toBeTruthy()
+  })
+})
+
+describe('CA3: seletor de modelo não duplica o grupo "Custom"', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    })
+  })
+
+  it('com custom.pt treinado, não existe uma option "custom" solta (só a rica, "custom ✓ (treinado)")', async () => {
+    mockFetch(
+      {
+        device: 'cuda',
+        vram_gb: 4,
+        models: [
+          { name: 'custom', group: 'Custom', inference: true, finetune: false },
+          { name: 'yolo12l', group: 'YOLO12', inference: true, finetune: true },
+          { name: 'yolov8n', group: 'YOLOv8', inference: true, finetune: true },
+        ],
+      },
+      { model: 'custom+yolo12l', has_custom_model: true },
+    )
+    renderPage()
+
+    await screen.findByText(/custom.*treinado/i)
+
+    const bareCustom = screen
+      .getAllByRole('option')
+      .filter((opt) => opt.textContent?.trim() === 'custom')
+    expect(bareCustom).toHaveLength(0)
+
+    const customGroups = document.querySelectorAll('optgroup[label="Custom"]')
+    expect(customGroups).toHaveLength(1)
   })
 })

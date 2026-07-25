@@ -705,11 +705,15 @@ export default function AnalysisSettingsPage() {
                           )
                         })()}
                       {Array.from(
-                        new Set(serviceModels.filter((m) => m.inference).map((m) => m.group)),
+                        new Set(
+                          serviceModels
+                            .filter((m) => m.inference && m.name !== 'custom')
+                            .map((m) => m.group),
+                        ),
                       ).map((group) => (
                         <optgroup key={group} label={group}>
                           {serviceModels
-                            .filter((m) => m.group === group && m.inference)
+                            .filter((m) => m.group === group && m.inference && m.name !== 'custom')
                             .map((m) => (
                               <option key={m.name} value={m.name}>
                                 {m.name}
