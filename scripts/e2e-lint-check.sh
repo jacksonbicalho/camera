@@ -13,4 +13,4 @@ E2E="$ROOT/e2e"
 docker run --rm \
   -v "$E2E":/app -v camera-bun-cache:/root/.bun \
   -w /app oven/bun:1 \
-  sh -c "bun install && bunx tsc --noEmit && bunx eslint . && bunx prettier --check ."
+  sh -c "bun install && bunx tsc --noEmit && bunx eslint . && bunx prettier --check . && bun test reporters/pdf-reporter.test.ts"
