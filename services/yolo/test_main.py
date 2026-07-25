@@ -5,6 +5,7 @@ importar `main`, então os testes rodam numa imagem Python slim, sem GPU nem
 torch/ultralytics instalados — só fastapi/pydantic/pyyaml/httpx/pytest.
 """
 import sys
+import threading
 import time
 import types
 from pathlib import Path
@@ -213,3 +214,69 @@ def test_classify_train_returns_job_id(tmp_path):
     )
     assert resp.status_code == 200
     assert "job_id" in resp.json()
+
+
+# ── CA4: lock de GPU (T3, work_progress/stories/202607251518_fine-tuning-yolo-gpu.md) ──
+# Serializa /analyze, /classify e o corpo de treino de _run_finetune/_run_classify_train
+# em torno de main._gpu_lock — evita OOM por treino+inferência concorrentes na mesma GPU.
+
+
+def test_ca4_analyze_returns_503_when_gpu_busy():
+    main._gpu_lock.acquire()  # simula um treino/outra inferência em andamento
+    try:
+        resp = client.post(
+            "/analyze", json={"path": "/nonexistent.mp4", "model": "yolov8n", "confidence_threshold": 0.4}
+        )
+        assert resp.status_code == 503
+    finally:
+        main._gpu_lock.release()
+
+
+def test_ca4_classify_returns_503_when_gpu_busy():
+    main._gpu_lock.acquire()
+    try:
+        resp = client.post("/classify", json={"path": "/nonexistent.jpg", "model": "custom-cls"})
+        assert resp.status_code == 503
+    finally:
+        main._gpu_lock.release()
+
+
+def test_ca4_analyze_proceeds_normally_when_gpu_free():
+    # GPU livre → passa do gate do lock e chega na checagem normal seguinte
+    # (arquivo inexistente → 404, não 503).
+    resp = client.post(
+        "/analyze", json={"path": "/nonexistent.mp4", "model": "yolov8n", "confidence_threshold": 0.4}
+    )
+    assert resp.status_code == 404
+
+
+def test_ca4_finetune_blocks_until_gpu_free(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "MODEL_DIR", tmp_path / "models")
+    monkeypatch.setattr(main, "_build_dataset", lambda annotations, work_dir: work_dir / "data.yaml")
+    FakeYOLO.last_train_kwargs = None
+
+    req = main.FinetuneRequest(
+        annotations=[
+            main.AnnotationItem(
+                image_path="x.jpg", label="person", bbox_x=0.1, bbox_y=0.1, bbox_w=0.5, bbox_h=0.5
+            )
+        ],
+        base_model="yolov8n",
+        epochs=1,
+    )
+    job_id = "job-ca4-finetune"
+    main._jobs[job_id] = {"status": "pending", "epoch": 0, "total_epochs": 1, "error": ""}
+    main._cancel_events[job_id] = threading.Event()
+
+    main._gpu_lock.acquire()  # simula GPU ocupada (outro treino ou inferência)
+    t = threading.Thread(target=main._run_finetune, args=(job_id, req), daemon=True)
+    try:
+        t.start()
+        time.sleep(0.2)
+        assert FakeYOLO.last_train_kwargs is None, "não deveria treinar com a GPU ocupada"
+    finally:
+        main._gpu_lock.release()
+
+    t.join(timeout=5)
+    assert not t.is_alive(), "thread de treino não terminou a tempo depois da GPU liberar"
+    assert FakeYOLO.last_train_kwargs is not None, "deveria treinar assim que a GPU ficou livre"
