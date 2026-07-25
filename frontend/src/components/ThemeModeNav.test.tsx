@@ -165,9 +165,28 @@ describe('ThemeModeNav', () => {
     })
     fireEvent.mouseEnter(nav)
     const flyout = document.getElementById('theme-mode-flyout')!
-    expect(flyout.style.top).toBe('38px')
+    expect(flyout.style.top).toBe('30px')
     expect(flyout.style.right).toBe('10px')
     expect(flyout.style.left).toBe('')
     expect(flyout.style.bottom).toBe('')
+  })
+
+  it('painel SEM gap em relação ao gatilho (top === bottom exato do gatilho) — diferente do UserMenu/MotionNotificationsBell/AppHelpMenu (só clique), este componente abre/mantém aberto por hover: um gap vertical criaria uma zona morta onde o mouseleave dispara antes do cursor alcançar o painel, fechando o menu no meio do caminho ao tentar selecionar uma opção', () => {
+    render(<ThemeModeNav />)
+    const nav = document.getElementById('theme-mode-nav')!
+    vi.spyOn(nav, 'getBoundingClientRect').mockReturnValue({
+      top: 100,
+      bottom: 124,
+      left: 0,
+      right: 40,
+      width: 40,
+      height: 24,
+      x: 0,
+      y: 100,
+      toJSON: () => {},
+    })
+    fireEvent.mouseEnter(nav)
+    const flyout = document.getElementById('theme-mode-flyout')!
+    expect(flyout.style.top).toBe('124px')
   })
 })

@@ -18,7 +18,10 @@ import { CameraLogo } from './Icons'
 // `UserMenu`) quando aplicável e ancoram o próprio flyout abaixo-à-direita
 // do gatilho (mesmo padrão do `UserMenu`), não mais à direita como faziam
 // no rail vertical — aqui, perto do canto superior direito, um painel
-// `left: rect.right` vazaria pra fora da viewport.
+// `left: rect.right` vazaria pra fora da viewport. `ThemeModeNav`, que abre
+// por hover (os outros dois só por clique), ancora SEM gap vertical (ver
+// `ThemeModeNav.tsx`) — um gap ali criaria uma zona morta entre o gatilho e
+// o painel, fechando o menu no meio do caminho.
 // Substitui: (1) a linha de logo que vivia dentro do próprio `Sidebar.tsx`
 // (agora só a coluna de navegação, sem cabeçalho próprio); (2) o `UserMenu`
 // fixo/flutuante (`position: fixed`), que colidia visualmente com botões de

@@ -24,8 +24,8 @@ const MODE_OPTIONS: { value: Mode; label: string }[] = [
 // espaço garantido à direita) vazaria pra fora da viewport aqui.
 // `onMouseEnter`/`onMouseLeave` também vivem no painel portalizado (não só
 // no wrapper) pra mover o mouse do gatilho pro painel continuar contando
-// como "dentro" — sem gap vertical (`top: rect.bottom + 8`) pra não fechar
-// no meio do caminho.
+// como "dentro" — sem gap vertical (`top: r.bottom`, sem margem) pra não
+// fechar no meio do caminho (ver `updatePos` abaixo pro porquê).
 //
 // O gatilho e o ✓ refletem o modo **escolhido** (`mode`) — incl. "Sistema" —, espelhando
 // o radio de Aparência. A resolução de "Sistema" para dark/light (aplicada ao tema) fica
@@ -53,7 +53,14 @@ export default function ThemeModeNav({
   function updatePos() {
     const r = wrapperRef.current?.getBoundingClientRect()
     if (!r) return
-    setPos({ top: r.bottom + 8, right: window.innerWidth - r.right })
+    // SEM gap entre o gatilho e o painel (top: r.bottom, não r.bottom + N) —
+    // diferente do UserMenu/AppHelpMenu/MotionNotificationsBell (só clique),
+    // este componente abre/mantém aberto por HOVER: um gap vertical vira uma
+    // "zona morta" onde o cursor sai do wrapper (dispara mouseleave → fecha)
+    // antes de alcançar o painel portalizado (bug real, reportado pelo
+    // navigator: selecionar uma opção fechava o menu no meio do caminho).
+    // Mesmo princípio que já valia quando o painel abria à direita, no rail.
+    setPos({ top: r.bottom, right: window.innerWidth - r.right })
   }
 
   function handleEnter() {
