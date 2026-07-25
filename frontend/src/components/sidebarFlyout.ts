@@ -13,11 +13,20 @@ export const navItemClass = (active: boolean, showLabel: boolean) =>
   )
 
 // useFlyout — abre/fecha um flyout posicionado (portal) abaixo-à-direita de
-// um botão (mesmo padrão do `UserMenu`), fechando em clique fora. Único
-// consumidor hoje é `MotionNotificationsBell`, que vive na TopBar perto do
-// canto superior direito — ancorar à direita do botão (como antes, quando
-// vivia no rail vertical, com espaço garantido à direita) vazaria pra fora
-// da viewport aqui.
+// um botão (mesmo padrão do `UserMenu`), fechando em clique fora. Usado
+// pelos dropdowns da TopBar (`MotionNotificationsBell`, `AppHelpMenu`,
+// `ThemeModeNav`) — todos perto do canto superior direito, onde ancorar à
+// direita do botão (como fariam se ainda vivessem no rail vertical, com
+// espaço garantido à direita) vazaria pra fora da viewport. Todos só-clique
+// (abre no clique do gatilho, fecha no clique fora) — nenhum depende de
+// `mouseenter`/`mouseleave` contínuo, o que evita uma classe inteira de bugs
+// de hover em SPA: como cada página monta seu próprio `Layout` (sem layout
+// aninhado de rota via `Outlet`), a `TopBar` remonta a cada navegação, e um
+// `mouseenter` só dispara em resposta a movimento real do cursor — se o
+// cursor já estava em repouso sobre o gatilho no instante do remount (comum,
+// o usuário acabou de navegar), hover não funciona até mover o mouse pra
+// fora e voltar. Bug real, reportado pelo navigator quando `ThemeModeNav`
+// ainda tinha um modo hover próprio (removido por causa disso).
 export function useFlyout<T extends HTMLElement>() {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, right: 0 })

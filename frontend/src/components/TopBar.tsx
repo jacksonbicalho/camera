@@ -15,13 +15,12 @@ import { CameraLogo } from './Icons'
 // `ThemeModeNav` e `MotionNotificationsBell` migraram pra cá vindos,
 // respectivamente, do item solo "Sobre" e das seções "Aparência"/"Eventos"
 // do `Sidebar` — todos usam `showLabel={false}` (ícone só, igual ao
-// `UserMenu`) quando aplicável e ancoram o próprio flyout abaixo-à-direita
-// do gatilho (mesmo padrão do `UserMenu`), não mais à direita como faziam
-// no rail vertical — aqui, perto do canto superior direito, um painel
-// `left: rect.right` vazaria pra fora da viewport. `ThemeModeNav`, que abre
-// por hover (os outros dois só por clique), ancora SEM gap vertical (ver
-// `ThemeModeNav.tsx`) — um gap ali criaria uma zona morta entre o gatilho e
-// o painel, fechando o menu no meio do caminho.
+// `UserMenu`) quando aplicável, todos só-clique (nenhum depende de hover
+// contínuo — ver `useFlyout` em `sidebarFlyout.ts` pro porquê) e todos
+// ancoram o próprio flyout abaixo-à-direita do gatilho (mesmo padrão do
+// `UserMenu`), não mais à direita como faziam no rail vertical — aqui,
+// perto do canto superior direito, um painel `left: rect.right` vazaria
+// pra fora da viewport.
 // Substitui: (1) a linha de logo que vivia dentro do próprio `Sidebar.tsx`
 // (agora só a coluna de navegação, sem cabeçalho próprio); (2) o `UserMenu`
 // fixo/flutuante (`position: fixed`), que colidia visualmente com botões de
