@@ -249,15 +249,14 @@ describe('CA3: seção "Aparência" removida do Sidebar (accent + cor de fundo s
   })
 })
 
-describe('CA4: "Sobre" solto no fim, sem cabeçalho de grupo, visível pra todos', () => {
-  it('aponta pra /settings/about', () => {
+describe('CA4: "Sobre" saiu do Sidebar (agora é o sub-link about-application do dropdown app-help na TopBar)', () => {
+  it('nem admin nem viewer veem mais o item solto no Sidebar', () => {
     renderAt('/')
-    expect(document.getElementById('sidebar-about')?.getAttribute('href')).toBe('/settings/about')
-  })
+    expect(document.getElementById('sidebar-about')).toBeNull()
 
-  it('viewer também vê "Sobre"', () => {
+    cleanup()
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
-    expect(document.getElementById('sidebar-about')).toBeTruthy()
+    expect(document.getElementById('sidebar-about')).toBeNull()
   })
 })

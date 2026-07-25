@@ -102,3 +102,47 @@ describe('CA2: color-mode e motion-notifications migraram pro TopBar', () => {
     expect(panel.style.left).toBe('')
   })
 })
+
+describe('CA4: app-help na TopBar (dropdown com sub-link about-application)', () => {
+  it('fechado por padrão; clicar abre um dropdown com o sub-link "Sobre" (about-application) apontando pra /settings/about', () => {
+    renderTopBar()
+    expect(document.getElementById('about-application')).toBeNull()
+    fireEvent.click(document.getElementById('app-help')!)
+    const about = document.getElementById('about-application')!
+    expect(about.getAttribute('href')).toBe('/settings/about')
+  })
+
+  it('clicar no sub-link fecha o dropdown', () => {
+    renderTopBar()
+    fireEvent.click(document.getElementById('app-help')!)
+    fireEvent.click(document.getElementById('about-application')!)
+    expect(document.getElementById('about-application')).toBeNull()
+  })
+
+  it('o painel ancora abaixo-à-direita do gatilho (mesmo padrão dos demais dropdowns da TopBar)', () => {
+    renderTopBar()
+    fireEvent.click(document.getElementById('app-help')!)
+    const panel = document.getElementById('about-application')!.closest('div')!
+    expect(panel.style.position).toBe('fixed')
+    expect(panel.style.right).not.toBe('')
+    expect(panel.style.left).toBe('')
+  })
+
+  it('ordem final da TopBar: logo-app, app-help, color-mode, motion-notifications, logged-in-user', () => {
+    renderTopBar()
+    const ids = Array.from(document.querySelectorAll('#top-bar [id]'))
+      .map((el) => el.id)
+      .filter((id) =>
+        ['logo-app', 'app-help', 'color-mode', 'motion-notifications', 'logged-in-user'].includes(
+          id,
+        ),
+      )
+    expect(ids).toEqual([
+      'logo-app',
+      'app-help',
+      'color-mode',
+      'motion-notifications',
+      'logged-in-user',
+    ])
+  })
+})
