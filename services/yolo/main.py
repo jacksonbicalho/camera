@@ -63,6 +63,14 @@ _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 _cancel_events: dict[str, threading.Event] = {}
 
+# Serializa qualquer uso da GPU (inferência /analyze e /classify, treino em
+# background de _run_finetune/_run_classify_train) — evita OOM por treino e
+# inferência concorrentes disputando a mesma VRAM. Handlers HTTP síncronos
+# tentam sem bloquear e respondem 503 se ocupados (não travam a call do
+# cliente atrás de um treino de minutos); threads de treino, que já são
+# assíncronas e monitoradas por polling, adquirem bloqueante.
+_gpu_lock = threading.Lock()
+
 
 def get_model(name: str) -> YOLO:
     if name not in _models:
@@ -207,27 +215,33 @@ def _run_finetune(job_id: str, req: FinetuneRequest):
         set_job(status="running")
         data_path = _build_dataset(req.annotations, work_dir)
 
-        model = YOLO(req.base_model + ".pt")
+        # CA4: adquire bloqueante — ao contrário dos handlers HTTP síncronos
+        # (/analyze, /classify), esta é uma thread de treino em background,
+        # já assíncrona do ponto de vista do cliente (monitorada por polling
+        # em /finetune/status), então pode esperar a GPU liberar em vez de
+        # falhar. Testado em test_ca4_finetune_blocks_until_gpu_free.
+        with _gpu_lock:
+            model = YOLO(req.base_model + ".pt")
 
-        class EpochCallback:
-            def __call__(self, trainer):
-                with _jobs_lock:
-                    _jobs[job_id]["epoch"] = trainer.epoch + 1
-                if cancel_event.is_set():
-                    raise StopIteration("cancelled")
+            class EpochCallback:
+                def __call__(self, trainer):
+                    with _jobs_lock:
+                        _jobs[job_id]["epoch"] = trainer.epoch + 1
+                    if cancel_event.is_set():
+                        raise StopIteration("cancelled")
 
-        model.add_callback("on_train_epoch_end", EpochCallback())
+            model.add_callback("on_train_epoch_end", EpochCallback())
 
-        model.train(
-            data=str(data_path),
-            epochs=req.epochs,
-            imgsz=640,
-            batch=4,
-            project=str(work_dir / "runs"),
-            name="train",
-            exist_ok=True,
-            verbose=False,
-        )
+            model.train(
+                data=str(data_path),
+                epochs=req.epochs,
+                imgsz=640,
+                batch=4,
+                project=str(work_dir / "runs"),
+                name="train",
+                exist_ok=True,
+                verbose=False,
+            )
 
         # Save fine-tuned model to shared location
         best = work_dir / "runs" / "train" / "weights" / "best.pt"
@@ -318,30 +332,32 @@ def _run_classify_train(job_id: str, req: ClassifyTrainRequest):
         set_job(status="running")
         root, _labels = _build_classify_dataset(req.samples, work_dir / "data")
 
-        model = YOLO(req.base_model + ".pt")
+        # CA4: mesma serialização de GPU do _run_finetune — ver comentário lá.
+        with _gpu_lock:
+            model = YOLO(req.base_model + ".pt")
 
-        class EpochCallback:
-            def __call__(self, trainer):
-                with _jobs_lock:
-                    _jobs[job_id]["epoch"] = trainer.epoch + 1
-                if cancel_event.is_set():
-                    raise StopIteration("cancelled")
+            class EpochCallback:
+                def __call__(self, trainer):
+                    with _jobs_lock:
+                        _jobs[job_id]["epoch"] = trainer.epoch + 1
+                    if cancel_event.is_set():
+                        raise StopIteration("cancelled")
 
-        model.add_callback("on_train_epoch_end", EpochCallback())
-        model.train(
-            data=str(root),
-            epochs=req.epochs,
-            imgsz=224,
-            batch=16,
-            # Sem espelhamento horizontal: classes direcionais (ex.: pessoa
-            # entrando vs saindo) seriam corrompidas — uma imagem espelhada de
-            # "entrando" vira visualmente "saindo", contradizendo o rótulo.
-            fliplr=0.0,
-            project=str(work_dir / "runs"),
-            name="train",
-            exist_ok=True,
-            verbose=False,
-        )
+            model.add_callback("on_train_epoch_end", EpochCallback())
+            model.train(
+                data=str(root),
+                epochs=req.epochs,
+                imgsz=224,
+                batch=16,
+                # Sem espelhamento horizontal: classes direcionais (ex.: pessoa
+                # entrando vs saindo) seriam corrompidas — uma imagem espelhada de
+                # "entrando" vira visualmente "saindo", contradizendo o rótulo.
+                fliplr=0.0,
+                project=str(work_dir / "runs"),
+                name="train",
+                exist_ok=True,
+                verbose=False,
+            )
 
         best = work_dir / "runs" / "train" / "weights" / "best.pt"
         if best.exists():
@@ -396,35 +412,42 @@ def list_models():
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest):
-    if not os.path.isfile(req.path):
-        raise HTTPException(status_code=404, detail=f"file not found: {req.path}")
-
-    cap = cv2.VideoCapture(req.path)
-    if not cap.isOpened():
-        raise HTTPException(status_code=422, detail="cannot open video file")
-
-    merged_scores: dict[str, list[float]] = defaultdict(list)
-    merged_counts: dict[str, int] = defaultdict(int)
-
+    # CA4: GPU ocupada (treino em andamento ou outra inferência) → 503 em vez
+    # de competir por VRAM. Testado em test_ca4_analyze_returns_503_when_gpu_busy.
+    if not _gpu_lock.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail="service busy: training or inference in progress")
     try:
-        for name in req.model.split("+"):
-            name = name.strip()
-            scores, counts = _analyze_one(get_model(name), cap, req.confidence_threshold)
-            for label, s in scores.items():
-                merged_scores[label].extend(s)
-                merged_counts[label] += counts[label]
-    finally:
-        cap.release()
+        if not os.path.isfile(req.path):
+            raise HTTPException(status_code=404, detail=f"file not found: {req.path}")
 
-    detections = [
-        Detection(
-            label=label,
-            confidence=round(max(scores), 4),
-            frame_count=merged_counts[label],
-        )
-        for label, scores in sorted(merged_scores.items(), key=lambda x: -max(x[1]))
-    ]
-    return AnalyzeResponse(detections=detections)
+        cap = cv2.VideoCapture(req.path)
+        if not cap.isOpened():
+            raise HTTPException(status_code=422, detail="cannot open video file")
+
+        merged_scores: dict[str, list[float]] = defaultdict(list)
+        merged_counts: dict[str, int] = defaultdict(int)
+
+        try:
+            for name in req.model.split("+"):
+                name = name.strip()
+                scores, counts = _analyze_one(get_model(name), cap, req.confidence_threshold)
+                for label, s in scores.items():
+                    merged_scores[label].extend(s)
+                    merged_counts[label] += counts[label]
+        finally:
+            cap.release()
+
+        detections = [
+            Detection(
+                label=label,
+                confidence=round(max(scores), 4),
+                frame_count=merged_counts[label],
+            )
+            for label, scores in sorted(merged_scores.items(), key=lambda x: -max(x[1]))
+        ]
+        return AnalyzeResponse(detections=detections)
+    finally:
+        _gpu_lock.release()
 
 
 @app.post("/finetune", response_model=FinetuneResponse)
@@ -482,22 +505,28 @@ def list_classify_models():
 
 @app.post("/classify", response_model=ClassifyResponse)
 def classify(req: ClassifyRequest):
-    if not os.path.isfile(req.path):
-        raise HTTPException(status_code=404, detail=f"file not found: {req.path}")
-    # Modelo ainda não treinado → 404 limpo (o runner ignora) em vez de o ultralytics
-    # estourar FileNotFoundError tentando carregar um .pt inexistente.
-    if not (MODEL_DIR / f"{req.model}.pt").exists():
-        raise HTTPException(status_code=404, detail=f"model '{req.model}' not trained yet")
+    # CA4: mesma serialização de GPU do /analyze — ver comentário lá.
+    if not _gpu_lock.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail="service busy: training or inference in progress")
+    try:
+        if not os.path.isfile(req.path):
+            raise HTTPException(status_code=404, detail=f"file not found: {req.path}")
+        # Modelo ainda não treinado → 404 limpo (o runner ignora) em vez de o ultralytics
+        # estourar FileNotFoundError tentando carregar um .pt inexistente.
+        if not (MODEL_DIR / f"{req.model}.pt").exists():
+            raise HTTPException(status_code=404, detail=f"model '{req.model}' not trained yet")
 
-    model = get_model(req.model)
-    results = model.predict(req.path, verbose=False)
-    r = results[0]
-    raw = r.probs.data if hasattr(r.probs, "data") else r.probs
-    probs = [float(p) for p in raw]
-    names = model.names
-    preds = [ClassPrediction(label=names[i], prob=round(p, 4)) for i, p in enumerate(probs)]
-    preds.sort(key=lambda p: -p.prob)
-    return ClassifyResponse(predictions=preds, top=preds[0].label if preds else "")
+        model = get_model(req.model)
+        results = model.predict(req.path, verbose=False)
+        r = results[0]
+        raw = r.probs.data if hasattr(r.probs, "data") else r.probs
+        probs = [float(p) for p in raw]
+        names = model.names
+        preds = [ClassPrediction(label=names[i], prob=round(p, 4)) for i, p in enumerate(probs)]
+        preds.sort(key=lambda p: -p.prob)
+        return ClassifyResponse(predictions=preds, top=preds[0].label if preds else "")
+    finally:
+        _gpu_lock.release()
 
 
 @app.post("/classify/train", response_model=FinetuneResponse)

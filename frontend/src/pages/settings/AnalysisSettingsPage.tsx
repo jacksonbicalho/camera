@@ -39,7 +39,7 @@ function frameURL(cameraId: string, eventTime: string, frame: string, bust?: num
 
 const PAGE_SIZE_OPTIONS = [50, 100, 150, 200, 300, 500]
 
-function ReanalyzePanel() {
+function ReanalyzePanel({ ftActive }: { ftActive: boolean }) {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [err, setErr] = useState('')
@@ -78,6 +78,11 @@ function ReanalyzePanel() {
             Re-análise agendada — será processada na próxima limpeza do storage.
           </p>
         )}
+        {ftActive && (
+          <p className="text-xs text-amber-400 mt-1">
+            Fine-tuning em andamento — aguarde para reanalisar (evita disputar a GPU com o treino).
+          </p>
+        )}
       </div>
       <Button
         id="analysis-reanalyze"
@@ -85,7 +90,7 @@ function ReanalyzePanel() {
         variant="secondary"
         className="shrink-0"
         onClick={handleReanalyze}
-        disabled={busy}
+        disabled={busy || ftActive}
       >
         {busy ? 'Aguarde...' : 'Re-analisar tudo'}
       </Button>
@@ -116,6 +121,8 @@ export default function AnalysisSettingsPage() {
   const [error, setError] = useState('')
   const [serviceModels, setServiceModels] = useState<ModelInfo[] | null>(null)
   const [serviceOffline, setServiceOffline] = useState(false)
+  const [serviceDevice, setServiceDevice] = useState<string | null>(null)
+  const [serviceVramGb, setServiceVramGb] = useState<number | null>(null)
 
   const activeBase = cfg.model.startsWith('custom+')
     ? cfg.model.slice('custom+'.length)
@@ -268,6 +275,7 @@ export default function AnalysisSettingsPage() {
   } | null>(null)
   const [ftError, setFtError] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const ftActive = ftStatus?.status === 'running' || ftStatus?.status === 'pending'
 
   useEffect(() => {
     fetch('/api/settings/analysis', { headers: authHeaders() })
@@ -286,10 +294,14 @@ export default function AnalysisSettingsPage() {
       })
       .then((d) => {
         setServiceModels(d.models)
+        setServiceDevice(d.device ?? null)
+        setServiceVramGb(typeof d.vram_gb === 'number' ? d.vram_gb : null)
         setServiceOffline(false)
       })
       .catch(() => {
         setServiceModels(null)
+        setServiceDevice(null)
+        setServiceVramGb(null)
         setServiceOffline(true)
       })
   }
@@ -699,11 +711,15 @@ export default function AnalysisSettingsPage() {
                           )
                         })()}
                       {Array.from(
-                        new Set(serviceModels.filter((m) => m.inference).map((m) => m.group)),
+                        new Set(
+                          serviceModels
+                            .filter((m) => m.inference && m.name !== 'custom')
+                            .map((m) => m.group),
+                        ),
                       ).map((group) => (
                         <optgroup key={group} label={group}>
                           {serviceModels
-                            .filter((m) => m.group === group && m.inference)
+                            .filter((m) => m.group === group && m.inference && m.name !== 'custom')
                             .map((m) => (
                               <option key={m.name} value={m.name}>
                                 {m.name}
@@ -774,7 +790,7 @@ export default function AnalysisSettingsPage() {
           </ol>
         </div>
 
-        <ReanalyzePanel />
+        <ReanalyzePanel ftActive={ftActive} />
 
         <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
           <div className="p-4">
@@ -787,10 +803,17 @@ export default function AnalysisSettingsPage() {
             </p>
           </div>
 
-          {modelNoFinetune && (
+          {modelNoFinetune && serviceDevice === 'cpu' && (
             <div className="px-4 py-2 bg-amber-900/40 border-b border-amber-700 text-amber-300 text-xs">
-              O modelo <strong>{activeBase}</strong> não suporta fine-tuning na GPU disponível.
-              Selecione um modelo menor (ex: yolov8n, yolo11n).
+              O serviço de análise está rodando sem GPU (CPU) — fine-tuning não é viável em nenhum
+              modelo nesse modo.
+            </div>
+          )}
+          {modelNoFinetune && serviceDevice !== 'cpu' && (
+            <div className="px-4 py-2 bg-amber-900/40 border-b border-amber-700 text-amber-300 text-xs">
+              O modelo <strong>{activeBase}</strong> não suporta fine-tuning na GPU disponível
+              {serviceVramGb !== null ? ` (${serviceVramGb}GB)` : ''}. Selecione um modelo menor
+              (ex: yolov8n, yolo11n).
             </div>
           )}
           <div className="p-4 space-y-3">
@@ -808,12 +831,7 @@ export default function AnalysisSettingsPage() {
               </div>
               <Button
                 type="button"
-                disabled={
-                  (!annCount && !labelCount) ||
-                  ftStatus?.status === 'running' ||
-                  ftStatus?.status === 'pending' ||
-                  modelNoFinetune
-                }
+                disabled={(!annCount && !labelCount) || ftActive || modelNoFinetune}
                 onClick={handleStartFinetune}
                 className="bg-violet-600 hover:bg-violet-500 text-white shrink-0"
               >
