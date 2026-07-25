@@ -3,6 +3,7 @@ package scripts
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -158,5 +159,53 @@ func TestExtractAutoCommandsParsesMultipleDistinctCommands(t *testing.T) {
 func TestNoDedicatedFunctionalScripts(t *testing.T) {
 	if _, err := os.Stat("../tests/functional"); !os.IsNotExist(err) {
 		t.Errorf("tests/functional/ ainda existe (err=%v) — mecanismo de script dedicado por CA foi eliminado", err)
+	}
+}
+
+// TestCanonicalDocsDoNotReferenceDedicatedFunctionalScripts é o guard real do
+// CA (docs canônicas) da história refactor/eliminar-scripts-sh-ca: garante
+// que ninguém reintroduza a instrução "crie um script tests/functional/caNN"
+// nos 3 arquivos que documentam o mecanismo. Não basta a ausência da
+// substring "tests/functional" pura — CLAUDE.md/docs/workflow.md mencionam o
+// caminho ao explicar que o mecanismo foi eliminado (contexto histórico
+// legítimo); o sinal preciso é a anotação de exemplo `auto: tests/functional/
+// ...`, que só aparecia como instrução acionável no formato antigo de CA.
+var canonicalDocs = []string{
+	"../CLAUDE.md",
+	"../docs/workflow.md",
+	"../.claude/commands/story.md",
+}
+
+func TestCanonicalDocsDoNotReferenceDedicatedFunctionalScripts(t *testing.T) {
+	pattern := regexp.MustCompile(`auto:\s*tests/functional`)
+	for _, path := range canonicalDocs {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ler %s: %v", path, err)
+		}
+		if pattern.Match(content) {
+			t.Errorf("%s ainda instrui `(auto: tests/functional/...)` — mecanismo de script dedicado por CA foi eliminado", path)
+		}
+	}
+}
+
+// operationalDocs são resumos/diretivas curtas (hook injetado a cada sessão,
+// slash command /fluxo) — diferente de CLAUDE.md/docs/workflow.md, não têm
+// motivo legítimo pra mencionar tests/functional/ nem em contexto histórico:
+// checagem mais estrita, substring pura já é suficiente.
+var operationalDocs = []string{
+	"../scripts/hooks/session-start.sh",
+	"../.claude/commands/fluxo.md",
+}
+
+func TestOperationalDocsDoNotReferenceDedicatedFunctionalScripts(t *testing.T) {
+	for _, path := range operationalDocs {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ler %s: %v", path, err)
+		}
+		if strings.Contains(string(content), "tests/functional") {
+			t.Errorf("%s ainda menciona tests/functional/ — mecanismo de script dedicado por CA foi eliminado", path)
+		}
 	}
 }

@@ -31,13 +31,19 @@ suja `develop` nem exige commit nenhum):
      duas histórias.
    - `## Critérios de Aceitação`: CA1 é SEMPRE
      `- [] CA1: Backend e frontend verdes (auto: scripts/check.sh)`.
-     Cada CA seguinte referencia seu cenário:
-     `- [] CAn: <critério> (auto: tests/functional/can_<slug>.sh)`.
-     **Exceção (frontend):** se o critério já é (ou vira, neste ticket) um
-     `describe('CAn: <critério>', ...)` dentro de um `*.test.tsx`/`.test.ts`,
-     use `(auto: scripts/check.sh)` em vez de um script dedicado — a suíte
-     inteira do CA1 já o cobre; não crie `tests/functional/canN_<slug>.sh`
-     pra esse CA (ver "Testes funcionais" em `docs/workflow.md`).
+     **Todo CA é um teste nomeado dentro da suíte permanente correspondente
+     — nunca um script `.sh` dedicado a um único CA** (mecanismo eliminado,
+     ver "Testes funcionais" em `docs/workflow.md`). Anote
+     `- [] CAn: <critério> (auto: <comando>)`, onde `<comando>` roda a suíte
+     onde o teste nomeado vive: `scripts/check.sh` pra frontend
+     (`describe('CAn: ...')`), Go (`t.Run("CAn: ...")`) e Python
+     (`def test_caN_...()`); pra e2e/infra que só existe depois que a suíte
+     Playwright inteira roda (ex.: conteúdo de um artefato gerado no
+     `onEnd()` de um reporter), um script permanente e reusável em
+     `scripts/` (não descartável, nunca em `tests/functional/`) com o
+     comando exato, ex. `(auto: E2E_PDF_REPORT=on bash
+     scripts/e2e-pdf-report-check.sh)`. Uma única linha nunca tem mais de um
+     `(auto: ...)` — se um CA precisar de 2 comandos distintos, é 2 CAs.
    - `## Gates`:
      ```
      - [] História revisada
@@ -45,12 +51,11 @@ suja `develop` nem exige commit nenhum):
      - [] Aprovado
      ```
    - Seções vazias `## Code Review` e `## Revisão` ao final.
-3. **Escreva os cenários funcionais AGORA** — um `tests/functional/caNN_<slug>.sh`
-   executável por CA (exceto CA1 e os CAs de frontend cobertos por
-   `describe('CAn: ...')`, ver exceção acima), exit 0 = critério atendido. O
-   navigator revisa os cenários junto com a story: eles fazem parte do que o
-   G2 aprova. Cenário que ainda não pode passar (código não existe) deve
-   FALHAR de forma clara, não dar erro de sintaxe. Esses arquivos SÃO
+3. **Escreva os testes nomeados AGORA** (ou, se o CA exigir um script
+   permanente novo em `scripts/`, escreva-o também) — exceto CA1. O
+   navigator revisa junto com a story: fazem parte do que o G2 aprova. Um
+   teste que ainda não pode passar (código não existe) deve FALHAR de forma
+   clara, não dar erro de compilação/sintaxe. Esses arquivos SÃO
    versionados, mas ainda NÃO existe branch nem commit — ficam como untracked
    em `develop` até o passo 7 abaixo (nenhum problema: `develop` só é
    protegido contra commit/push direto, não contra arquivos soltos no
