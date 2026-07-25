@@ -34,7 +34,7 @@ services:
       retries: 30
 
   # Roda o pacote e2e/ (T3) com bun — mesma imagem usada pelo check de
-  # tooling (tests/functional/ca4_e2e-tooling.sh), instala os browsers do
+  # tooling (scripts/e2e-lint-check.sh), instala os browsers do
   # Playwright na hora (cache em volume nomeado entre execuções).
   playwright:
     image: oven/bun:1
