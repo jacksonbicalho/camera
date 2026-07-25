@@ -54,6 +54,9 @@ else
     if [ -n "$body" ]; then
       body=$(printf '%s\n' "$body" | grep -vE '^(VERDICT|TICKET):')
       body=$(printf '%s\n' "$body" | sed -E 's/^#+[[:space:]]*(.+)$/**\1:**/')
+      # linha em branco depois de cada label (**Issues:**/**Observações:**) —
+      # separa o rótulo da lista que vem abaixo, em vez de ficar colado.
+      body=$(printf '%s\n' "$body" | sed -E '/^\*\*.+:\*\*$/G')
       # remove linhas em branco líder/final (sobram do grep -v acima)
       body=$(printf '%s\n' "$body" | sed -e '/./,$!d' -e ':a' -e '/^\n*$/{$d;N;ba' -e '}')
       indented=$(printf '%s\n' "$body" | sed 's/^/  /')
@@ -63,10 +66,11 @@ $indented"
   fi
 
   if grep -q '^## Code Review' "$story"; then
-    # insere logo após o heading da seção
+    # insere logo após o heading da seção, com uma linha em branco depois do
+    # bloco pra separar do próximo registro (ticket anterior) que já estava ali.
     awk -v block="$block" '
       { print }
-      /^## Code Review/ && !done { print block; done=1 }
+      /^## Code Review/ && !done { print block; print ""; done=1 }
     ' "$story" > "$story.tmp" && mv "$story.tmp" "$story"
   else
     printf '\n## Code Review\n%s\n' "$block" >> "$story"
