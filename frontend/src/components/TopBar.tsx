@@ -21,7 +21,7 @@ export default function TopBar() {
     >
       <Link
         to="/"
-        id="sidebar-logo"
+        id="logo-app"
         className="flex items-center gap-2 hover:opacity-80 transition-opacity"
         title="os-camera"
       >

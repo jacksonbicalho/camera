@@ -26,14 +26,14 @@ function renderTopBar() {
 describe('TopBar', () => {
   it('mostra o logo "os-camera" (sempre com o texto, independente do rail estar colapsado), linkando pra "/"', () => {
     renderTopBar()
-    const logo = document.getElementById('sidebar-logo')!
+    const logo = document.getElementById('logo-app')!
     expect(logo.getAttribute('href')).toBe('/')
     expect(logo.textContent).toContain('os-camera')
   })
 
   it('mostra o UserMenu (avatar) à direita', () => {
     renderTopBar()
-    expect(document.getElementById('sidebar-user')).toBeTruthy()
+    expect(document.getElementById('logged-in-user')).toBeTruthy()
   })
 
   it('fica sticky no topo (h-14, mesma altura que a antiga linha de logo do Sidebar)', () => {

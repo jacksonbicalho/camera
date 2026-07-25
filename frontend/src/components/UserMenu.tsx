@@ -53,7 +53,7 @@ export default function UserMenu() {
   return (
     <>
       <button
-        id="sidebar-user"
+        id="logged-in-user"
         ref={btnRef}
         type="button"
         onClick={toggle}
