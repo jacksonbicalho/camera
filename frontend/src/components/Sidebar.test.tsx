@@ -201,6 +201,21 @@ describe('CA4: seção "Administração" (admin) — Armazenamento, Servidor, Us
   })
 })
 
+describe('CA3: seção "Administração" ganha o item "Aparência" (→ /settings/appearance)', () => {
+  it('admin vê o item Aparência dentro de Administração', () => {
+    renderAt('/')
+    expect(document.getElementById('sidebar-appearance')?.getAttribute('href')).toBe(
+      '/settings/appearance',
+    )
+  })
+
+  it('viewer não vê o item Aparência (seção Administração inteira é admin-only)', () => {
+    vi.mocked(getRole).mockReturnValue('viewer')
+    renderAt('/')
+    expect(document.getElementById('sidebar-appearance')).toBeNull()
+  })
+})
+
 describe('CA4: seção "Governança" (admin) — Gravações, Estatísticas, Relatórios', () => {
   it('admin vê os 3 itens; "Relatórios" é um link direto pra /reports (sem flyout de câmera — a própria página já tem o seletor)', () => {
     renderAt('/')
@@ -220,22 +235,17 @@ describe('CA4: seção "Governança" (admin) — Gravações, Estatísticas, Rel
   })
 })
 
-describe('CA4: seção "Aparência" (todos) — Cor de destaque, Cor de fundo (em construção)', () => {
-  it('admin e viewer veem os 2 itens; "Estilo" saiu daqui (agora é color-mode na TopBar); Cor de fundo fica desabilitada', () => {
+describe('CA3: seção "Aparência" removida do Sidebar (accent + cor de fundo saíram)', () => {
+  it('nem admin nem viewer veem os itens antigos da seção Aparência', () => {
     renderAt('/')
-    expect(document.getElementById('theme-mode-nav')).toBeNull()
-    expect(document.getElementById('sidebar-appearance-accent')?.getAttribute('href')).toBe(
-      '/settings/appearance',
-    )
-    const bg = document.getElementById('sidebar-background-color') as HTMLButtonElement
-    expect(bg.tagName).toBe('BUTTON')
-    expect(bg.disabled).toBe(true)
+    expect(document.getElementById('sidebar-appearance-accent')).toBeNull()
+    expect(document.getElementById('sidebar-background-color')).toBeNull()
 
     cleanup()
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
-    expect(document.getElementById('theme-mode-nav')).toBeNull()
-    expect(document.getElementById('sidebar-appearance-accent')).toBeTruthy()
+    expect(document.getElementById('sidebar-appearance-accent')).toBeNull()
+    expect(document.getElementById('sidebar-background-color')).toBeNull()
   })
 })
 

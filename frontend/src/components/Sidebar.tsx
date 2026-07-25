@@ -129,8 +129,8 @@ function SidebarSection({
 // navigator — substitui o antigo flyout popup por trás de um único ícone
 // "Configurações"): recolhido mostra só ícones; expandido mostra também os
 // cabeçalhos de seção e rola (scrollbar-thin) quando o conteúdo excede a
-// altura da viewport. Só "Sistema" (Câmeras)/"Aparência"/"Sobre" ficam
-// visíveis pra todo mundo — Movimentos/Administração/Governança (e
+// altura da viewport. Só "Sistema" (Câmeras)/"Sobre" ficam
+// visíveis pra todo mundo — Movimentos/Administração (inclui "Aparência")/Governança (e
 // "Rastrear câmeras", dentro de Sistema) são admin-only, mesma regra de
 // acesso que essas páginas já tinham. Nem o logo nem o avatar do usuário
 // moram mais aqui — os dois migraram pra `TopBar.tsx` (barra full-width
@@ -269,6 +269,15 @@ export default function Sidebar() {
               }}
               showLabel={showLabel}
             />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-appearance',
+                to: '/settings/appearance',
+                label: 'Aparência',
+                icon: <Palette className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
           </SidebarSection>
         )}
 
@@ -304,25 +313,7 @@ export default function Sidebar() {
           </SidebarSection>
         )}
 
-        <SidebarSection label="Aparência" showLabel={showLabel} divider>
-          <SidebarNavLink
-            item={{
-              id: 'sidebar-appearance-accent',
-              to: '/settings/appearance',
-              label: 'Cor de destaque',
-              icon: <Palette className="h-5 w-5 shrink-0" />,
-            }}
-            showLabel={showLabel}
-          />
-          <DisabledSidebarItem
-            id="sidebar-background-color"
-            label="Cor de fundo"
-            icon={<Palette className="h-5 w-5 shrink-0" />}
-            showLabel={showLabel}
-          />
-        </SidebarSection>
-
-        <SidebarSection showLabel={showLabel}>
+        <SidebarSection showLabel={showLabel} divider>
           <SidebarNavLink
             item={{
               id: 'sidebar-about',
