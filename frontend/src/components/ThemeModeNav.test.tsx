@@ -19,7 +19,7 @@ afterEach(() => {
   osDark = true
 })
 
-const trigger = () => document.getElementById('theme-nav-current')!
+const trigger = () => document.getElementById('color-mode')!
 
 describe('ThemeModeNav', () => {
   it('colapsado: o gatilho mostra só o rótulo "Estilo" (sem o modo) e as opções ficam ocultas', () => {
@@ -148,48 +148,26 @@ describe('ThemeModeNav', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
   })
 
-  it('posicionamento inteligente: perto do fim da viewport, o painel ancora por baixo (bottom) em vez de por cima (top)', () => {
+  it('painel ancora abaixo-à-direita do gatilho (mesmo padrão do UserMenu) — evita vazar a viewport quando o gatilho fica perto da borda direita, caso da TopBar', () => {
     render(<ThemeModeNav />)
     const nav = document.getElementById('theme-mode-nav')!
-    // Simula o gatilho perto do rodapé da viewport (pouco espaço abaixo dele
-    // até window.innerHeight) — mesmo cenário do bug relatado pelo navigator
-    // (opção "Sistema" ficava fora da tela quando "Estilo" caía no fim do rail).
-    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(600)
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1200)
     vi.spyOn(nav, 'getBoundingClientRect').mockReturnValue({
-      top: 580,
-      bottom: 600,
-      left: 0,
-      right: 40,
+      top: 10,
+      bottom: 30,
+      left: 1150,
+      right: 1190,
       width: 40,
       height: 20,
-      x: 0,
-      y: 580,
+      x: 1150,
+      y: 10,
       toJSON: () => {},
     })
     fireEvent.mouseEnter(nav)
     const flyout = document.getElementById('theme-mode-flyout')!
-    expect(flyout.style.top).toBe('')
-    expect(flyout.style.bottom).not.toBe('')
-  })
-
-  it('posicionamento inteligente: com espaço de sobra abaixo, o painel ancora por cima (top)', () => {
-    render(<ThemeModeNav />)
-    const nav = document.getElementById('theme-mode-nav')!
-    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900)
-    vi.spyOn(nav, 'getBoundingClientRect').mockReturnValue({
-      top: 100,
-      bottom: 120,
-      left: 0,
-      right: 40,
-      width: 40,
-      height: 20,
-      x: 0,
-      y: 100,
-      toJSON: () => {},
-    })
-    fireEvent.mouseEnter(nav)
-    const flyout = document.getElementById('theme-mode-flyout')!
+    expect(flyout.style.top).toBe('38px')
+    expect(flyout.style.right).toBe('10px')
+    expect(flyout.style.left).toBe('')
     expect(flyout.style.bottom).toBe('')
-    expect(flyout.style.top).not.toBe('')
   })
 })

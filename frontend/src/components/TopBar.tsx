@@ -1,13 +1,22 @@
 import { Link } from 'react-router-dom'
 import UserMenu from './UserMenu'
+import ThemeModeNav from './ThemeModeNav'
+import MotionNotificationsBell from './MotionNotificationsBell'
 import { CameraLogo } from './Icons'
 
 // TopBar — barra fixa no topo do app, full-width (acima da linha Sidebar +
 // conteúdo), altura h-14 — mesma altura que a antiga linha de logo dentro do
 // Sidebar (pedido do navigator: "ele seguiria a altura de sidebar-logo").
-// Hoje só tem o logo (link pra "/", à esquerda) e o UserMenu (avatar, à
-// direita) — o meio fica vazio DE PROPÓSITO, reservado pra elementos futuros
-// (breadcrumbs, busca, etc. — "no futuro colocaremos elementos nele").
+// Logo (link pra "/", à esquerda) e, à direita, o grupo `color-mode` →
+// `motion-notifications` → `UserMenu` (avatar) — o meio fica vazio DE
+// PROPÓSITO, reservado pra elementos futuros (breadcrumbs, busca, etc. —
+// "no futuro colocaremos elementos nele"). `ThemeModeNav`
+// (`MotionNotificationsBell`) migraram pra cá vindos da seção "Aparência"
+// ("Eventos") do `Sidebar` — os dois usam `showLabel={false}` (ícone só,
+// igual ao `UserMenu`) e ancoram o próprio flyout abaixo-à-direita do
+// gatilho (mesmo padrão do `UserMenu`), não mais à direita como faziam no
+// rail vertical — aqui, perto do canto superior direito, um painel `left:
+// rect.right` vazaria pra fora da viewport.
 // Substitui: (1) a linha de logo que vivia dentro do próprio `Sidebar.tsx`
 // (agora só a coluna de navegação, sem cabeçalho próprio); (2) o `UserMenu`
 // fixo/flutuante (`position: fixed`), que colidia visualmente com botões de
@@ -28,7 +37,11 @@ export default function TopBar() {
         <CameraLogo className="w-8 h-8 shrink-0" />
         <span className="text-base font-bold text-foreground truncate">os-camera</span>
       </Link>
-      <UserMenu />
+      <div className="flex items-center gap-1">
+        <ThemeModeNav showLabel={false} />
+        <MotionNotificationsBell showLabel={false} />
+        <UserMenu />
+      </div>
     </div>
   )
 }

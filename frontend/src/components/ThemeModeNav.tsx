@@ -10,25 +10,22 @@ const MODE_OPTIONS: { value: Mode; label: string }[] = [
   { value: 'system', label: 'Sistema' },
 ]
 
-// Altura estimada do painel (3 opções, cada uma py-2 + text-sm ≈ 36px, + bordas) —
-// determinística (número fixo de opções, sem conteúdo dinâmico), então dá pra
-// calcular sem medir o DOM depois de montado.
-const PANEL_HEIGHT = MODE_OPTIONS.length * 36 + 2
-
-// Seletor de modo para o rail (Sidebar, seção "Aparência"). O gatilho exibe o
-// modo escolhido; clicar (ou passar o mouse) abre as opções num flyout à
-// direita; selecionar aplica o modo na hora (setMode), fecha a lista e o
-// gatilho reflete a nova seleção.
+// Seletor de modo, hoje na TopBar (id "color-mode" — viveu antes na seção
+// "Aparência" do rail vertical, id "theme-nav-current"). O gatilho exibe o
+// modo escolhido; clicar (ou passar o mouse) abre as opções num flyout;
+// selecionar aplica o modo na hora (setMode), fecha a lista e o gatilho
+// reflete a nova seleção.
 //
 // O painel é portalizado pro body com `position: fixed` (coordenadas via
-// getBoundingClientRect do gatilho) em vez de `position: absolute` dentro do
-// próprio wrapper — o Sidebar tem `overflow-y-auto` (rola quando as seções
-// excedem a altura da viewport) e um painel `absolute` ficaria clipado por
-// esse container (bug real, visto no navegador: o flyout abria mas ficava
-// escondido atrás do corte do scroll). `onMouseEnter`/`onMouseLeave` também
-// vivem no painel portalizado (não só no wrapper) pra mover o mouse do
-// gatilho pro painel continuar contando como "dentro" — sem gap entre os
-// dois (`left: rect.right`, sem margem) pra não fechar no meio do caminho.
+// getBoundingClientRect do gatilho) em vez de `position: absolute` — ancora
+// **abaixo-à-direita** do gatilho (mesmo padrão do `UserMenu`), já que o
+// gatilho vive perto do canto superior direito da TopBar: um painel `left:
+// rect.right` (como quando este componente vivia no rail vertical, com
+// espaço garantido à direita) vazaria pra fora da viewport aqui.
+// `onMouseEnter`/`onMouseLeave` também vivem no painel portalizado (não só
+// no wrapper) pra mover o mouse do gatilho pro painel continuar contando
+// como "dentro" — sem gap vertical (`top: rect.bottom + 8`) pra não fechar
+// no meio do caminho.
 //
 // O gatilho e o ✓ refletem o modo **escolhido** (`mode`) — incl. "Sistema" —, espelhando
 // o radio de Aparência. A resolução de "Sistema" para dark/light (aplicada ao tema) fica
@@ -49,25 +46,14 @@ export default function ThemeModeNav({
   // Após selecionar, suprime o reabrir-por-hover enquanto o cursor segue sobre o
   // menu — só volta a abrir quando o mouse sai e entra de novo (ou clica no gatilho).
   const [dismissed, setDismissed] = useState(false)
-  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number }>({ left: 0 })
+  const [pos, setPos] = useState({ top: 0, right: 0 })
   const wrapperRef = useRef<HTMLDivElement>(null)
   const resolved = resolveMode(mode)
 
-  // "Inteligente": abre pra baixo (ancorado no topo do gatilho) normalmente, mas
-  // quando não sobra espaço suficiente até o fim da viewport (gatilho perto do
-  // rodapé do rail, ex.: seção "Aparência" é uma das últimas) inverte e ancora
-  // pelo fundo — sem isso o painel abria pra baixo incondicionalmente e ficava
-  // cortado pela borda da tela (bug real, visto no navegador: opção "Sistema"
-  // ficava invisível, fora da viewport).
   function updatePos() {
     const r = wrapperRef.current?.getBoundingClientRect()
     if (!r) return
-    const spaceBelow = window.innerHeight - r.top
-    if (spaceBelow < PANEL_HEIGHT) {
-      setPos({ left: r.right, bottom: window.innerHeight - r.bottom })
-    } else {
-      setPos({ left: r.right, top: r.top })
-    }
+    setPos({ top: r.bottom + 8, right: window.innerWidth - r.right })
   }
 
   function handleEnter() {
@@ -97,7 +83,7 @@ export default function ThemeModeNav({
       onMouseLeave={handleLeave}
     >
       <button
-        id="theme-nav-current"
+        id="color-mode"
         type="button"
         title="Estilo"
         aria-label="Estilo"
@@ -126,8 +112,8 @@ export default function ThemeModeNav({
             id="theme-mode-flyout"
             style={{
               position: 'fixed',
-              left: pos.left,
-              ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+              top: pos.top,
+              right: pos.right,
               zIndex: 9999,
             }}
             className="w-40 bg-surface border border-border rounded shadow-lg"

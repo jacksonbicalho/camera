@@ -103,9 +103,9 @@ describe('Sidebar (enxuto)', () => {
 // seção do sino; o link direto pra /events (existia numa versão anterior
 // desta história) foi ocultado.
 describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', () => {
-  it('sino de notificações continua o 1º item, sem link pra /events', () => {
+  it('sino de notificações saiu do Sidebar (mudou pra TopBar); sem link pra /events', () => {
     renderAt('/')
-    expect(document.getElementById('motion-notifications')).toBeTruthy()
+    expect(document.getElementById('motion-notifications')).toBeNull()
     expect(document.querySelector('a[href="/events"]')).toBeNull()
     expect(document.getElementById('sidebar-events')).toBeNull()
   })
@@ -220,10 +220,10 @@ describe('CA4: seção "Governança" (admin) — Gravações, Estatísticas, Rel
   })
 })
 
-describe('CA4: seção "Aparência" (todos) — Estilo, Cor de destaque, Cor de fundo (em construção)', () => {
-  it('admin e viewer veem os 3 itens; Cor de fundo fica desabilitada', () => {
+describe('CA4: seção "Aparência" (todos) — Cor de destaque, Cor de fundo (em construção)', () => {
+  it('admin e viewer veem os 2 itens; "Estilo" saiu daqui (agora é color-mode na TopBar); Cor de fundo fica desabilitada', () => {
     renderAt('/')
-    expect(document.getElementById('theme-mode-nav')).toBeTruthy()
+    expect(document.getElementById('theme-mode-nav')).toBeNull()
     expect(document.getElementById('sidebar-appearance-accent')?.getAttribute('href')).toBe(
       '/settings/appearance',
     )
@@ -234,7 +234,7 @@ describe('CA4: seção "Aparência" (todos) — Estilo, Cor de destaque, Cor de 
     cleanup()
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
-    expect(document.getElementById('theme-mode-nav')).toBeTruthy()
+    expect(document.getElementById('theme-mode-nav')).toBeNull()
     expect(document.getElementById('sidebar-appearance-accent')).toBeTruthy()
   })
 })

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import TopBar from './TopBar'
+import type { Notification } from '../contexts/NotificationContext'
 
 vi.mock('../auth', () => ({
   getRole: vi.fn(() => 'admin'),
@@ -13,7 +14,34 @@ vi.mock('../contexts/UserNotificationContext', () => ({
   useUserNotifications: () => ({ unreadCount: 0 }),
 }))
 
-afterEach(cleanup)
+vi.mock('../contexts/ThemeContext', () => ({
+  useTheme: () => ({ mode: 'dark', setMode: vi.fn(), theme: 'default' }),
+  resolveMode: (m: string) => (m === 'system' ? 'dark' : m),
+}))
+
+let notifications: Notification[] = []
+
+vi.mock('../contexts/NotificationContext', () => ({
+  useNotifications: () => ({
+    notifications,
+    unreadCount: 0,
+    markRead: vi.fn(),
+    markSelectedRead: vi.fn(),
+    remove: vi.fn(),
+    removeAll: vi.fn(),
+    removeSelected: vi.fn(),
+    browserSupported: false,
+    browserPermission: 'default',
+    browserEnabled: false,
+    enableBrowserNotifications: vi.fn(),
+    disableBrowserNotifications: vi.fn(),
+  }),
+}))
+
+afterEach(() => {
+  cleanup()
+  notifications = []
+})
 
 function renderTopBar() {
   render(
@@ -42,5 +70,35 @@ describe('TopBar', () => {
     expect(bar.className).toContain('sticky')
     expect(bar.className).toContain('top-0')
     expect(bar.className).toContain('h-14')
+  })
+})
+
+describe('CA2: color-mode e motion-notifications migraram pro TopBar', () => {
+  it('exibe color-mode e motion-notifications entre o logo e logged-in-user, nessa ordem', () => {
+    renderTopBar()
+    const ids = Array.from(document.querySelectorAll('#top-bar [id]'))
+      .map((el) => el.id)
+      .filter((id) =>
+        ['logo-app', 'color-mode', 'motion-notifications', 'logged-in-user'].includes(id),
+      )
+    expect(ids).toEqual(['logo-app', 'color-mode', 'motion-notifications', 'logged-in-user'])
+  })
+
+  it('o painel de color-mode ancora abaixo-à-direita do gatilho (dentro da viewport, não vaza pela borda)', () => {
+    renderTopBar()
+    fireEvent.click(document.getElementById('color-mode')!)
+    const flyout = document.getElementById('theme-mode-flyout')!
+    expect(flyout.style.position).toBe('fixed')
+    expect(flyout.style.right).not.toBe('')
+    expect(flyout.style.left).toBe('')
+  })
+
+  it('o painel de motion-notifications ancora abaixo-à-direita do gatilho (dentro da viewport, não vaza pela borda)', () => {
+    renderTopBar()
+    fireEvent.click(document.getElementById('motion-notifications')!)
+    const panel = document.getElementById('events-panel')!
+    expect(panel.style.position).toBe('fixed')
+    expect(panel.style.right).not.toBe('')
+    expect(panel.style.left).toBe('')
   })
 })

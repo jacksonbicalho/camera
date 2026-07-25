@@ -3,8 +3,6 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { getRole } from '../auth'
 import { useDisplayMode, useSetDisplayMode } from '../contexts/DisplayModeContext'
-import ThemeModeNav from './ThemeModeNav'
-import MotionNotificationsBell from './MotionNotificationsBell'
 import { navItemClass } from './sidebarFlyout'
 import {
   BarChart2,
@@ -177,7 +175,6 @@ export default function Sidebar() {
         </button>
 
         <SidebarSection label="Eventos" showLabel={showLabel} divider>
-          <MotionNotificationsBell showLabel={showLabel} />
           <DisabledSidebarItem
             id="sidebar-live-view"
             label="Live View"
@@ -308,7 +305,6 @@ export default function Sidebar() {
         )}
 
         <SidebarSection label="Aparência" showLabel={showLabel} divider>
-          <ThemeModeNav showLabel={showLabel} />
           <SidebarNavLink
             item={{
               id: 'sidebar-appearance-accent',

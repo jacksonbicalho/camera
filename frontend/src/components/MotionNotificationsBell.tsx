@@ -181,7 +181,7 @@ export default function MotionNotificationsBell({ showLabel }: { showLabel: bool
           <div
             id="events-panel"
             ref={panelRef}
-            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+            style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999 }}
             className="w-72 bg-surface border border-border rounded shadow-lg flex flex-col max-h-[80vh]"
           >
             <EventsPanelHeader

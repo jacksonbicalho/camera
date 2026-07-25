@@ -12,14 +12,15 @@ export const navItemClass = (active: boolean, showLabel: boolean) =>
     active ? 'bg-primary text-on-primary' : 'text-muted hover:bg-surface-2 hover:text-foreground',
   )
 
-// useFlyout — abre/fecha um flyout posicionado (portal) à direita de um botão,
-// fechando em clique fora. Ancora pelo TOPO do botão e cresce pra baixo. Único
-// consumidor hoje é `MotionNotificationsBell` (o antigo `SettingsFlyout` foi
-// removido, e `UserMenu` — hoje dentro da `TopBar` — tem sua própria lógica de
-// posicionamento inline).
+// useFlyout — abre/fecha um flyout posicionado (portal) abaixo-à-direita de
+// um botão (mesmo padrão do `UserMenu`), fechando em clique fora. Único
+// consumidor hoje é `MotionNotificationsBell`, que vive na TopBar perto do
+// canto superior direito — ancorar à direita do botão (como antes, quando
+// vivia no rail vertical, com espaço garantido à direita) vazaria pra fora
+// da viewport aqui.
 export function useFlyout<T extends HTMLElement>() {
   const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const [pos, setPos] = useState({ top: 0, right: 0 })
   const btnRef = useRef<T>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -38,7 +39,7 @@ export function useFlyout<T extends HTMLElement>() {
   function toggle() {
     if (btnRef.current) {
       const r = btnRef.current.getBoundingClientRect()
-      setPos({ top: r.top, left: r.right + 8 })
+      setPos({ top: r.bottom + 8, right: window.innerWidth - r.right })
     }
     setOpen((v) => !v)
   }
