@@ -1142,6 +1142,73 @@ func TestAnalyzeNewRecordings_SkipsAfterAnalyzeError(t *testing.T) {
 	}
 }
 
+// T4 — work_progress/stories/202607251518_fine-tuning-yolo-gpu.md.
+func TestFineTuningYOLOGPU(t *testing.T) {
+	t.Run("CA5: cliente Go trata resposta ocupado do serviço YOLO como retry, não skip permanente", func(t *testing.T) {
+		t.Run("não marca analysis_skipped e para a passada quando o serviço YOLO está ocupado", func(t *testing.T) {
+			dir := t.TempDir()
+			database := openTestDB(t)
+			createTestCameraWithMotion(t, database, "cam1", 10, 10)
+
+			if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
+				Enabled:    true,
+				ServiceURL: "http://yolo:8000",
+				Model:      "yolov8n",
+			}); err != nil {
+				t.Fatalf("UpdateVideoAnalysisConfig: %v", err)
+			}
+
+			base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+			pathA := mp4WithTimestamp(dir, "cam1", base)
+			pathB := mp4WithTimestamp(dir, "cam1", base.Add(5*time.Minute))
+			pathC := mp4WithTimestamp(dir, "cam1", base.Add(10*time.Minute))
+			writeFile(t, pathA, base)
+			writeFile(t, pathB, base.Add(5*time.Minute))
+			writeFile(t, pathC, base.Add(10*time.Minute))
+
+			// Eventos dentro das janelas de A e B, pra ambas virarem candidatas
+			// (têm ended_at — C é a última, sem sucessora, fica de fora).
+			for _, offset := range []time.Duration{time.Minute, 6 * time.Minute} {
+				if err := db.InsertMotionEvent(database, db.MotionEvent{
+					CameraID:   "cam1",
+					OccurredAt: base.Add(offset),
+					Score:      0.5,
+				}); err != nil {
+					t.Fatalf("InsertMotionEvent: %v", err)
+				}
+			}
+
+			fake := &analysis.FakeAnalyzer{Err: analysis.ErrServiceBusy}
+			cleaner := storage.New(dir, 0, 0, 5*time.Minute, 0, 0, database, discardLogger()).
+				WithAnalyzer(fake)
+
+			cleaner.Clean()
+			cleaner.AnalyzeNew()
+			if fake.Called != 1 {
+				t.Fatalf("esperava a passada parar na 1ª gravação ocupada (1 chamada), got %d", fake.Called)
+			}
+			if dets, _ := db.ListDetectionsByPath(database, pathA); len(dets) != 0 {
+				t.Errorf("não deveria haver detecções com o serviço ocupado: %v", dets)
+			}
+
+			// Serviço libera — a próxima passada deve reprocessar pathA do
+			// zero: nada foi marcado analysis_skipped (permanente) por causa
+			// do "ocupado".
+			fake.Err = nil
+			fake.Results = []analysis.Detection{{Label: "person", Confidence: 0.9}}
+			cleaner.Clean()
+			cleaner.AnalyzeNew()
+			if fake.Called <= 1 {
+				t.Fatalf("gravação deveria ter sido reprocessada após o serviço ficar livre, called=%d", fake.Called)
+			}
+			dets, _ := db.ListDetectionsByPath(database, pathA)
+			if len(dets) != 1 || dets[0].Label != "person" {
+				t.Errorf("esperava a gravação reprocessada com sucesso, got %v", dets)
+			}
+		})
+	})
+}
+
 func TestAnalyzeNewRecordings_SkipsWhenFileNotOnDisk(t *testing.T) {
 	dir := t.TempDir()
 	database := openTestDB(t)

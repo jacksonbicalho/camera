@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -1005,6 +1006,15 @@ func (c *Cleaner) analyzeNewRecordings() {
 			ConfidenceThreshold: cfg.ConfidenceThreshold,
 		})
 		cancel()
+		if errors.Is(err, analysis.ErrServiceBusy) {
+			// Serviço ocupado (treino ou outra inferência usando a GPU) —
+			// não é falha da gravação, então nunca MarkAnalysisSkipped
+			// (permanente). Para a passada inteira: as próximas gravações
+			// provavelmente colidiriam com o mesmo estado; tentam de novo
+			// no próximo AnalyzeNew/Cleaner.Run.
+			c.log.Info("analyzeNewRecordings: yolo service busy, retrying later", "path", p.path)
+			break
+		}
 		if err != nil {
 			c.log.Warn("analyzeNewRecordings: analyze failed", "path", p.path, "err", err)
 			_ = db.MarkAnalysisSkipped(c.db, p.id)

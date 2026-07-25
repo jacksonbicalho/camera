@@ -4,11 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 )
 
 var analysisTransport = &http.Transport{DisableKeepAlives: true}
+
+// ErrServiceBusy indica que o serviço YOLO recusou a requisição porque a GPU
+// já está em uso (treino ou outra inferência em andamento — ver o lock em
+// services/yolo/main.py). Chamadores devem tratar como "tenta depois", nunca
+// como falha permanente.
+var ErrServiceBusy = errors.New("yolo service busy: training or inference in progress")
 
 type Detection struct {
 	Label      string  `json:"label"`
@@ -54,6 +61,9 @@ func (c *Client) Analyze(ctx context.Context, req AnalyzeRequest) ([]Detection, 
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusServiceUnavailable {
+		return nil, ErrServiceBusy
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("yolo service returned %d", resp.StatusCode)
 	}
