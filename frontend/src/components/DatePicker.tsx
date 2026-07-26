@@ -92,11 +92,16 @@ export default function DatePicker({
       zIndex: 9999,
       ...(openUp ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
       ...(align === 'right' ? { right: window.innerWidth - rect.right } : { left: rect.left }),
+      // `fullWidth`: o popover usa a MESMA largura do gatilho (a coluna inteira) em vez da
+      // largura natural do Calendar — sem isso, num gatilho esticado (coluna estreita do
+      // Histórico) o popover ficava mais largo que a coluna e vazava por cima do player
+      // (bug relatado pelo navigator, screenshot real).
+      ...(fullWidth ? { width: rect.width } : {}),
     })
     const onScroll = () => setOpen(false)
     window.addEventListener('scroll', onScroll, { capture: true, passive: true })
     return () => window.removeEventListener('scroll', onScroll, { capture: true })
-  }, [open, openUp, align])
+  }, [open, openUp, align, fullWidth])
 
   return (
     <div className={cn('relative', fullWidth && 'w-full')}>
