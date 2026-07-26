@@ -1,9 +1,10 @@
 import { format } from 'date-fns'
 import { authHeaders } from '../auth'
 
-// Duração assumida de um chunk de gravação quando o fim real (`end`) não é conhecido —
-// usada para classificar categoria (recordingCategory). Compartilhada entre HistoryPage e
-// HistoryTimeline.
+// Duração assumida de um chunk de gravação quando o fim real não é conhecido nem por
+// `end` nem pelo início do próximo chunk (só o último chunk do dia, sem `end` ainda
+// preenchido, cai aqui — ver recordingDurationMs). Usada por recordingCategory
+// (HistoryPage.tsx) pra classificar a categoria/cor de cada gravação.
 export const CHUNK_FALLBACK_MS = 5 * 60_000
 
 export interface Recording {
@@ -20,6 +21,21 @@ export interface Recording {
     frame_count: number
     custom_model?: boolean
   }>
+}
+
+// recordingDurationMs calcula a duração REAL de um chunk: usa `end` quando presente,
+// senão infere pelo início do próximo chunk cronológico (mesmo espírito de
+// clipSegments em lib/recordingsGateway.ts, e da mesma lógica já usada só pra EXIBIÇÃO
+// em HistoryPage.tsx's formatDuration). Sem nenhum dos dois (último chunk do dia, ainda
+// sem `end`), cai no fallback fixo — única situação em que ele genuinamente se aplica.
+export function recordingDurationMs(
+  rec: Pick<Recording, 'start' | 'end'>,
+  next: Pick<Recording, 'start'> | undefined,
+): number {
+  const start = Date.parse(rec.start)
+  const endMs = rec.end ? Date.parse(rec.end) : next ? Date.parse(next.start) : NaN
+  if (Number.isNaN(start) || Number.isNaN(endMs)) return CHUNK_FALLBACK_MS
+  return Math.max(0, endMs - start)
 }
 
 export interface MotionBBox {

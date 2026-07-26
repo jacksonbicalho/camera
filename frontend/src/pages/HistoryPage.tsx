@@ -9,10 +9,10 @@ import { ChevronDown, Loader2, Play } from '../components/Icons'
 import VideoPlayer, { type VideoPlayerSegment } from '../components/VideoPlayer'
 import HistoryTimeline from '../components/HistoryTimeline'
 import {
-  CHUNK_FALLBACK_MS,
   loadMotionEvents,
   loadRecordingsData,
   mergeRecordings,
+  recordingDurationMs,
   type MotionEvent,
   type Recording,
 } from './cameraUtils'
@@ -326,7 +326,7 @@ export default function HistoryPage() {
       recordings.map((rec, i) => ({
         rec,
         duration: formatDuration(rec, recordings[i - 1]),
-        category: recordingCategory(rec, events, CHUNK_FALLBACK_MS),
+        category: recordingCategory(rec, events, recordingDurationMs(rec, recordings[i - 1])),
       })),
     [recordings, events],
   )
