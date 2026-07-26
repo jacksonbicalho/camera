@@ -9,8 +9,19 @@ import { authHeaders, onUnauthorized } from '../auth'
 import { resolveEventRecordingUrl } from '../lib/eventNavigation'
 import { categoryColor, categoryLabel } from './eventCategory'
 import { useMoments, momentThumb } from '../hooks/useMoments'
+import RecordingPlayerModal from '../components/RecordingPlayerModal'
 
 const WINDOWS = [1, 2, 4, 6, 12, 24] as const
+
+// Casa a URL /recording/:cameraId/:recordingId(/:motionId) resolvida por
+// resolveEventRecordingUrl — extrai os ids em vez de navegar, pro modal abrir com eles.
+const RECORDING_URL_RE = /^\/recording\/([^/]+)\/([^/]+)(?:\/([^/]+))?$/
+
+interface ModalTarget {
+  cameraId: string
+  recordingId: string | number
+  motionId?: string
+}
 
 // sortCategories ordena categorias dinâmicas: pessoa primeiro, movimento depois, resto em
 // ordem alfabética, estados sempre por último — mesma convenção usada em ReportsPage.tsx
@@ -85,6 +96,7 @@ export default function RecordingsPage() {
   const [recordings, setRecordings] = useState<RecordingItem[]>([])
   const [recLoaded, setRecLoaded] = useState(false)
   const [contentDays, setContentDays] = useState<string[]>([])
+  const [modalTarget, setModalTarget] = useState<ModalTarget | null>(null)
   const { moments, hasMore, loaded, categories } = useMoments({
     date,
     category: category.size > 0 ? [...category].join(',') : 'todos',
@@ -183,15 +195,22 @@ export default function RecordingsPage() {
   }, [view, date, hour, motionOnly, selectedCams])
 
   // Clique num item da aba Gravações: já se sabe o :recordingId exato (o próprio
-  // RecordingItem.id) — não precisa resolver nada via resolveEventRecordingUrl.
+  // RecordingItem.id) — não precisa resolver nada via resolveEventRecordingUrl. Abre o
+  // player em modal (RecordingPlayerModal) em vez de navegar — /recording/:cameraId/
+  // :recordingId(/:motionId) continua existindo pra deep-link/outros pontos de entrada.
   const openRecording = (cameraId: string, recordingId: number) =>
-    navigate(`/recording/${cameraId}/${recordingId}`)
+    setModalTarget({ cameraId, recordingId })
 
-  // Clique num "momento" (aba Momentos): só se tem câmera+instante (a API de
-  // momentos não expõe o id do evento) — precisa resolver recordingId/motionId.
+  // Clique num "momento" (aba Momentos): só se tem câmera+instante (a API de momentos não
+  // expõe o id do evento) — resolveEventRecordingUrl continua fazendo a mesma resolução de
+  // sempre; só o destino muda (abre o modal com os ids extraídos, em vez de navegar pra
+  // URL resolvida).
   const openMoment = async (cameraId: string, time: string) => {
     const url = await resolveEventRecordingUrl(cameraId, time)
-    if (url) navigate(url)
+    if (!url) return
+    const m = url.match(RECORDING_URL_RE)
+    if (!m) return
+    setModalTarget({ cameraId: m[1], recordingId: m[2], motionId: m[3] })
   }
 
   const toggleCam = (id: string) => {
@@ -469,6 +488,14 @@ export default function RecordingsPage() {
           </div>
         )}
       </div>
+
+      <RecordingPlayerModal
+        open={modalTarget != null}
+        cameraId={modalTarget?.cameraId ?? null}
+        recordingId={modalTarget?.recordingId ?? null}
+        motionId={modalTarget?.motionId}
+        onClose={() => setModalTarget(null)}
+      />
     </Layout>
   )
 }
