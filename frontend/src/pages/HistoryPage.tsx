@@ -178,7 +178,7 @@ export default function HistoryPage() {
     return () => {
       cancelled = true
     }
-  }, [cameraId, initialRecordingId])
+  }, [cameraId, initialRecordingId, initialCameraId])
 
   // Some sozinho depois de um tempo pro usuário ler — NÃO fica condicionado a nenhum efeito de
   // carregamento terminar (ex.: `camera`/`recordings` resolvendo) porque isso corria risco de
