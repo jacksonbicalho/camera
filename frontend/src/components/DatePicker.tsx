@@ -23,6 +23,9 @@ interface DatePickerProps {
   openUp?: boolean
   /** Alinhamento horizontal do popover. */
   align?: 'left' | 'right'
+  /** Botão-gatilho estica pra ocupar a largura toda do container (default: compacto,
+   * tamanho do conteúdo — uso do HistoryPage, linha própria na coluna lateral). */
+  fullWidth?: boolean
   id?: string
 }
 
@@ -44,6 +47,7 @@ export default function DatePicker({
   availableDays,
   openUp,
   align = 'left',
+  fullWidth,
   id,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false)
@@ -95,13 +99,13 @@ export default function DatePicker({
   }, [open, openUp, align])
 
   return (
-    <div className="relative">
+    <div className={cn('relative', fullWidth && 'w-full')}>
       <Button
         id={id}
         ref={triggerRef}
         variant="outline"
         size="sm"
-        className="tabular-nums gap-1.5"
+        className={cn('tabular-nums gap-1.5', fullWidth && 'w-full justify-center')}
         onClick={() => setOpen((o) => !o)}
       >
         <CalendarDays className="w-3.5 h-3.5" />

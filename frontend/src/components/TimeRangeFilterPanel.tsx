@@ -24,30 +24,25 @@ export interface TimeRangeFilterPanelProps {
   from: ClockTime | null
   to: ClockTime | null
   onChange: (from: ClockTime | null, to: ClockTime | null) => void
-  onApply: (from: ClockTime, to: ClockTime) => void
 }
 
-// TimeRangeFilterPanel — painel de filtro de horário do Histórico (mesma linha do
-// calendário, na coluna lateral estreita — ~320px — ver HistoryPage.tsx, dividindo espaço
-// com o DatePicker): dois TimePicker (MUI X) com dial de relógio (viewRenderers, em vez do
-// relógio digital padrão — pedido do navigator, mockup em work_progress/amostras/
-// image.png) + botão "Aplicar". Sem label textual solto (o rótulo "De"/"Até" de cada
-// TimePicker já basta) e largura fixa por picker (`sx={{ width: 84 }}`) — o layout estreito
-// não sobra espaço pra texto descritivo extra. Controlado: `onChange` reflete cada edição
-// de horário (De/Até independentes); `onApply` só é chamado com os dois horários
-// definidos — o botão fica desabilitado até lá, mesmo contrato que lib/timeRange.ts's
-// matchesTimeRange usa pra "filtro incompleto = sem filtro" (o filtro só passa a valer
-// depois de Aplicar).
-export default function TimeRangeFilterPanel({
-  from,
-  to,
-  onChange,
-  onApply,
-}: TimeRangeFilterPanelProps) {
+// TimeRangeFilterPanel — painel de filtro de horário do Histórico (linha própria, cheia,
+// na coluna lateral — ver HistoryPage.tsx): dois TimePicker (MUI X) com dial de relógio
+// (viewRenderers com hours+minutes, em vez do relógio digital padrão — pedido do
+// navigator, mockup em work_progress/amostras/image.png; hours+minutes = o dial captura
+// hora E minuto, não só hora). Sem label textual solto (o rótulo "De"/"Até" de cada
+// TimePicker já basta); `flex-1` em vez de largura fixa — a linha é só dele agora (não
+// divide mais espaço com o `DatePicker`, que ganhou linha própria acima), então os dois
+// picker esticam pra usar a largura toda disponível. Filtra AO VIVO: sem botão "Aplicar"
+// — cada edição já chama `onChange`, que o HistoryPage aplica direto (mesmo contrato que
+// lib/timeRange.ts's matchesTimeRange usa pra "filtro incompleto = sem filtro": com só um
+// dos dois horários preenchido, o filtro ainda não entra em vigor, mas não exige clique
+// nenhum pra valer assim que o segundo for preenchido).
+export default function TimeRangeFilterPanel({ from, to, onChange }: TimeRangeFilterPanelProps) {
   return (
     <MuiThemeProvider>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <div id="history-time-range-filter" className="flex items-center gap-1">
+        <div id="history-time-range-filter" className="flex w-full items-center gap-1">
           <TimePicker
             label="De"
             value={clockTimeToDate(from)}
@@ -55,7 +50,7 @@ export default function TimeRangeFilterPanel({
             viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
             ampm={false}
             slotProps={{ textField: { id: 'history-time-range-from', size: 'small' } }}
-            sx={{ width: 84 }}
+            sx={{ flex: 1 }}
           />
           <TimePicker
             label="Até"
@@ -64,19 +59,8 @@ export default function TimeRangeFilterPanel({
             viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
             ampm={false}
             slotProps={{ textField: { id: 'history-time-range-to', size: 'small' } }}
-            sx={{ width: 84 }}
+            sx={{ flex: 1 }}
           />
-          <button
-            id="history-time-range-apply"
-            type="button"
-            disabled={!from || !to}
-            onClick={() => {
-              if (from && to) onApply(from, to)
-            }}
-            className="rounded bg-primary px-2 py-1 text-caption text-on-primary disabled:opacity-50"
-          >
-            Aplicar
-          </button>
         </div>
       </LocalizationProvider>
     </MuiThemeProvider>

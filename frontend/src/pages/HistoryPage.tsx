@@ -143,18 +143,15 @@ export default function HistoryPage() {
   const [availableDays, setAvailableDays] = useState<string[]>([])
   const [readyForUrlSync, setReadyForUrlSync] = useState(!initialRecordingId)
   const [filter, setFilter] = useState<TimelineFilter>('todos')
-  // Filtro de intervalo de horário (painel "Filtro de Range de Tempo", topo da página) —
-  // dois estados: `timeRangeDraft` é o que os pickers mostram (atualiza a cada edição,
-  // via onChange), `timeRangeApplied` é o que de fato filtra `recordingItems` (só muda ao
-  // clicar "Aplicar", via onApply) — digitar um horário não filtra nada até confirmar.
-  const [timeRangeDraft, setTimeRangeDraft] = useState<{
-    from: ClockTime | null
-    to: ClockTime | null
-  }>({ from: null, to: null })
-  const [timeRangeApplied, setTimeRangeApplied] = useState<{
-    from: ClockTime | null
-    to: ClockTime | null
-  }>({ from: null, to: null })
+  // Filtro de intervalo de horário (painel na coluna lateral, mesma linha do calendário) —
+  // filtra AO VIVO: cada edição (onChange) já atualiza este estado direto, sem botão
+  // "Aplicar" — matchesTimeRange trata um horário só parcialmente preenchido (from OU to
+  // ausente) como "sem filtro" (ver lib/timeRange.ts), então digitar só o "De" ainda não
+  // filtra nada até o "Até" também ser preenchido, sem exigir confirmação extra.
+  const [timeRange, setTimeRange] = useState<{ from: ClockTime | null; to: ClockTime | null }>({
+    from: null,
+    to: null,
+  })
   // Reprodução contínua: null = desligada; array = ligada, com o snapshot das gravações a
   // encadear (tomado no instante em que liga — ver comentário no `toggleContinuous`).
   const [continuousRecordings, setContinuousRecordings] = useState<Recording[] | null>(null)
@@ -392,17 +389,17 @@ export default function HistoryPage() {
   if (!filterOptions.includes(filter)) {
     setFilter('todos')
   }
-  // Filtro de intervalo de horário (De/Até, painel no topo) — aplicado ANTES do filtro de
-  // categoria, sobre `recordingItems` (o mesmo universo que `filterOptions` usa — as
-  // opções do dropdown não mudam com o range de horário, mesmo precedente de já não
-  // mudarem com o filtro de categoria ativo). Sem `timeRangeApplied.from/to` (nenhum
-  // range aplicado ainda), `matchesTimeRange` sempre casa — equivalente a "sem filtro".
+  // Filtro de intervalo de horário (De/Até, painel na coluna lateral) — aplicado ANTES do
+  // filtro de categoria, sobre `recordingItems` (o mesmo universo que `filterOptions` usa —
+  // as opções do dropdown não mudam com o range de horário, mesmo precedente de já não
+  // mudarem com o filtro de categoria ativo). Sem `timeRange.from/to` (nenhum dos dois
+  // preenchido ainda), `matchesTimeRange` sempre casa — equivalente a "sem filtro".
   const timeFilteredItems = useMemo(
     () =>
       recordingItems.filter((item) =>
-        matchesTimeRange(item.rec.start, timeRangeApplied.from, timeRangeApplied.to),
+        matchesTimeRange(item.rec.start, timeRange.from, timeRange.to),
       ),
-    [recordingItems, timeRangeApplied],
+    [recordingItems, timeRange],
   )
   // Agrupa por hora local (0-23) do início da gravação — cada grupo é colapsável, com
   // contagem no cabeçalho ("18h — 12 gravações"). A ordem dos grupos (desc) e dos itens
@@ -863,19 +860,13 @@ export default function HistoryPage() {
                   className="flex w-full flex-col gap-1.5 overflow-hidden rounded-lg border border-border p-2 lg:w-80 lg:shrink-0"
                   style={mainHeight != null ? { maxHeight: mainHeight } : undefined}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    {/* Painel "Filtro de Range de Tempo" — mesma linha do calendário,
-                        à esquerda dele (pedido do navigator, testado contra a página
-                        renderizada de verdade — não a posição original discutida na
-                        análise, que era no topo ao lado do título). Draft/applied
-                        separados (ver comentário do estado acima) — digitar não
-                        filtra, só "Aplicar". */}
-                    <TimeRangeFilterPanel
-                      from={timeRangeDraft.from}
-                      to={timeRangeDraft.to}
-                      onChange={(from, to) => setTimeRangeDraft({ from, to })}
-                      onApply={(from, to) => setTimeRangeApplied({ from, to })}
-                    />
+                  {/* 3 linhas empilhadas, cada uma ocupando a largura toda da coluna —
+                      testado contra a página renderizada de verdade, o navigator pediu
+                      pra não dividir a mesma linha (versão anterior, calendário + filtro
+                      de horário lado a lado, ficava apertado demais na coluna de
+                      ~320px). Ordem: data, depois hora, depois o dropdown de categoria
+                      (já existia, inalterado). */}
+                  <div className="flex w-full items-center">
                     <DatePicker
                       id="history-date-picker"
                       value={selectedDate}
@@ -883,6 +874,16 @@ export default function HistoryPage() {
                       disableFuture
                       availableDays={availableDays}
                       align="right"
+                      fullWidth
+                    />
+                  </div>
+                  {/* Filtra ao vivo, sem botão "Aplicar" (pedido do navigator) — cada
+                      edição já atualiza `timeRange` direto. */}
+                  <div className="flex w-full items-center">
+                    <TimeRangeFilterPanel
+                      from={timeRange.from}
+                      to={timeRange.to}
+                      onChange={(from, to) => setTimeRange({ from, to })}
                     />
                   </div>
                   {recordingItems.length > 0 && (
@@ -895,7 +896,7 @@ export default function HistoryPage() {
                         aria-label="Filtrar gravações por categoria"
                         value={filter}
                         onChange={(e) => setFilter(e.target.value)}
-                        className="rounded border border-border bg-surface-2 px-2 py-1 text-caption text-foreground"
+                        className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-caption text-foreground"
                       >
                         {filterOptions.map((value) => (
                           <option key={value} value={value}>

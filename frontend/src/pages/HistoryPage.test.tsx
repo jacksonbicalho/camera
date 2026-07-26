@@ -69,20 +69,24 @@ vi.mock('../components/DatePicker', () => ({
 
 // TimeRangeFilterPanel de verdade usa MUI (dial de relógio) — irrelevante pro teste de
 // integração do filtro em si (já coberto isoladamente em TimeRangeFilterPanel.test.tsx).
-// Mock simples com botões que chamam onApply com ranges fixos, suficiente pra exercitar a
-// integração (HistoryPage aplica matchesTimeRange sobre recordingItems).
+// Mock simples com botões que chamam onChange com ranges fixos direto (sem botão
+// "Aplicar" — o filtro é ao vivo), suficiente pra exercitar a integração (HistoryPage
+// aplica matchesTimeRange sobre recordingItems a cada onChange).
 vi.mock('../components/TimeRangeFilterPanel', () => ({
   default: ({
-    onApply,
+    onChange,
   }: {
-    onApply: (from: { hour: number; minute: number }, to: { hour: number; minute: number }) => void
+    onChange: (
+      from: { hour: number; minute: number } | null,
+      to: { hour: number; minute: number } | null,
+    ) => void
   }) => (
     <div data-testid="history-time-range-mock">
-      <button onClick={() => onApply({ hour: 7, minute: 0 }, { hour: 7, minute: 30 })}>
-        aplicar 07:00–07:30
+      <button onClick={() => onChange({ hour: 7, minute: 0 }, { hour: 7, minute: 30 })}>
+        setar 07:00–07:30
       </button>
-      <button onClick={() => onApply({ hour: 0, minute: 0 }, { hour: 23, minute: 59 })}>
-        aplicar dia inteiro
+      <button onClick={() => onChange({ hour: 0, minute: 0 }, { hour: 23, minute: 59 })}>
+        setar dia inteiro
       </button>
     </div>
   ),
@@ -1220,7 +1224,7 @@ describe('HistoryPage', () => {
     })
 
     describe('CA5: filtro de intervalo de horário (De/Até) combina com o filtro de categoria por E lógico', () => {
-      it('aplicar um range de horário oculta gravações fora dele, mantendo as que estão dentro', async () => {
+      it('setar um range de horário (ao vivo, sem botão Aplicar) oculta gravações fora dele, mantendo as que estão dentro', async () => {
         // a.mp4 07:12:00Z (dentro de 07:00–07:30), b.mp4 08:03:00Z (fora).
         stubFetch(recordings)
         renderAt('/history/cam1')
@@ -1236,7 +1240,7 @@ describe('HistoryPage', () => {
         expect(document.getElementById('history-recording-1')).not.toBeNull()
       })
 
-      it('aplicar de novo um range que cobre o dia inteiro volta a mostrar todas as gravações', async () => {
+      it('setar de novo um range que cobre o dia inteiro volta a mostrar todas as gravações', async () => {
         stubFetch(recordings)
         renderAt('/history/cam1')
         await waitFor(() => {
