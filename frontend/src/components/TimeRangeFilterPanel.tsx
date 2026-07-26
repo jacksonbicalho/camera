@@ -27,13 +27,17 @@ export interface TimeRangeFilterPanelProps {
   onApply: (from: ClockTime, to: ClockTime) => void
 }
 
-// TimeRangeFilterPanel — painel "Filtro de Range de Tempo" do Histórico (topo da página,
-// ver HistoryPage.tsx): dois TimePicker (MUI X) com dial de relógio (viewRenderers, em vez
-// do relógio digital padrão — pedido do navigator, mockup em work_progress/amostras/
-// image.png) + botão "Aplicar". Controlado: `onChange` reflete cada edição de horário
-// (De/Até independentes); `onApply` só é chamado com os dois horários definidos — o botão
-// fica desabilitado até lá, mesmo contrato que lib/timeRange.ts's matchesTimeRange usa pra
-// "filtro incompleto = sem filtro" (o filtro só passa a valer depois de Aplicar).
+// TimeRangeFilterPanel — painel de filtro de horário do Histórico (mesma linha do
+// calendário, na coluna lateral estreita — ~320px — ver HistoryPage.tsx, dividindo espaço
+// com o DatePicker): dois TimePicker (MUI X) com dial de relógio (viewRenderers, em vez do
+// relógio digital padrão — pedido do navigator, mockup em work_progress/amostras/
+// image.png) + botão "Aplicar". Sem label textual solto (o rótulo "De"/"Até" de cada
+// TimePicker já basta) e largura fixa por picker (`sx={{ width: 84 }}`) — o layout estreito
+// não sobra espaço pra texto descritivo extra. Controlado: `onChange` reflete cada edição
+// de horário (De/Até independentes); `onApply` só é chamado com os dois horários
+// definidos — o botão fica desabilitado até lá, mesmo contrato que lib/timeRange.ts's
+// matchesTimeRange usa pra "filtro incompleto = sem filtro" (o filtro só passa a valer
+// depois de Aplicar).
 export default function TimeRangeFilterPanel({
   from,
   to,
@@ -43,10 +47,7 @@ export default function TimeRangeFilterPanel({
   return (
     <MuiThemeProvider>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <div id="history-time-range-filter" className="flex items-center gap-2">
-          <span className="text-caption text-muted whitespace-nowrap">
-            Filtro de Range de Tempo
-          </span>
+        <div id="history-time-range-filter" className="flex items-center gap-1">
           <TimePicker
             label="De"
             value={clockTimeToDate(from)}
@@ -54,6 +55,7 @@ export default function TimeRangeFilterPanel({
             viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
             ampm={false}
             slotProps={{ textField: { id: 'history-time-range-from', size: 'small' } }}
+            sx={{ width: 84 }}
           />
           <TimePicker
             label="Até"
@@ -62,6 +64,7 @@ export default function TimeRangeFilterPanel({
             viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
             ampm={false}
             slotProps={{ textField: { id: 'history-time-range-to', size: 'small' } }}
+            sx={{ width: 84 }}
           />
           <button
             id="history-time-range-apply"
@@ -70,7 +73,7 @@ export default function TimeRangeFilterPanel({
             onClick={() => {
               if (from && to) onApply(from, to)
             }}
-            className="rounded bg-primary px-3 py-1.5 text-caption text-on-primary disabled:opacity-50"
+            className="rounded bg-primary px-2 py-1 text-caption text-on-primary disabled:opacity-50"
           >
             Aplicar
           </button>

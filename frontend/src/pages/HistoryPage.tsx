@@ -717,32 +717,20 @@ export default function HistoryPage() {
             pageTitle="Histórico"
             twoColumnCap
             actions={
-              <div className="flex items-center gap-2">
-                {/* Painel "Filtro de Range de Tempo" — pedido do navigator: mesma linha do
-                    título, ao lado do <select> de câmera (mockup em
-                    work_progress/amostras/image.png). Draft/applied separados (ver
-                    comentário do estado acima) — digitar não filtra, só "Aplicar". */}
-                <TimeRangeFilterPanel
-                  from={timeRangeDraft.from}
-                  to={timeRangeDraft.to}
-                  onChange={(from, to) => setTimeRangeDraft({ from, to })}
-                  onApply={(from, to) => setTimeRangeApplied({ from, to })}
-                />
-                {cameras.length > 1 && (
-                  <select
-                    id="history-camera-select"
-                    value={cameraId}
-                    onChange={(e) => navigate(`/history/${e.target.value}`)}
-                    className="bg-surface-2 text-foreground text-xs rounded px-2 py-1 border border-border max-w-44"
-                  >
-                    {cameras.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
+              cameras.length > 1 ? (
+                <select
+                  id="history-camera-select"
+                  value={cameraId}
+                  onChange={(e) => navigate(`/history/${e.target.value}`)}
+                  className="bg-surface-2 text-foreground text-xs rounded px-2 py-1 border border-border max-w-44"
+                >
+                  {cameras.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              ) : undefined
             }
           >
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-center">
@@ -875,7 +863,19 @@ export default function HistoryPage() {
                   className="flex w-full flex-col gap-1.5 overflow-hidden rounded-lg border border-border p-2 lg:w-80 lg:shrink-0"
                   style={mainHeight != null ? { maxHeight: mainHeight } : undefined}
                 >
-                  <div className="flex items-center justify-end">
+                  <div className="flex items-center justify-between gap-2">
+                    {/* Painel "Filtro de Range de Tempo" — mesma linha do calendário,
+                        à esquerda dele (pedido do navigator, testado contra a página
+                        renderizada de verdade — não a posição original discutida na
+                        análise, que era no topo ao lado do título). Draft/applied
+                        separados (ver comentário do estado acima) — digitar não
+                        filtra, só "Aplicar". */}
+                    <TimeRangeFilterPanel
+                      from={timeRangeDraft.from}
+                      to={timeRangeDraft.to}
+                      onChange={(from, to) => setTimeRangeDraft({ from, to })}
+                      onApply={(from, to) => setTimeRangeApplied({ from, to })}
+                    />
                     <DatePicker
                       id="history-date-picker"
                       value={selectedDate}
