@@ -12,6 +12,7 @@ const AllCamerasPage = lazy(() => import('./pages/AllCamerasPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const RecordingsPage = lazy(() => import('./pages/RecordingsPage'))
 const MotionsPage = lazy(() => import('./pages/MotionsPage'))
+const LiveViewPage = lazy(() => import('./pages/LiveViewPage'))
 const ServerSettingsPage = lazy(() => import('./pages/settings/ServerSettingsPage'))
 const StorageSettingsPage = lazy(() => import('./pages/settings/StorageSettingsPage'))
 const UsersSettingsPage = lazy(() => import('./pages/settings/UsersSettingsPage'))
@@ -112,6 +113,14 @@ export const routes = (
       element={
         <Lazy>
           <DashboardPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/live-view"
+      element={
+        <Lazy>
+          <LiveViewPage />
         </Lazy>
       }
     />

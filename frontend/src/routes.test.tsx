@@ -20,6 +20,7 @@ vi.mock('./pages/VideoBrowserPage', () => ({
 vi.mock('./pages/ReportsPage', () => ({ default: () => <div id="marker-reports-page" /> }))
 vi.mock('./pages/AllCamerasPage', () => ({ default: () => <div id="marker-all-cameras-page" /> }))
 vi.mock('./pages/DashboardPage', () => ({ default: () => <div id="marker-dashboard-page" /> }))
+vi.mock('./pages/LiveViewPage', () => ({ default: () => <div id="marker-live-view-page" /> }))
 
 import { routes } from './routes'
 
@@ -52,6 +53,7 @@ describe('routes', () => {
     ['/recording/cam1/42/7', 'marker-video-browser-page'],
     ['/reports/cam1/2026-07-07/1', 'marker-reports-page'],
     ['/dashboard', 'marker-dashboard-page'],
+    ['/live-view', 'marker-live-view-page'],
   ])('%s renderiza a página correspondente', async (path, markerId) => {
     renderPath(path)
     await waitFor(() => {

@@ -116,11 +116,11 @@ describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', 
     expect(document.getElementById('sidebar-config-sistema')).toBeNull()
   })
 
-  it('"Live View" aparece desabilitado (em construção)', () => {
+  it('CA4: "Live View" é um link de verdade pra /live-view (deixou de ser "em construção")', () => {
     renderAt('/')
-    const btn = document.getElementById('sidebar-live-view') as HTMLButtonElement
-    expect(btn.tagName).toBe('BUTTON')
-    expect(btn.disabled).toBe(true)
+    const link = document.getElementById('sidebar-live-view')!
+    expect(link.tagName).toBe('A')
+    expect(link.getAttribute('href')).toBe('/live-view')
   })
 })
 
