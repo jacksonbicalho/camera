@@ -61,35 +61,6 @@ function SidebarNavLink({ item, showLabel }: { item: NavItemDef; showLabel: bool
   )
 }
 
-// DisabledSidebarItem — item "em construção" (pedido do navigator): visível,
-// com o mesmo estilo do rail, mas não clicável — sinaliza que a
-// funcionalidade existe no roadmap sem linkar pra lugar nenhum ainda.
-function DisabledSidebarItem({
-  id,
-  label,
-  icon,
-  showLabel,
-}: {
-  id: string
-  label: string
-  icon: ReactNode
-  showLabel: boolean
-}) {
-  return (
-    <button
-      id={id}
-      type="button"
-      disabled
-      title={`${label} — em construção`}
-      aria-label={`${label} — em construção`}
-      className={cn(navItemClass(false, showLabel), 'cursor-not-allowed opacity-55')}
-    >
-      {icon}
-      {showLabel && <span className="truncate text-sm">{label}</span>}
-    </button>
-  )
-}
-
 // SidebarSection — agrupa itens do rail sob um cabeçalho (só visível quando
 // expandido) e um separador discreto acima — pedido do navigator: seções
 // sempre visíveis empilhadas no rail (não mais um flyout popup por trás de
@@ -174,11 +145,15 @@ export default function Sidebar() {
           {showLabel && <span className="truncate text-sm">Recolher menu</span>}
         </button>
 
-        <SidebarSection label="Eventos" showLabel={showLabel} divider>
-          <DisabledSidebarItem
-            id="sidebar-live-view"
-            label="Live View"
-            icon={<Eye className="h-5 w-5 shrink-0" />}
+        <SidebarSection showLabel={showLabel} divider>
+          <SidebarNavLink
+            item={{
+              id: 'sidebar-live-view',
+              to: '/',
+              end: true,
+              label: 'Live View',
+              icon: <Eye className="h-5 w-5 shrink-0" />,
+            }}
             showLabel={showLabel}
           />
         </SidebarSection>
@@ -262,19 +237,19 @@ export default function Sidebar() {
           <SidebarSection label="Administração" showLabel={showLabel} divider>
             <SidebarNavLink
               item={{
-                id: 'sidebar-storage',
-                to: '/settings/storage',
-                label: 'Armazenamento',
-                icon: <HardDrive className="h-5 w-5 shrink-0" />,
+                id: 'sidebar-server',
+                to: '/settings/server',
+                label: 'Servidor',
+                icon: <Server className="h-5 w-5 shrink-0" />,
               }}
               showLabel={showLabel}
             />
             <SidebarNavLink
               item={{
-                id: 'sidebar-server',
-                to: '/settings/server',
-                label: 'Servidor',
-                icon: <Server className="h-5 w-5 shrink-0" />,
+                id: 'sidebar-storage',
+                to: '/settings/storage',
+                label: 'Armazenamento',
+                icon: <HardDrive className="h-5 w-5 shrink-0" />,
               }}
               showLabel={showLabel}
             />

@@ -99,9 +99,12 @@ describe('Sidebar (enxuto)', () => {
 })
 
 // CA2: rail vira seções sempre visíveis (sem flyout popup por trás de um
-// ícone "Configurações") — pedido do navigator. "Eventos" é só o rótulo da
-// seção do sino; o link direto pra /events (existia numa versão anterior
-// desta história) foi ocultado.
+// ícone "Configurações") — pedido do navigator. O link direto pra /events
+// (existia numa versão anterior desta história) foi ocultado; o sino de
+// notificações migrou pra TopBar (história feat/reorganizar-topbar-sidebar);
+// a seção que os continha ficou sem cabeçalho visível (história
+// feat/liveview-customizavel, T5 — pedido do navigator: um rótulo pra uma
+// seção de item único ("Live View", sozinho ali) virou ruído).
 describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', () => {
   it('sino de notificações saiu do Sidebar (mudou pra TopBar); sem link pra /events', () => {
     renderAt('/')
@@ -116,11 +119,24 @@ describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', 
     expect(document.getElementById('sidebar-config-sistema')).toBeNull()
   })
 
-  it('"Live View" aparece desabilitado (em construção)', () => {
+  it('CA6: seção do item "Live View" não mostra mais cabeçalho ("Ao vivo"/"Eventos")', () => {
     renderAt('/')
-    const btn = document.getElementById('sidebar-live-view') as HTMLButtonElement
-    expect(btn.tagName).toBe('BUTTON')
-    expect(btn.disabled).toBe(true)
+    const sidebarText = document.getElementById('sidebar')?.textContent ?? ''
+    expect(sidebarText).not.toContain('Ao vivo')
+    expect(sidebarText).not.toContain('Eventos')
+  })
+
+  it('CA4/CA8: "Live View" é um link de verdade pra / (página principal do sistema, T7)', () => {
+    renderAt('/')
+    const link = document.getElementById('sidebar-live-view')!
+    expect(link.tagName).toBe('A')
+    expect(link.getAttribute('href')).toBe('/')
+  })
+
+  it('CA8: "Live View" (to: "/") usa match exato (end) — não fica marcado ativo em outra rota', () => {
+    renderAt('/settings/cameras')
+    const link = document.getElementById('sidebar-live-view')!
+    expect(link.className).not.toContain('bg-primary')
   })
 })
 
@@ -182,7 +198,7 @@ describe('CA3: seção "Movimentos" (admin) — Análise de vídeo, Rotular even
   })
 })
 
-describe('CA4: seção "Administração" (admin) — Armazenamento, Servidor, Usuários', () => {
+describe('CA4/CA9: seção "Administração" (admin) — Servidor, Armazenamento, Usuários', () => {
   it('admin vê os 3 itens', () => {
     renderAt('/')
     expect(document.getElementById('sidebar-storage')?.getAttribute('href')).toBe(

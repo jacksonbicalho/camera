@@ -19,7 +19,6 @@ const MIGRATED_FILES = [
   'src/components/Player.tsx',
   'src/components/UserForm.tsx',
   'src/pages/ChangePasswordPage.tsx',
-  'src/pages/DashboardPage.tsx',
   'src/pages/HistoryPage.tsx',
   'src/pages/LoginPage.tsx',
   'src/pages/NotificationsPage.tsx',

@@ -22,8 +22,7 @@ interface PlayerProps {
    * sem rodapé. */
   title?: string
   /** Mostra os botões de mudo/tela cheia no rodapé — não requer `title` (o Ao vivo passa
-   * `controls` sem `title`, já que o nome vive no cabeçalho da página). Default false —
-   * o preview do AllCamerasPage não é interativo. */
+   * `controls` sem `title`, já que o nome vive no cabeçalho da página). Default false. */
   controls?: boolean
   /** Overlay extra dentro da área do vídeo (ex.: badge "AO VIVO"), posicionável via
    * `position: absolute` — o div do vídeo já é o `relative` que ancora. */

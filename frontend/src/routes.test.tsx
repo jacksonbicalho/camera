@@ -18,8 +18,7 @@ vi.mock('./pages/VideoBrowserPage', () => ({
   default: () => <div id="marker-video-browser-page" />,
 }))
 vi.mock('./pages/ReportsPage', () => ({ default: () => <div id="marker-reports-page" /> }))
-vi.mock('./pages/AllCamerasPage', () => ({ default: () => <div id="marker-all-cameras-page" /> }))
-vi.mock('./pages/DashboardPage', () => ({ default: () => <div id="marker-dashboard-page" /> }))
+vi.mock('./pages/LiveViewPage', () => ({ default: () => <div id="marker-live-view-page" /> }))
 
 import { routes } from './routes'
 
@@ -43,7 +42,7 @@ function renderPath(path: string) {
 
 describe('routes', () => {
   it.each([
-    ['/', 'marker-all-cameras-page'],
+    ['/', 'marker-live-view-page'],
     ['/live/cam1', 'marker-live-page'],
     ['/history', 'marker-history-landing-page'],
     ['/history/cam1', 'marker-history-page'],
@@ -51,7 +50,6 @@ describe('routes', () => {
     ['/recording/cam1/42', 'marker-video-browser-page'],
     ['/recording/cam1/42/7', 'marker-video-browser-page'],
     ['/reports/cam1/2026-07-07/1', 'marker-reports-page'],
-    ['/dashboard', 'marker-dashboard-page'],
   ])('%s renderiza a página correspondente', async (path, markerId) => {
     renderPath(path)
     await waitFor(() => {
@@ -71,6 +69,15 @@ describe('routes', () => {
       .map((el) => (el as ReactElement<{ path?: string }>).props?.path)
     expect(paths).not.toContain('/settings/stats')
     expect(paths).not.toContain('/stats')
+  })
+
+  it('CA8: /dashboard e /live-view não estão mais registradas (DashboardPage removida; /live-view consolidada em /)', () => {
+    const children = (routes as ReactElement<{ children: ReactNode }>).props.children
+    const paths = (Array.isArray(children) ? children : [children])
+      .filter(Boolean)
+      .map((el) => (el as ReactElement<{ path?: string }>).props?.path)
+    expect(paths).not.toContain('/dashboard')
+    expect(paths).not.toContain('/live-view')
   })
 })
 
