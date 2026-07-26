@@ -13,6 +13,31 @@ vi.mock('../components/Layout', () => ({
 }))
 vi.mock('../components/DatePicker', () => ({ default: () => <div data-testid="datepicker" /> }))
 
+// RecordingsGateway (usada por useRecordingSegments dentro do RecordingPlayerModal, T2/T3 da
+// story player-modal-recordings) captura globalThis.fetch no construtor e nasce a nível de
+// módulo — mesmo padrão de VideoBrowserPage.test.tsx: mock do módulo, não do fetch cru.
+const recordingsGatewayMock = vi.hoisted(() => ({
+  getTimezone: vi.fn(),
+  getRecording: vi.fn(),
+  listByDay: vi.fn(),
+  getEvent: vi.fn(),
+  getPlaybackWindow: vi.fn(),
+}))
+vi.mock('../lib/recordingsGateway', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/recordingsGateway')>()
+  return {
+    ...actual,
+    RecordingsGateway: class {
+      getTimezone = recordingsGatewayMock.getTimezone
+      getRecording = recordingsGatewayMock.getRecording
+      listByDay = recordingsGatewayMock.listByDay
+      getEvent = recordingsGatewayMock.getEvent
+      getPlaybackWindow = recordingsGatewayMock.getPlaybackWindow
+      playbackURL = (r: { url: string }) => `${r.url}?token=fake`
+    },
+  }
+})
+
 const cameras = [
   { id: 'cam1', name: 'Corredor' },
   { id: 'cam2', name: 'Quintal' },
@@ -65,6 +90,15 @@ const camRecordings: Record<string, Array<{ id: number; start: string }>> = {
 }
 
 beforeEach(() => {
+  // RecordingPlayerModal (renderizado sempre, mesmo com open=false) chama
+  // useRecordingSegments incondicionalmente, que já dispara getTimezone() no mount — sem um
+  // default aqui, `.then()` em cima de um vi.fn() não configurado quebra TODO teste do
+  // arquivo (não só os da CA4), já que o mock é definido a nível de módulo.
+  recordingsGatewayMock.getTimezone.mockResolvedValue('UTC')
+  recordingsGatewayMock.getRecording.mockResolvedValue(null)
+  recordingsGatewayMock.listByDay.mockResolvedValue([])
+  recordingsGatewayMock.getEvent.mockResolvedValue(null)
+  recordingsGatewayMock.getPlaybackWindow.mockResolvedValue({ lead: 10, trail: 10 })
   vi.stubGlobal(
     'fetch',
     vi.fn((url: string) => {
@@ -141,7 +175,7 @@ async function switchToRecordings() {
 }
 
 describe('RecordingsPage', () => {
-  it('por padrão lista os momentos do dia (view ausente na URL) e clique resolve e navega pro VideoBrowserPage', async () => {
+  it('por padrão lista os momentos do dia (view ausente na URL) e clique resolve e abre o player em modal (sem navegar)', async () => {
     renderRecordings()
     const card0 = await waitFor(() => {
       const el = document.getElementById('moment-0')
@@ -151,12 +185,15 @@ describe('RecordingsPage', () => {
     expect(card0.textContent).toContain('Corredor')
     expect(document.getElementById('moment-1')?.textContent).toContain('Quintal')
 
+    const locationBefore = document.getElementById('test-location')!.textContent
     fireEvent.click(card0)
     // moments[0] é cam1 — âncora resolve pra recording id 1 (única gravação de cam1),
-    // sem evento casado (mock de /motion devolve events: []) → sem :motionId.
+    // sem evento casado (mock de /motion devolve events: []) → sem :motionId. Abre o
+    // modal (RecordingPlayerModal), não navega mais pra /recording/cam1/1.
     await waitFor(() => {
-      expect(document.getElementById('test-location')!.textContent).toBe('/recording/cam1/1')
+      expect(document.getElementById('recording-player-modal')).not.toBeNull()
     })
+    expect(document.getElementById('test-location')!.textContent).toBe(locationBefore)
   })
 
   it('URL reflete /recordings/:date/:hour sem sufixo de view (default moments)', async () => {
@@ -172,7 +209,7 @@ describe('RecordingsPage', () => {
     })
   })
 
-  it('no modo Gravações (aba explícita) lista as gravações do dia, adiciona /recordings à URL e clique navega direto (sem resolver) pro VideoBrowserPage', async () => {
+  it('no modo Gravações (aba explícita) lista as gravações do dia, adiciona /recordings à URL e clique abre o player em modal direto (sem resolver via resolveEventRecordingUrl)', async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
     renderRecordings()
     await switchToRecordings()
@@ -189,11 +226,14 @@ describe('RecordingsPage', () => {
 
     fetchMock.mockClear()
     fireEvent.click(rec0)
-    // rec.id (1) já é conhecido — navega direto, sem chamar resolveEventRecordingUrl
-    // (sem fetch extra de /motion ou /cameras/:id/recordings).
+    // rec.id (1) já é conhecido — abre o modal direto, sem chamar resolveEventRecordingUrl
+    // (sem fetch extra de /motion ou /cameras/:id/recordings) e sem navegar.
     await waitFor(() => {
-      expect(document.getElementById('test-location')!.textContent).toBe('/recording/cam1/1')
+      expect(document.getElementById('recording-player-modal')).not.toBeNull()
     })
+    expect(document.getElementById('test-location')!.textContent).toMatch(
+      /\/recordings\/\d{4}-\d{2}-\d{2}\/24\/recordings$/,
+    )
     expect(fetchMock.mock.calls.some(([u]: [string]) => String(u).includes('/motion?date='))).toBe(
       false,
     )
@@ -648,6 +688,76 @@ describe('RecordingsPage', () => {
       })
       expect(document.getElementById('recordings-cat-pessoa')?.className).toContain('bg-primary')
       expect(document.getElementById('recordings-cat-carro')?.className).toContain('bg-primary')
+    })
+  })
+
+  describe('CA4: player em modal — clicar numa gravação/momento abre o player sem sair de /recordings', () => {
+    beforeEach(() => {
+      recordingsGatewayMock.getTimezone.mockResolvedValue('UTC')
+      recordingsGatewayMock.getRecording.mockResolvedValue({
+        filename: 'c.mp4',
+        date: '2026-06-23',
+      })
+      recordingsGatewayMock.listByDay.mockResolvedValue([
+        {
+          id: 1,
+          filename: 'c.mp4',
+          start: '2026-06-23T23:50:00Z',
+          url: '/recordings/cam1/2026/06/23/c.mp4',
+          is_recording: false,
+          has_motion: true,
+        },
+      ])
+      recordingsGatewayMock.getEvent.mockResolvedValue(null)
+      recordingsGatewayMock.getPlaybackWindow.mockResolvedValue({ lead: 5, trail: 10 })
+    })
+
+    it('clicar numa gravação (aba Gravações) abre o modal com o player, sem navegar pra /recording/...', async () => {
+      renderRecordings()
+      await switchToRecordings()
+      const rec0 = await waitFor(() => {
+        const el = document.getElementById('recording-1')
+        if (!el) throw new Error('gravação não renderizou')
+        return el
+      })
+      fireEvent.click(rec0)
+      await waitFor(() => {
+        expect(document.getElementById('recording-player-modal')).not.toBeNull()
+      })
+      expect(document.getElementById('test-location')!.textContent).not.toBe('/recording/cam1/1')
+    })
+
+    it('clicar num momento abre o modal (resolve cameraId/recordingId via resolveEventRecordingUrl), sem navegar', async () => {
+      renderRecordings()
+      const card0 = await waitFor(() => {
+        const el = document.getElementById('moment-0')
+        if (!el) throw new Error('card não renderizou')
+        return el
+      })
+      fireEvent.click(card0)
+      await waitFor(() => {
+        expect(document.getElementById('recording-player-modal')).not.toBeNull()
+      })
+      expect(document.getElementById('test-location')!.textContent).toMatch(/^\/recordings/)
+    })
+
+    it('fechar o modal (botão) some com o player e mantém a página em /recordings', async () => {
+      renderRecordings()
+      await switchToRecordings()
+      const rec0 = await waitFor(() => {
+        const el = document.getElementById('recording-1')
+        if (!el) throw new Error('gravação não renderizou')
+        return el
+      })
+      fireEvent.click(rec0)
+      await waitFor(() => {
+        expect(document.getElementById('recording-player-modal')).not.toBeNull()
+      })
+      fireEvent.click(document.getElementById('recording-player-modal-close')!)
+      await waitFor(() => {
+        expect(document.getElementById('recording-player-modal')).toBeNull()
+      })
+      expect(document.getElementById('test-location')!.textContent).toMatch(/^\/recordings/)
     })
   })
 })
