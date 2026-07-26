@@ -1,19 +1,30 @@
+import { useEffect, useState } from 'react'
+import { formatDistanceToNow } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
+import MotionScoreChart from '../../components/MotionScoreChart'
+import { ChevronDown } from '../../components/Icons'
 import { useSettings } from '../../hooks/useSettings'
 import { useStats } from '../../hooks/useStats'
-import { formatBytes } from '../statsUtils'
-import { getRole } from '../../auth'
+import { formatBytes, formatDuration } from '../statsUtils'
+import { authHeaders, getRole, onUnauthorized } from '../../auth'
 
 interface Field {
   label: string
   value: string
 }
 
-// Mesmo estilo de card usado em StatsPage (bg-surface/border/rounded-xl,
-// título text-xs uppercase text-faint, grid de label/valor sem divisórias)
-// — não extraído pra components/ porque só StatsPage e esta página usam esse
-// padrão, e StatsPage também monta os cards inline.
+interface CameraInfo {
+  id: string
+  name: string
+  motion_threshold: number
+}
+
+// Mesmo estilo de card que StatsPage usava antes de ser removida (bg-surface/
+// border/rounded-xl, título text-xs uppercase text-faint, grid de label/valor
+// sem divisórias — história reorganizar-sidebar-governanca) — não extraído
+// pra components/ porque só esta página usa esse padrão hoje.
 function InfoCard({ title, fields }: { title: string; fields: Field[] }) {
   return (
     <div className="bg-surface border border-border rounded-xl p-5">
@@ -30,6 +41,22 @@ function InfoCard({ title, fields }: { title: string; fields: Field[] }) {
   )
 }
 
+function StatusDot({ online }: { online: boolean }) {
+  return (
+    <span
+      className={`inline-block w-2 h-2 rounded-full shrink-0 ${online ? 'bg-green-500' : 'bg-faint'}`}
+    />
+  )
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <ChevronDown
+      className={`w-4 h-4 text-faint transition-transform shrink-0 ${open ? 'rotate-180' : ''}`}
+    />
+  )
+}
+
 // ServerSettingsPage — página "Servidor" (/settings/server), sozinha na
 // navegação (sem abas — a consolidação em ServerSettingsTabs foi desfeita a
 // pedido do navigator: Armazenamento/Estatísticas/Relatórios/Sobre voltaram
@@ -42,7 +69,12 @@ function InfoCard({ title, fields }: { title: string; fields: Field[] }) {
 // PROCESSO do servidor, via useStats/`/api/stats`) também migrou pra cá,
 // de dentro de StatsPage — pedido do navigator ("a sessão Sistema de
 // estatística deve ir para servidor também"): é runtime do servidor, não
-// uma métrica de uso das câmeras, que é o que StatsPage passou a focar.
+// uma métrica de uso das câmeras. Os KPIs (Gravações/Horas gravadas/
+// Câmeras) e a lista expansível de câmeras com `MotionScoreChart` também
+// migraram pra cá, fechando o ciclo — StatsPage.tsx deixou de existir
+// (história reorganizar-sidebar-governanca): esses eram os únicos dados
+// que ainda restavam lá, o resto (Sistema, Uso de disco) já tinha migrado
+// em histórias anteriores.
 export default function ServerSettingsPage() {
   const isAdmin = getRole() === 'admin'
   const { settings } = useSettings()
@@ -50,9 +82,44 @@ export default function ServerSettingsPage() {
   const cpuPct = stats?.cpu_percent ?? -1
   const sysMemUsed = (stats?.sys_mem_total_bytes ?? 0) - (stats?.sys_mem_free_bytes ?? 0)
 
+  const [cameras, setCameras] = useState<CameraInfo[]>([])
+  const [expandedCams, setExpandedCams] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    fetch('/api/cameras', { headers: authHeaders() })
+      .then((res) => {
+        if (res.status === 401) {
+          onUnauthorized()
+          return null
+        }
+        return res.json()
+      })
+      .then((data) => {
+        if (Array.isArray(data)) setCameras(data)
+      })
+      .catch(() => {})
+  }, [])
+
+  function toggleCam(id: string) {
+    setExpandedCams((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const cameraHealthMap = Object.fromEntries((stats?.cameras ?? []).map((c) => [c.id, c]))
+
   return (
     <SettingsLayout id="server-settings-page" footerId="server-settings-footer">
-      <PageHeader title="Servidor" subtitle="Rede, fuso horário e configurações de log." />
+      <PageHeader
+        title="Servidor"
+        subtitle="Rede, fuso horário, configurações de log e estatísticas de uso."
+      />
       {!isAdmin ? (
         <p className="text-faint text-sm">Acesso restrito.</p>
       ) : !settings ? (
@@ -160,6 +227,101 @@ export default function ServerSettingsPage() {
               { label: 'Intervalo de reconexão', value: settings.defaults.reconnect_interval },
             ]}
           />
+
+          {stats && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-surface border border-border rounded-xl p-5">
+                  <p className="text-xs text-faint uppercase tracking-wider mb-3">Gravações</p>
+                  <p className="text-3xl font-bold text-foreground">
+                    {stats.recordings_count.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {formatBytes(stats.recordings_bytes)}
+                  </p>
+                </div>
+                <div className="bg-surface border border-border rounded-xl p-5">
+                  <p className="text-xs text-faint uppercase tracking-wider mb-3">Horas gravadas</p>
+                  <p className="text-3xl font-bold text-foreground">
+                    {formatDuration(stats.recordings_duration_seconds)}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">de vídeo em disco</p>
+                </div>
+                <div className="bg-surface border border-border rounded-xl p-5">
+                  <p className="text-xs text-faint uppercase tracking-wider mb-3">Câmeras</p>
+                  <p className="text-3xl font-bold text-foreground">{stats.camera_count}</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {stats.connected_clients} cliente{stats.connected_clients !== 1 ? 's' : ''}{' '}
+                    conectado{stats.connected_clients !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+
+              {cameras.length > 0 && (
+                <div className="bg-surface border border-border rounded-xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border">
+                    <p className="text-xs text-faint uppercase tracking-wider font-medium">
+                      Câmeras
+                    </p>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {cameras.map((cam) => {
+                      const health = cameraHealthMap[cam.id]
+                      const lastRec = health?.last_recording_at
+                        ? new Date(health.last_recording_at)
+                        : null
+                      const isOpen = expandedCams.has(cam.id)
+                      const hasMotion = health?.motion_enabled ?? false
+
+                      return (
+                        <div key={cam.id}>
+                          <button
+                            onClick={() => toggleCam(cam.id)}
+                            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-surface-2/50 transition-colors"
+                          >
+                            <StatusDot online={health?.online ?? false} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {cam.name || cam.id}
+                              </p>
+                              <p className="text-xs text-faint font-mono">{cam.id}</p>
+                            </div>
+                            <div className="text-right shrink-0 mr-2">
+                              {lastRec ? (
+                                <p className="text-xs text-muted-foreground">
+                                  {formatDistanceToNow(lastRec, { addSuffix: true, locale: ptBR })}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-faint">sem gravações</p>
+                              )}
+                              {hasMotion && <p className="text-xs text-blue-500">detecção ativa</p>}
+                            </div>
+                            <ChevronIcon open={isOpen} />
+                          </button>
+
+                          {isOpen && (
+                            <div className="px-5 pb-5">
+                              {hasMotion ? (
+                                <MotionScoreChart
+                                  key={cam.id}
+                                  cameraId={cam.id}
+                                  threshold={cam.motion_threshold}
+                                />
+                              ) : (
+                                <p className="text-xs text-faint py-3">
+                                  Detecção de movimento desativada para esta câmera.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </SettingsLayout>

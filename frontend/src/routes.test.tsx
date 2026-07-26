@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+import { Suspense, type ReactElement, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes } from 'react-router-dom'
@@ -57,6 +57,20 @@ describe('routes', () => {
     await waitFor(() => {
       expect(document.getElementById(markerId)).not.toBeNull()
     })
+  })
+
+  it('CA3: /settings/stats e /stats não estão mais registradas (StatsPage removida — conteúdo migrou pra Servidor)', () => {
+    // Checagem estrutural (sem renderizar): a página real precisaria de
+    // providers que este arquivo não monta (NotificationContext etc.) — uma
+    // asserção via DOM renderizado passaria mesmo sem a rota existir, se o
+    // componente falhasse por outro motivo (falso-positivo real, confirmado
+    // ao escrever este teste). Inspeciona os `path` registrados direto.
+    const children = (routes as ReactElement<{ children: ReactNode }>).props.children
+    const paths = (Array.isArray(children) ? children : [children])
+      .filter(Boolean)
+      .map((el) => (el as ReactElement<{ path?: string }>).props?.path)
+    expect(paths).not.toContain('/settings/stats')
+    expect(paths).not.toContain('/stats')
   })
 })
 
