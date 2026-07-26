@@ -71,9 +71,8 @@ a,
 
 /* Largura padrão do conteúdo nas páginas do Layout — fonte única, pra garantir a
    MESMA largura em toda página (antes cada uma repetia `mx-auto w-full max-w-*` na
-   mão e acabaram divergindo). Fluida (sem cap), igual à página principal
-   (AllCamerasPage) — pedido do navigator. Pra mudar a largura padrão de todas de
-   uma vez, mexe só aqui. */
+   mão e acabaram divergindo). Fluida (sem cap) — pedido do navigator. Pra mudar a
+   largura padrão de todas de uma vez, mexe só aqui. */
 .page-content {
   width: 100%;
 }

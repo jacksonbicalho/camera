@@ -149,7 +149,8 @@ export default function Sidebar() {
           <SidebarNavLink
             item={{
               id: 'sidebar-live-view',
-              to: '/live-view',
+              to: '/',
+              end: true,
               label: 'Live View',
               icon: <Eye className="h-5 w-5 shrink-0" />,
             }}

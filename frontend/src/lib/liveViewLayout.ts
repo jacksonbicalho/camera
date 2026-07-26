@@ -30,9 +30,8 @@ export function presetLayout(cameraIds: string[], cols: number): TileLayout[] {
 }
 
 // defaultLayout — arranjo automático quando não há layout salvo (ou quando uma câmera nova
-// aparece sem posição conhecida): mesmo espírito do gridColumns() de AllCamerasPage, só que
-// em unidades de grid (dá pra arrastar/redimensionar depois, ao contrário do CSS grid puro
-// de lá). DEFAULT_COLS=3 reproduz o arranjo fixo que já existia aqui.
+// aparece sem posição conhecida), em unidades de grid (dá pra arrastar/redimensionar depois).
+// DEFAULT_COLS=3 reproduz o arranjo fixo que já existia aqui.
 export function defaultLayout(cameraIds: string[]): TileLayout[] {
   return presetLayout(cameraIds, DEFAULT_COLS)
 }

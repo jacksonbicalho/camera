@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import GridLayout, { WidthProvider } from 'react-grid-layout/legacy'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
-import { authHeaders, onUnauthorized } from '../auth'
+import { authHeaders, onUnauthorized, getRole } from '../auth'
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import Player from '../components/Player'
@@ -37,9 +38,10 @@ interface Camera {
   live_transport?: string
 }
 
-// LiveViewPage — mostra todas as câmeras ao vivo (como AllCamerasPage/`/`), mas com layout
-// CUSTOMIZÁVEL pelo usuário (arrastar/redimensionar tiles) via react-grid-layout — pedido
-// explícito do navigator. Usa o subpath /legacy da lib (API v1 completa — ver comentário em
+// LiveViewPage — página principal do sistema (`/`, T7: absorveu o papel de landing que era
+// da extinta AllCamerasPage), mostra todas as câmeras ao vivo com layout CUSTOMIZÁVEL pelo
+// usuário (arrastar/redimensionar tiles) via react-grid-layout — pedido explícito do
+// navigator. Usa o subpath /legacy da lib (API v1 completa — ver comentário em
 // LiveViewPage.test.tsx) por simplicidade: WidthProvider mede o container automaticamente,
 // sem precisar lidar com a API v2 baseada em hooks (useContainerWidth) manualmente. O
 // arranjo automático/persistência/reconciliação com a lista de câmeras vive em
@@ -61,6 +63,7 @@ interface Camera {
 // múltiplos NxN — os presets cobrem o caso comum (arranjo simétrico); ver `## Revisão` da
 // story pra esse escopo.
 export default function LiveViewPage() {
+  const navigate = useNavigate()
   const [cameras, setCameras] = useState<Camera[]>([])
   const [layout, setLayout] = useState<TileLayout[]>([])
   const [cols, setCols] = useState<number>(() => loadSavedCols() ?? DEFAULT_COLS)
@@ -100,6 +103,13 @@ export default function LiveViewPage() {
       })
       .then((data: Camera[]) => {
         if (!Array.isArray(data)) return
+        // Onboarding (migrado da extinta AllCamerasPage, T7): LiveViewPage é a página
+        // principal do sistema agora (`/`) — sem nenhuma câmera cadastrada, um admin
+        // recém-instalado precisa ser guiado pro cadastro, não cair numa tela vazia.
+        if (data.length === 0 && getRole() === 'admin') {
+          navigate('/settings/cameras/new', { replace: true })
+          return
+        }
         setCameras(data)
         const ids = data.map((c) => c.id)
         const hidden = loadHiddenCameraIds()
@@ -111,7 +121,7 @@ export default function LiveViewPage() {
         )
       })
       .catch(() => {})
-  }, [])
+  }, [navigate])
 
   // Mede o topo do grid (distância até o topo da viewport) pra computeRowHeight saber quanta
   // altura está disponível abaixo dele — `getBoundingClientRect().top` não depende do próprio
@@ -341,7 +351,7 @@ export default function LiveViewPage() {
           // elemento de UI (CLAUDE.md). `containerPadding={[0, 0]}` — a lib aplica um
           // padding interno de 10px por padrão, somado ao `p-6` (24px) da página; medido
           // (getBoundingClientRect real, Playwright) o 1º tile ficava em x=90 enquanto o
-          // `.page-content` de outras páginas (ex. AllCamerasPage) começa em x=80 no mesmo
+          // `.page-content` de outras páginas começa em x=80 no mesmo
           // viewport — os 10px extras da lib quebravam a margem consistente entre páginas
           // (bug real reportado pelo navigator). Zerar aqui faz os tiles começarem exatamente
           // na borda do `p-6`, igual a qualquer outra página; o espaçamento ENTRE tiles

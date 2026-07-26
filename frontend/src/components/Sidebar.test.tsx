@@ -126,11 +126,17 @@ describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', 
     expect(sidebarText).not.toContain('Eventos')
   })
 
-  it('CA4: "Live View" é um link de verdade pra /live-view (deixou de ser "em construção")', () => {
+  it('CA4/CA8: "Live View" é um link de verdade pra / (página principal do sistema, T7)', () => {
     renderAt('/')
     const link = document.getElementById('sidebar-live-view')!
     expect(link.tagName).toBe('A')
-    expect(link.getAttribute('href')).toBe('/live-view')
+    expect(link.getAttribute('href')).toBe('/')
+  })
+
+  it('CA8: "Live View" (to: "/") usa match exato (end) — não fica marcado ativo em outra rota', () => {
+    renderAt('/settings/cameras')
+    const link = document.getElementById('sidebar-live-view')!
+    expect(link.className).not.toContain('bg-primary')
   })
 })
 

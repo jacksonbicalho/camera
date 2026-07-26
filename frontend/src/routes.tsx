@@ -8,8 +8,6 @@ const HistoryPage = lazy(() => import('./pages/HistoryPage'))
 const HistoryLandingPage = lazy(() => import('./pages/HistoryLandingPage'))
 const VideoBrowserPage = lazy(() => import('./pages/VideoBrowserPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
-const AllCamerasPage = lazy(() => import('./pages/AllCamerasPage'))
-const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const RecordingsPage = lazy(() => import('./pages/RecordingsPage'))
 const MotionsPage = lazy(() => import('./pages/MotionsPage'))
 const LiveViewPage = lazy(() => import('./pages/LiveViewPage'))
@@ -56,7 +54,7 @@ export const routes = (
       path="/"
       element={
         <Lazy>
-          <AllCamerasPage />
+          <LiveViewPage />
         </Lazy>
       }
     />
@@ -105,22 +103,6 @@ export const routes = (
       element={
         <Lazy>
           <VideoBrowserPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/dashboard"
-      element={
-        <Lazy>
-          <DashboardPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/live-view"
-      element={
-        <Lazy>
-          <LiveViewPage />
         </Lazy>
       }
     />

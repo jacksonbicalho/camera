@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 
 vi.mock('../auth', () => ({
   authHeaders: () => ({}),
@@ -80,6 +80,7 @@ vi.mock('react-grid-layout/legacy', () => ({
   WidthProvider: (C: unknown) => C,
 }))
 
+import { getRole } from '../auth'
 import LiveViewPage from './LiveViewPage'
 
 const cameras = [
@@ -87,10 +88,16 @@ const cameras = [
   { id: 'cam2', name: 'Quintal' },
 ]
 
+function LocationProbe() {
+  const location = useLocation()
+  return <div id="test-location">{location.pathname}</div>
+}
+
 function renderPage() {
   return render(
     <MemoryRouter>
       <LiveViewPage />
+      <LocationProbe />
     </MemoryRouter>,
   )
 }
@@ -109,6 +116,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.mocked(getRole).mockReturnValue('admin')
   localStorage.clear()
 })
 
@@ -442,5 +450,36 @@ describe('CA7: reconciliação não traz de volta uma câmera explicitamente rem
       expect(document.querySelector('[data-testid="player-cam1"]')).not.toBeNull()
     })
     expect(document.querySelector('[data-testid="player-cam2"]')).toBeNull()
+  })
+})
+
+describe('CA8: onboarding (migrado da extinta AllCamerasPage) — LiveViewPage agora é a página principal (/)', () => {
+  function stubEmptyCameras() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.startsWith('/api/cameras'))
+          return Promise.resolve({ status: 200, json: () => Promise.resolve([]) })
+        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+  }
+
+  it('sem câmeras cadastradas e usuário admin, redireciona pra /settings/cameras/new', async () => {
+    stubEmptyCameras()
+    renderPage()
+    await waitFor(() => {
+      expect(document.getElementById('test-location')!.textContent).toBe('/settings/cameras/new')
+    })
+  })
+
+  it('sem câmeras cadastradas e usuário não-admin, mostra mensagem vazia sem redirecionar', async () => {
+    vi.mocked(getRole).mockReturnValue('viewer')
+    stubEmptyCameras()
+    renderPage()
+    await waitFor(() => {
+      expect(document.getElementById('live-view-empty')).not.toBeNull()
+    })
+    expect(document.getElementById('test-location')!.textContent).toBe('/')
   })
 })
