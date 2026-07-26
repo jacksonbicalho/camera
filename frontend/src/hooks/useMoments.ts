@@ -25,6 +25,7 @@ interface UseMomentsResult {
   moments: Moment[]
   hasMore: boolean
   loaded: boolean
+  categories: string[]
 }
 
 // useMoments busca eventos de movimento/pessoa/ia/estados agregados de todas as câmeras
@@ -44,6 +45,7 @@ export function useMoments({
   const [moments, setMoments] = useState<Moment[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [categories, setCategories] = useState<string[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -67,6 +69,7 @@ export function useMoments({
         if (cancelled || !d) return
         setMoments((prev) => (page === 1 ? d.moments : [...prev, ...d.moments]))
         setHasMore(d.hasMore)
+        setCategories(d.categories ?? [])
         setLoaded(true)
       })
       .catch(() => {})
@@ -75,7 +78,7 @@ export function useMoments({
     }
   }, [date, category, page, cameras, query])
 
-  return { moments, hasMore, loaded }
+  return { moments, hasMore, loaded, categories }
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')

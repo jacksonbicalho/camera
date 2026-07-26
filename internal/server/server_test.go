@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -1670,6 +1671,122 @@ func TestMomentsCategoryFilter(t *testing.T) {
 		cats := categories(r)
 		if r.Total != 2 || !cats["pessoa"] || !cats["carro"] {
 			t.Errorf("esperava pessoa+carro (com espaço tolerado), got total=%d: %+v", r.Total, r.Moments)
+		}
+	})
+}
+
+// TestMomentsCategoriesField cobre o campo `categories` da resposta de /api/moments —
+// o universo de categorias do dia (filtro de câmera aplicado), INDEPENDENTE do filtro
+// `category`/`q` ativo (story fix-chips-categoria-somem-multiselecao). Sem isso, os
+// chips de categoria somem do frontend assim que outro filtro de categoria é aplicado,
+// inviabilizando o multi-seleção da story anterior.
+func TestMomentsCategoriesField(t *testing.T) {
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "master", "secret", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	cam1, err := db.CreateCamera(database, config.CameraConfig{Name: "Corredor"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cam2, err := db.CreateCamera(database, config.CameraConfig{Name: "Quintal"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// cam1: motion "pessoa" + transição de estado. cam2: só motion "carro".
+	if err := db.InsertMotionEvent(database, db.MotionEvent{
+		CameraID: cam1.ID, OccurredAt: time.Date(2026, 5, 24, 10, 0, 0, 0, time.UTC), Score: 0.4, Label: "pessoa",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.InsertMotionEvent(database, db.MotionEvent{
+		CameraID: cam2.ID, OccurredAt: time.Date(2026, 5, 24, 10, 5, 0, 0, time.UTC), Score: 0.4, Label: "carro",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
+		CameraID: cam1.ID, Name: "Portão", Model: "custom-cls", Threshold: 0.8, Classes: []string{"aberto", "fechado"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(
+		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?, ?, ?, ?, ?)`,
+		cid, "aberto", 0.95, "/recordings/state_history/1/x.jpg", "2026-05-24 11:00:00",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{{ID: cam1.ID}, {ID: cam2.ID}}, discardLogger(), nil).WithDB(database)
+	token := loginAndGetToken(t, srv, "master", "secret")
+
+	query := func(qs string) struct {
+		Categories []string `json:"categories"`
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/api/moments?date=2026-05-24&"+qs, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: expected 200, got %d: %s", qs, w.Code, w.Body.String())
+		}
+		var resp struct {
+			Categories []string `json:"categories"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("%s: decode: %v", qs, err)
+		}
+		return resp
+	}
+	sorted := func(cats []string) []string {
+		out := append([]string(nil), cats...)
+		sort.Strings(out)
+		return out
+	}
+	eq := func(a, b []string) bool {
+		if len(a) != len(b) {
+			return false
+		}
+		for i := range a {
+			if a[i] != b[i] {
+				return false
+			}
+		}
+		return true
+	}
+
+	t.Run("CA2: sem filtro → todas as 3 categorias do dia", func(t *testing.T) {
+		r := query("")
+		if got := sorted(r.Categories); !eq(got, []string{"carro", "estados", "pessoa"}) {
+			t.Errorf("esperava [carro estados pessoa], got %v", got)
+		}
+	})
+
+	t.Run("CA2: REGRESSÃO — com category=pessoa ativo, categories continua com as 3 (não encolhe pro filtro)", func(t *testing.T) {
+		r := query("category=pessoa")
+		if got := sorted(r.Categories); !eq(got, []string{"carro", "estados", "pessoa"}) {
+			t.Errorf("esperava [carro estados pessoa] mesmo filtrado, got %v", got)
+		}
+	})
+
+	t.Run("CA2: REGRESSÃO — com category=estados (só o especial), categories ainda mostra as categorias de motion", func(t *testing.T) {
+		r := query("category=estados")
+		if got := sorted(r.Categories); !eq(got, []string{"carro", "estados", "pessoa"}) {
+			t.Errorf("esperava [carro estados pessoa] mesmo com filtro=estados, got %v", got)
+		}
+	})
+
+	t.Run("CA2: q (busca textual) não afeta categories", func(t *testing.T) {
+		r := query("q=inexistente")
+		if got := sorted(r.Categories); !eq(got, []string{"carro", "estados", "pessoa"}) {
+			t.Errorf("esperava [carro estados pessoa] mesmo com q sem match, got %v", got)
+		}
+	})
+
+	t.Run("CA2: cameras filtra o universo de categorias (só as câmeras selecionadas contam)", func(t *testing.T) {
+		r := query("cameras=" + cam1.ID)
+		if got := sorted(r.Categories); !eq(got, []string{"estados", "pessoa"}) {
+			t.Errorf("esperava [estados pessoa] (só cam1), got %v", got)
 		}
 	})
 }
