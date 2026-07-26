@@ -7,23 +7,55 @@ export interface TileLayout {
 }
 
 const STORAGE_KEY = 'liveview-layout'
-const COLS = 12
-const TILE_W = 4
-const TILE_H = 4
+const COLS_KEY = 'liveview-cols'
+export const DEFAULT_COLS = 3
+export const LAYOUT_PRESETS = [1, 2, 3, 4] as const
 
-// defaultLayout — arranjo automático em grade (12 colunas) quando não há layout salvo (ou
-// quando uma câmera nova aparece sem posição conhecida): preenche da esquerda pra direita,
-// de cima pra baixo — mesmo espírito do gridColumns() de AllCamerasPage, mas em unidades de
-// grid (dá pra arrastar/redimensionar depois, ao contrário do CSS grid puro de lá).
-export function defaultLayout(cameraIds: string[]): TileLayout[] {
-  const perRow = Math.max(1, Math.floor(COLS / TILE_W))
+// presetLayout — arranjo em grade NxN: cada câmera ocupa exatamente 1 célula (1x1), da
+// esquerda pra direita, de cima pra baixo — usado quando o usuário escolhe um preset de
+// layout (1×1/2×2/3×3/4×4/custom) e quando não há layout salvo ainda (defaultLayout,
+// abaixo, delega pra cá com DEFAULT_COLS). `cols` é literalmente o nº de colunas do grid
+// (react-grid-layout `cols` prop) — não uma grade fina de 12 subdividida, por isso cada
+// câmera cabe numa única unidade.
+export function presetLayout(cameraIds: string[], cols: number): TileLayout[] {
+  const perRow = Math.max(1, cols)
   return cameraIds.map((id, idx) => ({
     i: id,
-    x: (idx % perRow) * TILE_W,
-    y: Math.floor(idx / perRow) * TILE_H,
-    w: TILE_W,
-    h: TILE_H,
+    x: idx % perRow,
+    y: Math.floor(idx / perRow),
+    w: 1,
+    h: 1,
   }))
+}
+
+// defaultLayout — arranjo automático quando não há layout salvo (ou quando uma câmera nova
+// aparece sem posição conhecida): mesmo espírito do gridColumns() de AllCamerasPage, só que
+// em unidades de grid (dá pra arrastar/redimensionar depois, ao contrário do CSS grid puro
+// de lá). DEFAULT_COLS=3 reproduz o arranjo fixo que já existia aqui.
+export function defaultLayout(cameraIds: string[]): TileLayout[] {
+  return presetLayout(cameraIds, DEFAULT_COLS)
+}
+
+// loadSavedCols/saveCols — persiste o preset de layout escolhido (nº de colunas), separado
+// do layout em si (chave própria) — a página usa isso pra saber o `cols` do
+// react-grid-layout e computar a altura de linha proporcional (16:9) a partir dele.
+export function loadSavedCols(): number | null {
+  try {
+    const raw = localStorage.getItem(COLS_KEY)
+    if (!raw) return null
+    const n = Number(raw)
+    return Number.isFinite(n) && n > 0 ? n : null
+  } catch {
+    return null
+  }
+}
+
+export function saveCols(cols: number): void {
+  try {
+    localStorage.setItem(COLS_KEY, String(cols))
+  } catch {
+    // localStorage indisponível — mesmo espírito de saveLayout, falha silenciosa.
+  }
 }
 
 // loadSavedLayout lê o layout persistido — null quando não há nada salvo, ou quando o valor

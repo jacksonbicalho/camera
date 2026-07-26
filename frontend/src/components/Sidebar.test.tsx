@@ -99,9 +99,11 @@ describe('Sidebar (enxuto)', () => {
 })
 
 // CA2: rail vira seções sempre visíveis (sem flyout popup por trás de um
-// ícone "Configurações") — pedido do navigator. "Eventos" é só o rótulo da
-// seção do sino; o link direto pra /events (existia numa versão anterior
-// desta história) foi ocultado.
+// ícone "Configurações") — pedido do navigator. O link direto pra /events
+// (existia numa versão anterior desta história) foi ocultado; o sino de
+// notificações migrou pra TopBar (história feat/reorganizar-topbar-sidebar);
+// a seção que os continha foi renomeada "Ao vivo" (história
+// feat/liveview-customizavel), já que só sobrou o item "Live View".
 describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', () => {
   it('sino de notificações saiu do Sidebar (mudou pra TopBar); sem link pra /events', () => {
     renderAt('/')

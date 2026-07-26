@@ -4,9 +4,13 @@ import {
   loadSavedLayout,
   saveLayout,
   mergeLayoutWithCameras,
+  presetLayout,
+  loadSavedCols,
+  saveCols,
 } from './liveViewLayout'
 
 const STORAGE_KEY = 'liveview-layout'
+const COLS_KEY = 'liveview-cols'
 
 afterEach(() => {
   localStorage.clear()
@@ -102,5 +106,51 @@ describe('CA2: mergeLayoutWithCameras — reconcilia layout salvo com a lista at
       { i: 'cam2', x: 4, y: 0, w: 4, h: 4 },
     ]
     expect(mergeLayoutWithCameras(saved, ['cam1', 'cam2'])).toEqual(saved)
+  })
+})
+
+describe('CA5: presetLayout — arranjo NxN (1 célula por câmera) quando o usuário escolhe um preset de layout', () => {
+  it('cols=1 → uma câmera por linha (x sempre 0, y crescente)', () => {
+    const layout = presetLayout(['cam1', 'cam2', 'cam3'], 1)
+    expect(layout).toEqual([
+      { i: 'cam1', x: 0, y: 0, w: 1, h: 1 },
+      { i: 'cam2', x: 0, y: 1, w: 1, h: 1 },
+      { i: 'cam3', x: 0, y: 2, w: 1, h: 1 },
+    ])
+  })
+
+  it('cols=2 → 2 por linha, cada câmera ocupa exatamente 1 célula (w=1,h=1)', () => {
+    const layout = presetLayout(['cam1', 'cam2', 'cam3'], 2)
+    expect(layout).toEqual([
+      { i: 'cam1', x: 0, y: 0, w: 1, h: 1 },
+      { i: 'cam2', x: 1, y: 0, w: 1, h: 1 },
+      { i: 'cam3', x: 0, y: 1, w: 1, h: 1 },
+    ])
+  })
+
+  it('lista vazia → layout vazio', () => {
+    expect(presetLayout([], 3)).toEqual([])
+  })
+})
+
+describe('CA5: loadSavedCols/saveCols — persistência do preset de layout escolhido', () => {
+  it('sem nada salvo → null', () => {
+    expect(loadSavedCols()).toBeNull()
+  })
+
+  it('saveCols grava e loadSavedCols lê de volta o mesmo número', () => {
+    saveCols(4)
+    expect(loadSavedCols()).toBe(4)
+  })
+
+  it('valor corrompido/não numérico no localStorage → null, sem lançar exceção', () => {
+    localStorage.setItem(COLS_KEY, 'not-a-number')
+    expect(() => loadSavedCols()).not.toThrow()
+    expect(loadSavedCols()).toBeNull()
+  })
+
+  it('valor <= 0 salvo → null (formato inválido, cai pro default)', () => {
+    localStorage.setItem(COLS_KEY, '0')
+    expect(loadSavedCols()).toBeNull()
   })
 })
