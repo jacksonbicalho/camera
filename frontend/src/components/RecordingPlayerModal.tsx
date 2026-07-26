@@ -44,38 +44,43 @@ export default function RecordingPlayerModal({
       className="fixed inset-0 z-10000 flex items-center justify-center bg-black/60 p-6"
       onClick={onClose}
     >
-      <div className="flex w-full max-w-4xl flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <span className="text-body text-foreground">
+      <div
+        className="flex w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-border bg-surface-2 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <span className="text-body font-medium text-foreground">
             {event
               ? formatDateTime(event.time, timezone)
               : anchor
                 ? formatDateTime(anchor.start, timezone)
-                : ''}
+                : 'Reprodução'}
           </span>
           <button
             id="recording-player-modal-close"
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="text-faint hover:text-foreground"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface hover:text-foreground"
           >
             ✕
           </button>
         </div>
-        {error && (
-          <div
-            id="recording-player-modal-error"
-            className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-body text-danger"
-          >
-            {error}
-          </div>
-        )}
-        <VideoPlayer
-          idPrefix="recording-player"
-          segments={segments}
-          emptyMessage="Sem gravação cobrindo o evento."
-        />
+        <div className="flex flex-col gap-3 p-4">
+          {error && (
+            <div
+              id="recording-player-modal-error"
+              className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-body text-danger"
+            >
+              {error}
+            </div>
+          )}
+          <VideoPlayer
+            idPrefix="recording-player"
+            segments={segments}
+            emptyMessage="Sem gravação cobrindo o evento."
+          />
+        </div>
       </div>
     </div>,
     document.body,
