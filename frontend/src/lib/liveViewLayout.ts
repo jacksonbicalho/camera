@@ -40,7 +40,9 @@ export function loadSavedLayout(): TileLayout[] | null {
   }
 }
 
-export function saveLayout(layout: TileLayout[]): void {
+// `readonly` — react-grid-layout entrega `Layout` (somente-leitura) pro callback de
+// onLayoutChange; estas funções só leem, nunca mutam, então aceitam os dois.
+export function saveLayout(layout: readonly TileLayout[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(layout))
   } catch {
@@ -52,7 +54,10 @@ export function saveLayout(layout: TileLayout[]): void {
 // mergeLayoutWithCameras reconcilia o layout salvo com a lista ATUAL de câmeras: câmeras
 // removidas somem do layout; câmeras novas (sem posição salva) entram no fim, usando o
 // mesmo arranjo automático de defaultLayout, deslocado abaixo do que já existe.
-export function mergeLayoutWithCameras(saved: TileLayout[], cameraIds: string[]): TileLayout[] {
+export function mergeLayoutWithCameras(
+  saved: readonly TileLayout[],
+  cameraIds: string[],
+): TileLayout[] {
   const savedById = new Map(saved.map((t) => [t.i, t]))
   const known = saved.filter((t) => cameraIds.includes(t.i))
   const newIds = cameraIds.filter((id) => !savedById.has(id))
