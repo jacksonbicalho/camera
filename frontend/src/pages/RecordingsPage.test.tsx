@@ -281,8 +281,13 @@ describe('RecordingsPage', () => {
         'fetch',
         vi.fn((url: string) => {
           if (url.startsWith('/api/moments')) {
+            // `category` é CSV (0..N categorias) — mesmo contrato do backend real
+            // (moments.go), ver CA1/CA2 da story filtro-multiplo-recordings.
             const cat = new URL(url, 'http://x').searchParams.get('category')
-            const filtered = cat ? dynamicMoments.filter((m) => m.category === cat) : dynamicMoments
+            const cats = cat ? cat.split(',').map((c) => c.trim()) : null
+            const filtered = cats
+              ? dynamicMoments.filter((m) => cats.includes(m.category))
+              : dynamicMoments
             return Promise.resolve({
               status: 200,
               json: () =>
@@ -412,6 +417,120 @@ describe('RecordingsPage', () => {
       // (opções derivadas "da resposta carregada", ver comentário de `filterOptions`).
       expect(document.getElementById('recordings-cat-carro')).not.toBeNull()
       expect(document.getElementById('recordings-cat-todos')).not.toBeNull()
+    })
+  })
+
+  describe('CA3: filtro de categoria multi-seleção (modo Momentos)', () => {
+    // 3 categorias distintas pra exercitar seleção de 2 ao mesmo tempo.
+    const multiMoments = [
+      ...moments,
+      {
+        camera_id: 'cam1',
+        camera_name: 'Corredor',
+        time: '2026-06-23T09:00:00Z',
+        kind: 'motion' as const,
+        label: 'carro',
+        category: 'carro',
+        frame: '20260623090000_motion.jpg',
+        score: 0.7,
+      },
+    ]
+
+    function stubMultiMomentsFetch() {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/moments')) {
+            const cat = new URL(url, 'http://x').searchParams.get('category')
+            const cats = cat ? cat.split(',').map((c) => c.trim()) : null
+            const filtered = cats
+              ? multiMoments.filter((m) => cats.includes(m.category))
+              : multiMoments
+            return Promise.resolve({
+              status: 200,
+              json: () =>
+                Promise.resolve({ moments: filtered, total: filtered.length, hasMore: false }),
+            })
+          }
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+          return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+    }
+
+    it('clicar em 2 chips distintos ativa os DOIS (toggle aditivo, não substituição) e busca via CSV', async () => {
+      stubMultiMomentsFetch()
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      fireEvent.click(document.getElementById('recordings-cat-pessoa')!)
+      fetchMock.mockClear()
+      fireEvent.click(document.getElementById('recordings-cat-carro')!)
+      await waitFor(() => {
+        const called = fetchMock.mock.calls.some(([u]: [string]) => {
+          const s = String(u)
+          if (!s.startsWith('/api/moments')) return false
+          const cat = new URL(s, 'http://x').searchParams.get('category')
+          const cats = cat?.split(',') ?? []
+          return cats.includes('pessoa') && cats.includes('carro') && cats.length === 2
+        })
+        if (!called) throw new Error('fetch com category=pessoa,carro (CSV) não disparou')
+      })
+      expect(document.getElementById('recordings-cat-pessoa')?.className).toContain('bg-primary')
+      expect(document.getElementById('recordings-cat-carro')?.className).toContain('bg-primary')
+    })
+
+    it('clicar de novo num chip já ativo desliga só ELE, mantendo os outros selecionados', async () => {
+      stubMultiMomentsFetch()
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      fireEvent.click(document.getElementById('recordings-cat-pessoa')!)
+      fireEvent.click(document.getElementById('recordings-cat-carro')!)
+      await waitFor(() => {
+        expect(document.getElementById('recordings-cat-carro')?.className).toContain('bg-primary')
+      })
+      fireEvent.click(document.getElementById('recordings-cat-carro')!)
+      await waitFor(() => {
+        expect(document.getElementById('recordings-cat-carro')?.className).not.toContain(
+          'bg-primary',
+        )
+      })
+      expect(document.getElementById('recordings-cat-pessoa')?.className).toContain('bg-primary')
+    })
+
+    it('clicar em "Todos" com filtros ativos limpa a seleção inteira (nenhum outro chip fica ativo)', async () => {
+      stubMultiMomentsFetch()
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      fireEvent.click(document.getElementById('recordings-cat-pessoa')!)
+      fireEvent.click(document.getElementById('recordings-cat-carro')!)
+      await waitFor(() => {
+        expect(document.getElementById('recordings-cat-carro')?.className).toContain('bg-primary')
+      })
+      fetchMock.mockClear()
+      fireEvent.click(document.getElementById('recordings-cat-todos')!)
+      await waitFor(() => {
+        const called = fetchMock.mock.calls.some(([u]: [string]) => {
+          const s = String(u)
+          return (
+            s.startsWith('/api/moments') && !new URL(s, 'http://x').searchParams.has('category')
+          )
+        })
+        if (!called) throw new Error('fetch sem category (todos) não disparou')
+      })
+      expect(document.getElementById('recordings-cat-todos')?.className).toContain('bg-primary')
+      expect(document.getElementById('recordings-cat-pessoa')?.className).not.toContain(
+        'bg-primary',
+      )
+      expect(document.getElementById('recordings-cat-carro')?.className).not.toContain('bg-primary')
     })
   })
 })
