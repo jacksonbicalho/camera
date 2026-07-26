@@ -48,8 +48,8 @@ export default function RecordingPlayerModal({
         className="flex w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-border bg-surface-2 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <span className="text-body font-medium text-foreground">
+        <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+          <span className="text-caption text-foreground">
             {event
               ? formatDateTime(event.time, timezone)
               : anchor
@@ -61,12 +61,12 @@ export default function RecordingPlayerModal({
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface hover:text-foreground"
+            className="text-faint hover:text-foreground"
           >
             ✕
           </button>
         </div>
-        <div className="flex flex-col gap-3 p-4">
+        <div className="flex flex-col gap-3 p-3">
           {error && (
             <div
               id="recording-player-modal-error"
