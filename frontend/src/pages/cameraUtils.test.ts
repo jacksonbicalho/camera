@@ -113,7 +113,7 @@ describe('mergeRecordings', () => {
 // ─── recordingDurationMs ────────────────────────────────────────────────────
 
 describe('recordingDurationMs', () => {
-  describe('CA1: usa o fim real do chunk (rec.end ou início do próximo), nunca uma constante fixa quando o fim é conhecido', () => {
+  describe('CA2: usa o fim real do chunk (rec.end ou início do próximo), nunca uma constante fixa quando o fim é conhecido', () => {
     it('usa rec.end quando presente', () => {
       const r = { start: '2026-07-05T08:03:00Z', end: '2026-07-05T08:03:10Z' }
       expect(recordingDurationMs(r, undefined)).toBe(10_000)

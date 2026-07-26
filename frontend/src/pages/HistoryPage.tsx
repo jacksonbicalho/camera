@@ -29,6 +29,12 @@ interface Camera {
   id: string
   name: string
   recording_enabled?: boolean
+  // Padding (segundos) usado pro clip de reprodução de um evento — mesmos campos que
+  // internal/storage/cleaner.go já usa (e testa) pra computar has_motion. Reaproveitado
+  // aqui pra recordingCategory colorir um bloco contíguo de chunks ao redor de um
+  // evento, em vez de só o chunk que contém o instante exato dele.
+  playback_lead_seconds?: number
+  playback_trail_seconds?: number
 }
 
 // formatDuration calcula a duração do chunk: usa `end` (fim real) quando presente,
@@ -321,15 +327,26 @@ export default function HistoryPage() {
   // (pra inferir a duração quando `end` não veio) de um item no índice `i` é o índice ANTERIOR
   // (`i - 1`), mais recente nessa ordem — o mais recente de todos (índice 0) não tem "próximo".
   // `recordingItems` carrega duração + categoria de cada item (pro filtro e pra lista agrupada).
-  const recordingItems = useMemo(
-    () =>
-      recordings.map((rec, i) => ({
+  // O padding lead/trail (default 10s/10s, mesmo default de RecordingsGateway.getPlaybackWindow)
+  // alarga a janela de contenção de recordingCategory pros dois lados de um evento — sem ele, só
+  // o chunk que contém o instante exato do evento seria colorido, mesmo a pessoa ainda visível
+  // nos chunks vizinhos.
+  const recordingItems = useMemo(() => {
+    const padding = {
+      leadMs: (camera?.playback_lead_seconds ?? 10) * 1000,
+      trailMs: (camera?.playback_trail_seconds ?? 10) * 1000,
+    }
+    return recordings.map((rec, i) => ({
+      rec,
+      duration: formatDuration(rec, recordings[i - 1]),
+      category: recordingCategory(
         rec,
-        duration: formatDuration(rec, recordings[i - 1]),
-        category: recordingCategory(rec, events, recordingDurationMs(rec, recordings[i - 1])),
-      })),
-    [recordings, events],
-  )
+        events,
+        recordingDurationMs(rec, recordings[i - 1]),
+        padding,
+      ),
+    }))
+  }, [recordings, events, camera])
   // Opções do dropdown de filtro (`#history-filter-dropdown`) — dinâmicas, derivadas das
   // categorias que de fato aparecem nas gravações do dia carregado (pedido do navigator:
   // nada de chips fixos hardcoded pra categorias que nem existem no dia). `todos` sempre

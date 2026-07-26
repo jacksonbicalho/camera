@@ -114,24 +114,39 @@ function categoryTier(cat: string): number {
   return 1
 }
 
-// recordingCategory classifica um chunk de gravação pela categoria dos eventos no seu
-// intervalo [start, start+chunk): a de maior prioridade (`categoryTier`); `continua` se
-// não houver evento. Entre múltiplos labels ESPECÍFICOS distintos no mesmo chunk (tier
-// 1), desempata por CONTAGEM de ocorrências no próprio chunk (mais eventos vence) e
-// depois por ordem ALFABÉTICA — determinístico, não depende da ordem de iteração/chegada
-// dos eventos. Usado para colorir o thumbnail no filmstrip (legenda).
+// RecordingPadding alarga a janela de contenção de recordingCategory nas duas pontas —
+// mesmo padding (lead/trail, em ms) que internal/storage/cleaner.go já usa e testa pra
+// computar has_motion no backend. Sem padding (omitido), a janela é só [start, start+
+// chunk), igual a antes.
+export interface RecordingPadding {
+  leadMs: number
+  trailMs: number
+}
+
+// recordingCategory classifica um chunk de gravação pela categoria dos eventos na sua
+// janela de contenção — [start - trailMs, start+chunk + leadMs) quando `padding` é
+// passado (mesma fórmula de internal/storage/cleaner.go: evento conta se
+// `recording.start < evento + trail && recording.end > evento - lead`), ou
+// [start, start+chunk) sem padding: a de maior prioridade (`categoryTier`); `continua`
+// se não houver evento. Entre múltiplos labels ESPECÍFICOS distintos no mesmo chunk
+// (tier 1), desempata por CONTAGEM de ocorrências no próprio chunk (mais eventos vence)
+// e depois por ordem ALFABÉTICA — determinístico, não depende da ordem de
+// iteração/chegada dos eventos. Usado para colorir o thumbnail no filmstrip (legenda).
 export function recordingCategory(
   rec: Pick<Recording, 'start'>,
   events: Pick<MotionEvent, 'time' | 'label' | 'kind'>[],
   chunkMs: number,
+  padding?: RecordingPadding,
 ): RecordingCategory {
   const start = Date.parse(rec.start)
   if (Number.isNaN(start)) return 'continua'
   const end = start + chunkMs
+  const rangeStart = start - (padding?.trailMs ?? 0)
+  const rangeEnd = end + (padding?.leadMs ?? 0)
   const counts = new Map<string, number>()
   for (const ev of events) {
     const t = Date.parse(ev.time)
-    if (Number.isNaN(t) || t < start || t >= end) continue
+    if (Number.isNaN(t) || t < rangeStart || t >= rangeEnd) continue
     const cat = eventCategory(ev)
     counts.set(cat, (counts.get(cat) ?? 0) + 1)
   }

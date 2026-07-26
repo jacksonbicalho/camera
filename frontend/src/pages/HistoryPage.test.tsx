@@ -1154,7 +1154,7 @@ describe('HistoryPage', () => {
       })
     })
 
-    describe('CA1: categoria de um chunk usa sua duração REAL, não uma janela fixa de 5 minutos', () => {
+    describe('CA2: categoria de um chunk usa sua duração REAL, não uma janela fixa de 5 minutos', () => {
       it('gravação curta (10s) bem antes de um evento (4min15s depois) NÃO é classificada por ele, mesmo o evento caindo dentro da antiga janela fixa de 5 minutos', async () => {
         // recA: 07:12:00Z–07:12:10Z (10s reais). O evento cai em 07:16:15Z — 4min15s
         // depois do início de recA, dentro da janela fixa antiga (5min = até 07:17:00Z),
