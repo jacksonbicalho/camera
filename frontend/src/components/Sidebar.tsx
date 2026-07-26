@@ -237,19 +237,19 @@ export default function Sidebar() {
           <SidebarSection label="Administração" showLabel={showLabel} divider>
             <SidebarNavLink
               item={{
-                id: 'sidebar-storage',
-                to: '/settings/storage',
-                label: 'Armazenamento',
-                icon: <HardDrive className="h-5 w-5 shrink-0" />,
+                id: 'sidebar-server',
+                to: '/settings/server',
+                label: 'Servidor',
+                icon: <Server className="h-5 w-5 shrink-0" />,
               }}
               showLabel={showLabel}
             />
             <SidebarNavLink
               item={{
-                id: 'sidebar-server',
-                to: '/settings/server',
-                label: 'Servidor',
-                icon: <Server className="h-5 w-5 shrink-0" />,
+                id: 'sidebar-storage',
+                to: '/settings/storage',
+                label: 'Armazenamento',
+                icon: <HardDrive className="h-5 w-5 shrink-0" />,
               }}
               showLabel={showLabel}
             />

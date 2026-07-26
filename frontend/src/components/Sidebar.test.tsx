@@ -198,7 +198,7 @@ describe('CA3: seção "Movimentos" (admin) — Análise de vídeo, Rotular even
   })
 })
 
-describe('CA4: seção "Administração" (admin) — Armazenamento, Servidor, Usuários', () => {
+describe('CA4/CA9: seção "Administração" (admin) — Servidor, Armazenamento, Usuários', () => {
   it('admin vê os 3 itens', () => {
     renderAt('/')
     expect(document.getElementById('sidebar-storage')?.getAttribute('href')).toBe(

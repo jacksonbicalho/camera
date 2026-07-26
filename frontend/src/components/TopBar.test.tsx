@@ -71,6 +71,12 @@ describe('TopBar', () => {
     expect(bar.className).toContain('top-0')
     expect(bar.className).toContain('h-14')
   })
+
+  it('grupo de ações à direita (id top-bar-actions) tem espaçamento à direita igual ao conteúdo da página (pr-6, mesmo p-6 do Layout)', () => {
+    renderTopBar()
+    expect(document.getElementById('top-bar-actions')).not.toBeNull()
+    expect(document.getElementById('top-bar')!.className).toContain('pr-6')
+  })
 })
 
 describe('CA2: color-mode e motion-notifications migraram pro TopBar', () => {

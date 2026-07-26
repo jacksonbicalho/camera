@@ -20,7 +20,10 @@ import { CameraLogo } from './Icons'
 // ancoram o próprio flyout abaixo-à-direita do gatilho (mesmo padrão do
 // `UserMenu`), não mais à direita como faziam no rail vertical — aqui,
 // perto do canto superior direito, um painel `left: rect.right` vazaria
-// pra fora da viewport.
+// pra fora da viewport. `pr-6` (em vez do `px-4` uniforme de antes) alinha o grupo de ações
+// (`top-bar-actions`) com a margem direita do CONTEÚDO da página abaixo — `p-6` do `Layout`
+// (24px), mesmo valor usado por qualquer `actions` de `PageHeader` (ex. `report-range-select`
+// em `ReportsPage.tsx`) — pedido do navigator.
 // Substitui: (1) a linha de logo que vivia dentro do próprio `Sidebar.tsx`
 // (agora só a coluna de navegação, sem cabeçalho próprio); (2) o `UserMenu`
 // fixo/flutuante (`position: fixed`), que colidia visualmente com botões de
@@ -30,7 +33,7 @@ export default function TopBar() {
   return (
     <div
       id="top-bar"
-      className="sticky top-0 z-20 flex h-14 flex-none items-center justify-between border-b border-border bg-surface px-4"
+      className="sticky top-0 z-20 flex h-14 flex-none items-center justify-between border-b border-border bg-surface pl-4 pr-6"
     >
       <Link
         to="/"
@@ -41,7 +44,7 @@ export default function TopBar() {
         <CameraLogo className="w-8 h-8 shrink-0" />
         <span className="text-base font-bold text-foreground truncate">os-camera</span>
       </Link>
-      <div className="flex items-center gap-1">
+      <div id="top-bar-actions" className="flex items-center gap-1">
         <AppHelpMenu />
         <ThemeModeNav showLabel={false} />
         <MotionNotificationsBell showLabel={false} />
