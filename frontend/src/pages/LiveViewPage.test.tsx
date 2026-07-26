@@ -214,6 +214,61 @@ describe('CA5: presets de layout (1×1/2×2/3×3/4×4) resetam o arranjo e persi
   })
 })
 
+describe('CA6: grade NxN dimensionada pela viewport (não pela largura) + grade customizada', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true })
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 200,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: 0,
+      height: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('rowHeight vem da altura disponível (viewport - topo do grid), não da largura', async () => {
+    renderPage()
+    await waitFor(() => {
+      expect(gridLayoutMock.lastProps?.rowHeight).toBe((800 - 200 - 16) / 3)
+    })
+  })
+
+  it('botão "Mais" abre um input; aplicar um valor customizado (ex.: 6) vira o cols ativo', async () => {
+    renderPage()
+    await waitFor(() => {
+      expect(document.getElementById('live-view-preset-more')).not.toBeNull()
+    })
+    fireEvent.click(document.getElementById('live-view-preset-more')!)
+    const input = document.getElementById('live-view-preset-custom-input') as HTMLInputElement
+    expect(input).not.toBeNull()
+    fireEvent.change(input, { target: { value: '6' } })
+    fireEvent.click(document.getElementById('live-view-preset-custom-apply')!)
+    await waitFor(() => {
+      expect(gridLayoutMock.lastProps?.cols).toBe(6)
+    })
+    expect(localStorage.getItem('liveview-cols')).toBe('6')
+    expect(document.getElementById('live-view-preset-more')?.className).toContain('bg-primary')
+  })
+
+  it('com um cols customizado ativo, nenhum dos presets 1-4 fica destacado', async () => {
+    localStorage.setItem('liveview-cols', '7')
+    renderPage()
+    await waitFor(() => {
+      expect(gridLayoutMock.lastProps?.cols).toBe(7)
+    })
+    expect(document.getElementById('live-view-preset-1x1')?.className).not.toContain('bg-primary')
+    expect(document.getElementById('live-view-preset-more')?.className).toContain('bg-primary')
+  })
+})
+
 describe('CA5: Player de cada tile tem controles + badge "AO VIVO" (paridade com AllCamerasPage)', () => {
   it('cada Player recebe controls=true', async () => {
     renderPage()

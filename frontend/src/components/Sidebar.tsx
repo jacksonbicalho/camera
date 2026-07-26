@@ -145,7 +145,7 @@ export default function Sidebar() {
           {showLabel && <span className="truncate text-sm">Recolher menu</span>}
         </button>
 
-        <SidebarSection label="Ao vivo" showLabel={showLabel} divider>
+        <SidebarSection showLabel={showLabel} divider>
           <SidebarNavLink
             item={{
               id: 'sidebar-live-view',

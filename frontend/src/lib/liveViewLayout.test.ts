@@ -7,6 +7,7 @@ import {
   presetLayout,
   loadSavedCols,
   saveCols,
+  computeRowHeight,
 } from './liveViewLayout'
 
 const STORAGE_KEY = 'liveview-layout'
@@ -152,5 +153,25 @@ describe('CA5: loadSavedCols/saveCols — persistência do preset de layout esco
   it('valor <= 0 salvo → null (formato inválido, cai pro default)', () => {
     localStorage.setItem(COLS_KEY, '0')
     expect(loadSavedCols()).toBeNull()
+  })
+})
+
+describe('CA6: computeRowHeight — grade NxN dimensionada pra caber na viewport disponível (não na largura)', () => {
+  it('divide a altura disponível (viewport - topo do grid - margem) pelo nº de linhas', () => {
+    expect(computeRowHeight(800, 200, 2)).toBe((800 - 200 - 16) / 2)
+  })
+
+  it('preset 1x1 (1 linha) usa toda a altura disponível numa célula só', () => {
+    expect(computeRowHeight(800, 200, 1)).toBe(800 - 200 - 16)
+  })
+
+  it('mais linhas → células mais baixas (mesma altura disponível dividida por mais)', () => {
+    const h2 = computeRowHeight(800, 200, 2)
+    const h4 = computeRowHeight(800, 200, 4)
+    expect(h4).toBeLessThan(h2)
+  })
+
+  it('altura disponível degenerada (viewport baixa/muitas linhas) não passa do mínimo', () => {
+    expect(computeRowHeight(300, 250, 4)).toBe(80)
   })
 })

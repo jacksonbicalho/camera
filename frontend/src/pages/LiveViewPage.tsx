@@ -6,6 +6,7 @@ import { authHeaders, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import Player from '../components/Player'
+import { Button } from '@/components/ui/button'
 import {
   defaultLayout,
   loadSavedLayout,
@@ -14,19 +15,13 @@ import {
   presetLayout,
   loadSavedCols,
   saveCols,
+  computeRowHeight,
   DEFAULT_COLS,
   LAYOUT_PRESETS,
   type TileLayout,
 } from '../lib/liveViewLayout'
 
 const ResponsiveGridLayout = WidthProvider(GridLayout)
-
-// Câmeras de vídeo são tipicamente 16:9 — mesma proporção já usada em `aspect-video`
-// (VideoPlayer.tsx). Uma célula 1×1 do grid mantém essa proporção, então a câmera aparece
-// sem cortar/distorcer quando ocupa 1 célula só (pedido do navigator, com mockup de
-// referência: dividir o espaço em quadros proporcionais, não um `rowHeight` fixo
-// independente da largura real do container).
-const CELL_ASPECT_RATIO = 9 / 16
 
 interface Camera {
   id: string
@@ -43,18 +38,28 @@ interface Camera {
 // lib/liveViewLayout.ts (módulo puro, testado em isolamento). Persiste em localStorage —
 // preferência de UI local, mesmo espírito de `ui-display-mode` (sidebar recolhido/expandido).
 //
-// Botões de preset (1×1/2×2/3×3/4×4) resetam TODAS as câmeras pra 1 célula cada, na ordem —
-// "definir o menor quadro possível e distribuir pelo espaço disponível" (pedido do
-// navigator) — e trocam `cols`, que junto com a largura medida do container determina o
-// `rowHeight` proporcional (16:9). Redimensionar manualmente um tile (arrastar a borda)
-// continua livre e não é travado pra múltiplos NxN — os presets cobrem o caso comum
-// (arranjo simétrico); ver `## Revisão` da story pra esse escopo.
+// Botões de preset (1×1/2×2/3×3/4×4 + "Mais" pra um N customizado) resetam TODAS as câmeras
+// pra 1 célula cada, na ordem — "definir o menor quadro possível e distribuir pelo espaço
+// disponível" (pedido do navigator) — e trocam `cols`. Preset "NxN" é uma grade REAL de N
+// linhas × N colunas: `rowHeight` vem de `computeRowHeight` (altura da viewport disponível
+// dividida pelas linhas), não da largura da coluna — um preset 1×1 preenche a altura
+// disponível inteira numa única célula, 4×4 divide essa mesma altura em 4 linhas, sem exigir
+// scroll pra ver todas as linhas do preset escolhido (feedback do navigator: o cálculo
+// anterior, baseado só na largura, gerava células "grandes demais" nesse sentido).
+// Redimensionar manualmente um tile (arrastar a borda) continua livre e não é travado pra
+// múltiplos NxN — os presets cobrem o caso comum (arranjo simétrico); ver `## Revisão` da
+// story pra esse escopo.
 export default function LiveViewPage() {
   const [cameras, setCameras] = useState<Camera[]>([])
   const [layout, setLayout] = useState<TileLayout[]>([])
   const [cols, setCols] = useState<number>(() => loadSavedCols() ?? DEFAULT_COLS)
-  const [containerWidth, setContainerWidth] = useState(1200)
-  const gridWrapObserverRef = useRef<ResizeObserver | null>(null)
+  const [viewportHeight, setViewportHeight] = useState<number>(() =>
+    typeof window === 'undefined' ? 800 : window.innerHeight,
+  )
+  const [gridTop, setGridTop] = useState(0)
+  const gridWrapRef = useRef<HTMLDivElement | null>(null)
+  const [showCustomInput, setShowCustomInput] = useState(false)
+  const [customValue, setCustomValue] = useState('')
 
   useEffect(() => {
     fetch('/api/cameras', { headers: authHeaders() })
@@ -75,26 +80,32 @@ export default function LiveViewPage() {
       .catch(() => {})
   }, [])
 
-  // Mede a largura real do container pra computar um rowHeight proporcional (16:9) — mesmo
-  // padrão de HistoryPage.tsx (mainRef/ResizeObserver): ref callback (não useRef+useEffect
-  // vazio, já que o elemento só existe depois que `cameras` carrega) + guard porque
-  // ResizeObserver não existe no jsdom dos testes (degrada pro valor inicial). `useCallback`
-  // + desconectar o observer anterior antes de criar um novo evita empilhar observers a
-  // cada re-render (a função seria recriada — e um novo ResizeObserver instanciado — em
-  // todo render sem isso, já que React reexecuta ref callbacks quando a identidade muda).
-  const bindGridWrap = useCallback((node: HTMLDivElement | null) => {
-    gridWrapObserverRef.current?.disconnect()
-    gridWrapObserverRef.current = null
-    if (!node || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width
-      if (w) setContainerWidth(w)
-    })
-    observer.observe(node)
-    gridWrapObserverRef.current = observer
+  // Mede o topo do grid (distância até o topo da viewport) pra computeRowHeight saber quanta
+  // altura está disponível abaixo dele — `getBoundingClientRect().top` não depende do próprio
+  // rowHeight (só do que vem ACIMA do grid: PageHeader), então não há realimentação. Ref
+  // callback (não useRef+useEffect vazio) porque o elemento só existe depois que `cameras`
+  // carrega — mesmo motivo de sempre (HistoryPage.tsx). Recalcula também no resize da janela.
+  const recomputeViewport = useCallback(() => {
+    setViewportHeight(window.innerHeight)
+    if (gridWrapRef.current) {
+      setGridTop(gridWrapRef.current.getBoundingClientRect().top)
+    }
   }, [])
 
-  const rowHeight = (containerWidth / cols) * CELL_ASPECT_RATIO
+  const bindGridWrap = useCallback(
+    (node: HTMLDivElement | null) => {
+      gridWrapRef.current = node
+      if (node) recomputeViewport()
+    },
+    [recomputeViewport],
+  )
+
+  useEffect(() => {
+    window.addEventListener('resize', recomputeViewport)
+    return () => window.removeEventListener('resize', recomputeViewport)
+  }, [recomputeViewport])
+
+  const rowHeight = computeRowHeight(viewportHeight, gridTop, cols)
 
   // react-grid-layout entrega um array `readonly` (Layout) pro callback — copia pra um
   // array mutável antes de guardar no estado/persistir (TileLayout tem o mesmo shape).
@@ -115,6 +126,16 @@ export default function LiveViewPage() {
     saveLayout(next)
   }
 
+  // "Mais" — grade customizada além dos presets fixos (1-4): pedido do navigator
+  // ("pense numa opção grade customizada ou personalizada"), mesma mecânica de applyPreset,
+  // só que o N vem de um input em vez de um botão fixo.
+  const isCustomCols = !(LAYOUT_PRESETS as readonly number[]).includes(cols)
+  const applyCustom = () => {
+    const n = Math.round(Number(customValue))
+    if (Number.isFinite(n) && n >= 1) applyPreset(n)
+    setShowCustomInput(false)
+  }
+
   return (
     <Layout id="live-view-page" footerId="live-view-footer" contentClassName="p-6">
       <div id="live-view-content" className="page-content space-y-4">
@@ -124,20 +145,67 @@ export default function LiveViewPage() {
           actions={
             <div id="live-view-presets" className="flex items-center gap-1.5">
               {LAYOUT_PRESETS.map((n) => (
-                <button
+                <Button
                   key={n}
                   id={`live-view-preset-${n}x${n}`}
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => applyPreset(n)}
-                  className={`px-2.5 py-1.5 rounded-md border text-xs transition-colors ${
+                  className={
                     cols === n
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-surface-2 text-muted border-border hover:text-foreground'
-                  }`}
+                      ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
+                      : 'bg-surface-2 text-muted hover:text-foreground'
+                  }
                 >
                   {n}×{n}
-                </button>
+                </Button>
               ))}
+              <Button
+                id="live-view-preset-more"
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCustomValue(String(cols))
+                  setShowCustomInput((v) => !v)
+                }}
+                className={
+                  isCustomCols
+                    ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
+                    : 'bg-surface-2 text-muted hover:text-foreground'
+                }
+              >
+                Mais
+              </Button>
+              {showCustomInput && (
+                <form
+                  id="live-view-preset-custom-form"
+                  className="flex items-center gap-1"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    applyCustom()
+                  }}
+                >
+                  <input
+                    id="live-view-preset-custom-input"
+                    type="number"
+                    min={1}
+                    value={customValue}
+                    onChange={(e) => setCustomValue(e.target.value)}
+                    className="w-14 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-foreground"
+                  />
+                  <Button
+                    id="live-view-preset-custom-apply"
+                    type="submit"
+                    variant="outline"
+                    size="sm"
+                    className="bg-surface-2 text-muted hover:text-foreground"
+                  >
+                    Aplicar
+                  </Button>
+                </form>
+              )}
             </div>
           }
         />

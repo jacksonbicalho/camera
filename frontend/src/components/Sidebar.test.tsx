@@ -102,8 +102,9 @@ describe('Sidebar (enxuto)', () => {
 // ícone "Configurações") — pedido do navigator. O link direto pra /events
 // (existia numa versão anterior desta história) foi ocultado; o sino de
 // notificações migrou pra TopBar (história feat/reorganizar-topbar-sidebar);
-// a seção que os continha foi renomeada "Ao vivo" (história
-// feat/liveview-customizavel), já que só sobrou o item "Live View".
+// a seção que os continha ficou sem cabeçalho visível (história
+// feat/liveview-customizavel, T5 — pedido do navigator: um rótulo pra uma
+// seção de item único ("Live View", sozinho ali) virou ruído).
 describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', () => {
   it('sino de notificações saiu do Sidebar (mudou pra TopBar); sem link pra /events', () => {
     renderAt('/')
@@ -116,6 +117,13 @@ describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', 
     renderAt('/')
     expect(document.getElementById('sidebar-config')).toBeNull()
     expect(document.getElementById('sidebar-config-sistema')).toBeNull()
+  })
+
+  it('CA6: seção do item "Live View" não mostra mais cabeçalho ("Ao vivo"/"Eventos")', () => {
+    renderAt('/')
+    const sidebarText = document.getElementById('sidebar')?.textContent ?? ''
+    expect(sidebarText).not.toContain('Ao vivo')
+    expect(sidebarText).not.toContain('Eventos')
   })
 
   it('CA4: "Live View" é um link de verdade pra /live-view (deixou de ser "em construção")', () => {

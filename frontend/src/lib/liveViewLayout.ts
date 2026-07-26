@@ -58,6 +58,26 @@ export function saveCols(cols: number): void {
   }
 }
 
+// computeRowHeight — feedback do navigator: um preset "NxN" deve ser uma grade real de N
+// linhas × N colunas que cabe na viewport (sem exigir scroll pra ver as N linhas), não uma
+// altura derivada só da largura da coluna (que ignora a altura disponível e, com poucas
+// linhas, sobra tela vazia; com muitas, estoura a viewport). `rows` aqui é sempre igual ao
+// `cols` do preset (grade quadrada); `gridTop` é a distância do topo do grid até o topo da
+// viewport (medida real do elemento, `getBoundingClientRect().top`) e `bottomMargin` reserva
+// um respiro pro rodapé da página. `minRowHeight` evita células degeneradas (viewport muito
+// baixa ou preset com muitas linhas) — nesse caso o grid volta a exigir scroll, mesmo
+// trade-off de sempre (resize manual também não é travado, ver T4).
+export function computeRowHeight(
+  viewportHeight: number,
+  gridTop: number,
+  rows: number,
+  bottomMargin = 16,
+  minRowHeight = 80,
+): number {
+  const available = viewportHeight - gridTop - bottomMargin
+  return Math.max(minRowHeight, available / Math.max(1, rows))
+}
+
 // loadSavedLayout lê o layout persistido — null quando não há nada salvo, ou quando o valor
 // salvo está corrompido/num formato inesperado (nunca lança, a página cai pro automático).
 export function loadSavedLayout(): TileLayout[] | null {
