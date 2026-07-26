@@ -70,7 +70,7 @@ export default function RecordingsPage() {
   const location = useLocation()
   const [cameras, setCameras] = useState<CameraOption[]>([])
   const [selectedCams, setSelectedCams] = useState<Set<string>>(new Set())
-  const [category, setCategory] = useState<string>('todos')
+  const [category, setCategory] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [date, setDate] = useState<Date>(() => parseLocalDate(dateParam))
@@ -87,7 +87,7 @@ export default function RecordingsPage() {
   const [contentDays, setContentDays] = useState<string[]>([])
   const { moments, hasMore, loaded } = useMoments({
     date,
-    category,
+    category: category.size > 0 ? [...category].join(',') : 'todos',
     cameras: selectedCams,
     query,
     page,
@@ -103,7 +103,7 @@ export default function RecordingsPage() {
   const filterOptions = useMemo(() => {
     const present = new Set<string>()
     for (const m of moments) present.add(m.category)
-    present.add(category)
+    for (const c of category) present.add(c)
     present.delete('todos')
     return ['todos', ...sortCategories(present)]
   }, [moments, category])
@@ -204,6 +204,22 @@ export default function RecordingsPage() {
     setPage(1)
   }
 
+  // "Todos" limpa a seleção inteira; os demais chips fazem toggle aditivo (multi-seleção),
+  // mesmo padrão de toggleCam acima.
+  const toggleCategory = (c: string) => {
+    if (c === 'todos') {
+      setCategory(new Set())
+    } else {
+      setCategory((prev) => {
+        const next = new Set(prev)
+        if (next.has(c)) next.delete(c)
+        else next.add(c)
+        return next
+      })
+    }
+    setPage(1)
+  }
+
   return (
     <Layout id="recordings-page" footerId="recordings-footer" contentClassName="p-6">
       <div id="recordings-content" className="page-content space-y-4">
@@ -269,12 +285,9 @@ export default function RecordingsPage() {
               <button
                 key={c}
                 id={`recordings-cat-${c}`}
-                onClick={() => {
-                  setCategory(c)
-                  setPage(1)
-                }}
+                onClick={() => toggleCategory(c)}
                 className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors ${
-                  category === c
+                  (c === 'todos' ? category.size === 0 : category.has(c))
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-surface-2 text-muted hover:text-foreground'
                 }`}
