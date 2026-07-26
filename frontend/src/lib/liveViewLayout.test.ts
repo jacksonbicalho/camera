@@ -8,6 +8,10 @@ import {
   loadSavedCols,
   saveCols,
   computeRowHeight,
+  removeCameraFromLayout,
+  addCameraToLayout,
+  loadHiddenCameraIds,
+  saveHiddenCameraIds,
 } from './liveViewLayout'
 
 const STORAGE_KEY = 'liveview-layout'
@@ -173,5 +177,75 @@ describe('CA6: computeRowHeight — grade NxN dimensionada pra caber na viewport
 
   it('altura disponível degenerada (viewport baixa/muitas linhas) não passa do mínimo', () => {
     expect(computeRowHeight(300, 250, 4)).toBe(80)
+  })
+})
+
+describe('CA7: removeCameraFromLayout/addCameraToLayout — curadoria de câmeras na tela', () => {
+  it('removeCameraFromLayout tira só a entrada da câmera indicada, mantém as outras intactas', () => {
+    const layout = [
+      { i: 'cam1', x: 0, y: 0, w: 1, h: 1 },
+      { i: 'cam2', x: 1, y: 0, w: 1, h: 1 },
+    ]
+    expect(removeCameraFromLayout(layout, 'cam1')).toEqual([{ i: 'cam2', x: 1, y: 0, w: 1, h: 1 }])
+  })
+
+  it('removeCameraFromLayout com id que não existe no layout devolve o layout intacto', () => {
+    const layout = [{ i: 'cam1', x: 0, y: 0, w: 1, h: 1 }]
+    expect(removeCameraFromLayout(layout, 'cam-inexistente')).toEqual(layout)
+  })
+
+  it('addCameraToLayout adiciona 1 célula nova abaixo do que já existe, sem sobrepor', () => {
+    const layout = [
+      { i: 'cam1', x: 0, y: 0, w: 1, h: 1 },
+      { i: 'cam2', x: 1, y: 0, w: 1, h: 1 },
+    ]
+    const next = addCameraToLayout(layout, 'cam3')
+    expect(next).toEqual([...layout, { i: 'cam3', x: 0, y: 1, w: 1, h: 1 }])
+  })
+
+  it('addCameraToLayout em layout vazio adiciona na primeira célula', () => {
+    expect(addCameraToLayout([], 'cam1')).toEqual([{ i: 'cam1', x: 0, y: 0, w: 1, h: 1 }])
+  })
+})
+
+describe('CA7: loadHiddenCameraIds/saveHiddenCameraIds — persistência de câmeras removidas da tela', () => {
+  it('sem nada salvo → lista vazia', () => {
+    expect(loadHiddenCameraIds()).toEqual([])
+  })
+
+  it('saveHiddenCameraIds grava e loadHiddenCameraIds lê de volta a mesma lista', () => {
+    saveHiddenCameraIds(['cam1', 'cam2'])
+    expect(loadHiddenCameraIds()).toEqual(['cam1', 'cam2'])
+  })
+
+  it('JSON corrompido no localStorage → lista vazia, sem lançar exceção', () => {
+    localStorage.setItem('liveview-hidden', '{not valid json')
+    expect(() => loadHiddenCameraIds()).not.toThrow()
+    expect(loadHiddenCameraIds()).toEqual([])
+  })
+
+  it('valor salvo que não é um array → lista vazia (formato inesperado)', () => {
+    localStorage.setItem('liveview-hidden', JSON.stringify({ not: 'an array' }))
+    expect(loadHiddenCameraIds()).toEqual([])
+  })
+})
+
+describe('CA7: mergeLayoutWithCameras — não traz de volta uma câmera explicitamente removida', () => {
+  it('câmera nova E não-oculta entra normalmente (comportamento de sempre)', () => {
+    const saved = [{ i: 'cam1', x: 0, y: 0, w: 4, h: 4 }]
+    const merged = mergeLayoutWithCameras(saved, ['cam1', 'cam2'], [])
+    expect(merged.map((t) => t.i).sort()).toEqual(['cam1', 'cam2'])
+  })
+
+  it('câmera "nova" (sem posição salva) que está na lista de ocultas NÃO entra de volta sozinha', () => {
+    const saved = [{ i: 'cam1', x: 0, y: 0, w: 4, h: 4 }]
+    const merged = mergeLayoutWithCameras(saved, ['cam1', 'cam2'], ['cam2'])
+    expect(merged.map((t) => t.i)).toEqual(['cam1'])
+  })
+
+  it('sem hiddenIds (parâmetro omitido) mantém o comportamento anterior (compatível)', () => {
+    const saved = [{ i: 'cam1', x: 0, y: 0, w: 4, h: 4 }]
+    const merged = mergeLayoutWithCameras(saved, ['cam1', 'cam2'])
+    expect(merged.map((t) => t.i).sort()).toEqual(['cam1', 'cam2'])
   })
 })

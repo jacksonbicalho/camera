@@ -274,6 +274,17 @@ export function GripVertical(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function LayoutGrid(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect width="7" height="7" x="3" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="14" rx="1" />
+      <rect width="7" height="7" x="3" y="14" rx="1" />
+    </Icon>
+  )
+}
+
 export function Loader2(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

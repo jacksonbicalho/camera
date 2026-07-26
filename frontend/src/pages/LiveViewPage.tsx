@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import GridLayout, { WidthProvider } from 'react-grid-layout/legacy'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
@@ -6,6 +7,9 @@ import { authHeaders, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import Player from '../components/Player'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { useFlyout } from '../components/sidebarFlyout'
+import { Check, LayoutGrid, Pencil, Plus, Trash2 } from '../components/Icons'
 import { Button } from '@/components/ui/button'
 import {
   defaultLayout,
@@ -16,6 +20,10 @@ import {
   loadSavedCols,
   saveCols,
   computeRowHeight,
+  removeCameraFromLayout,
+  addCameraToLayout,
+  loadHiddenCameraIds,
+  saveHiddenCameraIds,
   DEFAULT_COLS,
   LAYOUT_PRESETS,
   type TileLayout,
@@ -38,10 +46,13 @@ interface Camera {
 // lib/liveViewLayout.ts (módulo puro, testado em isolamento). Persiste em localStorage —
 // preferência de UI local, mesmo espírito de `ui-display-mode` (sidebar recolhido/expandido).
 //
-// Botões de preset (1×1/2×2/3×3/4×4 + "Mais" pra um N customizado) resetam TODAS as câmeras
-// pra 1 célula cada, na ordem — "definir o menor quadro possível e distribuir pelo espaço
-// disponível" (pedido do navigator) — e trocam `cols`. Preset "NxN" é uma grade REAL de N
-// linhas × N colunas: `rowHeight` vem de `computeRowHeight` (altura da viewport disponível
+// Presets de layout (1×1/2×2/3×3/4×4) vivem num dropdown (gatilho `live-view-preset-trigger`
+// + flyout `live-view-preset-menu`, mesmo padrão de `ThemeModeNav`/"color-mode" — `useFlyout`,
+// portal pro body, Check ao lado da opção ativa) — pedido do navigator, no lugar de 4 botões
+// soltos na toolbar. Escolher um preset reseta TODAS as câmeras VISÍVEIS pra 1 célula cada, na
+// ordem — "definir o menor quadro possível e distribuir pelo espaço disponível" (pedido do
+// navigator) — e troca `cols`. Preset "NxN" é uma grade REAL de N linhas × N colunas:
+// `rowHeight` vem de `computeRowHeight` (altura da viewport disponível
 // dividida pelas linhas), não da largura da coluna — um preset 1×1 preenche a altura
 // disponível inteira numa única célula, 4×4 divide essa mesma altura em 4 linhas, sem exigir
 // scroll pra ver todas as linhas do preset escolhido (feedback do navigator: o cálculo
@@ -58,8 +69,25 @@ export default function LiveViewPage() {
   )
   const [gridTop, setGridTop] = useState(0)
   const gridWrapRef = useRef<HTMLDivElement | null>(null)
-  const [showCustomInput, setShowCustomInput] = useState(false)
-  const [customValue, setCustomValue] = useState('')
+  const [editMode, setEditMode] = useState(false)
+  const [hiddenIds, setHiddenIds] = useState<string[]>(() => loadHiddenCameraIds())
+  const [removeTarget, setRemoveTarget] = useState<Camera | null>(null)
+  const {
+    open: presetOpen,
+    setOpen: setPresetOpen,
+    pos: presetPos,
+    btnRef: presetBtnRef,
+    panelRef: presetPanelRef,
+    toggle: togglePreset,
+  } = useFlyout<HTMLButtonElement>()
+  const {
+    open: insertOpen,
+    setOpen: setInsertOpen,
+    pos: insertPos,
+    btnRef: insertBtnRef,
+    panelRef: insertPanelRef,
+    toggle: toggleInsert,
+  } = useFlyout<HTMLButtonElement>()
 
   useEffect(() => {
     fetch('/api/cameras', { headers: authHeaders() })
@@ -74,8 +102,13 @@ export default function LiveViewPage() {
         if (!Array.isArray(data)) return
         setCameras(data)
         const ids = data.map((c) => c.id)
+        const hidden = loadHiddenCameraIds()
         const saved = loadSavedLayout()
-        setLayout(saved ? mergeLayoutWithCameras(saved, ids) : defaultLayout(ids))
+        setLayout(
+          saved
+            ? mergeLayoutWithCameras(saved, ids, hidden)
+            : defaultLayout(ids.filter((id) => !hidden.includes(id))),
+        )
       })
       .catch(() => {})
   }, [])
@@ -115,25 +148,44 @@ export default function LiveViewPage() {
     saveLayout(copy)
   }
 
+  // applyPreset relayouta só as câmeras VISÍVEIS (não-ocultas) — usar `cameras` inteiro aqui
+  // ressuscitaria no grid uma câmera que o usuário acabou de remover (T6, curadoria de
+  // câmeras nesta tela), contradizendo `hiddenIds`.
   const applyPreset = (n: number) => {
     setCols(n)
     saveCols(n)
-    const next = presetLayout(
-      cameras.map((c) => c.id),
-      n,
-    )
+    const visibleIds = cameras.filter((cam) => !hiddenIds.includes(cam.id)).map((cam) => cam.id)
+    const next = presetLayout(visibleIds, n)
     setLayout(next)
     saveLayout(next)
   }
 
-  // "Mais" — grade customizada além dos presets fixos (1-4): pedido do navigator
-  // ("pense numa opção grade customizada ou personalizada"), mesma mecânica de applyPreset,
-  // só que o N vem de um input em vez de um botão fixo.
-  const isCustomCols = !(LAYOUT_PRESETS as readonly number[]).includes(cols)
-  const applyCustom = () => {
-    const n = Math.round(Number(customValue))
-    if (Number.isFinite(n) && n >= 1) applyPreset(n)
-    setShowCustomInput(false)
+  // Curadoria de câmeras nesta tela (T6, feedback do navigator): a câmera continua
+  // funcionando normalmente no sistema, só sai/entra da grade do LiveView — sem quadro vazio
+  // no lugar. `hiddenIds` (persistido) é o que impede `mergeLayoutWithCameras` de trazer de
+  // volta sozinha, num próximo carregamento, uma câmera que o usuário removeu de propósito.
+  const visibleCameras = cameras.filter((cam) => layout.some((t) => t.i === cam.id))
+  const availableToAdd = cameras.filter((cam) => !layout.some((t) => t.i === cam.id))
+
+  const confirmRemove = () => {
+    if (!removeTarget) return
+    const nextLayout = removeCameraFromLayout(layout, removeTarget.id)
+    const nextHidden = [...hiddenIds, removeTarget.id]
+    setLayout(nextLayout)
+    saveLayout(nextLayout)
+    setHiddenIds(nextHidden)
+    saveHiddenCameraIds(nextHidden)
+    setRemoveTarget(null)
+  }
+
+  const insertCamera = (camId: string) => {
+    const nextLayout = addCameraToLayout(layout, camId)
+    const nextHidden = hiddenIds.filter((id) => id !== camId)
+    setLayout(nextLayout)
+    saveLayout(nextLayout)
+    setHiddenIds(nextHidden)
+    saveHiddenCameraIds(nextHidden)
+    setInsertOpen(false)
   }
 
   return (
@@ -144,67 +196,133 @@ export default function LiveViewPage() {
           subtitle="Arraste e redimensione os cards pra customizar o layout."
           actions={
             <div id="live-view-presets" className="flex items-center gap-1.5">
-              {LAYOUT_PRESETS.map((n) => (
-                <Button
-                  key={n}
-                  id={`live-view-preset-${n}x${n}`}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => applyPreset(n)}
-                  className={
-                    cols === n
-                      ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
-                      : 'bg-surface-2 text-muted hover:text-foreground'
-                  }
-                >
-                  {n}×{n}
-                </Button>
-              ))}
               <Button
-                id="live-view-preset-more"
+                id="live-view-preset-trigger"
+                ref={presetBtnRef}
                 type="button"
                 variant="outline"
                 size="sm"
+                onClick={togglePreset}
+                className="bg-surface-2 text-muted hover:text-foreground"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                {cols}×{cols}
+              </Button>
+              {presetOpen &&
+                createPortal(
+                  <div
+                    id="live-view-preset-menu"
+                    ref={presetPanelRef}
+                    style={{
+                      position: 'fixed',
+                      top: presetPos.top,
+                      right: presetPos.right,
+                      zIndex: 9999,
+                    }}
+                    className="w-32 bg-surface border border-border rounded shadow-lg"
+                  >
+                    {LAYOUT_PRESETS.map((n) => {
+                      const active = cols === n
+                      return (
+                        <button
+                          key={n}
+                          id={`live-view-preset-${n}x${n}`}
+                          type="button"
+                          aria-current={active ? 'true' : undefined}
+                          onClick={() => {
+                            applyPreset(n)
+                            setPresetOpen(false)
+                          }}
+                          className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm transition-colors ${
+                            active
+                              ? 'bg-accent text-accent-foreground font-medium'
+                              : 'text-foreground hover:bg-accent hover:text-accent-foreground'
+                          }`}
+                        >
+                          <Check
+                            className={`w-4 h-4 shrink-0 ${active ? 'opacity-100' : 'opacity-0'}`}
+                          />
+                          <span>
+                            {n}×{n}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>,
+                  document.body,
+                )}
+              <Button
+                id="live-view-edit-toggle"
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-pressed={editMode}
                 onClick={() => {
-                  setCustomValue(String(cols))
-                  setShowCustomInput((v) => !v)
+                  setEditMode((v) => !v)
+                  setInsertOpen(false)
                 }}
                 className={
-                  isCustomCols
+                  editMode
                     ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
                     : 'bg-surface-2 text-muted hover:text-foreground'
                 }
               >
-                Mais
+                {editMode ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" />
+                    Aplicar alterações
+                  </>
+                ) : (
+                  <>
+                    <Pencil className="h-3.5 w-3.5" />
+                    Editar grid
+                  </>
+                )}
               </Button>
-              {showCustomInput && (
-                <form
-                  id="live-view-preset-custom-form"
-                  className="flex items-center gap-1"
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    applyCustom()
-                  }}
-                >
-                  <input
-                    id="live-view-preset-custom-input"
-                    type="number"
-                    min={1}
-                    value={customValue}
-                    onChange={(e) => setCustomValue(e.target.value)}
-                    className="w-14 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-foreground"
-                  />
+              {editMode && (
+                <>
                   <Button
-                    id="live-view-preset-custom-apply"
-                    type="submit"
+                    id="live-view-insert-camera"
+                    ref={insertBtnRef}
+                    type="button"
                     variant="outline"
                     size="sm"
+                    disabled={availableToAdd.length === 0}
+                    onClick={toggleInsert}
                     className="bg-surface-2 text-muted hover:text-foreground"
                   >
-                    Aplicar
+                    <Plus className="h-3.5 w-3.5" />
+                    Inserir câmera
                   </Button>
-                </form>
+                  {insertOpen &&
+                    availableToAdd.length > 0 &&
+                    createPortal(
+                      <div
+                        id="live-view-insert-camera-menu"
+                        ref={insertPanelRef}
+                        style={{
+                          position: 'fixed',
+                          top: insertPos.top,
+                          right: insertPos.right,
+                          zIndex: 9999,
+                        }}
+                        className="w-48 rounded-md border border-border bg-surface py-1 shadow-xl"
+                      >
+                        {availableToAdd.map((cam) => (
+                          <button
+                            key={cam.id}
+                            id={`live-view-insert-camera-${cam.id}`}
+                            type="button"
+                            onClick={() => insertCamera(cam.id)}
+                            className="block w-full truncate px-3 py-1.5 text-left text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
+                          >
+                            {cam.name}
+                          </button>
+                        ))}
+                      </div>,
+                      document.body,
+                    )}
+                </>
               )}
             </div>
           }
@@ -213,10 +331,21 @@ export default function LiveViewPage() {
           <p id="live-view-empty" className="text-faint text-body">
             Nenhuma câmera configurada.
           </p>
+        ) : visibleCameras.length === 0 ? (
+          <p id="live-view-empty-visible" className="text-faint text-body">
+            Nenhuma câmera nesta tela. Ative "Editar grid" e use "Inserir câmera" pra adicionar uma.
+          </p>
         ) : (
           // ResponsiveGridLayout (react-grid-layout/legacy) não aceita `id` como prop —
           // envolve num wrapper próprio pra manter a convenção de id estável em todo
-          // elemento de UI (CLAUDE.md).
+          // elemento de UI (CLAUDE.md). `containerPadding={[0, 0]}` — a lib aplica um
+          // padding interno de 10px por padrão, somado ao `p-6` (24px) da página; medido
+          // (getBoundingClientRect real, Playwright) o 1º tile ficava em x=90 enquanto o
+          // `.page-content` de outras páginas (ex. AllCamerasPage) começa em x=80 no mesmo
+          // viewport — os 10px extras da lib quebravam a margem consistente entre páginas
+          // (bug real reportado pelo navigator). Zerar aqui faz os tiles começarem exatamente
+          // na borda do `p-6`, igual a qualquer outra página; o espaçamento ENTRE tiles
+          // continua vindo de `margin` (default da lib, não mexido).
           <div id="live-view-grid" ref={bindGridWrap}>
             <ResponsiveGridLayout
               className="layout"
@@ -224,12 +353,19 @@ export default function LiveViewPage() {
               cols={cols}
               rowHeight={rowHeight}
               onLayoutChange={handleLayoutChange}
+              isDraggable={editMode}
+              isResizable={editMode}
+              containerPadding={[0, 0]}
             >
-              {cameras.map((cam) => (
+              {visibleCameras.map((cam) => (
                 <div
                   key={cam.id}
                   id={`live-view-tile-${cam.id}`}
-                  className="overflow-hidden rounded-lg border border-border bg-surface"
+                  className={`overflow-hidden rounded-lg border bg-surface ${
+                    editMode
+                      ? 'cursor-move border-primary/50 ring-2 ring-primary/30'
+                      : 'border-border'
+                  }`}
                 >
                   <Player
                     id={`player-${cam.id}`}
@@ -240,6 +376,19 @@ export default function LiveViewPage() {
                     transport={cam.live_transport}
                     title={cam.name}
                     controls
+                    footerTrailing={
+                      editMode && (
+                        <button
+                          id={`live-view-remove-${cam.id}`}
+                          type="button"
+                          onClick={() => setRemoveTarget(cam)}
+                          aria-label={`Remover ${cam.name} desta tela`}
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )
+                    }
                   >
                     <span className="absolute top-2 left-2 bg-danger text-white text-caption px-2 py-0.5 rounded font-medium pointer-events-none">
                       AO VIVO
@@ -251,6 +400,19 @@ export default function LiveViewPage() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={removeTarget !== null}
+        title="Remover câmera desta tela"
+        message={
+          removeTarget
+            ? `Remover "${removeTarget.name}" do Live View? A câmera continua funcionando normalmente no sistema — só sai desta tela.`
+            : ''
+        }
+        confirmLabel="Remover"
+        danger
+        onConfirm={confirmRemove}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </Layout>
   )
 }

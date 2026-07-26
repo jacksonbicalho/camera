@@ -8,6 +8,7 @@ export interface TileLayout {
 
 const STORAGE_KEY = 'liveview-layout'
 const COLS_KEY = 'liveview-cols'
+const HIDDEN_KEY = 'liveview-hidden'
 export const DEFAULT_COLS = 3
 export const LAYOUT_PRESETS = [1, 2, 3, 4] as const
 
@@ -105,16 +106,61 @@ export function saveLayout(layout: readonly TileLayout[]): void {
 
 // mergeLayoutWithCameras reconcilia o layout salvo com a lista ATUAL de câmeras: câmeras
 // removidas somem do layout; câmeras novas (sem posição salva) entram no fim, usando o
-// mesmo arranjo automático de defaultLayout, deslocado abaixo do que já existe.
+// mesmo arranjo automático de defaultLayout, deslocado abaixo do que já existe. `hiddenIds`
+// (T6, curadoria de câmeras na tela) exclui da auto-adição as câmeras que o usuário removeu
+// explicitamente desta tela — sem isso, recarregar a página traria de volta uma câmera que
+// o usuário tinha acabado de tirar (pra reconciliação, ela pareceria só "uma câmera nova").
 export function mergeLayoutWithCameras(
   saved: readonly TileLayout[],
   cameraIds: string[],
+  hiddenIds: readonly string[] = [],
 ): TileLayout[] {
   const savedById = new Map(saved.map((t) => [t.i, t]))
   const known = saved.filter((t) => cameraIds.includes(t.i))
-  const newIds = cameraIds.filter((id) => !savedById.has(id))
+  const newIds = cameraIds.filter((id) => !savedById.has(id) && !hiddenIds.includes(id))
   if (newIds.length === 0) return known
   const maxY = known.reduce((m, t) => Math.max(m, t.y + t.h), 0)
   const added = defaultLayout(newIds).map((t) => ({ ...t, y: t.y + maxY }))
   return [...known, ...added]
+}
+
+// removeCameraFromLayout/addCameraToLayout (T6) — curadoria de câmeras nesta tela: a câmera
+// continua funcionando normalmente no sistema, só sai/entra da grade do LiveView. Sem
+// placeholder/quadro vazio no lugar (pedido explícito do navigator) — a câmera removida
+// simplesmente não tem mais entrada no array.
+export function removeCameraFromLayout(
+  layout: readonly TileLayout[],
+  cameraId: string,
+): TileLayout[] {
+  return layout.filter((t) => t.i !== cameraId)
+}
+
+// addCameraToLayout adiciona 1 célula nova (1x1) pra `cameraId`, abaixo do que já existe —
+// mesma lógica de posicionamento usada por mergeLayoutWithCameras pra câmeras novas (aqui
+// sempre 1 câmera por vez, já que é sempre uma escolha do picker "Inserir câmera").
+export function addCameraToLayout(layout: readonly TileLayout[], cameraId: string): TileLayout[] {
+  const maxY = layout.reduce((m, t) => Math.max(m, t.y + t.h), 0)
+  return [...layout, { i: cameraId, x: 0, y: maxY, w: 1, h: 1 }]
+}
+
+// loadHiddenCameraIds/saveHiddenCameraIds — persiste quais câmeras o usuário removeu
+// explicitamente desta tela (chave própria, separada do layout) — usado por
+// mergeLayoutWithCameras pra não trazê-las de volta sozinhas.
+export function loadHiddenCameraIds(): string[] {
+  try {
+    const raw = localStorage.getItem(HIDDEN_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function saveHiddenCameraIds(ids: readonly string[]): void {
+  try {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify(ids))
+  } catch {
+    // localStorage indisponível — mesmo espírito de saveLayout, falha silenciosa.
+  }
 }
