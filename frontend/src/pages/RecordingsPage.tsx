@@ -85,7 +85,7 @@ export default function RecordingsPage() {
   const [recordings, setRecordings] = useState<RecordingItem[]>([])
   const [recLoaded, setRecLoaded] = useState(false)
   const [contentDays, setContentDays] = useState<string[]>([])
-  const { moments, hasMore, loaded } = useMoments({
+  const { moments, hasMore, loaded, categories } = useMoments({
     date,
     category: category.size > 0 ? [...category].join(',') : 'todos',
     cameras: selectedCams,
@@ -94,19 +94,19 @@ export default function RecordingsPage() {
   })
 
   // Opções do filtro de categoria (`#recordings-category-chips`) — dinâmicas, derivadas
-  // dos momentos efetivamente carregados (pedido do navigator: nada de chips fixos
-  // hardcoded pra categorias que nem existem). Como `/api/moments` já filtra por
-  // `category` no servidor quando um filtro específico está ativo, a lista de opções
-  // "encolhe" pra só a categoria selecionada nesse caso — por isso o filtro ATIVO sempre
-  // entra no set (nunca desaparece do próprio filtro que o gerou); com "Todos" selecionado
-  // (estado inicial e mais comum), a resposta reflete TODAS as categorias do dia/câmera.
+  // de `categories` (o universo de categorias do dia que o servidor devolve INDEPENDENTE
+  // do filtro `category` ativo — ver internal/server/moments.go). Deriva de `categories`,
+  // não de `moments`: `moments` já vem filtrado pelo servidor quando um filtro específico
+  // está ativo, o que faria os OUTROS chips desaparecerem assim que 1 categoria fosse
+  // selecionada — quebrando o multi-seleção (bug real, reportado pelo navigator logo após
+  // a story anterior). `category` (o Set ativo) ainda entra no set por defesa, garantindo
+  // que o próprio filtro ativo nunca desaparece mesmo em algum caso de borda.
   const filterOptions = useMemo(() => {
-    const present = new Set<string>()
-    for (const m of moments) present.add(m.category)
+    const present = new Set<string>(categories)
     for (const c of category) present.add(c)
     present.delete('todos')
     return ['todos', ...sortCategories(present)]
-  }, [moments, category])
+  }, [categories, category])
 
   // Mantém a URL sincronizada com data/janela/modo (fonte compartilhável) — mesmo
   // padrão de ReportsPage.tsx/HistoryPage.tsx: só navega quando o alvo difere da

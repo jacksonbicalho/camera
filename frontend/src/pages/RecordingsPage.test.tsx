@@ -276,6 +276,11 @@ describe('RecordingsPage', () => {
       },
     ]
 
+    // Universo fixo de categorias do dia — mesmo contrato do backend real
+    // (internal/server/moments.go: `categories` no JSON, independente do filtro
+    // `category` ativo, ver story fix-chips-categoria-somem-multiselecao).
+    const dynamicCategories = [...new Set(dynamicMoments.map((m) => m.category))]
+
     function stubMomentsFetch() {
       vi.stubGlobal(
         'fetch',
@@ -291,7 +296,12 @@ describe('RecordingsPage', () => {
             return Promise.resolve({
               status: 200,
               json: () =>
-                Promise.resolve({ moments: filtered, total: filtered.length, hasMore: false }),
+                Promise.resolve({
+                  moments: filtered,
+                  total: filtered.length,
+                  hasMore: false,
+                  categories: dynamicCategories,
+                }),
             })
           }
           if (url.startsWith('/api/cameras'))
@@ -327,7 +337,12 @@ describe('RecordingsPage', () => {
             return Promise.resolve({
               status: 200,
               json: () =>
-                Promise.resolve({ moments: withZebra, total: withZebra.length, hasMore: false }),
+                Promise.resolve({
+                  moments: withZebra,
+                  total: withZebra.length,
+                  hasMore: false,
+                  categories: [...new Set(withZebra.map((m) => m.category))],
+                }),
             })
           }
           if (url.startsWith('/api/cameras'))
@@ -412,11 +427,14 @@ describe('RecordingsPage', () => {
       await waitFor(() => {
         expect(document.getElementById('moment-1')).toBeNull() // já filtrado, só 1 momento
       })
-      // mesmo com a resposta contendo só "carro", o chip "carro" continua na lista (é o
-      // próprio filtro ativo) — e os demais (pessoa/estados) somem, comportamento aceito
-      // (opções derivadas "da resposta carregada", ver comentário de `filterOptions`).
+      // mesmo com a resposta de `moments` contendo só "carro", o chip "carro" continua na
+      // lista (é o próprio filtro ativo) — e os demais (pessoa/estados) TAMBÉM continuam
+      // visíveis, já que `filterOptions` deriva de `categories` (universo fixo do dia),
+      // não da resposta filtrada (ver story fix-chips-categoria-somem-multiselecao).
       expect(document.getElementById('recordings-cat-carro')).not.toBeNull()
       expect(document.getElementById('recordings-cat-todos')).not.toBeNull()
+      expect(document.getElementById('recordings-cat-pessoa')).not.toBeNull()
+      expect(document.getElementById('recordings-cat-estados')).not.toBeNull()
     })
   })
 
@@ -436,6 +454,8 @@ describe('RecordingsPage', () => {
       },
     ]
 
+    const multiCategories = [...new Set(multiMoments.map((m) => m.category))]
+
     function stubMultiMomentsFetch() {
       vi.stubGlobal(
         'fetch',
@@ -449,7 +469,12 @@ describe('RecordingsPage', () => {
             return Promise.resolve({
               status: 200,
               json: () =>
-                Promise.resolve({ moments: filtered, total: filtered.length, hasMore: false }),
+                Promise.resolve({
+                  moments: filtered,
+                  total: filtered.length,
+                  hasMore: false,
+                  categories: multiCategories,
+                }),
             })
           }
           if (url.startsWith('/api/cameras'))
@@ -531,6 +556,98 @@ describe('RecordingsPage', () => {
         'bg-primary',
       )
       expect(document.getElementById('recordings-cat-carro')?.className).not.toContain('bg-primary')
+    })
+  })
+
+  describe('CA3: chips de categoria não desaparecem com filtro ativo (fix multi-seleção)', () => {
+    // Mesmas 3 categorias de CA3 acima (pessoa/carro/estados), mas o servidor devolve o
+    // universo FIXO de categorias do dia via `categories` — independente do `category`
+    // ativo na query, ao contrário de `moments` (que o servidor real filtra de verdade).
+    const stableMoments = [
+      ...moments,
+      {
+        camera_id: 'cam1',
+        camera_name: 'Corredor',
+        time: '2026-06-23T09:00:00Z',
+        kind: 'motion' as const,
+        label: 'carro',
+        category: 'carro',
+        frame: '20260623090000_motion.jpg',
+        score: 0.7,
+      },
+    ]
+
+    function stubStableCategoriesFetch() {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/moments')) {
+            const cat = new URL(url, 'http://x').searchParams.get('category')
+            const cats = cat ? cat.split(',').map((c) => c.trim()) : null
+            const filtered = cats
+              ? stableMoments.filter((m) => cats.includes(m.category))
+              : stableMoments
+            return Promise.resolve({
+              status: 200,
+              json: () =>
+                Promise.resolve({
+                  moments: filtered,
+                  total: filtered.length,
+                  hasMore: false,
+                  categories: ['carro', 'estados', 'pessoa'],
+                }),
+            })
+          }
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+          return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+    }
+
+    it('REGRESSÃO: depois que o fetch filtrado por 1 categoria já resolveu, os OUTROS chips continuam visíveis (não somem)', async () => {
+      stubStableCategoriesFetch()
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      fireEvent.click(document.getElementById('recordings-cat-pessoa')!)
+      // espera o fetch FILTRADO resolver de verdade (a lista de momentos encolhe pra só
+      // "pessoa", igual ao servidor real faria) antes de checar os chips — reproduz o
+      // fluxo real do usuário (clique → resposta chega → só então o 2º clique), não o
+      // timing artificial de fireEvent síncrono sem await entre 2 cliques.
+      await waitFor(() => {
+        expect(document.getElementById('moment-1')).toBeNull()
+      })
+      expect(document.getElementById('recordings-cat-carro')).not.toBeNull()
+      expect(document.getElementById('recordings-cat-estados')).not.toBeNull()
+    })
+
+    it('permite adicionar uma 2ª categoria DEPOIS que o fetch da 1ª já resolveu (fluxo real, não uma corrida de timing)', async () => {
+      stubStableCategoriesFetch()
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      fireEvent.click(document.getElementById('recordings-cat-pessoa')!)
+      await waitFor(() => {
+        expect(document.getElementById('moment-1')).toBeNull()
+      })
+      fetchMock.mockClear()
+      fireEvent.click(document.getElementById('recordings-cat-carro')!)
+      await waitFor(() => {
+        const called = fetchMock.mock.calls.some(([u]: [string]) => {
+          const s = String(u)
+          if (!s.startsWith('/api/moments')) return false
+          const cat = new URL(s, 'http://x').searchParams.get('category')
+          const cats = cat?.split(',') ?? []
+          return cats.includes('pessoa') && cats.includes('carro') && cats.length === 2
+        })
+        if (!called) throw new Error('fetch com category=pessoa,carro não disparou')
+      })
+      expect(document.getElementById('recordings-cat-pessoa')?.className).toContain('bg-primary')
+      expect(document.getElementById('recordings-cat-carro')?.className).toContain('bg-primary')
     })
   })
 })
