@@ -8,6 +8,7 @@ import DatePicker from '../components/DatePicker'
 import { ChevronDown, Loader2, Play } from '../components/Icons'
 import VideoPlayer, { type VideoPlayerSegment } from '../components/VideoPlayer'
 import HistoryTimeline from '../components/HistoryTimeline'
+import TimeRangeFilterPanel from '../components/TimeRangeFilterPanel'
 import {
   loadMotionEvents,
   loadRecordingsData,
@@ -24,6 +25,7 @@ import {
   type TimelineFilter,
 } from './eventCategory'
 import { RecordingsGateway } from '../lib/recordingsGateway'
+import { matchesTimeRange, type ClockTime } from '../lib/timeRange'
 
 interface Camera {
   id: string
@@ -141,6 +143,15 @@ export default function HistoryPage() {
   const [availableDays, setAvailableDays] = useState<string[]>([])
   const [readyForUrlSync, setReadyForUrlSync] = useState(!initialRecordingId)
   const [filter, setFilter] = useState<TimelineFilter>('todos')
+  // Filtro de intervalo de horário (painel na coluna lateral, mesma linha do calendário) —
+  // filtra AO VIVO: cada edição (onChange) já atualiza este estado direto, sem botão
+  // "Aplicar" — matchesTimeRange trata um horário só parcialmente preenchido (from OU to
+  // ausente) como "sem filtro" (ver lib/timeRange.ts), então digitar só o "De" ainda não
+  // filtra nada até o "Até" também ser preenchido, sem exigir confirmação extra.
+  const [timeRange, setTimeRange] = useState<{ from: ClockTime | null; to: ClockTime | null }>({
+    from: null,
+    to: null,
+  })
   // Reprodução contínua: null = desligada; array = ligada, com o snapshot das gravações a
   // encadear (tomado no instante em que liga — ver comentário no `toggleContinuous`).
   const [continuousRecordings, setContinuousRecordings] = useState<Recording[] | null>(null)
@@ -167,7 +178,7 @@ export default function HistoryPage() {
     return () => {
       cancelled = true
     }
-  }, [cameraId, initialRecordingId])
+  }, [cameraId, initialRecordingId, initialCameraId])
 
   // Some sozinho depois de um tempo pro usuário ler — NÃO fica condicionado a nenhum efeito de
   // carregamento terminar (ex.: `camera`/`recordings` resolvendo) porque isso corria risco de
@@ -378,15 +389,28 @@ export default function HistoryPage() {
   if (!filterOptions.includes(filter)) {
     setFilter('todos')
   }
+  // Filtro de intervalo de horário (De/Até, painel na coluna lateral) — aplicado ANTES do
+  // filtro de categoria, sobre `recordingItems` (o mesmo universo que `filterOptions` usa —
+  // as opções do dropdown não mudam com o range de horário, mesmo precedente de já não
+  // mudarem com o filtro de categoria ativo). Sem `timeRange.from/to` (nenhum dos dois
+  // preenchido ainda), `matchesTimeRange` sempre casa — equivalente a "sem filtro".
+  const timeFilteredItems = useMemo(
+    () =>
+      recordingItems.filter((item) =>
+        matchesTimeRange(item.rec.start, timeRange.from, timeRange.to),
+      ),
+    [recordingItems, timeRange],
+  )
   // Agrupa por hora local (0-23) do início da gravação — cada grupo é colapsável, com
   // contagem no cabeçalho ("18h — 12 gravações"). A ordem dos grupos (desc) e dos itens
   // dentro de cada grupo (desc) segue a mesma ordem de `recordings`. Deriva dos itens que
-  // batem com o filtro ativo (`matchesTimelineFilter`) — hora sem nenhum item
-  // correspondente não gera grupo nenhum (some inteira, não só esmaece). Reprodução
-  // contínua continua usando `recordings` (a lista completa, sem filtro) — inalterado.
+  // batem com o filtro ativo (`matchesTimelineFilter`) sobre `timeFilteredItems` (os dois
+  // filtros combinam por E lógico) — hora sem nenhum item correspondente não gera grupo
+  // nenhum (some inteira, não só esmaece). Reprodução contínua continua usando
+  // `recordings` (a lista completa, sem filtro nenhum) — inalterado.
   const groupsByHour = useMemo(() => {
     const map = new Map<number, typeof recordingItems>()
-    for (const item of recordingItems) {
+    for (const item of timeFilteredItems) {
       if (!matchesTimelineFilter(item.category, filter)) continue
       const hour = new Date(item.rec.start).getHours()
       const list = map.get(hour)
@@ -394,7 +418,7 @@ export default function HistoryPage() {
       else map.set(hour, [item])
     }
     return [...map.entries()].sort((a, b) => b[0] - a[0])
-  }, [recordingItems, filter])
+  }, [timeFilteredItems, filter])
 
   // Grupos COLAPSADOS (o padrão é todo mundo aberto — dia normal de câmera residencial tem
   // poucas horas com conteúdo; abrir tudo por padrão favorece escanear a lista inteira,
@@ -836,7 +860,13 @@ export default function HistoryPage() {
                   className="flex w-full flex-col gap-1.5 overflow-hidden rounded-lg border border-border p-2 lg:w-80 lg:shrink-0"
                   style={mainHeight != null ? { maxHeight: mainHeight } : undefined}
                 >
-                  <div className="flex items-center justify-end">
+                  {/* 3 linhas empilhadas, cada uma ocupando a largura toda da coluna —
+                      testado contra a página renderizada de verdade, o navigator pediu
+                      pra não dividir a mesma linha (versão anterior, calendário + filtro
+                      de horário lado a lado, ficava apertado demais na coluna de
+                      ~320px). Ordem: data, depois hora, depois o dropdown de categoria
+                      (já existia, inalterado). */}
+                  <div className="flex w-full items-center">
                     <DatePicker
                       id="history-date-picker"
                       value={selectedDate}
@@ -844,6 +874,16 @@ export default function HistoryPage() {
                       disableFuture
                       availableDays={availableDays}
                       align="right"
+                      fullWidth
+                    />
+                  </div>
+                  {/* Filtra ao vivo, sem botão "Aplicar" (pedido do navigator) — cada
+                      edição já atualiza `timeRange` direto. */}
+                  <div className="flex w-full items-center">
+                    <TimeRangeFilterPanel
+                      from={timeRange.from}
+                      to={timeRange.to}
+                      onChange={(from, to) => setTimeRange({ from, to })}
                     />
                   </div>
                   {recordingItems.length > 0 && (
@@ -856,7 +896,7 @@ export default function HistoryPage() {
                         aria-label="Filtrar gravações por categoria"
                         value={filter}
                         onChange={(e) => setFilter(e.target.value)}
-                        className="rounded border border-border bg-surface-2 px-2 py-1 text-caption text-foreground"
+                        className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-caption text-foreground"
                       >
                         {filterOptions.map((value) => (
                           <option key={value} value={value}>
@@ -965,7 +1005,7 @@ export default function HistoryPage() {
               style={rowWidth != null ? { maxWidth: rowWidth } : undefined}
             >
               <HistoryTimeline
-                recordingItems={recordingItems}
+                recordingItems={timeFilteredItems}
                 filter={filter}
                 onSelect={selectRecording}
                 cameraId={camera.id}

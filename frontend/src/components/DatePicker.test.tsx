@@ -30,6 +30,20 @@ describe('DatePicker', () => {
     expect(popover.style.top).toBe('')
   })
 
+  it('fullWidth: popover ganha largura explícita (do gatilho) — sem isso, um gatilho esticado numa coluna estreita deixaria o popover mais largo que a coluna, vazando por cima do conteúdo ao lado', () => {
+    render(<DatePicker id="dp" value={new Date(2026, 5, 15)} onChange={() => {}} fullWidth />)
+    fireEvent.click(document.getElementById('dp')!)
+    const popover = document.getElementById('dp-popover') as HTMLElement
+    expect(popover.style.width).not.toBe('')
+  })
+
+  it('sem fullWidth (default), o popover NÃO ganha largura explícita — usa a largura natural do calendário', () => {
+    render(<DatePicker id="dp" value={new Date(2026, 5, 15)} onChange={() => {}} />)
+    fireEvent.click(document.getElementById('dp')!)
+    const popover = document.getElementById('dp-popover') as HTMLElement
+    expect(popover.style.width).toBe('')
+  })
+
   describe('CA3: popover via portal, só fecha em clique genuinamente fora dele', () => {
     it('popover renderiza via portal (filho de document.body), não fica preso a nenhum overflow-hidden ancestral', () => {
       render(<DatePicker id="dp" value={new Date(2026, 5, 15)} onChange={() => {}} />)
