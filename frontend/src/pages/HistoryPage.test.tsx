@@ -67,6 +67,27 @@ vi.mock('../components/DatePicker', () => ({
   ),
 }))
 
+// TimeRangeFilterPanel de verdade usa MUI (dial de relógio) — irrelevante pro teste de
+// integração do filtro em si (já coberto isoladamente em TimeRangeFilterPanel.test.tsx).
+// Mock simples com botões que chamam onApply com ranges fixos, suficiente pra exercitar a
+// integração (HistoryPage aplica matchesTimeRange sobre recordingItems).
+vi.mock('../components/TimeRangeFilterPanel', () => ({
+  default: ({
+    onApply,
+  }: {
+    onApply: (from: { hour: number; minute: number }, to: { hour: number; minute: number }) => void
+  }) => (
+    <div data-testid="history-time-range-mock">
+      <button onClick={() => onApply({ hour: 7, minute: 0 }, { hour: 7, minute: 30 })}>
+        aplicar 07:00–07:30
+      </button>
+      <button onClick={() => onApply({ hour: 0, minute: 0 }, { hour: 23, minute: 59 })}>
+        aplicar dia inteiro
+      </button>
+    </div>
+  ),
+}))
+
 import HistoryPage from './HistoryPage'
 
 function LocationProbe() {
@@ -1195,6 +1216,46 @@ describe('HistoryPage', () => {
         // recA NÃO deveria bater com o filtro "pessoa" — o evento está bem fora da sua
         // duração real de 10s. Sob o bug (janela fixa de 5min), recA também aparecia aqui.
         expect(document.getElementById('history-recording-20')).toBeNull()
+      })
+    })
+
+    describe('CA5: filtro de intervalo de horário (De/Até) combina com o filtro de categoria por E lógico', () => {
+      it('aplicar um range de horário oculta gravações fora dele, mantendo as que estão dentro', async () => {
+        // a.mp4 07:12:00Z (dentro de 07:00–07:30), b.mp4 08:03:00Z (fora).
+        stubFetch(recordings)
+        renderAt('/history/cam1')
+        await waitFor(() => {
+          expect(document.getElementById('history-recording-1')).not.toBeNull()
+          expect(document.getElementById('history-recording-2')).not.toBeNull()
+        })
+
+        fireEvent.click(document.querySelector('[data-testid="history-time-range-mock"] button')!)
+        await waitFor(() => {
+          expect(document.getElementById('history-recording-2')).toBeNull()
+        })
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
+      })
+
+      it('aplicar de novo um range que cobre o dia inteiro volta a mostrar todas as gravações', async () => {
+        stubFetch(recordings)
+        renderAt('/history/cam1')
+        await waitFor(() => {
+          expect(document.getElementById('history-recording-1')).not.toBeNull()
+        })
+
+        const [narrowBtn, wideBtn] = document.querySelectorAll(
+          '[data-testid="history-time-range-mock"] button',
+        )
+        fireEvent.click(narrowBtn)
+        await waitFor(() => {
+          expect(document.getElementById('history-recording-2')).toBeNull()
+        })
+
+        fireEvent.click(wideBtn)
+        await waitFor(() => {
+          expect(document.getElementById('history-recording-2')).not.toBeNull()
+        })
+        expect(document.getElementById('history-recording-1')).not.toBeNull()
       })
     })
 
