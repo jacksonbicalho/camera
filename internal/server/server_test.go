@@ -1561,6 +1561,119 @@ func TestMomentsSearchQuery(t *testing.T) {
 	}
 }
 
+// TestMomentsCategoryFilter cobre `category` como CSV multi-valor (story
+// filtro-multiplo-recordings) — mesmo padrão já usado por `cameras` no mesmo endpoint.
+func TestMomentsCategoryFilter(t *testing.T) {
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "master", "secret", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	cam, err := db.CreateCamera(database, config.CameraConfig{Name: "Corredor"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.InsertMotionEvent(database, db.MotionEvent{
+		CameraID: cam.ID, OccurredAt: time.Date(2026, 5, 24, 10, 0, 0, 0, time.UTC), Score: 0.4, Label: "pessoa",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.InsertMotionEvent(database, db.MotionEvent{
+		CameraID: cam.ID, OccurredAt: time.Date(2026, 5, 24, 10, 5, 0, 0, time.UTC), Score: 0.4, Label: "carro",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
+		CameraID: cam.ID, Name: "Portão", Model: "custom-cls", Threshold: 0.8, Classes: []string{"aberto", "fechado"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(
+		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?, ?, ?, ?, ?)`,
+		cid, "aberto", 0.95, "/recordings/state_history/1/x.jpg", "2026-05-24 11:00:00",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{{ID: cam.ID}}, discardLogger(), nil).WithDB(database)
+	token := loginAndGetToken(t, srv, "master", "secret")
+
+	query := func(qs string) struct {
+		Moments []map[string]any `json:"moments"`
+		Total   int              `json:"total"`
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/api/moments?date=2026-05-24&"+qs, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: expected 200, got %d: %s", qs, w.Code, w.Body.String())
+		}
+		var resp struct {
+			Moments []map[string]any `json:"moments"`
+			Total   int              `json:"total"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("%s: decode: %v", qs, err)
+		}
+		return resp
+	}
+	categories := func(r struct {
+		Moments []map[string]any `json:"moments"`
+		Total   int              `json:"total"`
+	}) map[string]bool {
+		set := map[string]bool{}
+		for _, m := range r.Moments {
+			set[m["category"].(string)] = true
+		}
+		return set
+	}
+
+	t.Run("CA2: sem category → todos os 3 momentos", func(t *testing.T) {
+		if r := query(""); r.Total != 3 {
+			t.Errorf("esperava 3, got total=%d: %+v", r.Total, r.Moments)
+		}
+	})
+
+	t.Run("CA2: category=pessoa (valor único, retrocompat) → só pessoa", func(t *testing.T) {
+		r := query("category=pessoa")
+		if r.Total != 1 || !categories(r)["pessoa"] {
+			t.Errorf("esperava só pessoa, got total=%d: %+v", r.Total, r.Moments)
+		}
+	})
+
+	t.Run("CA2: category=estados (valor único, retrocompat) → só estado", func(t *testing.T) {
+		r := query("category=estados")
+		if r.Total != 1 || !categories(r)["estados"] {
+			t.Errorf("esperava só estados, got total=%d: %+v", r.Total, r.Moments)
+		}
+	})
+
+	t.Run("CA2: category=pessoa,carro (CSV multi-motion) → pessoa+carro, sem estados", func(t *testing.T) {
+		r := query("category=pessoa,carro")
+		cats := categories(r)
+		if r.Total != 2 || !cats["pessoa"] || !cats["carro"] || cats["estados"] {
+			t.Errorf("esperava pessoa+carro, got total=%d: %+v", r.Total, r.Moments)
+		}
+	})
+
+	t.Run("CA2: category=pessoa,estados (CSV cruzando motion+estado) → pessoa+estado, sem carro", func(t *testing.T) {
+		r := query("category=pessoa,estados")
+		cats := categories(r)
+		if r.Total != 2 || !cats["pessoa"] || !cats["estados"] || cats["carro"] {
+			t.Errorf("esperava pessoa+estados, got total=%d: %+v", r.Total, r.Moments)
+		}
+	})
+
+	t.Run("CA2: category com espaços (\"pessoa, carro\") é tolerado (TrimSpace por item)", func(t *testing.T) {
+		r := query("category=" + url.QueryEscape("pessoa, carro"))
+		cats := categories(r)
+		if r.Total != 2 || !cats["pessoa"] || !cats["carro"] {
+			t.Errorf("esperava pessoa+carro (com espaço tolerado), got total=%d: %+v", r.Total, r.Moments)
+		}
+	})
+}
+
 func TestMotionEventsRequiresAuth(t *testing.T) {
 	cfg := config.ServerConfig{}
 	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{}, discardLogger(), nil)

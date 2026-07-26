@@ -52,7 +52,13 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 			camFilter[strings.TrimSpace(id)] = struct{}{}
 		}
 	}
-	catFilter := r.URL.Query().Get("category")
+	var catFilter map[string]struct{}
+	if cv := r.URL.Query().Get("category"); cv != "" {
+		catFilter = map[string]struct{}{}
+		for _, c := range strings.Split(cv, ",") {
+			catFilter[strings.TrimSpace(c)] = struct{}{}
+		}
+	}
 	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 
 	type moment struct {
@@ -75,6 +81,14 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 			strings.Contains(strings.ToLower(category), query)
 	}
 
+	// "estados" é categoria especial: não vem de motion_events, é sua própria fonte
+	// (camera_state_history). Entra no resultado se catFilter for nil (sem filtro) ou
+	// contiver "estados"; onlyEstados pula de vez a query de motion events quando
+	// "estados" é o ÚNICO valor pedido (nenhuma categoria de motion pode casar).
+	_, wantsEstados := catFilter["estados"]
+	wantsEstados = wantsEstados || catFilter == nil
+	onlyEstados := catFilter != nil && len(catFilter) == 1 && wantsEstados
+
 	moments := []moment{}
 	for _, c := range cams {
 		if ac.Role != "admin" {
@@ -87,12 +101,14 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
-		if catFilter == "" || catFilter != "estados" {
+		if !onlyEstados {
 			if evs, err := db.ListMotionEvents(s.db, c.ID, dayStart, dayEnd); err == nil {
 				for _, e := range evs {
 					cat := db.MotionCategory(e.Label)
-					if catFilter != "" && cat != catFilter {
-						continue
+					if catFilter != nil {
+						if _, ok := catFilter[cat]; !ok {
+							continue
+						}
 					}
 					if !matchesQuery(e.Label, cat) {
 						continue
@@ -104,7 +120,7 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		if catFilter == "" || catFilter == "estados" {
+		if wantsEstados {
 			if trs, err := db.ListCameraStateTransitions(s.db, c.ID, dayStart, dayEnd); err == nil {
 				for _, t := range trs {
 					if !matchesQuery(t.State, "estados") {
