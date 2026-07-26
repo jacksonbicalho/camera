@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest'
 import {
   applyFrameStep,
   applySameChunkStep,
+  CHUNK_FALLBACK_MS,
   frameStepTime,
   loadedMetadataSeek,
   mergeRecordings,
   parseDurationToMs,
+  recordingDurationMs,
   secondStepTarget,
 } from './cameraUtils'
 import type { Recording } from './cameraUtils'
@@ -105,6 +107,26 @@ describe('mergeRecordings', () => {
     ])
     expect(result[1]).toBe(r120)
     expect(result[2]).toBe(r110)
+  })
+})
+
+// ─── recordingDurationMs ────────────────────────────────────────────────────
+
+describe('recordingDurationMs', () => {
+  describe('CA2: usa o fim real do chunk (rec.end ou início do próximo), nunca uma constante fixa quando o fim é conhecido', () => {
+    it('usa rec.end quando presente', () => {
+      const r = { start: '2026-07-05T08:03:00Z', end: '2026-07-05T08:03:10Z' }
+      expect(recordingDurationMs(r, undefined)).toBe(10_000)
+    })
+    it('sem rec.end, usa o início do próximo chunk (mais recente) como fim', () => {
+      const r = { start: '2026-07-05T08:03:00Z', end: undefined }
+      const next = { start: '2026-07-05T08:03:08Z' }
+      expect(recordingDurationMs(r, next)).toBe(8_000)
+    })
+    it('sem rec.end e sem próximo (último chunk do dia), cai no fallback fixo (CHUNK_FALLBACK_MS) — única situação em que ele ainda se aplica', () => {
+      const r = { start: '2026-07-05T08:03:00Z', end: undefined }
+      expect(recordingDurationMs(r, undefined)).toBe(CHUNK_FALLBACK_MS)
+    })
   })
 })
 

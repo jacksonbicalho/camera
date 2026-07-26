@@ -1154,6 +1154,50 @@ describe('HistoryPage', () => {
       })
     })
 
+    describe('CA2: categoria de um chunk usa sua duração REAL, não uma janela fixa de 5 minutos', () => {
+      it('gravação curta (10s) bem antes de um evento (4min15s depois) NÃO é classificada por ele, mesmo o evento caindo dentro da antiga janela fixa de 5 minutos', async () => {
+        // recA: 07:12:00Z–07:12:10Z (10s reais). O evento cai em 07:16:15Z — 4min15s
+        // depois do início de recA, dentro da janela fixa antiga (5min = até 07:17:00Z),
+        // mas bem fora da duração REAL de recA (10s). recB: 07:16:00Z–07:16:30Z contém o
+        // mesmo evento de verdade (dentro da sua própria duração real) — categoria
+        // "pessoa" nos dois cenários (bug ou fix), serve só pra "pessoa" existir como
+        // opção no dropdown dinâmico.
+        const recA = {
+          id: 20,
+          filename: 'a.mp4',
+          start: '2026-07-05T07:12:00Z',
+          end: '2026-07-05T07:12:10Z',
+          url: '/recordings/cam1/a.mp4',
+          is_recording: false,
+          has_motion: false,
+        }
+        const recB = {
+          id: 21,
+          filename: 'b.mp4',
+          start: '2026-07-05T07:16:00Z',
+          end: '2026-07-05T07:16:30Z',
+          url: '/recordings/cam1/b.mp4',
+          is_recording: false,
+          has_motion: false,
+        }
+        stubFetch([recB, recA], [{ time: '2026-07-05T07:16:15Z', label: 'pessoa detectada' }])
+        renderAt('/history/cam1')
+        await waitFor(() => {
+          expect(document.getElementById('history-recording-20')).not.toBeNull()
+          expect(document.getElementById('history-recording-21')).not.toBeNull()
+        })
+
+        selectFilter('pessoa')
+        // recB é "pessoa" de verdade (evento dentro da sua duração real) — continua visível.
+        await waitFor(() => {
+          expect(document.getElementById('history-recording-21')).not.toBeNull()
+        })
+        // recA NÃO deveria bater com o filtro "pessoa" — o evento está bem fora da sua
+        // duração real de 10s. Sob o bug (janela fixa de 5min), recA também aparecia aqui.
+        expect(document.getElementById('history-recording-20')).toBeNull()
+      })
+    })
+
     describe('Grupos por hora (colapsar/expandir)', () => {
       it('grupos por hora mostram a contagem e colapsam/expandem ao clicar no cabeçalho', async () => {
         renderAt('/history/cam1')

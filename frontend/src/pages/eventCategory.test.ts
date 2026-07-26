@@ -98,6 +98,31 @@ describe('recordingCategory', () => {
       expect(recordingCategory(recAt(0), events, 300_000)).toBe('movimento')
     })
   })
+
+  describe('CA3: padding lead/trail (config da câmera) alarga a janela de contenção nas duas pontas, sem virar uma janela fixa arbitrária', () => {
+    it('evento antes do início do chunk, mas dentro do trailMs, é contado (padding pra trás)', () => {
+      // chunk [0, 10_000); evento em -4_000 (4s antes do início) só conta com trailMs >= 4_000.
+      const events = [{ time: new Date(-4_000).toISOString(), label: 'pessoa' }]
+      expect(recordingCategory(recAt(0), events, 10_000)).toBe('continua')
+      expect(recordingCategory(recAt(0), events, 10_000, { leadMs: 0, trailMs: 5_000 })).toBe(
+        'pessoa',
+      )
+    })
+    it('evento depois do fim do chunk, mas dentro do leadMs, é contado (padding pra frente)', () => {
+      // chunk [0, 10_000); evento em 13_000 (3s depois do fim) só conta com leadMs >= 3_000.
+      const events = [{ time: new Date(13_000).toISOString(), label: 'pessoa' }]
+      expect(recordingCategory(recAt(0), events, 10_000)).toBe('continua')
+      expect(recordingCategory(recAt(0), events, 10_000, { leadMs: 5_000, trailMs: 0 })).toBe(
+        'pessoa',
+      )
+    })
+    it('evento bem fora até do padding (lead/trail) continua não contando — não virou uma janela larga de novo', () => {
+      const events = [{ time: new Date(60_000).toISOString(), label: 'pessoa' }]
+      expect(recordingCategory(recAt(0), events, 10_000, { leadMs: 5_000, trailMs: 5_000 })).toBe(
+        'continua',
+      )
+    })
+  })
 })
 
 describe('eventCategory', () => {
