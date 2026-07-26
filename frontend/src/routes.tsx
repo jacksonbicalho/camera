@@ -12,7 +12,6 @@ const AllCamerasPage = lazy(() => import('./pages/AllCamerasPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const RecordingsPage = lazy(() => import('./pages/RecordingsPage'))
 const MotionsPage = lazy(() => import('./pages/MotionsPage'))
-const StatsPage = lazy(() => import('./pages/StatsPage'))
 const ServerSettingsPage = lazy(() => import('./pages/settings/ServerSettingsPage'))
 const StorageSettingsPage = lazy(() => import('./pages/settings/StorageSettingsPage'))
 const UsersSettingsPage = lazy(() => import('./pages/settings/UsersSettingsPage'))
@@ -166,23 +165,9 @@ export const routes = (
     />
     {/* Todo o settings usa Layout novo agora (SettingsLayout/AppLayout legado
         fechado) — um único ícone "Configurações" no Sidebar novo, tudo canonizado
-        em /settings/*. /stats (bare, histórico) segue como alias de /settings/stats. */}
-    <Route
-      path="/settings/stats"
-      element={
-        <Lazy>
-          <StatsPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/stats"
-      element={
-        <Lazy>
-          <StatsPage />
-        </Lazy>
-      }
-    />
+        em /settings/*. StatsPage (/settings/stats, /stats) foi removida — seu
+        conteúdo migrou pra dentro de /settings/server (história
+        reorganizar-sidebar-governanca). */}
     <Route
       path="/settings/server"
       element={

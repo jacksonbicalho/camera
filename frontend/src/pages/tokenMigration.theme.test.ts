@@ -27,7 +27,6 @@ const MIGRATED_FILES = [
   'src/pages/settings/AppearanceSettingsPage.tsx',
   'src/pages/settings/CameraMotionSettingsPage.tsx',
   'src/pages/settings/CameraStatesSettingsPage.tsx',
-  'src/pages/StatsPage.tsx',
 ]
 
 describe('migração para tokens de tema — arquivos fora de CameraPage', () => {
@@ -49,11 +48,12 @@ describe('padding de cards — convergência para p-4 (dense) / p-5 (form)', () 
     expect(changePassword).not.toMatch(/\bp-8\b/)
   })
 
-  // StatsPage/StorageSettingsPage não declaram mais `contentClassName="p-6"` direto
-  // (não usam Layout, usam SettingsLayout, que já embute esse padding) — o `p-6`
-  // canônico do container de página agora mora só em SettingsLayout.tsx.
-  it('StatsPage/StorageSettingsPage não têm padding de card outlier (delegam ao SettingsLayout)', () => {
-    const stats = readFileSync(resolve(process.cwd(), 'src/pages/StatsPage.tsx'), 'utf8')
+  // StorageSettingsPage não declara mais `contentClassName="p-6"` direto (não usa
+  // Layout, usa SettingsLayout, que já embute esse padding) — o `p-6` canônico do
+  // container de página agora mora só em SettingsLayout.tsx. (StatsPage, que também
+  // fazia parte desta checagem, foi removida — seu conteúdo migrou pra
+  // ServerSettingsPage.tsx, história reorganizar-sidebar-governanca.)
+  it('StorageSettingsPage não tem padding de card outlier (delega ao SettingsLayout)', () => {
     const storage = readFileSync(
       resolve(process.cwd(), 'src/pages/settings/StorageSettingsPage.tsx'),
       'utf8',
@@ -62,7 +62,6 @@ describe('padding de cards — convergência para p-4 (dense) / p-5 (form)', () 
       resolve(process.cwd(), 'src/components/SettingsLayout.tsx'),
       'utf8',
     )
-    expect(stats).not.toMatch(/contentClassName="p-6"/)
     expect(storage).not.toMatch(/contentClassName="p-6"/)
     expect(settingsLayout).toMatch(/contentClassName="p-6"/)
   })

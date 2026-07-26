@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import ServerSettingsPage from './ServerSettingsPage'
 import type { Settings } from '../../hooks/useSettings'
@@ -14,6 +14,12 @@ vi.mock('../../auth', () => ({
 
 vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}))
+
+// MotionScoreChart usa useEventSource (SSE) internamente — mock raso pra isolar o teste da
+// expansão do card de câmera, mesmo espírito de mockar DatePicker/Layout em outras páginas.
+vi.mock('../../components/MotionScoreChart', () => ({
+  default: ({ cameraId }: { cameraId: string }) => <div id={`motion-score-chart-${cameraId}`} />,
 }))
 
 let mockSettings: Settings
@@ -90,6 +96,16 @@ describe('CA5: página "Servidor" consolida servidor + sistema numa página só,
       sys_mem_total_bytes: 0,
       sys_mem_free_bytes: 0,
       goroutines: 12,
+      // Campos que a página real sempre recebe junto (GET /api/stats devolve o
+      // objeto Stats inteiro, nunca um subconjunto) — necessários pra não
+      // quebrar o bloco de KPIs (Gravações/Horas gravadas/Câmeras), que
+      // também depende de `stats` estar preenchido.
+      recordings_count: 0,
+      recordings_bytes: 0,
+      recordings_duration_seconds: 0,
+      camera_count: 0,
+      connected_clients: 0,
+      cameras: [],
     }
     render(
       <MemoryRouter initialEntries={['/settings/server']}>
@@ -135,5 +151,100 @@ describe('ServerSettingsPage — log rotation', () => {
     )
     expect(screen.queryByText('Rotaciona em')).toBeNull()
     expect(screen.queryByText('Compressão')).toBeNull()
+  })
+})
+
+describe('CA3: "Servidor" absorve o conteúdo de Estatísticas (KPIs + atividade por câmera), migrado de StatsPage', () => {
+  it('mostra os KPIs de Gravações/Horas gravadas/Câmeras', async () => {
+    mockSettings = baseSettings({})
+    mockStats = {
+      recordings_count: 120,
+      recordings_bytes: 500_000_000,
+      recordings_duration_seconds: 7500,
+      camera_count: 3,
+      connected_clients: 2,
+      cameras: [],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ status: 200, json: () => Promise.resolve([]) })),
+    )
+    render(
+      <MemoryRouter initialEntries={['/settings/server']}>
+        <ServerSettingsPage />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('Gravações')
+      expect(document.body.textContent).toContain('120')
+      expect(document.body.textContent).toContain('Horas gravadas')
+      expect(document.body.textContent).toContain('2h 5m')
+      expect(document.body.textContent).toContain('3')
+    })
+  })
+
+  it('lista as câmeras (via /api/cameras); clique expande e mostra MotionScoreChart quando motion está ativo', async () => {
+    mockSettings = baseSettings({})
+    mockStats = {
+      recordings_count: 0,
+      recordings_bytes: 0,
+      recordings_duration_seconds: 0,
+      camera_count: 2,
+      connected_clients: 0,
+      cameras: [
+        {
+          id: 'cam1',
+          online: true,
+          motion_enabled: true,
+          last_recording_at: null,
+          top_motion_score: 0,
+          min_motion_score: 0,
+        },
+        {
+          id: 'cam2',
+          online: false,
+          motion_enabled: false,
+          last_recording_at: null,
+          top_motion_score: 0,
+          min_motion_score: 0,
+        },
+      ],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.startsWith('/api/cameras'))
+          return Promise.resolve({
+            status: 200,
+            json: () =>
+              Promise.resolve([
+                { id: 'cam1', name: 'Corredor', motion_threshold: 12 },
+                { id: 'cam2', name: 'Quintal', motion_threshold: 8 },
+              ]),
+          })
+        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+    render(
+      <MemoryRouter initialEntries={['/settings/server']}>
+        <ServerSettingsPage />
+      </MemoryRouter>,
+    )
+    const corredorRow = await waitFor(() => {
+      const el = screen.getByText('Corredor')
+      return el.closest('button')!
+    })
+    expect(document.getElementById('motion-score-chart-cam1')).toBeNull()
+    fireEvent.click(corredorRow)
+    await waitFor(() => {
+      expect(document.getElementById('motion-score-chart-cam1')).not.toBeNull()
+    })
+
+    const quintalRow = screen.getByText('Quintal').closest('button')!
+    fireEvent.click(quintalRow)
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('Detecção de movimento desativada')
+    })
+    expect(document.getElementById('motion-score-chart-cam2')).toBeNull()
   })
 })

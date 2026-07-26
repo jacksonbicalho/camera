@@ -216,22 +216,33 @@ describe('CA3: seção "Administração" ganha o item "Aparência" (→ /setting
   })
 })
 
-describe('CA4: seção "Governança" (admin) — Gravações, Estatísticas, Relatórios', () => {
-  it('admin vê os 3 itens; "Relatórios" é um link direto pra /reports (sem flyout de câmera — a própria página já tem o seletor)', () => {
+describe('CA2: Gravações e Relatórios migram pra dentro de "Movimentos"; "Estatísticas" sai do sidebar (conteúdo migrou pra Servidor); "Governança" deixa de existir', () => {
+  it('admin vê Gravações e Relatórios (mesmos hrefs de sempre); "Relatórios" é link direto pra /reports (sem flyout de câmera — a própria página já tem o seletor)', () => {
     renderAt('/')
     expect(document.getElementById('sidebar-recordings')?.getAttribute('href')).toBe('/recordings')
-    expect(document.getElementById('sidebar-stats')?.getAttribute('href')).toBe('/settings/stats')
     const relatorios = document.getElementById('sidebar-relatorios')!
     expect(relatorios.tagName).toBe('A')
     expect(relatorios.getAttribute('href')).toBe('/reports')
   })
 
-  it('viewer não vê a seção Governança', () => {
+  it('viewer não vê Gravações nem Relatórios (Movimentos continua admin-only)', () => {
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
     expect(document.getElementById('sidebar-recordings')).toBeNull()
-    expect(document.getElementById('sidebar-stats')).toBeNull()
     expect(document.getElementById('sidebar-relatorios')).toBeNull()
+  })
+
+  it('link "Estatísticas" não existe mais no sidebar', () => {
+    renderAt('/')
+    expect(document.getElementById('sidebar-stats')).toBeNull()
+  })
+
+  it('seção "Governança" não existe mais (nem o texto do cabeçalho aparece, com o rail expandido)', () => {
+    renderAt('/')
+    // recolhido por padrão não mostra label de seção nenhum — expande antes de checar o
+    // texto, senão a asserção passaria trivialmente mesmo com a seção ainda existindo.
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    expect(document.body.textContent).not.toContain('Governança')
   })
 })
 

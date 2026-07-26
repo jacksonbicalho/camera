@@ -9,7 +9,6 @@ import {
   Cctv,
   Eye,
   Film,
-  Gauge,
   HardDrive,
   History,
   Menu,
@@ -129,9 +128,10 @@ function SidebarSection({
 // "Configurações"): recolhido mostra só ícones; expandido mostra também os
 // cabeçalhos de seção e rola (scrollbar-thin) quando o conteúdo excede a
 // altura da viewport. Só "Sistema" (Câmeras) fica visível pra todo mundo —
-// Movimentos/Administração (inclui "Aparência")/Governança (e "Rastrear
-// câmeras", dentro de Sistema) são admin-only, mesma regra de acesso que
-// essas páginas já tinham. Nem o logo, nem o avatar do usuário, nem o item
+// Movimentos (inclui "Gravações"/"Relatórios")/Administração (inclui
+// "Aparência") (e "Rastrear câmeras", dentro de Sistema) são admin-only,
+// mesma regra de acesso que essas páginas já tinham. Nem o logo, nem o
+// avatar do usuário, nem o item
 // "Sobre" moram mais aqui — migraram pra `TopBar.tsx` (barra full-width
 // acima da linha Sidebar+conteúdo, renderizada pelo `Layout`; "Sobre" virou
 // o sub-link `about-application` do dropdown `AppHelpMenu`) — o rail em si
@@ -237,6 +237,24 @@ export default function Sidebar() {
               }}
               showLabel={showLabel}
             />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-recordings',
+                to: '/recordings',
+                label: 'Gravações',
+                icon: <Film className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-relatorios',
+                to: '/reports',
+                label: 'Relatórios',
+                icon: <BarChart2 className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
           </SidebarSection>
         )}
 
@@ -275,38 +293,6 @@ export default function Sidebar() {
                 to: '/settings/appearance',
                 label: 'Aparência',
                 icon: <Palette className="h-5 w-5 shrink-0" />,
-              }}
-              showLabel={showLabel}
-            />
-          </SidebarSection>
-        )}
-
-        {isAdmin && (
-          <SidebarSection label="Governança" showLabel={showLabel}>
-            <SidebarNavLink
-              item={{
-                id: 'sidebar-recordings',
-                to: '/recordings',
-                label: 'Gravações',
-                icon: <Film className="h-5 w-5 shrink-0" />,
-              }}
-              showLabel={showLabel}
-            />
-            <SidebarNavLink
-              item={{
-                id: 'sidebar-stats',
-                to: '/settings/stats',
-                label: 'Estatísticas',
-                icon: <Gauge className="h-5 w-5 shrink-0" />,
-              }}
-              showLabel={showLabel}
-            />
-            <SidebarNavLink
-              item={{
-                id: 'sidebar-relatorios',
-                to: '/reports',
-                label: 'Relatórios',
-                icon: <BarChart2 className="h-5 w-5 shrink-0" />,
               }}
               showLabel={showLabel}
             />
