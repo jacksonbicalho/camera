@@ -83,13 +83,15 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 
 	// "estados" é categoria especial: não vem de motion_events, é sua própria fonte
 	// (camera_state_history). Entra no resultado se catFilter for nil (sem filtro) ou
-	// contiver "estados"; onlyEstados pula de vez a query de motion events quando
-	// "estados" é o ÚNICO valor pedido (nenhuma categoria de motion pode casar).
+	// contiver "estados".
 	_, wantsEstados := catFilter["estados"]
 	wantsEstados = wantsEstados || catFilter == nil
-	onlyEstados := catFilter != nil && len(catFilter) == 1 && wantsEstados
 
 	moments := []moment{}
+	// categories é o universo de categorias do dia (respeitando `cameras`/permissão),
+	// SEM aplicar catFilter/q — os chips do frontend usam isso pra nunca sumir quando
+	// outro filtro de categoria está ativo (ver story fix-chips-categoria-somem-multiselecao).
+	categories := map[string]struct{}{}
 	for _, c := range cams {
 		if ac.Role != "admin" {
 			if _, ok := allowed[c.ID]; !ok {
@@ -101,27 +103,29 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
-		if !onlyEstados {
-			if evs, err := db.ListMotionEvents(s.db, c.ID, dayStart, dayEnd); err == nil {
-				for _, e := range evs {
-					cat := db.MotionCategory(e.Label)
-					if catFilter != nil {
-						if _, ok := catFilter[cat]; !ok {
-							continue
-						}
-					}
-					if !matchesQuery(e.Label, cat) {
+		if evs, err := db.ListMotionEvents(s.db, c.ID, dayStart, dayEnd); err == nil {
+			for _, e := range evs {
+				cat := db.MotionCategory(e.Label)
+				categories[cat] = struct{}{}
+				if catFilter != nil {
+					if _, ok := catFilter[cat]; !ok {
 						continue
 					}
-					moments = append(moments, moment{
-						CameraID: c.ID, CameraName: c.Name, Time: e.OccurredAt.UTC().Format(time.RFC3339),
-						Kind: "motion", Label: e.Label, Category: cat, Frame: e.FramePath, Score: e.Score,
-					})
 				}
+				if !matchesQuery(e.Label, cat) {
+					continue
+				}
+				moments = append(moments, moment{
+					CameraID: c.ID, CameraName: c.Name, Time: e.OccurredAt.UTC().Format(time.RFC3339),
+					Kind: "motion", Label: e.Label, Category: cat, Frame: e.FramePath, Score: e.Score,
+				})
 			}
 		}
-		if wantsEstados {
-			if trs, err := db.ListCameraStateTransitions(s.db, c.ID, dayStart, dayEnd); err == nil {
+		if trs, err := db.ListCameraStateTransitions(s.db, c.ID, dayStart, dayEnd); err == nil {
+			if len(trs) > 0 {
+				categories["estados"] = struct{}{}
+			}
+			if wantsEstados {
 				for _, t := range trs {
 					if !matchesQuery(t.State, "estados") {
 						continue
@@ -135,6 +139,11 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	sort.Slice(moments, func(i, j int) bool { return moments[i].Time > moments[j].Time })
+	catList := make([]string, 0, len(categories))
+	for c := range categories {
+		catList = append(catList, c)
+	}
+	sort.Strings(catList)
 
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
@@ -154,8 +163,9 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 		end = total
 	}
 	writeJSON(w, map[string]any{
-		"moments": moments[start:end],
-		"total":   total,
-		"hasMore": end < total,
+		"moments":    moments[start:end],
+		"total":      total,
+		"hasMore":    end < total,
+		"categories": catList,
 	})
 }
