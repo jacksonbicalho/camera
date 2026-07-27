@@ -4,6 +4,7 @@ import { useDraggableResizable } from '../hooks/useDraggableResizable'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useRecordingSegments } from '../hooks/useRecordingSegments'
 import { formatDateTime } from '../lib/datetime'
+import { X } from './Icons'
 import { Button } from './ui/button'
 import VideoPlayer from './VideoPlayer'
 
@@ -100,6 +101,7 @@ export default function RecordingPlayerModal({
               variant="outline"
               size="sm"
               onClick={viewInHistory}
+              className="border-primary/40 text-primary hover:border-primary hover:bg-primary/10 hover:text-primary"
             >
               Visualizar no histórico
             </Button>
@@ -108,9 +110,9 @@ export default function RecordingPlayerModal({
               type="button"
               onClick={onClose}
               aria-label="Fechar"
-              className="text-faint hover:text-foreground"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
             >
-              ✕
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>

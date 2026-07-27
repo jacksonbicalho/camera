@@ -262,3 +262,50 @@ describe('CA2: modal arrastável e redimensionável, mantendo a proporção do v
     expect(heightAfter - heightBefore).toBeCloseTo((widthAfter - widthBefore) / (16 / 9))
   })
 })
+
+describe('CA7: botão "Visualizar no histórico" usa a cor de destaque (accent) do app', () => {
+  it('tem border/text na cor primary — não mais outline neutro', async () => {
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={1} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('recording-player-view-in-history')).not.toBeNull()
+    })
+    const className = document.getElementById('recording-player-view-in-history')!.className
+    expect(className).toContain('text-primary')
+    expect(className).toContain('border-primary')
+    // REGRESSÃO: `variant="outline"` do Button já traz `hover:text-accent-foreground` —
+    // sem sobrescrever explicitamente com `hover:text-primary`, o texto TROCA pra uma cor
+    // neutra exatamente ao passar o mouse (o oposto de "intensificar" que
+    // `hover:border-primary`/`hover:bg-primary/10` já sugerem), achado real do code review.
+    expect(className).toContain('hover:text-primary')
+  })
+})
+
+describe('CA8: botão de fechar usa o padrão de botão-ícone redondo (com área de clique e hover)', () => {
+  it('mesma classe dos outros controles do player (h-8 w-8 rounded-full) e ícone X, não mais o caractere ✕ cru', async () => {
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={1} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('recording-player-modal-close')).not.toBeNull()
+    })
+    const closeButton = document.getElementById('recording-player-modal-close')!
+    expect(closeButton.className).toContain('rounded-full')
+    expect(closeButton.className).toContain('h-8')
+    expect(closeButton.className).toContain('w-8')
+    expect(closeButton.textContent?.trim()).toBe('')
+    expect(closeButton.querySelector('svg')).not.toBeNull()
+    // REGRESSÃO: a caixa do modal (#recording-player-modal-box) já usa `bg-surface-2` como
+    // fundo, herdado pelo cabeçalho — um hover `hover:bg-surface-2` no botão produziria a
+    // MESMA cor do fundo em que ele já está (zero feedback visual, achado real do code
+    // review). Precisa de um overlay que contraste com qualquer fundo (`bg-foreground/10`),
+    // não um token de superfície sólido específico.
+    expect(closeButton.className).not.toContain('hover:bg-surface-2')
+    expect(closeButton.className).toContain('hover:bg-foreground/10')
+  })
+})
