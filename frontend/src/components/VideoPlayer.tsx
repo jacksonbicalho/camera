@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Play, Pause, Repeat, Maximize, VolumeX, Volume2, Gauge } from './Icons'
-import PlayerControlsOverlay from './PlayerControlsOverlay'
 import PlayerFooter from './PlayerFooter'
+import Zoom from './Zoom'
 import { usePlayerZoom } from '../hooks/usePlayerZoom'
 import {
   segmentDuration,
@@ -140,7 +140,17 @@ export default function VideoPlayer({
   const [total, setTotal] = useState(0) // duração total do clipe (s)
   const [fullscreen, setFullscreen] = useState(false)
 
-  const getActiveVideoEl = useCallback(() => elsRef.current[activeRef.current], [])
+  // `[activeEl]` (o STATE reativo, não `activeRef`) é proposital: `usePlayerZoom` só reaplica
+  // a transform CSS quando ESTA função troca de referência (seu próprio useEffect depende
+  // dela) — sem essa dependência, trocar de elemento ativo (double-buffering, `advance`/
+  // `resetToStart`) nunca reaplicava a transform no elemento que acabou de assumir, mostrando
+  // 100% mesmo com o controle de zoom marcando um valor maior. Com `activeEl` na dependência,
+  // toda troca de elemento ativo reroda o efeito de `usePlayerZoom` e reaplica o zoom atual —
+  // permite `resetToStart`/`advance` pararem de resetar o zoom pra "resolver" esse mismatch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `activeEl` não é lido no corpo (só
+  // `activeRef.current`, sempre fresco por closure) — está aqui só pra FORÇAR uma referência
+  // nova a cada troca de elemento ativo, ver comentário acima.
+  const getActiveVideoEl = useCallback(() => elsRef.current[activeRef.current], [activeEl])
   const zoom = usePlayerZoom(getActiveVideoEl)
 
   const setPlayingIntent = useCallback(
@@ -238,17 +248,21 @@ export default function VideoPlayer({
       setCurSegTracked(0)
       setPos(0)
       setPlayingIntent(autoResume)
-      if (zoomEnabled) zoom.reset()
+      // Não reseta mais o zoom aqui — `getActiveVideoEl` (deps `[activeEl]`) já garante que a
+      // transform atual é reaplicada no elemento 0 assim que ele volta a ficar ativo (ver
+      // comentário na declaração de `getActiveVideoEl`). Reset explícito era um workaround
+      // pro mismatch visual que essa troca de dependência resolve na raiz — sem ele, o zoom
+      // aplicado pelo usuário sobrevive a um reinício/loop do clipe (bug real, reportado pelo
+      // navigator: "ao iniciar uma gravação o zoom volta pro normal 100%").
       loadInto(0, 0)
       loadInto(1, 1)
     },
-    [loadInto, setPlayingIntent, setCurSegTracked, zoomEnabled, zoom],
+    [loadInto, setPlayingIntent, setCurSegTracked],
   )
 
   // advance troca para o próximo segmento (que o outro elemento já pré-carregou) e põe o
-  // elemento liberado para pré-carregar o segmento seguinte. O zoom reseta na fronteira —
-  // o buffer que entra não tinha a transform aplicada (evita "zoom perdido" visualmente
-  // errado no vizinho que acabou de ficar visível).
+  // elemento liberado para pré-carregar o segmento seguinte. O zoom NÃO reseta mais na
+  // fronteira — ver comentário em `getActiveVideoEl`/`resetToStart` (mesma causa raiz).
   const advance = useCallback(() => {
     const active = activeRef.current
     const nextSeg = heldSegRef.current[active] + 1
@@ -259,9 +273,8 @@ export default function VideoPlayer({
     const other = 1 - active
     if (heldSegRef.current[other] !== nextSeg) loadInto(other, nextSeg)
     activate(other)
-    if (zoomEnabled) zoom.reset()
     loadInto(active, nextSeg + 1)
-  }, [activate, loadInto, resetToStart, zoomEnabled, zoom])
+  }, [activate, loadInto, resetToStart])
 
   const onTimeUpdate = useCallback(
     (elIdx: number) => {
@@ -476,7 +489,10 @@ export default function VideoPlayer({
       containerRef.current = node
       if (zoomEnabled) zoom.setContainer(node)
     },
-    [zoomEnabled, zoom],
+    // `zoom.setContainer` estável — objeto `zoom` inteiro faria esse ref callback trocar de
+    // referência a cada zoom, forçando React a desmontar/remontar o ref (chama com `null`
+    // depois com o node de novo) e reatar o listener de wheel à toa a cada clique no Zoom.
+    [zoomEnabled, zoom.setContainer],
   )
 
   useEffect(() => {
@@ -516,7 +532,23 @@ export default function VideoPlayer({
       loadInto(0, 0)
       loadInto(1, 1)
     },
-    [autoPlay, zoomEnabled, zoom, loadInto, recomputeDurations, setPlayingIntent, setCurSegTracked],
+    // `zoom.reset` (estável), não o objeto `zoom` inteiro — CRÍTICO aqui: `startPlayback` é a
+    // dependência do efeito logo abaixo, que reinicia o player inteiro (`loadInto` → `el.src`
+    // + `el.load()`) sempre que a própria referência de `startPlayback` muda. Com `zoom` no
+    // array, TODO clique no zoom (botões novos de `Zoom.tsx`, ou o scroll/pan de sempre)
+    // gerava uma referência nova de `zoom` → nova referência de `startPlayback` → o efeito
+    // rodava de novo → vídeo reiniciava do zero, em vez de só aplicar o zoom (bug real,
+    // reportado pelo navigator testando o pré-push desta história: "ao invés de funcionar,
+    // reinicia a reprodução do vídeo").
+    [
+      autoPlay,
+      zoomEnabled,
+      zoom.reset,
+      loadInto,
+      recomputeDurations,
+      setPlayingIntent,
+      setCurSegTracked,
+    ],
   )
 
   // A página chamadora precisa manter `segments` com referência estável (useMemo/useState)
@@ -598,8 +630,6 @@ export default function VideoPlayer({
                 }}
               />
             ))}
-
-            {zoomEnabled && <PlayerControlsOverlay id={idPrefix} zoom={zoom} />}
           </>
         ) : (
           emptyMessage && (
@@ -677,6 +707,7 @@ export default function VideoPlayer({
                 >
                   {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                 </button>
+                {zoomEnabled && <Zoom id={idPrefix} zoom={zoom} />}
                 <div ref={speedMenuRef} className="relative">
                   <button
                     id={`${idPrefix}-speed`}

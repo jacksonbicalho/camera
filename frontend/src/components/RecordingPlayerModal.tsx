@@ -1,10 +1,22 @@
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import { useDraggableResizable } from '../hooks/useDraggableResizable'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useRecordingSegments } from '../hooks/useRecordingSegments'
 import { formatDateTime } from '../lib/datetime'
+import { X } from './Icons'
 import { Button } from './ui/button'
 import VideoPlayer from './VideoPlayer'
+
+// Proporção do vídeo (aspect-video, igual à classe Tailwind que VideoPlayer já usa no
+// wrapper do <video>) + a altura "chrome" fixa que sobra por cima dela nesta caixa
+// (cabeçalho de arrastar + padding do corpo + rodapé de controles do VideoPlayer) — medida
+// contra a estrutura renderizada de verdade (cabeçalho ~45px, padding do corpo 24px, rodapé
+// do VideoPlayer ~65px). Não escala com o resize: só a área do vídeo (16:9) cresce/encolhe.
+const VIDEO_ASPECT_RATIO = 16 / 9
+const MODAL_CHROME_HEIGHT = 140
+const MODAL_INITIAL_WIDTH = 896 // mesma largura que `max-w-4xl` tinha antes (56rem = 896px)
+const MODAL_MIN_WIDTH = 360
 
 interface RecordingPlayerModalProps {
   open: boolean
@@ -38,6 +50,12 @@ export default function RecordingPlayerModal({
     open ? recordingId : null,
     motionId,
   )
+  const { style, dragHandleProps, resizeHandleProps } = useDraggableResizable({
+    aspectRatio: VIDEO_ASPECT_RATIO,
+    initialWidth: MODAL_INITIAL_WIDTH,
+    minWidth: MODAL_MIN_WIDTH,
+    chromeHeight: MODAL_CHROME_HEIGHT,
+  })
 
   if (!open) return null
 
@@ -53,14 +71,22 @@ export default function RecordingPlayerModal({
   return createPortal(
     <div
       id="recording-player-modal"
-      className="fixed inset-0 z-10000 flex items-center justify-center bg-black/60 p-6"
+      className="fixed inset-0 z-10000 bg-black/60"
       onClick={onClose}
     >
+      {/* Caixa arrastável/redimensionável: `style` (position/top/left/width/height) vem de
+          useDraggableResizable — não depende mais do backdrop centralizar por flex. */}
       <div
-        className="flex w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-border bg-surface-2 shadow-xl"
+        id="recording-player-modal-box"
+        style={style}
+        className="flex flex-col overflow-hidden rounded-lg border border-border bg-surface-2 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+        <div
+          id="recording-player-modal-header"
+          className="flex cursor-move select-none items-center justify-between border-b border-border px-3 py-1.5"
+          {...dragHandleProps}
+        >
           <span className="text-caption text-foreground">
             {event
               ? formatDateTime(event.time, timezone)
@@ -75,6 +101,7 @@ export default function RecordingPlayerModal({
               variant="outline"
               size="sm"
               onClick={viewInHistory}
+              className="border-primary/40 text-primary hover:border-primary hover:bg-primary/10 hover:text-primary"
             >
               Visualizar no histórico
             </Button>
@@ -83,9 +110,9 @@ export default function RecordingPlayerModal({
               type="button"
               onClick={onClose}
               aria-label="Fechar"
-              className="text-faint hover:text-foreground"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
             >
-              ✕
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -104,6 +131,23 @@ export default function RecordingPlayerModal({
             emptyMessage="Sem gravação cobrindo o evento."
           />
         </div>
+        {/* Alça de redimensionar — canto inferior direito, sempre por cima do conteúdo
+            (z-10) pra não ficar atrás do rodapé de controles do VideoPlayer. 3 linhas
+            diagonais decrescentes (via gradiente repetido), mesmo afordance visual
+            convencional de "canto redimensionável" — sem depender de nenhum ícone novo
+            (Icons.tsx só tem paths extraídos do lucide de verdade; inventar um path novo
+            aqui arriscaria não bater com o SVG real). */}
+        <div
+          id="recording-player-modal-resize-handle"
+          aria-hidden="true"
+          className="absolute bottom-0 right-0 z-10 h-4 w-4 cursor-nwse-resize opacity-40 hover:opacity-70"
+          style={{
+            background:
+              'repeating-linear-gradient(135deg, transparent 0, transparent 2px, currentColor 2px, currentColor 3px)',
+            color: 'var(--color-border)',
+          }}
+          {...resizeHandleProps}
+        />
       </div>
     </div>,
     document.body,

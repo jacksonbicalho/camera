@@ -479,12 +479,109 @@ describe('VideoPlayer', () => {
     })
   })
 
-  it('zoom=false: não renderiza o chip de reset de zoom', async () => {
+  it('zoom=false: não renderiza o controle de zoom no rodapé', async () => {
     render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} zoom={false} />)
     await waitFor(() => {
       expect(document.getElementById('p-video')).not.toBeNull()
     })
-    expect(document.getElementById('p-zoom-reset')).toBeNull()
+    expect(document.getElementById('p-zoom-out')).toBeNull()
+    expect(document.getElementById('p-zoom-in')).toBeNull()
+    expect(document.getElementById('p-zoom-level')).toBeNull()
+  })
+
+  describe('CA4: rodapé usa o componente Zoom (−/%/+) em vez do chip PlayerControlsOverlay', () => {
+    it('com zoom habilitado (default), o rodapé mostra o controle de zoom — não o chip antigo sobreposto ao vídeo', async () => {
+      render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+      await waitFor(() => {
+        expect(document.getElementById('p-video')).not.toBeNull()
+      })
+      expect(document.getElementById('p-zoom-out')).not.toBeNull()
+      expect(document.getElementById('p-zoom-in')).not.toBeNull()
+      expect(document.getElementById('p-zoom-level')?.textContent).toBe('100%')
+      expect(document.getElementById('p-zoom-reset')).toBeNull()
+    })
+  })
+
+  describe('CA5: clicar em zoom in/out não reinicia a reprodução', () => {
+    it('REGRESSÃO: clicar em zoom in/out NÃO reinicia a reprodução (bug real: o vídeo recarregava do zero a cada clique no zoom — reportado pelo navigator)', async () => {
+      render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+      await waitFor(() => {
+        expect(document.getElementById('p-video')).not.toBeNull()
+      })
+      const video = document.getElementById('p-video') as HTMLVideoElement
+      fireLoadedMetadata(video, 100)
+      const loadSpy = vi.spyOn(video, 'load')
+      const srcBefore = video.getAttribute('src')
+      fireEvent.click(document.getElementById('p-zoom-in')!)
+      expect(loadSpy).not.toHaveBeenCalled()
+      expect(video.getAttribute('src')).toBe(srcBefore)
+      fireEvent.click(document.getElementById('p-zoom-out')!)
+      expect(loadSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('CA11: zoom persiste ao cruzar a fronteira entre segmentos (double-buffering)', () => {
+    it('REGRESSÃO: zoom > 100% aplicado no segmento A continua > 100% depois de avançar pro segmento B', async () => {
+      render(
+        <VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, 10), seg('b.mp4', 0, Infinity)]} />,
+      )
+      await waitFor(() => {
+        expect(document.getElementById('p-video')).not.toBeNull()
+      })
+      const a = document.getElementById('p-video') as HTMLVideoElement
+      fireLoadedMetadata(a, 10)
+
+      fireEvent.click(document.getElementById('p-zoom-in')!)
+      await waitFor(() => {
+        expect(document.getElementById('p-zoom-level')?.textContent).not.toBe('100%')
+      })
+      const levelBeforeAdvance = document.getElementById('p-zoom-level')?.textContent
+
+      Object.defineProperty(a, 'currentTime', { value: 10, configurable: true })
+      a.dispatchEvent(new Event('timeupdate'))
+
+      await waitFor(() => {
+        expect(document.getElementById('p-video-b')?.className).toContain('z-10')
+      })
+      expect(document.getElementById('p-zoom-level')?.textContent).toBe(levelBeforeAdvance)
+      // Não basta o RÓTULO continuar > 100% — a transform CSS real precisa ter sido
+      // reaplicada no elemento que assumiu (o outro buffer, que nunca tinha recebido nenhuma
+      // transform até agora); sem isso o vídeo mostraria 100% de fato mesmo com o controle
+      // marcando um valor maior (o mismatch visual que motivava o reset antigo).
+      const bTransform = (document.getElementById('p-video-b') as HTMLVideoElement).style.transform
+      expect(bTransform).not.toBe('')
+      expect(bTransform).not.toContain('scale(1)')
+    })
+  })
+
+  describe('CA12: zoom persiste ao reiniciar o clipe (loop)', () => {
+    it('REGRESSÃO: zoom > 100% continua > 100% depois do clipe reiniciar (repeat ligado, evento ended)', async () => {
+      render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+      await waitFor(() => {
+        expect(document.getElementById('p-repeat')).not.toBeNull()
+      })
+      document.getElementById('p-repeat')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(document.getElementById('p-repeat')?.getAttribute('aria-pressed')).toBe('true')
+      })
+
+      fireEvent.click(document.getElementById('p-zoom-in')!)
+      await waitFor(() => {
+        expect(document.getElementById('p-zoom-level')?.textContent).not.toBe('100%')
+      })
+      const levelBeforeLoop = document.getElementById('p-zoom-level')?.textContent
+
+      document.getElementById('p-video')!.dispatchEvent(new Event('ended'))
+      await waitFor(() => {
+        expect(document.getElementById('p-video')?.className).toContain('z-10')
+      })
+      expect(document.getElementById('p-zoom-level')?.textContent).toBe(levelBeforeLoop)
+      // Mesmo motivo do assert extra em CA11 — o rótulo sozinho não garante que a transform
+      // CSS de fato foi reaplicada no elemento 0 depois do reinício.
+      const aTransform = (document.getElementById('p-video') as HTMLVideoElement).style.transform
+      expect(aTransform).not.toBe('')
+      expect(aTransform).not.toContain('scale(1)')
+    })
   })
 
   it('rodapé de controles é sempre visível (não mais só no hover) e theme-aware — sem cor fixa/data-on-video', async () => {

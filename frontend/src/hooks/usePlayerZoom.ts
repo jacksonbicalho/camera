@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   IDENTITY,
+  MAX_SCALE,
+  MIN_SCALE,
   isZoomed as isZoomedState,
   panBy,
   transformStyle,
@@ -21,6 +23,14 @@ export interface PlayerZoom {
   isZoomed: boolean
   scale: number
   reset: () => void
+  // zoomIn/zoomOut — mesmo fator do scroll (WHEEL_FACTOR), só que disparado por clique (ex.:
+  // componente Zoom no rodapé) em vez de scroll/pinch, e ancorado no CENTRO do container (sem
+  // cursor pra ancorar em) em vez do ponto do mouse. canZoomIn/canZoomOut refletem se ainda há
+  // margem antes de MIN_SCALE/MAX_SCALE — pro consumidor desabilitar o botão correspondente.
+  zoomIn: () => void
+  zoomOut: () => void
+  canZoomIn: boolean
+  canZoomOut: boolean
   // consumeDrag returns (and clears) whether the last pointer interaction was a
   // pan — used to suppress the click that would otherwise toggle playback.
   consumeDrag: () => boolean
@@ -95,16 +105,36 @@ export function usePlayerZoom(getVideoEl: () => HTMLVideoElement | null): Player
 
   const reset = useCallback(() => setZoom(IDENTITY), [])
 
+  // zoomBy aplica `factor` em torno do CENTRO do container atual (nodeRef, o mesmo node que
+  // setContainer já mantém pro listener de wheel) — sem container ainda vinculado, no-op (não
+  // deveria acontecer na prática, já que o componente Zoom só existe dentro de um player já
+  // montado, mas evita quebrar se chamado cedo demais).
+  const zoomBy = useCallback((factor: number) => {
+    const node = nodeRef.current
+    if (!node) return
+    const rect = node.getBoundingClientRect()
+    setZoom((z) => zoomAtPoint(z, factor, rect.width / 2, rect.height / 2, rect.width, rect.height))
+  }, [])
+  const zoomIn = useCallback(() => zoomBy(WHEEL_FACTOR), [zoomBy])
+  const zoomOut = useCallback(() => zoomBy(1 / WHEEL_FACTOR), [zoomBy])
+
   const consumeDrag = useCallback(() => {
     const d = draggedRef.current
     draggedRef.current = false
     return d
   }, [])
 
-  // Memoizado: consumidores (VideoPlayer) dependem do objeto inteiro em useCallback/useEffect
-  // (ex.: `[..., zoom]` pra resetar zoom na troca de segmento) — sem isso, cada render
-  // (mesmo sem a transform mudar) devolveria uma referência nova e invalidaria essas
-  // memoizações à toa.
+  // Memoizado: o objeto serve pra passar como prop de uma vez (`<Zoom zoom={zoom} />`,
+  // `zoom.onPointerDown` etc. direto no JSX) sem gerar uma referência nova a cada render à
+  // toa. MAS um `useCallback`/`useEffect` que precisa de zoom NUNCA deve depender do objeto
+  // INTEIRO — ele troca de referência a cada mudança de zoom (scroll, pan, os botões de
+  // Zoom.tsx), então qualquer callback que dependa de `zoom` (em vez de `zoom.reset`/
+  // `zoom.setContainer` — os métodos específicos, que SÃO estáveis) também troca de
+  // referência a cada zoom. Se esse callback por sua vez alimentar um efeito (ex.:
+  // `startPlayback` em VideoPlayer.tsx), o efeito reroda a cada zoom — bug real já
+  // encontrado uma vez (o vídeo reiniciava do zero a cada clique no zoom em vez de só
+  // aplicar o zoom, reportado pelo navigator). Sempre depender do MÉTODO específico usado,
+  // nunca do objeto `zoom` inteiro, num array de dependências.
   return useMemo(
     () => ({
       setContainer,
@@ -114,8 +144,22 @@ export function usePlayerZoom(getVideoEl: () => HTMLVideoElement | null): Player
       isZoomed: isZoomedState(zoom),
       scale: zoom.scale,
       reset,
+      zoomIn,
+      zoomOut,
+      canZoomIn: zoom.scale < MAX_SCALE,
+      canZoomOut: zoom.scale > MIN_SCALE,
       consumeDrag,
     }),
-    [setContainer, onPointerDown, onPointerMove, onPointerUp, zoom, reset, consumeDrag],
+    [
+      setContainer,
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      zoom,
+      reset,
+      zoomIn,
+      zoomOut,
+      consumeDrag,
+    ],
   )
 }
