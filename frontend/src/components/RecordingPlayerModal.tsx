@@ -84,7 +84,7 @@ export default function RecordingPlayerModal({
       >
         <div
           id="recording-player-modal-header"
-          className="flex cursor-move items-center justify-between border-b border-border px-3 py-1.5"
+          className="flex cursor-move select-none items-center justify-between border-b border-border px-3 py-1.5"
           {...dragHandleProps}
         >
           <span className="text-caption text-foreground">

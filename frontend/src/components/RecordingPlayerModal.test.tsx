@@ -210,6 +210,20 @@ describe('CA2: modal arrastável e redimensionável, mantendo a proporção do v
     expect(document.getElementById('recording-player-modal-header')).not.toBeNull()
   })
 
+  it('CA10: o cabeçalho é select-none (a data não fica selecionável durante o arraste)', async () => {
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={1} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+    const header = await waitFor(() => {
+      const el = document.getElementById('recording-player-modal-header')
+      expect(el).not.toBeNull()
+      return el!
+    })
+    expect(header.className).toContain('select-none')
+  })
+
   it('arrastar o cabeçalho move a caixa (top/left mudam pela distância percorrida)', async () => {
     render(
       <MemoryRouter>

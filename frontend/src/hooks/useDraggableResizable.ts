@@ -92,6 +92,14 @@ export function useDraggableResizable({
     // Não inicia arraste a partir de um botão do cabeçalho (fechar, "Visualizar no
     // histórico") — deixa o clique passar, mesmo tratamento de usePlayerZoom pro pan.
     if ((e.target as HTMLElement).closest('button')) return
+    // Suprime o gesto NATIVO de seleção que o browser inicia por padrão nesse mesmo
+    // pointerdown+move (destacar texto sob o cabeçalho, ex. a data, ou iniciar um
+    // drag-ghost nativo do <video> por baixo) — sem isso, o arraste custom via Pointer
+    // Events roda em paralelo com a seleção nativa do browser, que passa a mostrar seu
+    // próprio cursor na posição REAL do mouse (que pode estar longe do cabeçalho, já que
+    // nada prende o mouse a essa faixa depois do pointerdown) — dá a impressão de que "o
+    // ícone de arrastar se perdeu". Bug real, reportado pelo navigator com screenshot.
+    e.preventDefault()
     dragRef.current = { x: e.clientX, y: e.clientY }
     e.currentTarget.setPointerCapture?.(e.pointerId)
   }, [])
@@ -124,6 +132,8 @@ export function useDraggableResizable({
   // resizeRef segue o mesmo princípio (âncora incremental) — ver comentário de `dragRef`.
   const resizeRef = useRef<{ x: number } | null>(null)
   const onResizePointerDown = useCallback((e: PointerEvent) => {
+    // Mesmo motivo do preventDefault em onDragPointerDown — ver comentário lá.
+    e.preventDefault()
     resizeRef.current = { x: e.clientX }
     e.currentTarget.setPointerCapture?.(e.pointerId)
   }, [])

@@ -205,4 +205,31 @@ describe('useDraggableResizable', () => {
       expect(parseFloat(box.style.width)).toBe(widthClamped - 10)
     })
   })
+
+  describe('CA10: iniciar um arraste/resize não dispara a seleção nativa de texto/elemento do browser', () => {
+    it('pointerdown no cabeçalho de arraste chama preventDefault (suprime seleção nativa)', () => {
+      render(<Harness />)
+      const handle = document.getElementById('handle')!
+      const event = fireEvent.pointerDown(handle, { clientX: 500, clientY: 300, pointerId: 1 })
+      // fireEvent devolve `false` quando algum listener chamou preventDefault (dispatchEvent).
+      expect(event).toBe(false)
+    })
+
+    it('pointerdown na alça de resize chama preventDefault (suprime seleção nativa)', () => {
+      render(<Harness />)
+      const handle = document.getElementById('resize-handle')!
+      const event = fireEvent.pointerDown(handle, { clientX: 800, clientY: 450, pointerId: 1 })
+      expect(event).toBe(false)
+    })
+
+    it('pointerdown num botão dentro do cabeçalho NÃO chama preventDefault (clique precisa funcionar normalmente)', () => {
+      render(<Harness />)
+      const box = document.getElementById('box')!
+      const btn = document.createElement('button')
+      document.getElementById('handle')!.appendChild(btn)
+      const event = fireEvent.pointerDown(btn, { clientX: 10, clientY: 10, pointerId: 1 })
+      expect(event).toBe(true)
+      expect(box).toBeTruthy()
+    })
+  })
 })
