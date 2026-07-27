@@ -163,4 +163,46 @@ describe('useDraggableResizable', () => {
       expect(top + heightAfter).toBeLessThanOrEqual(window.innerHeight)
     })
   })
+
+  describe('CA9: depois de bater num limite, o cursor não "descola" do ponto agarrado — mover na direção oposta reage de imediato, sem zona morta', () => {
+    it('arrastar (drag): depois do overshoot ser clampado, mover só um pouco na direção oposta já move a caixa (não precisa "descontar" a distância inteira do overshoot)', () => {
+      render(<Harness initialWidth={800} aspectRatio={16 / 9} chromeHeight={80} />)
+      const box = document.getElementById('box')!
+      const handle = document.getElementById('handle')!
+      // Overshoot GRANDE além do limite — com a âncora fixa (bug antigo), isso "banca" uma
+      // diferença enorme entre o mouse e a caixa.
+      fireEvent.pointerDown(handle, { clientX: 0, clientY: 0, pointerId: 1 })
+      fireEvent.pointerMove(handle, { clientX: 100000, clientY: 100000, pointerId: 1 })
+      const leftClamped = parseFloat(box.style.left)
+      const topClamped = parseFloat(box.style.top)
+      // Move só 10px de volta — com âncora incremental (fix), a caixa responde IMEDIATAMENTE;
+      // com âncora fixa (bug), nada se moveria (precisaria voltar ~99990px pra sair do clamp).
+      fireEvent.pointerMove(handle, { clientX: 100000 - 10, clientY: 100000 - 10, pointerId: 1 })
+      fireEvent.pointerUp(handle, { clientX: 100000 - 10, clientY: 100000 - 10, pointerId: 1 })
+      expect(parseFloat(box.style.left)).toBe(leftClamped - 10)
+      expect(parseFloat(box.style.top)).toBe(topClamped - 10)
+    })
+
+    it('redimensionar (resize): depois do overshoot ser clampado, mover só um pouco na direção oposta já encolhe a caixa de imediato', () => {
+      render(<Harness initialWidth={300} aspectRatio={16 / 9} chromeHeight={80} maxWidth={500} />)
+      const box = document.getElementById('box')!
+      const handle = document.getElementById('resize-handle')!
+      const widthStart = parseFloat(box.style.width)
+      fireEvent.pointerDown(handle, { clientX: widthStart, clientY: 0, pointerId: 1 })
+      fireEvent.pointerMove(handle, { clientX: widthStart + 100000, clientY: 0, pointerId: 1 })
+      const widthClamped = parseFloat(box.style.width)
+      expect(widthClamped).toBe(500) // clampado no maxWidth explícito
+      fireEvent.pointerMove(handle, {
+        clientX: widthStart + 100000 - 10,
+        clientY: 0,
+        pointerId: 1,
+      })
+      fireEvent.pointerUp(handle, {
+        clientX: widthStart + 100000 - 10,
+        clientY: 0,
+        pointerId: 1,
+      })
+      expect(parseFloat(box.style.width)).toBe(widthClamped - 10)
+    })
+  })
 })
