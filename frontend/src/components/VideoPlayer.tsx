@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Play, Pause, Repeat, Maximize, VolumeX, Volume2, Gauge } from './Icons'
-import PlayerControlsOverlay from './PlayerControlsOverlay'
 import PlayerFooter from './PlayerFooter'
+import Zoom from './Zoom'
 import { usePlayerZoom } from '../hooks/usePlayerZoom'
 import {
   segmentDuration,
@@ -598,8 +598,6 @@ export default function VideoPlayer({
                 }}
               />
             ))}
-
-            {zoomEnabled && <PlayerControlsOverlay id={idPrefix} zoom={zoom} />}
           </>
         ) : (
           emptyMessage && (
@@ -677,6 +675,7 @@ export default function VideoPlayer({
                 >
                   {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                 </button>
+                {zoomEnabled && <Zoom id={idPrefix} zoom={zoom} />}
                 <div ref={speedMenuRef} className="relative">
                   <button
                     id={`${idPrefix}-speed`}

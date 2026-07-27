@@ -96,6 +96,26 @@ describe('Player', () => {
     expect(document.getElementById('p1-mute')).toBeNull()
   })
 
+  describe('CA4: rodapé usa o componente Zoom (−/%/+) em vez do chip PlayerControlsOverlay', () => {
+    it('com controls, o rodapé mostra o controle de zoom (100% por padrão, sem zoom ainda)', async () => {
+      render(<Player id="p1" src="/stream/cam1/index.m3u8" controls />)
+      await flush()
+      expect(document.getElementById('p1-zoom-out')).toBeTruthy()
+      expect(document.getElementById('p1-zoom-in')).toBeTruthy()
+      expect(document.getElementById('p1-zoom-level')?.textContent).toBe('100%')
+      // Chip antigo (PlayerControlsOverlay), sobreposto ao vídeo, não existe mais.
+      expect(document.getElementById('p1-zoom-reset')).toBeNull()
+    })
+
+    it('sem controls, o controle de zoom não aparece (mesmo critério dos outros botões do rodapé)', async () => {
+      render(<Player id="p1" src="/stream/cam1/index.m3u8" />)
+      await flush()
+      expect(document.getElementById('p1-zoom-out')).toBeNull()
+      expect(document.getElementById('p1-zoom-in')).toBeNull()
+      expect(document.getElementById('p1-zoom-level')).toBeNull()
+    })
+  })
+
   describe('CA5: rodapé existe sem `title`, desde que haja controls ou footerTrailing', () => {
     it('sem title mas com controls, rodapé existe (mudo/tela cheia) sem mostrar nome', async () => {
       render(<Player id="p1" src="/stream/cam1/index.m3u8" controls />)

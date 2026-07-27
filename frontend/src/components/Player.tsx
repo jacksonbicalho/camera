@@ -4,9 +4,9 @@ import { getToken } from '../auth'
 import { negotiateWebRTC } from '../lib/webrtc'
 import { usePlayerZoom } from '../hooks/usePlayerZoom'
 import { Loader2, Maximize, Play, Volume2, VolumeX } from './Icons'
-import PlayerControlsOverlay from './PlayerControlsOverlay'
 import PlayerFooter from './PlayerFooter'
 import { retryPlan } from './playerRetry'
+import Zoom from './Zoom'
 
 interface PlayerProps {
   src: string
@@ -273,7 +273,6 @@ export default function Player({
           onLoadedData={() => setConnecting(false)}
         />
 
-        <PlayerControlsOverlay id={id} zoom={zoom} />
         {children}
 
         {noSignal ? (
@@ -329,6 +328,7 @@ export default function Player({
               >
                 {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </button>
+              <Zoom id={id} zoom={zoom} />
               <button
                 id={`${id}-fullscreen`}
                 type="button"

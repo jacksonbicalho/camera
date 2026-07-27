@@ -479,12 +479,27 @@ describe('VideoPlayer', () => {
     })
   })
 
-  it('zoom=false: não renderiza o chip de reset de zoom', async () => {
+  it('zoom=false: não renderiza o controle de zoom no rodapé', async () => {
     render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} zoom={false} />)
     await waitFor(() => {
       expect(document.getElementById('p-video')).not.toBeNull()
     })
-    expect(document.getElementById('p-zoom-reset')).toBeNull()
+    expect(document.getElementById('p-zoom-out')).toBeNull()
+    expect(document.getElementById('p-zoom-in')).toBeNull()
+    expect(document.getElementById('p-zoom-level')).toBeNull()
+  })
+
+  describe('CA4: rodapé usa o componente Zoom (−/%/+) em vez do chip PlayerControlsOverlay', () => {
+    it('com zoom habilitado (default), o rodapé mostra o controle de zoom — não o chip antigo sobreposto ao vídeo', async () => {
+      render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+      await waitFor(() => {
+        expect(document.getElementById('p-video')).not.toBeNull()
+      })
+      expect(document.getElementById('p-zoom-out')).not.toBeNull()
+      expect(document.getElementById('p-zoom-in')).not.toBeNull()
+      expect(document.getElementById('p-zoom-level')?.textContent).toBe('100%')
+      expect(document.getElementById('p-zoom-reset')).toBeNull()
+    })
   })
 
   it('rodapé de controles é sempre visível (não mais só no hover) e theme-aware — sem cor fixa/data-on-video', async () => {
