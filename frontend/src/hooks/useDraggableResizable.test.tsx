@@ -111,4 +111,56 @@ describe('useDraggableResizable', () => {
       expect(box.style.left).toBe(leftAfterFirstDrag)
     })
   })
+
+  describe('CA6: arrastar/redimensionar mantém a caixa inteira dentro da viewport (topo/base/esquerda/direita)', () => {
+    it('arrastar bem pra baixo/direita trava exatamente na borda — a caixa inteira (não só uma margem) continua visível', () => {
+      render(<Harness initialWidth={800} aspectRatio={16 / 9} chromeHeight={80} />)
+      const box = document.getElementById('box')!
+      const width = parseFloat(box.style.width)
+      const height = parseFloat(box.style.height)
+      const handle = document.getElementById('handle')!
+      fireEvent.pointerDown(handle, { clientX: 0, clientY: 0, pointerId: 1 })
+      fireEvent.pointerMove(handle, { clientX: 100000, clientY: 100000, pointerId: 1 })
+      fireEvent.pointerUp(handle, { clientX: 100000, clientY: 100000, pointerId: 1 })
+      expect(parseFloat(box.style.left)).toBe(window.innerWidth - width)
+      expect(parseFloat(box.style.top)).toBe(window.innerHeight - height)
+    })
+
+    it('arrastar bem pra cima/esquerda trava em 0 — nunca fica negativo (fora da viewport por cima/pela esquerda)', () => {
+      render(<Harness />)
+      const box = document.getElementById('box')!
+      const handle = document.getElementById('handle')!
+      fireEvent.pointerDown(handle, { clientX: 0, clientY: 0, pointerId: 1 })
+      fireEvent.pointerMove(handle, { clientX: -100000, clientY: -100000, pointerId: 1 })
+      fireEvent.pointerUp(handle, { clientX: -100000, clientY: -100000, pointerId: 1 })
+      expect(parseFloat(box.style.left)).toBe(0)
+      expect(parseFloat(box.style.top)).toBe(0)
+    })
+
+    it('redimensionar depois de arrastar pro canto inferior direito não deixa a borda direita nem a de baixo saírem da viewport (clamp considera a posição atual, não só um teto fixo)', () => {
+      render(<Harness initialWidth={300} aspectRatio={16 / 9} chromeHeight={80} minWidth={200} />)
+      const box = document.getElementById('box')!
+      const dragHandle = document.getElementById('handle')!
+      fireEvent.pointerDown(dragHandle, { clientX: 0, clientY: 0, pointerId: 1 })
+      fireEvent.pointerMove(dragHandle, { clientX: 100000, clientY: 100000, pointerId: 1 })
+      fireEvent.pointerUp(dragHandle, { clientX: 100000, clientY: 100000, pointerId: 1 })
+      const left = parseFloat(box.style.left)
+      const top = parseFloat(box.style.top)
+
+      const resizeHandle = document.getElementById('resize-handle')!
+      const widthBefore = parseFloat(box.style.width)
+      fireEvent.pointerDown(resizeHandle, { clientX: widthBefore, clientY: 0, pointerId: 1 })
+      fireEvent.pointerMove(resizeHandle, {
+        clientX: widthBefore + 100000,
+        clientY: 0,
+        pointerId: 1,
+      })
+      fireEvent.pointerUp(resizeHandle, { clientX: widthBefore + 100000, clientY: 0, pointerId: 1 })
+
+      const widthAfter = parseFloat(box.style.width)
+      const heightAfter = parseFloat(box.style.height)
+      expect(left + widthAfter).toBeLessThanOrEqual(window.innerWidth)
+      expect(top + heightAfter).toBeLessThanOrEqual(window.innerHeight)
+    })
+  })
 })

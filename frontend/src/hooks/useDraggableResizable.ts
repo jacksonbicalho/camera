@@ -28,9 +28,6 @@ export interface DraggableResizable {
 }
 
 const VIEWPORT_MARGIN = 32
-// Mantém pelo menos essa faixa do topo/lateral dentro da viewport ao arrastar — nunca deixa o
-// cabeçalho (única alça de arrastar) sair de alcance do cursor.
-const DRAG_VISIBLE_MARGIN = 80
 
 function viewportWidth(): number {
   return typeof window === 'undefined' ? 1024 : window.innerWidth
@@ -51,15 +48,24 @@ export function useDraggableResizable({
   maxWidth,
   chromeHeight,
 }: UseDraggableResizableOptions): DraggableResizable {
+  // clampWidth recebe a posição ATUAL da caixa (leftPos/topPos — fixos durante um resize, só
+  // `width` muda) pra nunca deixar a borda direita (`leftPos + w`) nem a de baixo
+  // (`topPos + w/aspectRatio + chromeHeight`) passarem da viewport — não é só o teto
+  // explícito/default (`maxWidth`) que importa, a POSIÇÃO da caixa também limita até onde ela
+  // pode crescer sem sair da tela (achado real do navigator: "é preciso que ele tenha limites
+  // também a esquerda, direita e em baixo").
   const clampWidth = useCallback(
-    (w: number) => {
-      const max = maxWidth ?? viewportWidth() - VIEWPORT_MARGIN * 2
+    (w: number, leftPos: number, topPos: number) => {
+      const maxByDefault = maxWidth ?? viewportWidth() - VIEWPORT_MARGIN * 2
+      const maxByRightEdge = viewportWidth() - leftPos
+      const maxByBottomEdge = (viewportHeight() - topPos - chromeHeight) * aspectRatio
+      const max = Math.min(maxByDefault, maxByRightEdge, maxByBottomEdge)
       return Math.min(max, Math.max(minWidth, w))
     },
-    [minWidth, maxWidth],
+    [minWidth, maxWidth, aspectRatio, chromeHeight],
   )
 
-  const [width, setWidth] = useState(() => clampWidth(initialWidth))
+  const [width, setWidth] = useState(() => clampWidth(initialWidth, 0, 0))
   const height = width / aspectRatio + chromeHeight
 
   const [pos, setPos] = useState(() => ({
@@ -86,15 +92,18 @@ export function useDraggableResizable({
       const dy = e.clientY - d.y
       const vw = viewportWidth()
       const vh = viewportHeight()
+      // Contenção total nas 4 bordas — a caixa INTEIRA (não só uma margem/faixa dela) sempre
+      // cabe na viewport: `top`/`left` nunca negativos (não sai por cima/pela esquerda) e
+      // nunca deixam `top+height`/`left+width` passarem de `vh`/`vw` (não sai por baixo/pela
+      // direita). Antes só o topo tinha um limite de verdade (`Math.max(0, ...)`) — esquerda,
+      // direita e base só tinham uma margem parcial (`DRAG_VISIBLE_MARGIN`), deixando a maior
+      // parte da caixa sair da tela (bug real, reportado pelo navigator).
       setPos({
-        top: Math.min(Math.max(0, d.top + dy), Math.max(0, vh - DRAG_VISIBLE_MARGIN)),
-        left: Math.min(
-          Math.max(-(width - DRAG_VISIBLE_MARGIN), d.left + dx),
-          vw - DRAG_VISIBLE_MARGIN,
-        ),
+        top: Math.min(Math.max(0, d.top + dy), Math.max(0, vh - height)),
+        left: Math.min(Math.max(0, d.left + dx), Math.max(0, vw - width)),
       })
     },
-    [width],
+    [width, height],
   )
   const onDragPointerUp = useCallback((e: PointerEvent) => {
     dragRef.current = null
@@ -113,9 +122,12 @@ export function useDraggableResizable({
     (e: PointerEvent) => {
       const r = resizeRef.current
       if (!r) return
-      setWidth(clampWidth(r.startWidth + (e.clientX - r.x)))
+      setWidth(clampWidth(r.startWidth + (e.clientX - r.x), pos.left, pos.top))
     },
-    [clampWidth],
+    // `pos.left`/`pos.top` (primitivos), não o objeto `pos` inteiro — mesma convenção que o
+    // T4 desta história estabeleceu (usePlayerZoom.ts: depender de valores/métodos
+    // específicos, nunca do objeto envoltório, que troca de referência à toa).
+    [clampWidth, pos.left, pos.top],
   )
   const onResizePointerUp = useCallback((e: PointerEvent) => {
     resizeRef.current = null
