@@ -494,8 +494,8 @@ export default function HistoryPage() {
   const mainObserverRef = useRef<ResizeObserver | null>(null)
   // Node de `history-main` guardado à parte (além do ResizeObserver acima) — usado por
   // `recomputeRowWidth` abaixo pra medir a borda esquerda de verdade via
-  // `getBoundingClientRect()`, sem alterar em nada o próprio sizing do player (`flex-1
-  // lg:max-w-[72rem]`, que precisa continuar crescendo normalmente).
+  // `getBoundingClientRect()`, sem alterar em nada o próprio sizing do player (`flex-1`,
+  // que precisa continuar crescendo normalmente até preencher o espaço disponível).
   const mainNodeRef = useRef<HTMLDivElement | null>(null)
   // Sidebar (`history-recordings-list`) — condicionada a `selectedDate`, então pode
   // desmontar/remontar (recalcula sozinho, ref callback dispara com `null` no unmount).
@@ -685,18 +685,16 @@ export default function HistoryPage() {
 
   return (
     <Layout id="history-page" footerId="history-footer" contentClassName="p-6">
-      {/* Exceção intencional ao padrão `.page-content` (ver CLAUDE.md "Largura do conteúdo"):
-          Histórico é de duas colunas — player à esquerda (`history-main`, largura
-          capada pra não virar um vídeo gigante), lista de gravações à direita
-          (`history-recordings-list`, largura fixa). Junto, as duas colunas usam quase toda a
-          largura da viewport, diferente das páginas de player único (Ao vivo/Reprodução) que
-          continuam capadas em `.page-content`. Empilha em coluna única abaixo do breakpoint
-          `lg`.
+      {/* `.page-content` — mesmo padrão fluido (sem max-width) de todas as outras páginas,
+          inclusive Live View (ver CLAUDE.md "Largura do conteúdo"). Layout de duas colunas
+          continua: player à esquerda (`history-main`, flex-1 — cresce até preencher o
+          espaço restante, sem cap), lista de gravações à direita (`history-recordings-list`,
+          largura fixa). Empilha em coluna única abaixo do breakpoint `lg`.
           O título (`history-header`, dentro do `CameraStageHeader`) fica FORA da linha de
           duas colunas — só o `children` do `CameraStageHeader` (o `<div>` logo abaixo) entra
           nela — pra que o TOPO do sidebar (`history-recordings-list`) alinhe com o topo do
           PLAYER, não com o topo do título. */}
-      <div id="history-content" className="flex w-full flex-col gap-3">
+      <div id="history-content" className="page-content flex w-full flex-col gap-3">
         {error && (
           <div
             id="history-error"
@@ -711,7 +709,6 @@ export default function HistoryPage() {
             cameraName={camera.name}
             recordingEnabled={camera.recording_enabled}
             pageTitle="Histórico"
-            twoColumnCap
             actions={
               cameras.length > 1 ? (
                 <select
@@ -729,12 +726,8 @@ export default function HistoryPage() {
               ) : undefined
             }
           >
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-center">
-              <div
-                ref={mainRef}
-                id="history-main"
-                className="flex min-w-0 flex-1 flex-col gap-2 lg:max-w-[72rem]"
-              >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+              <div ref={mainRef} id="history-main" className="flex min-w-0 flex-1 flex-col gap-2">
                 <VideoPlayer
                   idPrefix="history-player"
                   segments={segments}
@@ -981,14 +974,15 @@ export default function HistoryPage() {
             </div>
             {/* Régua de 24h FORA da linha player+lista (não mais dentro de `history-main`) —
                 pedido do navigator: ocupar a largura COMBINADA das duas colunas (não só a do
-                player, que é capada em `lg:max-w-[72rem]`), pra dar mais espaço horizontal a
-                cada bloco de hora (mais fácil distinguir as linhas verticais de cada
-                gravação, sobretudo em horas cheias). `maxWidth: rowWidth` (medido via
-                `getBoundingClientRect()` do player + da lista, ver `recomputeRowWidth`
-                acima) alinha a régua exatamente com a borda esquerda do player até a borda
-                direita da lista, sem alterar o sizing de nenhum dos dois; `mx-auto` centra
-                (mesmo eixo de `lg:justify-center` da linha acima). Sem medição ainda/jsdom:
-                sem teto, ocupa a largura total disponível. */}
+                player), pra dar mais espaço horizontal a cada bloco de hora (mais fácil
+                distinguir as linhas verticais de cada gravação, sobretudo em horas cheias).
+                `maxWidth: rowWidth` (medido via `getBoundingClientRect()` do player + da
+                lista, ver `recomputeRowWidth` acima) alinha a régua exatamente com a borda
+                esquerda do player até a borda direita da lista, sem alterar o sizing de
+                nenhum dos dois — segue valendo mesmo sem cap de largura no player (T2 da
+                história `feat/historico-navegacao-largura`), já que a medição é sempre pela
+                posição RENDERIZADA, nunca por um valor fixo. Sem medição ainda/jsdom: sem
+                teto, ocupa a largura total disponível. */}
             <div
               className="mx-auto w-full"
               style={rowWidth != null ? { maxWidth: rowWidth } : undefined}
