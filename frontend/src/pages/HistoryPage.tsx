@@ -3,7 +3,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import CameraStageHeader from '../components/CameraStageHeader'
-import CameraViewTabs from '../components/CameraViewTabs'
 import DatePicker from '../components/DatePicker'
 import { ChevronDown, Loader2, Play } from '../components/Icons'
 import VideoPlayer, { type VideoPlayerSegment } from '../components/VideoPlayer'
@@ -795,16 +794,6 @@ export default function HistoryPage() {
                       `border-left-width` do utilitário `divide-x`, então ele não aparecia. */}
                       <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
                     </>
-                  }
-                  // O calendário saiu daqui pro topo do `history-recordings-list` (pedido do
-                  // navigator) — sem `footerTrailing`, o `ml-auto` que empurrava
-                  // `footerEnd`/`fullscreenButton` pra ponta direita da linha some junto (ver
-                  // comentário da prop em VideoPlayer.tsx); reaplicado direto no wrapper do
-                  // `footerEnd` abaixo pra manter as abas Ao vivo/Histórico coladas na direita.
-                  footerEnd={
-                    <div className="ml-auto flex items-center gap-3">
-                      <CameraViewTabs cameraId={camera.id} active="history" />
-                    </div>
                   }
                   overlay={
                     <>
