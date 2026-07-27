@@ -59,7 +59,25 @@ services:
     # já valem aqui; só o volume novo do cache do Chromium precisa ser somado.
     volumes:
       - e2e-playwright-browsers:/root/.cache/ms-playwright
-    command: sh -c "bun install && bunx playwright install --with-deps chromium && tail -f /dev/null"
+    # O marcador + healthcheck existem pra refletir na tela quando a instalação
+    # (bun install + download do Chromium, minutos na 1ª subida) realmente
+    # terminou — sem isso, `docker compose up -d` retorna assim que o container
+    # inicia, e um `exec` disparado antes do fim da instalação falha (chromium
+    # ainda não gravado no volume). `docker compose up -d --wait` bloqueia até
+    # `healthy`; `docker compose ps` mostra `starting`→`healthy` a qualquer momento.
+    command: sh -c "bun install && bunx playwright install --with-deps chromium && touch /tmp/e2e-playwright-ready && tail -f /dev/null"
+    healthcheck:
+      test: ['CMD', 'test', '-f', '/tmp/e2e-playwright-ready']
+      interval: 5s
+      timeout: 3s
+      # retries=180 (15min de teto): rede lenta/cache frio pode deixar o
+      # `apt install` de deps do Chromium (--with-deps) bem mais lento que os
+      # ~30s do caminho comum. Se mesmo assim estourar, "unhealthy" é um
+      # falso-negativo — a instalação segue rodando em background; re-rode
+      # `docker compose up -d --wait` ou acompanhe `docker compose logs -f
+      # e2e-playwright`.
+      retries: 180
+      start_period: 5s
 
 volumes:
   frontend_node_modules:
