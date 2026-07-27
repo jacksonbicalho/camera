@@ -23,7 +23,7 @@ import {
   recordingCategory,
   type TimelineFilter,
 } from './eventCategory'
-import { RecordingsGateway } from '../lib/recordingsGateway'
+import { RecordingsGateway, clipSegments } from '../lib/recordingsGateway'
 import { matchesTimeRange, type ClockTime } from '../lib/timeRange'
 
 interface Camera {
@@ -99,7 +99,11 @@ const gateway = new RecordingsGateway()
 // sincronizada com ele (troca de card ou seleção automática do 1º do dia), então a barra de
 // endereço sempre reflete a gravação em reprodução.
 export default function HistoryPage() {
-  const { cameraId, recordingId } = useParams<{ cameraId: string; recordingId?: string }>()
+  const { cameraId, recordingId, motionId } = useParams<{
+    cameraId: string
+    recordingId?: string
+    motionId?: string
+  }>()
   const navigate = useNavigate()
   const location = useLocation()
   // Congela o :recordingId (e a câmera a que ele pertence) da URL só no 1º render —
@@ -113,6 +117,10 @@ export default function HistoryPage() {
   // nenhuma gravação (bug real, achado do code-reviewer).
   const [initialRecordingId] = useState(recordingId)
   const [initialCameraId] = useState(cameraId)
+  // :motionId (rota /history/:cameraId/:recordingId/:motionId, ver RecordingPlayerModal)
+  // também congela na 1ª renderização — só importa pra decidir a janela inicial do clipe
+  // (ver `clipActive`/`resolvedClipSegments` abaixo); nunca é lido de novo depois disso.
+  const [initialMotionId] = useState(motionId)
   const pendingSelectRef = useRef<number | null>(null)
   const [camera, setCamera] = useState<Camera | null>(null)
   // Lista completa (não só a câmera ativa) — alimenta o `<select>` de troca de
@@ -154,6 +162,12 @@ export default function HistoryPage() {
   // Reprodução contínua: null = desligada; array = ligada, com o snapshot das gravações a
   // encadear (tomado no instante em que liga — ver comentário no `toggleContinuous`).
   const [continuousRecordings, setContinuousRecordings] = useState<Recording[] | null>(null)
+  // Modo clipe (`:motionId` na URL) — começa ligado quando a página abre com um motionId
+  // (ex.: botão "Visualizar no histórico" do RecordingPlayerModal) e desliga na primeira
+  // interação real do usuário (trocar de gravação/dia/câmera, ver `selectRecording` e os
+  // handlers do `<select>`/`DatePicker` abaixo) — depois disso o player volta a tocar o
+  // chunk inteiro, como sempre. Nunca reativado sozinho.
+  const [clipActive, setClipActive] = useState(Boolean(initialMotionId))
 
   // Resolve o :recordingId da URL (se veio um) pro dia que ele pertence — só na carga
   // inicial, e só pra câmera com que a página montou (`cameraId !== initialCameraId`
@@ -611,7 +625,52 @@ export default function HistoryPage() {
         : [],
     [continuousRecordings],
   )
-  const segments = continuousRecordings ? continuousSegments : singleSegments
+  // resolvedClipSegments — janela `[evento−lead, evento+trail]` recortada via `clipSegments`
+  // (lib/recordingsGateway.ts, MESMA função que `/recording/:cameraId/:recordingId/:motionId`
+  // — VideoBrowserPage/useRecordingSegments — já usa), resolvida UMA VEZ e congelada. Ajuste
+  // durante o render (não useEffect+setState — mesmo padrão de `errorForId`/
+  // `continuousResetFor` já usados nesta página): computa e grava assim que `events`/
+  // `recordings` do dia E `camera` (fetch de `/api/cameras`, efeito independente — sem
+  // isso o guard congelava usando o lead/trail DEFAULT (10s/10s) se `/api/cameras` ainda
+  // não tivesse resolvido, mesmo a câmera tendo `playback_lead_seconds`/`trail_seconds`
+  // configurados — e nunca recalculava depois, achado real do code review) carregam, e
+  // nunca mais recalcula depois disso.
+  //
+  // Congelar é essencial, não só estilo: `recordings` troca de REFERÊNCIA a cada poll (5s/30s,
+  // ver efeito acima) sempre que a gravação em andamento avança (`is_recording`/`end`
+  // mudando) — se `resolvedClipSegments` fosse um useMemo dependendo de `recordings` (como
+  // `clipEvent` originalmente era), cada poll geraria um array de segmentos NOVO, e o
+  // `useEffect` do VideoPlayer (que reinicia a reprodução — `startPlayback` — sempre que a
+  // referência de `segments` muda) reiniciaria o clipe do zero a cada poll: o vídeo "ficava
+  // repetindo" sozinho, sem o usuário ter feito nada (bug real, reportado pelo navigator).
+  // `singleSegments`/`continuousSegments` acima não sofrem disso porque dependem de `selected`/
+  // `continuousRecordings` — já estáveis por construção — nunca da array `recordings` crua.
+  const [resolvedClipSegments, setResolvedClipSegments] = useState<VideoPlayerSegment[] | null>(
+    null,
+  )
+  if (clipActive && resolvedClipSegments == null && recordings.length > 0 && camera != null) {
+    const ev = events.find((e) => String(e.id) === initialMotionId)
+    if (ev) {
+      const leadSec = camera.playback_lead_seconds ?? 10
+      const trailSec = camera.playback_trail_seconds ?? 10
+      setResolvedClipSegments(
+        clipSegments(ev.time, recordings, leadSec, trailSec).map((s) => ({
+          src: `${s.recording.url}?token=${getToken()}`,
+          fromSeconds: s.fromSeconds,
+          toSeconds: s.toSeconds,
+        })),
+      )
+    }
+  }
+  // Prioridade: contínua > clipe (só enquanto `clipActive` — sai do modo, mesmo com um
+  // clipe já congelado em `resolvedClipSegments`, cai pro chunk inteiro) > gravação única.
+  // Sem sobreposição real (ex.: a gravação-alvo sumiu do dia, `resolvedClipSegments` congela
+  // vazio) cai pro chunk inteiro normal também, em vez de mostrar o player vazio.
+  const segments = continuousRecordings
+    ? continuousSegments
+    : clipActive && resolvedClipSegments && resolvedClipSegments.length > 0
+      ? resolvedClipSegments
+      : singleSegments
 
   // onSegmentChange (VideoPlayer) dispara com o índice do segmento ativo a cada transição —
   // mapeia de volta pro id da gravação via ref (callback com deps vazias = identidade
@@ -660,6 +719,10 @@ export default function HistoryPage() {
   }
 
   function selectRecording(id: number) {
+    // Clicar em QUALQUER card (mesmo o já ativo, cuja janela de clipe pode estar tocando)
+    // é uma interação real do usuário — sai do modo clipe, mesmo sem trocar de gravação
+    // (escape hatch pra ver o chunk inteiro sem precisar trocar de dia/câmera).
+    setClipActive(false)
     const switching = id !== selectedId
     // Com o modo contínuo ligado, clicar num item RE-ANCORA a sequência nele (mantém
     // ligado) em vez de desligar — é assim que se pula pra outro ponto do dia sem sair do
@@ -678,6 +741,7 @@ export default function HistoryPage() {
   // referência de `segments`) — reinício simples e previsível, sem tentar preservar a
   // posição exata na troca de modo.
   function toggleContinuous() {
+    setClipActive(false)
     setContinuousRecordings((prev) =>
       prev ? null : buildContinuousSequence(recordings, selectedId),
     )
@@ -714,7 +778,10 @@ export default function HistoryPage() {
                 <select
                   id="history-camera-select"
                   value={cameraId}
-                  onChange={(e) => navigate(`/history/${e.target.value}`)}
+                  onChange={(e) => {
+                    setClipActive(false)
+                    navigate(`/history/${e.target.value}`)
+                  }}
                   className="bg-surface-2 text-foreground text-xs rounded px-2 py-1 border border-border max-w-44"
                 >
                   {cameras.map((c) => (
@@ -842,40 +909,41 @@ export default function HistoryPage() {
                   className="flex w-full flex-col gap-1.5 overflow-hidden rounded-lg border border-border lg:w-80 lg:shrink-0"
                   style={mainHeight != null ? { maxHeight: mainHeight } : undefined}
                 >
-                  {/* Linha do calendário SEM padding horizontal (só `pt-2` de respiro do
-                      topo) — a borda do botão-gatilho do DatePicker (que o popover mede via
-                      getBoundingClientRect, ver DatePicker.tsx) precisa coincidir com a
-                      borda visível da caixa, não ficar recuada por um padding do container
-                      (pedido do navigator: "o calendário deve abrir alinhado com a lista de
-                      gravações"). O padding lateral que ANTES vivia direto em
-                      `history-recordings-list` migrou pro wrapper `history-recordings-body`
-                      abaixo — só essa linha fica de fora dele. */}
-                  <div className="flex w-full items-center pt-2">
-                    <DatePicker
-                      id="history-date-picker"
-                      value={selectedDate}
-                      onChange={setSelectedDate}
-                      disableFuture
-                      availableDays={availableDays}
-                      align="right"
-                      fullWidth
-                    />
-                  </div>
-                  {/* Corpo do sidebar (filtro de horário + dropdown de categoria + lista) —
-                      único lugar com padding lateral agora; `flex-1 min-h-0` repassa a
-                      mesma mecânica de altura que `history-recordings-list` tinha antes
-                      (necessária pro `min-h-0 flex-1` de `history-recordings-groups`
-                      abaixo continuar rolando dentro do teto medido via ResizeObserver). */}
+                  {/* Corpo do sidebar (calendário + filtro de horário + dropdown de categoria +
+                      lista) — único lugar com padding lateral (`px-2`), inclusive o calendário:
+                      ele é mais um FILHO deste container, não um irmão de fora — assim a borda
+                      do botão-gatilho do `DatePicker` (`fullWidth`, mede via
+                      `getBoundingClientRect()`, ver `DatePicker.tsx`) fica alinhada com a borda
+                      do dropdown/cards logo abaixo (mesmo recuo de `px-2` pros três), que é o
+                      que "alinhado com a lista de gravações" significa de fato (pedido do
+                      navigator, testado contra a página real) — não a borda externa da caixa
+                      inteira. `flex-1 min-h-0` repassa a mesma mecânica de altura que
+                      `history-recordings-list` tinha antes (necessária pro `min-h-0 flex-1` de
+                      `history-recordings-groups` abaixo continuar rolando dentro do teto medido
+                      via ResizeObserver). */}
                   <div
                     id="history-recordings-body"
                     className="flex min-h-0 flex-1 flex-col gap-1.5 px-2 pb-2"
                   >
+                    <div className="flex w-full items-center pt-2">
+                      <DatePicker
+                        id="history-date-picker"
+                        value={selectedDate}
+                        onChange={(d) => {
+                          setClipActive(false)
+                          setSelectedDate(d)
+                        }}
+                        disableFuture
+                        availableDays={availableDays}
+                        fullWidth
+                      />
+                    </div>
                     {/* 2 linhas empilhadas, cada uma ocupando a largura toda da coluna —
                         testado contra a página renderizada de verdade, o navigator pediu
                         pra não dividir a mesma linha (versão anterior, calendário + filtro
                         de horário lado a lado, ficava apertado demais na coluna de
-                        ~320px). Ordem: hora, depois o dropdown de categoria (já existia,
-                        inalterado) — a data saiu daqui pra linha acima, fora do padding. */}
+                        ~320px). Ordem: data, depois hora, depois o dropdown de categoria
+                        (já existia, inalterado). */}
                     {/* Filtra ao vivo, sem botão "Aplicar" (pedido do navigator) — cada
                         edição já atualiza `timeRange` direto. */}
                     <div className="flex w-full items-center">
@@ -895,7 +963,7 @@ export default function HistoryPage() {
                           aria-label="Filtrar gravações por categoria"
                           value={filter}
                           onChange={(e) => setFilter(e.target.value)}
-                          className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-caption text-foreground"
+                          className="w-full rounded border border-border bg-surface-2 px-2 py-2 text-caption text-foreground"
                         >
                           {filterOptions.map((value) => (
                             <option key={value} value={value}>

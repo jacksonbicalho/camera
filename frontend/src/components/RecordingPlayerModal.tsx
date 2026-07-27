@@ -1,7 +1,9 @@
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useRecordingSegments } from '../hooks/useRecordingSegments'
 import { formatDateTime } from '../lib/datetime'
+import { Button } from './ui/button'
 import VideoPlayer from './VideoPlayer'
 
 interface RecordingPlayerModalProps {
@@ -27,6 +29,7 @@ export default function RecordingPlayerModal({
   motionId,
   onClose,
 }: RecordingPlayerModalProps) {
+  const navigate = useNavigate()
   useEscapeKey(onClose, open)
   // cameraId/recordingId só passam pro hook quando o modal está aberto — fechado, não
   // dispara fetch nenhum (e não mantém segments velhos vivos escondidos atrás do overlay).
@@ -37,6 +40,15 @@ export default function RecordingPlayerModal({
   )
 
   if (!open) return null
+
+  // Reaproveita a mesma lógica de abertura de /recording/:cameraId/:recordingId/:motionId —
+  // o Histórico agora sabe abrir já na janela recortada do evento quando :motionId vem na
+  // URL (ver HistoryPage.tsx), então navegar pra lá preserva o mesmo contexto que este modal
+  // já mostrava.
+  function viewInHistory() {
+    navigate(`/history/${cameraId}/${recordingId}${motionId ? `/${motionId}` : ''}`)
+    onClose()
+  }
 
   return createPortal(
     <div
@@ -56,15 +68,26 @@ export default function RecordingPlayerModal({
                 ? formatDateTime(anchor.start, timezone)
                 : 'Reprodução'}
           </span>
-          <button
-            id="recording-player-modal-close"
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar"
-            className="text-faint hover:text-foreground"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            <Button
+              id="recording-player-view-in-history"
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={viewInHistory}
+            >
+              Visualizar no histórico
+            </Button>
+            <button
+              id="recording-player-modal-close"
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar"
+              className="text-faint hover:text-foreground"
+            >
+              ✕
+            </button>
+          </div>
         </div>
         <div className="flex flex-col gap-3 p-3">
           {error && (

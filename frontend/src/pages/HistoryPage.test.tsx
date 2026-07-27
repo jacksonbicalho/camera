@@ -382,25 +382,31 @@ describe('HistoryPage', () => {
       })
     })
 
-    describe('CA4: calendário do Histórico abre alinhado com a borda de history-recordings-list', () => {
-      it('a linha do calendário não tem padding horizontal — a borda do botão-gatilho (que o popover mede via getBoundingClientRect) coincide com a borda visível da lista, não com um recuo interno', async () => {
+    describe('CA4: calendário do Histórico abre alinhado com a lista de gravações (history-recordings-body)', () => {
+      it('o calendário é filho do mesmo container com padding (history-recordings-body) que o dropdown/lista — bordas alinhadas entre os três, não com a borda externa da caixa', async () => {
         renderAt('/history/cam1')
         await waitFor(() => {
           expect(document.getElementById('history-recordings-list')).not.toBeNull()
         })
         const list = document.getElementById('history-recordings-list')!
-        // A caixa em si não tem mais padding horizontal uniforme — quem tem padding
-        // agora é só o corpo abaixo do calendário (filtro + dropdown + lista).
+        // A caixa externa em si não tem mais padding horizontal uniforme — quem tem
+        // padding agora é o corpo (calendário + filtro + dropdown + lista) por inteiro.
         expect(list.className).not.toMatch(/(^|\s)p-2(\s|$)/)
         expect(list.className).not.toMatch(/(^|\s)px-2(\s|$)/)
-        const dateRow = document.querySelector('[data-testid="history-datepicker"]')!.parentElement!
-        expect(dateRow.className).not.toMatch(/(^|\s)p-2(\s|$)/)
-        expect(dateRow.className).not.toMatch(/(^|\s)px-2(\s|$)/)
-        // O corpo (filtro + dropdown + lista) continua com o padding lateral — só a
-        // linha do calendário fica flush com a borda.
         const body = document.getElementById('history-recordings-body')!
         expect(list.contains(body)).toBe(true)
         expect(body.className).toMatch(/(^|\s)px-2(\s|$)/)
+        // O calendário é FILHO de history-recordings-body (mesmo container padded que
+        // também envolve o dropdown de filtro/lista) — herda o mesmo recuo lateral, então
+        // a borda do botão-gatilho do DatePicker (que o popover mede via
+        // getBoundingClientRect, `fullWidth` em DatePicker.tsx) coincide com a borda dos
+        // itens da lista abaixo dele, não com a borda externa da caixa.
+        const datepicker = document.querySelector('[data-testid="history-datepicker"]')!
+        expect(body.contains(datepicker)).toBe(true)
+        const dateRow = datepicker.parentElement!
+        expect(dateRow.parentElement).toBe(body)
+        const dropdown = document.getElementById('history-filter-dropdown')
+        if (dropdown) expect(body.contains(dropdown)).toBe(true)
       })
     })
   })
@@ -1382,6 +1388,192 @@ describe('HistoryPage', () => {
       })
       video.dispatchEvent(new Event('loadedmetadata'))
       expect(currentTimeValue).toBe(0)
+    })
+
+    it('REGRESSÃO: poll trazendo uma gravação nova (referência nova de `recordings`) não reinicia o clipe já resolvido — o vídeo não "fica repetindo" sozinho', async () => {
+      stubFetch(recordingsJul4, [{ id: 99, time: '2026-07-04T10:00:30Z', score: 1 }])
+      gateway.getRecording.mockResolvedValue({ filename: 'c.mp4', date: '2026-07-04' })
+      vi.useFakeTimers()
+      try {
+        renderAt('/history/cam1/3/99')
+        await vi.waitFor(() => {
+          expect(document.getElementById('history-player-video')).not.toBeNull()
+        })
+        const video = document.getElementById('history-player-video') as HTMLVideoElement
+        await vi.waitFor(() => {
+          expect(video.getAttribute('src')).toBe('/recordings/cam1/c.mp4?token=tok')
+        })
+        let currentTimeSets = 0
+        let currentTimeValue = -1
+        Object.defineProperty(video, 'currentTime', {
+          configurable: true,
+          get: () => currentTimeValue,
+          set: (v: number) => {
+            currentTimeValue = v
+            currentTimeSets += 1
+          },
+        })
+        video.dispatchEvent(new Event('loadedmetadata'))
+        expect(currentTimeValue).toBe(20)
+        expect(currentTimeSets).toBe(1)
+
+        // Poll do dia 2026-07-04 (não é "hoje" → intervalo de 30s) traz uma gravação NOVA
+        // além de c.mp4 — força `mergeRecordings` a devolver uma referência NOVA de
+        // `recordings`. Sem o clipe congelado (`resolvedClipSegments`), isso recalcularia
+        // os segmentos do clipe e o VideoPlayer reiniciaria a reprodução do zero (bug real
+        // relatado pelo navigator: o trecho do evento "ficava repetindo"). `stubFetch` não
+        // serve aqui — hardcoda `recordingsJul4` pra qualquer requisição de 2026-07-04,
+        // ignorando o parâmetro — precisa de um mock dedicado pra injetar d.mp4 nesse dia.
+        const recordingsJul4WithNew = [
+          ...recordingsJul4,
+          {
+            id: 4,
+            filename: 'd.mp4',
+            start: '2026-07-04T11:00:00Z',
+            end: '2026-07-04T11:00:30Z',
+            url: '/recordings/cam1/d.mp4',
+            is_recording: false,
+            has_motion: false,
+          },
+        ]
+        vi.stubGlobal(
+          'fetch',
+          vi.fn((url: string) => {
+            if (url.startsWith('/api/cameras/') && url.includes('/content-days')) {
+              return Promise.resolve({
+                status: 200,
+                ok: true,
+                json: () => Promise.resolve({ days: ['2026-07-04', '2026-07-05'] }),
+              })
+            }
+            if (url.startsWith('/api/cameras/') && url.includes('/recordings')) {
+              return Promise.resolve({
+                status: 200,
+                json: () =>
+                  Promise.resolve({
+                    recordings: recordingsJul4WithNew,
+                    hasMore: false,
+                    total: recordingsJul4WithNew.length,
+                  }),
+              })
+            }
+            if (url.startsWith('/api/cameras/') && url.includes('/motion')) {
+              return Promise.resolve({
+                status: 200,
+                ok: true,
+                json: () =>
+                  Promise.resolve({ events: [{ id: 99, time: '2026-07-04T10:00:30Z', score: 1 }] }),
+              })
+            }
+            if (url.startsWith('/api/cameras')) {
+              return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+            }
+            return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+          }),
+        )
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(30_000)
+        })
+        await vi.waitFor(() => {
+          expect(document.getElementById('history-recording-4')).not.toBeNull()
+        })
+        // O <video> não recarregou (currentTime não foi setado de novo) — o clipe segue
+        // exatamente de onde estava, sem reiniciar.
+        expect(currentTimeSets).toBe(1)
+        expect(video.getAttribute('src')).toBe('/recordings/cam1/c.mp4?token=tok')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('REGRESSÃO: usa o lead/trail configurado na câmera mesmo quando /api/cameras resolve DEPOIS de recordings/events — não congela o clipe com o default 10s/10s por causa da ordem de chegada (achado do code review de T4)', async () => {
+      let resolveCameras: () => void = () => {}
+      const camerasGate = new Promise<void>((resolve) => {
+        resolveCameras = resolve
+      })
+      const recordingsFetchStarted = vi.fn()
+      gateway.getRecording.mockResolvedValue({ filename: 'c.mp4', date: '2026-07-04' })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/cameras/') && url.includes('/content-days')) {
+            return Promise.resolve({
+              status: 200,
+              ok: true,
+              json: () => Promise.resolve({ days: ['2026-07-04'] }),
+            })
+          }
+          if (url.startsWith('/api/cameras/') && url.includes('/recordings')) {
+            recordingsFetchStarted()
+            return Promise.resolve({
+              status: 200,
+              json: () =>
+                Promise.resolve({
+                  recordings: recordingsJul4,
+                  hasMore: false,
+                  total: recordingsJul4.length,
+                }),
+            })
+          }
+          if (url.startsWith('/api/cameras/') && url.includes('/motion')) {
+            return Promise.resolve({
+              status: 200,
+              ok: true,
+              json: () =>
+                Promise.resolve({ events: [{ id: 99, time: '2026-07-04T10:00:30Z', score: 1 }] }),
+            })
+          }
+          // /api/cameras (sem id) só resolve depois que o teste liberar `camerasGate` —
+          // simula a ordem de chegada que expôs a race: recordings/events resolvem
+          // primeiro, camera demora mais.
+          if (url.startsWith('/api/cameras')) {
+            return camerasGate.then(() => ({
+              status: 200,
+              json: () =>
+                Promise.resolve([
+                  {
+                    id: 'cam1',
+                    name: 'Corredor de entrada',
+                    recording_enabled: true,
+                    playback_lead_seconds: 5,
+                    playback_trail_seconds: 15,
+                  },
+                ]),
+            }))
+          }
+          return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+
+      renderAt('/history/cam1/3/99')
+      // Espera o fetch de recordings já ter sido disparado (e, na prática, resolvido —
+      // é uma promise já resolvida) ANTES de liberar /api/cameras, reproduzindo a ordem
+      // de chegada que expunha a race: recordings/events resolvidos, camera ainda não.
+      await waitFor(() => {
+        expect(recordingsFetchStarted).toHaveBeenCalled()
+      })
+      resolveCameras()
+
+      await waitFor(() => {
+        expect(document.getElementById('history-player-video')).not.toBeNull()
+      })
+      const video = document.getElementById('history-player-video') as HTMLVideoElement
+      await waitFor(() => {
+        expect(video.getAttribute('src')).toBe('/recordings/cam1/c.mp4?token=tok')
+      })
+      let currentTimeValue = -1
+      Object.defineProperty(video, 'currentTime', {
+        configurable: true,
+        get: () => currentTimeValue,
+        set: (v: number) => {
+          currentTimeValue = v
+        },
+      })
+      video.dispatchEvent(new Event('loadedmetadata'))
+      // Janela [10:00:25, 10:00:45] sobre c.mp4 (lead=5s/trail=15s DA CÂMERA, não o
+      // default 10s/10s) → fromSeconds = 25. Se o guard tivesse congelado antes de
+      // `camera` carregar, teria usado o default e dado 20 aqui.
+      expect(currentTimeValue).toBe(25)
     })
   })
 })
