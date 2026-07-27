@@ -62,10 +62,14 @@ const PICKER_SX = {
 // na coluna lateral — ver HistoryPage.tsx): dois TimePicker (MUI X) com dial de relógio
 // (viewRenderers com hours+minutes, em vez do relógio digital padrão — pedido do
 // navigator, mockup em work_progress/amostras/image.png; hours+minutes = o dial captura
-// hora E minuto, não só hora). Sem label textual solto (o rótulo "De"/"Até" de cada
-// TimePicker já basta); `flex-1` em vez de largura fixa — a linha é só dele agora (não
-// divide mais espaço com o `DatePicker`, que ganhou linha própria acima), então os dois
-// picker esticam pra usar a largura toda disponível. Filtra AO VIVO: sem botão "Aplicar"
+// hora E minuto, não só hora). Sem `label` visível (removido a pedido do navigator,
+// testado contra a página real — os dois picker lado a lado já deixam "de/até" óbvio
+// visualmente, o texto flutuante do MUI ficava redundante nessa coluna estreita) — mas o
+// `aria-label` "De"/"Até" continua explícito em cada `slotProps.textField`, preservando a
+// distinção pra leitor de tela mesmo sem o rótulo visual. `flex-1` em vez de largura
+// fixa — a linha é só dele agora (não divide mais espaço com o `DatePicker`, que ganhou
+// linha própria acima), então os dois picker esticam pra usar a largura toda disponível.
+// Filtra AO VIVO: sem botão "Aplicar"
 // — cada edição já chama `onChange`, que o HistoryPage aplica direto (mesmo contrato que
 // lib/timeRange.ts's matchesTimeRange usa pra "filtro incompleto = sem filtro": com só um
 // dos dois horários preenchido, o filtro ainda não entra em vigor, mas não exige clique
@@ -76,21 +80,23 @@ export default function TimeRangeFilterPanel({ from, to, onChange }: TimeRangeFi
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <div id="history-time-range-filter" className="flex w-full items-center gap-1">
           <TimePicker
-            label="De"
             value={clockTimeToDate(from)}
             onChange={(d) => onChange(dateToClockTime(d), to)}
             viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
             ampm={false}
-            slotProps={{ textField: { id: 'history-time-range-from', size: 'small' } }}
+            slotProps={{
+              textField: { id: 'history-time-range-from', size: 'small', 'aria-label': 'De' },
+            }}
             sx={PICKER_SX}
           />
           <TimePicker
-            label="Até"
             value={clockTimeToDate(to)}
             onChange={(d) => onChange(from, dateToClockTime(d))}
             viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
             ampm={false}
-            slotProps={{ textField: { id: 'history-time-range-to', size: 'small' } }}
+            slotProps={{
+              textField: { id: 'history-time-range-to', size: 'small', 'aria-label': 'Até' },
+            }}
             sx={PICKER_SX}
           />
         </div>

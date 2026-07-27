@@ -89,10 +89,17 @@ describe('VideoBrowserPage — estrutura visual', () => {
     expect(content.className).toContain('page-content')
     // #video-browser-meta foi removido (era redundante com o subtítulo do header).
     expect(document.getElementById('video-browser-meta')).toBeNull()
-    // Link "Ao vivo" no header → /live/{cameraId}.
-    expect(document.getElementById('video-browser-live-link')?.getAttribute('href')).toBe(
-      '/live/cam1',
-    )
+  })
+
+  describe('CA2: nenhum link do app leva pra página Ao vivo por câmera (/live/:cameraId)', () => {
+    it('cabeçalho de Reprodução não tem mais o link "Ao vivo" pra /live/:cameraId', async () => {
+      renderAt('/recording/cam1/1')
+      await waitFor(() => {
+        expect(document.getElementById('video-browser-header')).not.toBeNull()
+      })
+      expect(document.getElementById('video-browser-live-link')).toBeNull()
+      expect(document.querySelector('a[href="/live/cam1"]')).toBeNull()
+    })
   })
 
   it('rodapé de controles é sempre visível e theme-aware (sem data-on-video/cor fixa — rodapé, não overlay sobre o vídeo)', async () => {

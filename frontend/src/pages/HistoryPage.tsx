@@ -3,7 +3,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
 import Layout from '../components/Layout'
 import CameraStageHeader from '../components/CameraStageHeader'
-import CameraViewTabs from '../components/CameraViewTabs'
 import DatePicker from '../components/DatePicker'
 import { ChevronDown, Loader2, Play } from '../components/Icons'
 import VideoPlayer, { type VideoPlayerSegment } from '../components/VideoPlayer'
@@ -24,7 +23,7 @@ import {
   recordingCategory,
   type TimelineFilter,
 } from './eventCategory'
-import { RecordingsGateway } from '../lib/recordingsGateway'
+import { RecordingsGateway, clipSegments } from '../lib/recordingsGateway'
 import { matchesTimeRange, type ClockTime } from '../lib/timeRange'
 
 interface Camera {
@@ -100,7 +99,11 @@ const gateway = new RecordingsGateway()
 // sincronizada com ele (troca de card ou seleção automática do 1º do dia), então a barra de
 // endereço sempre reflete a gravação em reprodução.
 export default function HistoryPage() {
-  const { cameraId, recordingId } = useParams<{ cameraId: string; recordingId?: string }>()
+  const { cameraId, recordingId, motionId } = useParams<{
+    cameraId: string
+    recordingId?: string
+    motionId?: string
+  }>()
   const navigate = useNavigate()
   const location = useLocation()
   // Congela o :recordingId (e a câmera a que ele pertence) da URL só no 1º render —
@@ -114,6 +117,10 @@ export default function HistoryPage() {
   // nenhuma gravação (bug real, achado do code-reviewer).
   const [initialRecordingId] = useState(recordingId)
   const [initialCameraId] = useState(cameraId)
+  // :motionId (rota /history/:cameraId/:recordingId/:motionId, ver RecordingPlayerModal)
+  // também congela na 1ª renderização — só importa pra decidir a janela inicial do clipe
+  // (ver `clipActive`/`resolvedClipSegments` abaixo); nunca é lido de novo depois disso.
+  const [initialMotionId] = useState(motionId)
   const pendingSelectRef = useRef<number | null>(null)
   const [camera, setCamera] = useState<Camera | null>(null)
   // Lista completa (não só a câmera ativa) — alimenta o `<select>` de troca de
@@ -155,6 +162,12 @@ export default function HistoryPage() {
   // Reprodução contínua: null = desligada; array = ligada, com o snapshot das gravações a
   // encadear (tomado no instante em que liga — ver comentário no `toggleContinuous`).
   const [continuousRecordings, setContinuousRecordings] = useState<Recording[] | null>(null)
+  // Modo clipe (`:motionId` na URL) — começa ligado quando a página abre com um motionId
+  // (ex.: botão "Visualizar no histórico" do RecordingPlayerModal) e desliga na primeira
+  // interação real do usuário (trocar de gravação/dia/câmera, ver `selectRecording` e os
+  // handlers do `<select>`/`DatePicker` abaixo) — depois disso o player volta a tocar o
+  // chunk inteiro, como sempre. Nunca reativado sozinho.
+  const [clipActive, setClipActive] = useState(Boolean(initialMotionId))
 
   // Resolve o :recordingId da URL (se veio um) pro dia que ele pertence — só na carga
   // inicial, e só pra câmera com que a página montou (`cameraId !== initialCameraId`
@@ -495,8 +508,8 @@ export default function HistoryPage() {
   const mainObserverRef = useRef<ResizeObserver | null>(null)
   // Node de `history-main` guardado à parte (além do ResizeObserver acima) — usado por
   // `recomputeRowWidth` abaixo pra medir a borda esquerda de verdade via
-  // `getBoundingClientRect()`, sem alterar em nada o próprio sizing do player (`flex-1
-  // lg:max-w-[72rem]`, que precisa continuar crescendo normalmente).
+  // `getBoundingClientRect()`, sem alterar em nada o próprio sizing do player (`flex-1`,
+  // que precisa continuar crescendo normalmente até preencher o espaço disponível).
   const mainNodeRef = useRef<HTMLDivElement | null>(null)
   // Sidebar (`history-recordings-list`) — condicionada a `selectedDate`, então pode
   // desmontar/remontar (recalcula sozinho, ref callback dispara com `null` no unmount).
@@ -612,7 +625,52 @@ export default function HistoryPage() {
         : [],
     [continuousRecordings],
   )
-  const segments = continuousRecordings ? continuousSegments : singleSegments
+  // resolvedClipSegments — janela `[evento−lead, evento+trail]` recortada via `clipSegments`
+  // (lib/recordingsGateway.ts, MESMA função que `/recording/:cameraId/:recordingId/:motionId`
+  // — VideoBrowserPage/useRecordingSegments — já usa), resolvida UMA VEZ e congelada. Ajuste
+  // durante o render (não useEffect+setState — mesmo padrão de `errorForId`/
+  // `continuousResetFor` já usados nesta página): computa e grava assim que `events`/
+  // `recordings` do dia E `camera` (fetch de `/api/cameras`, efeito independente — sem
+  // isso o guard congelava usando o lead/trail DEFAULT (10s/10s) se `/api/cameras` ainda
+  // não tivesse resolvido, mesmo a câmera tendo `playback_lead_seconds`/`trail_seconds`
+  // configurados — e nunca recalculava depois, achado real do code review) carregam, e
+  // nunca mais recalcula depois disso.
+  //
+  // Congelar é essencial, não só estilo: `recordings` troca de REFERÊNCIA a cada poll (5s/30s,
+  // ver efeito acima) sempre que a gravação em andamento avança (`is_recording`/`end`
+  // mudando) — se `resolvedClipSegments` fosse um useMemo dependendo de `recordings` (como
+  // `clipEvent` originalmente era), cada poll geraria um array de segmentos NOVO, e o
+  // `useEffect` do VideoPlayer (que reinicia a reprodução — `startPlayback` — sempre que a
+  // referência de `segments` muda) reiniciaria o clipe do zero a cada poll: o vídeo "ficava
+  // repetindo" sozinho, sem o usuário ter feito nada (bug real, reportado pelo navigator).
+  // `singleSegments`/`continuousSegments` acima não sofrem disso porque dependem de `selected`/
+  // `continuousRecordings` — já estáveis por construção — nunca da array `recordings` crua.
+  const [resolvedClipSegments, setResolvedClipSegments] = useState<VideoPlayerSegment[] | null>(
+    null,
+  )
+  if (clipActive && resolvedClipSegments == null && recordings.length > 0 && camera != null) {
+    const ev = events.find((e) => String(e.id) === initialMotionId)
+    if (ev) {
+      const leadSec = camera.playback_lead_seconds ?? 10
+      const trailSec = camera.playback_trail_seconds ?? 10
+      setResolvedClipSegments(
+        clipSegments(ev.time, recordings, leadSec, trailSec).map((s) => ({
+          src: `${s.recording.url}?token=${getToken()}`,
+          fromSeconds: s.fromSeconds,
+          toSeconds: s.toSeconds,
+        })),
+      )
+    }
+  }
+  // Prioridade: contínua > clipe (só enquanto `clipActive` — sai do modo, mesmo com um
+  // clipe já congelado em `resolvedClipSegments`, cai pro chunk inteiro) > gravação única.
+  // Sem sobreposição real (ex.: a gravação-alvo sumiu do dia, `resolvedClipSegments` congela
+  // vazio) cai pro chunk inteiro normal também, em vez de mostrar o player vazio.
+  const segments = continuousRecordings
+    ? continuousSegments
+    : clipActive && resolvedClipSegments && resolvedClipSegments.length > 0
+      ? resolvedClipSegments
+      : singleSegments
 
   // onSegmentChange (VideoPlayer) dispara com o índice do segmento ativo a cada transição —
   // mapeia de volta pro id da gravação via ref (callback com deps vazias = identidade
@@ -661,6 +719,10 @@ export default function HistoryPage() {
   }
 
   function selectRecording(id: number) {
+    // Clicar em QUALQUER card (mesmo o já ativo, cuja janela de clipe pode estar tocando)
+    // é uma interação real do usuário — sai do modo clipe, mesmo sem trocar de gravação
+    // (escape hatch pra ver o chunk inteiro sem precisar trocar de dia/câmera).
+    setClipActive(false)
     const switching = id !== selectedId
     // Com o modo contínuo ligado, clicar num item RE-ANCORA a sequência nele (mantém
     // ligado) em vez de desligar — é assim que se pula pra outro ponto do dia sem sair do
@@ -679,6 +741,7 @@ export default function HistoryPage() {
   // referência de `segments`) — reinício simples e previsível, sem tentar preservar a
   // posição exata na troca de modo.
   function toggleContinuous() {
+    setClipActive(false)
     setContinuousRecordings((prev) =>
       prev ? null : buildContinuousSequence(recordings, selectedId),
     )
@@ -686,18 +749,16 @@ export default function HistoryPage() {
 
   return (
     <Layout id="history-page" footerId="history-footer" contentClassName="p-6">
-      {/* Exceção intencional ao padrão `.page-content` (ver CLAUDE.md "Largura do conteúdo"):
-          Histórico é de duas colunas — player à esquerda (`history-main`, largura
-          capada pra não virar um vídeo gigante), lista de gravações à direita
-          (`history-recordings-list`, largura fixa). Junto, as duas colunas usam quase toda a
-          largura da viewport, diferente das páginas de player único (Ao vivo/Reprodução) que
-          continuam capadas em `.page-content`. Empilha em coluna única abaixo do breakpoint
-          `lg`.
+      {/* `.page-content` — mesmo padrão fluido (sem max-width) de todas as outras páginas,
+          inclusive Live View (ver CLAUDE.md "Largura do conteúdo"). Layout de duas colunas
+          continua: player à esquerda (`history-main`, flex-1 — cresce até preencher o
+          espaço restante, sem cap), lista de gravações à direita (`history-recordings-list`,
+          largura fixa). Empilha em coluna única abaixo do breakpoint `lg`.
           O título (`history-header`, dentro do `CameraStageHeader`) fica FORA da linha de
           duas colunas — só o `children` do `CameraStageHeader` (o `<div>` logo abaixo) entra
           nela — pra que o TOPO do sidebar (`history-recordings-list`) alinhe com o topo do
           PLAYER, não com o topo do título. */}
-      <div id="history-content" className="flex w-full flex-col gap-3">
+      <div id="history-content" className="page-content flex w-full flex-col gap-3">
         {error && (
           <div
             id="history-error"
@@ -712,13 +773,15 @@ export default function HistoryPage() {
             cameraName={camera.name}
             recordingEnabled={camera.recording_enabled}
             pageTitle="Histórico"
-            twoColumnCap
             actions={
               cameras.length > 1 ? (
                 <select
                   id="history-camera-select"
                   value={cameraId}
-                  onChange={(e) => navigate(`/history/${e.target.value}`)}
+                  onChange={(e) => {
+                    setClipActive(false)
+                    navigate(`/history/${e.target.value}`)
+                  }}
                   className="bg-surface-2 text-foreground text-xs rounded px-2 py-1 border border-border max-w-44"
                 >
                   {cameras.map((c) => (
@@ -730,12 +793,8 @@ export default function HistoryPage() {
               ) : undefined
             }
           >
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-center">
-              <div
-                ref={mainRef}
-                id="history-main"
-                className="flex min-w-0 flex-1 flex-col gap-2 lg:max-w-[72rem]"
-              >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+              <div ref={mainRef} id="history-main" className="flex min-w-0 flex-1 flex-col gap-2">
                 <VideoPlayer
                   idPrefix="history-player"
                   segments={segments}
@@ -796,16 +855,6 @@ export default function HistoryPage() {
                       <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
                     </>
                   }
-                  // O calendário saiu daqui pro topo do `history-recordings-list` (pedido do
-                  // navigator) — sem `footerTrailing`, o `ml-auto` que empurrava
-                  // `footerEnd`/`fullscreenButton` pra ponta direita da linha some junto (ver
-                  // comentário da prop em VideoPlayer.tsx); reaplicado direto no wrapper do
-                  // `footerEnd` abaixo pra manter as abas Ao vivo/Histórico coladas na direita.
-                  footerEnd={
-                    <div className="ml-auto flex items-center gap-3">
-                      <CameraViewTabs cameraId={camera.id} active="history" />
-                    </div>
-                  }
                   overlay={
                     <>
                       {videoError ? (
@@ -857,149 +906,169 @@ export default function HistoryPage() {
                 <div
                   ref={sidebarRef}
                   id="history-recordings-list"
-                  className="flex w-full flex-col gap-1.5 overflow-hidden rounded-lg border border-border p-2 lg:w-80 lg:shrink-0"
+                  className="flex w-full flex-col gap-1.5 overflow-hidden rounded-lg border border-border lg:w-80 lg:shrink-0"
                   style={mainHeight != null ? { maxHeight: mainHeight } : undefined}
                 >
-                  {/* 3 linhas empilhadas, cada uma ocupando a largura toda da coluna —
-                      testado contra a página renderizada de verdade, o navigator pediu
-                      pra não dividir a mesma linha (versão anterior, calendário + filtro
-                      de horário lado a lado, ficava apertado demais na coluna de
-                      ~320px). Ordem: data, depois hora, depois o dropdown de categoria
-                      (já existia, inalterado). */}
-                  <div className="flex w-full items-center">
-                    <DatePicker
-                      id="history-date-picker"
-                      value={selectedDate}
-                      onChange={setSelectedDate}
-                      disableFuture
-                      availableDays={availableDays}
-                      align="right"
-                      fullWidth
-                    />
-                  </div>
-                  {/* Filtra ao vivo, sem botão "Aplicar" (pedido do navigator) — cada
-                      edição já atualiza `timeRange` direto. */}
-                  <div className="flex w-full items-center">
-                    <TimeRangeFilterPanel
-                      from={timeRange.from}
-                      to={timeRange.to}
-                      onChange={(from, to) => setTimeRange({ from, to })}
-                    />
-                  </div>
-                  {recordingItems.length > 0 && (
-                    <>
-                      {/* Dropdown dinâmico (pedido do navigator, no lugar dos chips fixos
-                          antigos) — só `Tudo`/`Contínua` (fixos) + as categorias que de fato
-                          existem nas gravações do dia (`filterOptions` acima). */}
-                      <select
-                        id="history-filter-dropdown"
-                        aria-label="Filtrar gravações por categoria"
-                        value={filter}
-                        onChange={(e) => setFilter(e.target.value)}
-                        className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-caption text-foreground"
-                      >
-                        {filterOptions.map((value) => (
-                          <option key={value} value={value}>
-                            {filterOptionLabel(value)}
-                          </option>
-                        ))}
-                      </select>
-                      {groupsByHour.length === 0 ? (
-                        <div
-                          id="history-recordings-empty"
-                          className="flex flex-1 items-center justify-center px-2 py-4 text-center text-caption text-muted"
+                  {/* Corpo do sidebar (calendário + filtro de horário + dropdown de categoria +
+                      lista) — único lugar com padding lateral (`px-2`), inclusive o calendário:
+                      ele é mais um FILHO deste container, não um irmão de fora — assim a borda
+                      do botão-gatilho do `DatePicker` (`fullWidth`, mede via
+                      `getBoundingClientRect()`, ver `DatePicker.tsx`) fica alinhada com a borda
+                      do dropdown/cards logo abaixo (mesmo recuo de `px-2` pros três), que é o
+                      que "alinhado com a lista de gravações" significa de fato (pedido do
+                      navigator, testado contra a página real) — não a borda externa da caixa
+                      inteira. `flex-1 min-h-0` repassa a mesma mecânica de altura que
+                      `history-recordings-list` tinha antes (necessária pro `min-h-0 flex-1` de
+                      `history-recordings-groups` abaixo continuar rolando dentro do teto medido
+                      via ResizeObserver). */}
+                  <div
+                    id="history-recordings-body"
+                    className="flex min-h-0 flex-1 flex-col gap-1.5 px-2 pb-2"
+                  >
+                    <div className="flex w-full items-center pt-2">
+                      <DatePicker
+                        id="history-date-picker"
+                        value={selectedDate}
+                        onChange={(d) => {
+                          setClipActive(false)
+                          setSelectedDate(d)
+                        }}
+                        disableFuture
+                        availableDays={availableDays}
+                        fullWidth
+                      />
+                    </div>
+                    {/* 2 linhas empilhadas, cada uma ocupando a largura toda da coluna —
+                        testado contra a página renderizada de verdade, o navigator pediu
+                        pra não dividir a mesma linha (versão anterior, calendário + filtro
+                        de horário lado a lado, ficava apertado demais na coluna de
+                        ~320px). Ordem: data, depois hora, depois o dropdown de categoria
+                        (já existia, inalterado). */}
+                    {/* Filtra ao vivo, sem botão "Aplicar" (pedido do navigator) — cada
+                        edição já atualiza `timeRange` direto. */}
+                    <div className="flex w-full items-center">
+                      <TimeRangeFilterPanel
+                        from={timeRange.from}
+                        to={timeRange.to}
+                        onChange={(from, to) => setTimeRange({ from, to })}
+                      />
+                    </div>
+                    {recordingItems.length > 0 && (
+                      <>
+                        {/* Dropdown dinâmico (pedido do navigator, no lugar dos chips fixos
+                            antigos) — só `Tudo`/`Contínua` (fixos) + as categorias que de fato
+                            existem nas gravações do dia (`filterOptions` acima). */}
+                        <select
+                          id="history-filter-dropdown"
+                          aria-label="Filtrar gravações por categoria"
+                          value={filter}
+                          onChange={(e) => setFilter(e.target.value)}
+                          className="w-full rounded border border-border bg-surface-2 px-2 py-2 text-caption text-foreground"
                         >
-                          Nenhuma gravação para esse filtro
-                        </div>
-                      ) : (
-                        <div
-                          id="history-recordings-groups"
-                          className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
-                        >
-                          {groupsByHour.map(([hour, items]) => {
-                            const isOpen = !closedHours.has(hour)
-                            return (
-                              <div key={hour} className="rounded border border-border">
-                                <button
-                                  id={`history-hour-group-${hour}`}
-                                  type="button"
-                                  onClick={() => toggleHour(hour)}
-                                  aria-expanded={isOpen}
-                                  className="flex w-full items-center justify-between px-2 py-1.5 text-caption font-medium text-muted hover:text-foreground"
-                                >
-                                  <span>
-                                    {String(hour).padStart(2, '0')}h — {items.length}{' '}
-                                    {items.length === 1 ? 'gravação' : 'gravações'}
-                                  </span>
-                                  <ChevronDown
-                                    className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                                  />
-                                </button>
-                                {isOpen && (
-                                  <div className="flex flex-col gap-1 border-t border-border p-1.5">
-                                    {items.map(({ rec, duration, category: cat }) => {
-                                      const active = rec.id === selectedId
-                                      const blinkStyle =
-                                        active && playing
-                                          ? {
-                                              animation:
-                                                'filmstrip-blink 1.1s ease-in-out infinite',
-                                            }
-                                          : undefined
-                                      return (
-                                        <button
-                                          key={rec.id}
-                                          id={`history-recording-${rec.id}`}
-                                          ref={active ? activeCardRef : undefined}
-                                          type="button"
-                                          onClick={() => selectRecording(rec.id)}
-                                          aria-current={active ? 'true' : undefined}
-                                          style={blinkStyle}
-                                          className={`flex items-center justify-between rounded border-2 px-2 py-1 text-left transition-colors ${
-                                            active
-                                              ? 'border-primary bg-primary/15'
-                                              : `bg-surface-2 ${categoryBorderColor(cat)}`
-                                          }`}
-                                        >
-                                          <span className="flex items-center gap-2">
-                                            <Play className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                            <span className="text-caption font-medium tabular-nums text-foreground">
-                                              {formatClockTime(rec.start)}
+                          {filterOptions.map((value) => (
+                            <option key={value} value={value}>
+                              {filterOptionLabel(value)}
+                            </option>
+                          ))}
+                        </select>
+                        {groupsByHour.length === 0 ? (
+                          <div
+                            id="history-recordings-empty"
+                            className="flex flex-1 items-center justify-center px-2 py-4 text-center text-caption text-muted"
+                          >
+                            Nenhuma gravação para esse filtro
+                          </div>
+                        ) : (
+                          <div
+                            id="history-recordings-groups"
+                            className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
+                          >
+                            {groupsByHour.map(([hour, items]) => {
+                              const isOpen = !closedHours.has(hour)
+                              return (
+                                <div key={hour} className="rounded border border-border">
+                                  <button
+                                    id={`history-hour-group-${hour}`}
+                                    type="button"
+                                    onClick={() => toggleHour(hour)}
+                                    aria-expanded={isOpen}
+                                    className="flex w-full items-center justify-between px-2 py-1.5 text-caption font-medium text-muted hover:text-foreground"
+                                  >
+                                    <span>
+                                      {String(hour).padStart(2, '0')}h — {items.length}{' '}
+                                      {items.length === 1 ? 'gravação' : 'gravações'}
+                                    </span>
+                                    <ChevronDown
+                                      className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                                    />
+                                  </button>
+                                  {isOpen && (
+                                    <div className="flex flex-col gap-1 border-t border-border p-1.5">
+                                      {items.map(({ rec, duration, category: cat }) => {
+                                        const active = rec.id === selectedId
+                                        const blinkStyle =
+                                          active && playing
+                                            ? {
+                                                animation:
+                                                  'filmstrip-blink 1.1s ease-in-out infinite',
+                                              }
+                                            : undefined
+                                        return (
+                                          <button
+                                            key={rec.id}
+                                            id={`history-recording-${rec.id}`}
+                                            ref={active ? activeCardRef : undefined}
+                                            type="button"
+                                            onClick={() => selectRecording(rec.id)}
+                                            aria-current={active ? 'true' : undefined}
+                                            style={blinkStyle}
+                                            className={`flex items-center justify-between rounded border-2 px-2 py-1 text-left transition-colors ${
+                                              active
+                                                ? 'border-primary bg-primary/15'
+                                                : `bg-surface-2 ${categoryBorderColor(cat)}`
+                                            }`}
+                                          >
+                                            <span className="flex items-center gap-2">
+                                              <Play className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                              <span className="text-caption font-medium tabular-nums text-foreground">
+                                                {formatClockTime(rec.start)}
+                                              </span>
+                                              <span className="text-caption capitalize text-muted">
+                                                {cat}
+                                              </span>
                                             </span>
-                                            <span className="text-caption capitalize text-muted">
-                                              {cat}
-                                            </span>
-                                          </span>
-                                          {duration && (
-                                            <span className="rounded bg-foreground/10 px-1 text-caption text-foreground">
-                                              {duration}
-                                            </span>
-                                          )}
-                                        </button>
-                                      )
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </>
-                  )}
+                                            {duration && (
+                                              <span className="rounded bg-foreground/10 px-1 text-caption text-foreground">
+                                                {duration}
+                                              </span>
+                                            )}
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
             {/* Régua de 24h FORA da linha player+lista (não mais dentro de `history-main`) —
                 pedido do navigator: ocupar a largura COMBINADA das duas colunas (não só a do
-                player, que é capada em `lg:max-w-[72rem]`), pra dar mais espaço horizontal a
-                cada bloco de hora (mais fácil distinguir as linhas verticais de cada
-                gravação, sobretudo em horas cheias). `maxWidth: rowWidth` (medido via
-                `getBoundingClientRect()` do player + da lista, ver `recomputeRowWidth`
-                acima) alinha a régua exatamente com a borda esquerda do player até a borda
-                direita da lista, sem alterar o sizing de nenhum dos dois; `mx-auto` centra
-                (mesmo eixo de `lg:justify-center` da linha acima). Sem medição ainda/jsdom:
-                sem teto, ocupa a largura total disponível. */}
+                player), pra dar mais espaço horizontal a cada bloco de hora (mais fácil
+                distinguir as linhas verticais de cada gravação, sobretudo em horas cheias).
+                `maxWidth: rowWidth` (medido via `getBoundingClientRect()` do player + da
+                lista, ver `recomputeRowWidth` acima) alinha a régua exatamente com a borda
+                esquerda do player até a borda direita da lista, sem alterar o sizing de
+                nenhum dos dois — segue valendo mesmo sem cap de largura no player (T2 da
+                história `feat/historico-navegacao-largura`), já que a medição é sempre pela
+                posição RENDERIZADA, nunca por um valor fixo. Sem medição ainda/jsdom: sem
+                teto, ocupa a largura total disponível. */}
             <div
               className="mx-auto w-full"
               style={rowWidth != null ? { maxWidth: rowWidth } : undefined}

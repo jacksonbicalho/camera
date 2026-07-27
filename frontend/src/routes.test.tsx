@@ -47,6 +47,7 @@ describe('routes', () => {
     ['/history', 'marker-history-landing-page'],
     ['/history/cam1', 'marker-history-page'],
     ['/history/cam1/42', 'marker-history-page'],
+    ['/history/cam1/42/7', 'marker-history-page'],
     ['/recording/cam1/42', 'marker-video-browser-page'],
     ['/recording/cam1/42/7', 'marker-video-browser-page'],
     ['/reports/cam1/2026-07-07/1', 'marker-reports-page'],

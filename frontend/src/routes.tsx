@@ -91,6 +91,14 @@ export const routes = (
       }
     />
     <Route
+      path="/history/:cameraId/:recordingId/:motionId"
+      element={
+        <Lazy>
+          <HistoryPage />
+        </Lazy>
+      }
+    />
+    <Route
       path="/recording/:cameraId/:recordingId"
       element={
         <Lazy>
