@@ -124,10 +124,17 @@ export function usePlayerZoom(getVideoEl: () => HTMLVideoElement | null): Player
     return d
   }, [])
 
-  // Memoizado: consumidores (VideoPlayer) dependem do objeto inteiro em useCallback/useEffect
-  // (ex.: `[..., zoom]` pra resetar zoom na troca de segmento) — sem isso, cada render
-  // (mesmo sem a transform mudar) devolveria uma referência nova e invalidaria essas
-  // memoizações à toa.
+  // Memoizado: o objeto serve pra passar como prop de uma vez (`<Zoom zoom={zoom} />`,
+  // `zoom.onPointerDown` etc. direto no JSX) sem gerar uma referência nova a cada render à
+  // toa. MAS um `useCallback`/`useEffect` que precisa de zoom NUNCA deve depender do objeto
+  // INTEIRO — ele troca de referência a cada mudança de zoom (scroll, pan, os botões de
+  // Zoom.tsx), então qualquer callback que dependa de `zoom` (em vez de `zoom.reset`/
+  // `zoom.setContainer` — os métodos específicos, que SÃO estáveis) também troca de
+  // referência a cada zoom. Se esse callback por sua vez alimentar um efeito (ex.:
+  // `startPlayback` em VideoPlayer.tsx), o efeito reroda a cada zoom — bug real já
+  // encontrado uma vez (o vídeo reiniciava do zero a cada clique no zoom em vez de só
+  // aplicar o zoom, reportado pelo navigator). Sempre depender do MÉTODO específico usado,
+  // nunca do objeto `zoom` inteiro, num array de dependências.
   return useMemo(
     () => ({
       setContainer,

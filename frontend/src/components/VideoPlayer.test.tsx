@@ -502,6 +502,24 @@ describe('VideoPlayer', () => {
     })
   })
 
+  describe('CA5: clicar em zoom in/out não reinicia a reprodução', () => {
+    it('REGRESSÃO: clicar em zoom in/out NÃO reinicia a reprodução (bug real: o vídeo recarregava do zero a cada clique no zoom — reportado pelo navigator)', async () => {
+      render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+      await waitFor(() => {
+        expect(document.getElementById('p-video')).not.toBeNull()
+      })
+      const video = document.getElementById('p-video') as HTMLVideoElement
+      fireLoadedMetadata(video, 100)
+      const loadSpy = vi.spyOn(video, 'load')
+      const srcBefore = video.getAttribute('src')
+      fireEvent.click(document.getElementById('p-zoom-in')!)
+      expect(loadSpy).not.toHaveBeenCalled()
+      expect(video.getAttribute('src')).toBe(srcBefore)
+      fireEvent.click(document.getElementById('p-zoom-out')!)
+      expect(loadSpy).not.toHaveBeenCalled()
+    })
+  })
+
   it('rodapé de controles é sempre visível (não mais só no hover) e theme-aware — sem cor fixa/data-on-video', async () => {
     render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
     await waitFor(() => {

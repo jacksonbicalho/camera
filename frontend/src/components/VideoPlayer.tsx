@@ -242,7 +242,14 @@ export default function VideoPlayer({
       loadInto(0, 0)
       loadInto(1, 1)
     },
-    [loadInto, setPlayingIntent, setCurSegTracked, zoomEnabled, zoom],
+    // `zoom.reset` (não o objeto `zoom` inteiro) — `zoom.reset` é estável (usePlayerZoom.ts,
+    // useCallback com deps vazias), mas o objeto `zoom` ganha uma referência NOVA a cada
+    // zoom/pan (scroll, arraste, ou os botões novos de Zoom.tsx). Depender do objeto inteiro
+    // fazia essa função (e tudo que dela dependia — ver `advance`/`startPlayback` abaixo)
+    // trocar de referência a cada zoom, o que reiniciava a reprodução do zero sempre que o
+    // usuário mexia no zoom (bug real, reportado pelo navigator: "ao invés de funcionar,
+    // reinicia a reprodução do vídeo").
+    [loadInto, setPlayingIntent, setCurSegTracked, zoomEnabled, zoom.reset],
   )
 
   // advance troca para o próximo segmento (que o outro elemento já pré-carregou) e põe o
@@ -261,7 +268,8 @@ export default function VideoPlayer({
     activate(other)
     if (zoomEnabled) zoom.reset()
     loadInto(active, nextSeg + 1)
-  }, [activate, loadInto, resetToStart, zoomEnabled, zoom])
+    // `zoom.reset` estável, não o objeto `zoom` — mesmo motivo do comentário em `resetToStart`.
+  }, [activate, loadInto, resetToStart, zoomEnabled, zoom.reset])
 
   const onTimeUpdate = useCallback(
     (elIdx: number) => {
@@ -476,7 +484,10 @@ export default function VideoPlayer({
       containerRef.current = node
       if (zoomEnabled) zoom.setContainer(node)
     },
-    [zoomEnabled, zoom],
+    // `zoom.setContainer` estável — objeto `zoom` inteiro faria esse ref callback trocar de
+    // referência a cada zoom, forçando React a desmontar/remontar o ref (chama com `null`
+    // depois com o node de novo) e reatar o listener de wheel à toa a cada clique no Zoom.
+    [zoomEnabled, zoom.setContainer],
   )
 
   useEffect(() => {
@@ -516,7 +527,23 @@ export default function VideoPlayer({
       loadInto(0, 0)
       loadInto(1, 1)
     },
-    [autoPlay, zoomEnabled, zoom, loadInto, recomputeDurations, setPlayingIntent, setCurSegTracked],
+    // `zoom.reset` (estável), não o objeto `zoom` inteiro — CRÍTICO aqui: `startPlayback` é a
+    // dependência do efeito logo abaixo, que reinicia o player inteiro (`loadInto` → `el.src`
+    // + `el.load()`) sempre que a própria referência de `startPlayback` muda. Com `zoom` no
+    // array, TODO clique no zoom (botões novos de `Zoom.tsx`, ou o scroll/pan de sempre)
+    // gerava uma referência nova de `zoom` → nova referência de `startPlayback` → o efeito
+    // rodava de novo → vídeo reiniciava do zero, em vez de só aplicar o zoom (bug real,
+    // reportado pelo navigator testando o pré-push desta história: "ao invés de funcionar,
+    // reinicia a reprodução do vídeo").
+    [
+      autoPlay,
+      zoomEnabled,
+      zoom.reset,
+      loadInto,
+      recomputeDurations,
+      setPlayingIntent,
+      setCurSegTracked,
+    ],
   )
 
   // A página chamadora precisa manter `segments` com referência estável (useMemo/useState)
