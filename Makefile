@@ -51,13 +51,13 @@ frontend:
 
 run:
 	mkdir -p storage
-	UID=$(shell id -u) GID=$(shell id -g) VERSION=$(VERSION) docker compose --profile development up camera-dev --build
+	UID=$(shell id -u) GID=$(shell id -g) VERSION=$(VERSION) docker compose --profile development up dev-camera --build
 
 test:
-	UID=$(shell id -u) GID=$(shell id -g) docker compose --profile development run --rm camera-dev go test ./...
+	UID=$(shell id -u) GID=$(shell id -g) docker compose --profile development run --rm dev-camera go test ./...
 
 build-check:
-	UID=$(shell id -u) GID=$(shell id -g) docker compose --profile development run --rm camera-dev go build ./...
+	UID=$(shell id -u) GID=$(shell id -g) docker compose --profile development run --rm dev-camera go build ./...
 
 # ── Utilitários ─────────────────────────────────────────────────────────────
 

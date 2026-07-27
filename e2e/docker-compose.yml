@@ -1,15 +1,20 @@
 # Harness e2e — tudo em Docker. Dois serviços numa rede compartilhada: o
-# servidor (imagem `e2e` do Dockerfile raiz, que semeia o fixture e sobe) e o
-# Playwright, que o alcança pelo nome do serviço (http://camera:8099) — sem
-# --network host, portável. Orquestrado por scripts/e2e.sh.
+# servidor (`e2e-camera`, imagem `e2e` do Dockerfile raiz, que semeia o
+# fixture e sobe) e o `e2e-playwright`, que o alcança pelo nome do serviço
+# (http://e2e-camera:8099) — sem --network host, portável. Orquestrado por
+# scripts/e2e.sh. Nomes com prefixo `e2e-` (não sufixo) — convenção do
+# projeto pra serviços não-produção: agrupa por contexto (`docker compose ...
+# e2e-<tab>`) e evita colisão com o `camera` de produção do docker-compose.yml
+# raiz quando este arquivo é incluído nele (profile `development`, ver lá).
 #
 # x-fixture-env: ids/credenciais do fixture semeado — ÚNICA declaração destes
 # valores no repo (os defaults abaixo; ver e2e/.env.example pra sobrescrever
-# sem editar este arquivo). `camera` os repassa pro seed via
+# sem editar este arquivo). `e2e-camera` os repassa pro seed via
 # docker-entrypoint.sh (flags -admin-user/-camera-id/etc., e2e/seed/main.go);
-# `playwright` os expõe aos specs (fallback quando ausentes, para rodar fora
-# do compose também funcionar). Sem o anchor, os mesmos valores precisariam
-# ser copiados nos dois blocos `environment:` abaixo, com risco de divergirem.
+# `e2e-playwright` os expõe aos specs (fallback quando ausentes, para rodar
+# fora do compose também funcionar). Sem o anchor, os mesmos valores
+# precisariam ser copiados nos dois blocos `environment:` abaixo, com risco
+# de divergirem.
 x-fixture-env: &fixture-env
   E2E_ADMIN_USER: ${E2E_ADMIN_USER:-admin}
   E2E_ADMIN_PASS: ${E2E_ADMIN_PASS:-e2e-password-123}
@@ -19,7 +24,7 @@ x-fixture-env: &fixture-env
   E2E_VIEWER_PASS: ${E2E_VIEWER_PASS:-e2e-viewer-password-123}
 
 services:
-  camera:
+  e2e-camera:
     build:
       context: ..
       dockerfile: Dockerfile
@@ -36,10 +41,10 @@ services:
   # Roda o pacote e2e/ (T3) com bun — mesma imagem usada pelo check de
   # tooling (scripts/e2e-lint-check.sh), instala os browsers do
   # Playwright na hora (cache em volume nomeado entre execuções).
-  playwright:
+  e2e-playwright:
     image: oven/bun:1
     depends_on:
-      camera:
+      e2e-camera:
         condition: service_healthy
     working_dir: /e2e
     volumes:
@@ -47,7 +52,7 @@ services:
       - e2e-bun-cache:/root/.bun/install/cache
     environment:
       <<: *fixture-env
-      E2E_BASE_URL: http://camera:8099
+      E2E_BASE_URL: http://e2e-camera:8099
       # recording_id=1 não vem do anchor: é sempre a 1ª linha inserida num
       # banco novo (autoincrement), não um valor configurável do seed.
       E2E_RECORDING_ID: '1'
