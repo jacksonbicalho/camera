@@ -84,8 +84,8 @@ import { getRole } from '../auth'
 import LiveViewPage from './LiveViewPage'
 
 const cameras = [
-  { id: 'cam1', name: 'Corredor' },
-  { id: 'cam2', name: 'Quintal' },
+  { id: 'cam1', name: 'Corredor', recording_enabled: true },
+  { id: 'cam2', name: 'Quintal', recording_enabled: false },
 ]
 
 function LocationProbe() {
@@ -313,12 +313,39 @@ describe('CA5: Player de cada tile tem controles + badge "AO VIVO" (paridade com
     })
   })
 
-  it('cada tile mostra o badge "AO VIVO"', async () => {
+  it('cada tile mostra um badge (AO VIVO ou GRAVANDO, ver CA2)', async () => {
     renderPage()
     await waitFor(() => {
       expect(document.querySelector('[data-testid="player-cam1"]')?.textContent).toContain(
+        'GRAVANDO',
+      )
+    })
+  })
+})
+
+describe('CA2: badge do tile mostra GRAVANDO quando a câmera grava, AO VIVO quando não', () => {
+  it('câmera com recording_enabled=true (padrão) mostra GRAVANDO', async () => {
+    renderPage()
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="player-cam1"]')?.textContent).toContain(
+        'GRAVANDO',
+      )
+    })
+  })
+
+  it('câmera com recording_enabled=false mostra AO VIVO', async () => {
+    renderPage()
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="player-cam2"]')?.textContent).toContain(
         'AO VIVO',
       )
+    })
+  })
+
+  it('título da página é "Ao vivo" (não mais "Live View")', async () => {
+    renderPage()
+    await waitFor(() => {
+      expect(document.querySelector('h2')?.textContent).toBe('Ao vivo')
     })
   })
 })

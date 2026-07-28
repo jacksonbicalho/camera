@@ -119,21 +119,30 @@ describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', 
     expect(document.getElementById('sidebar-config-sistema')).toBeNull()
   })
 
-  it('CA6: seção do item "Live View" não mostra mais cabeçalho ("Ao vivo"/"Eventos")', () => {
+  it('CA6: seção do item "Ao vivo" não mostra cabeçalho de seção próprio ("Eventos", nem um <p> "Ao vivo" separado do link)', () => {
     renderAt('/')
     const sidebarText = document.getElementById('sidebar')?.textContent ?? ''
-    expect(sidebarText).not.toContain('Ao vivo')
     expect(sidebarText).not.toContain('Eventos')
+    // "Ao vivo" aparece como o próprio label do link (CA2 da história
+    // liveview-player-footer-limpeza) — não como um <p> de cabeçalho de seção
+    // (SidebarSection só renderiza <p> quando recebe `label`, e essa seção não recebe).
+    const sectionHeaders = Array.from(document.querySelectorAll('#sidebar p.uppercase')).map(
+      (p) => p.textContent,
+    )
+    expect(sectionHeaders).not.toContain('Ao vivo')
   })
 
-  it('CA4/CA8: "Live View" é um link de verdade pra / (página principal do sistema, T7)', () => {
+  it('CA4/CA8: "Ao vivo" é um link de verdade pra / (página principal do sistema, T7)', () => {
     renderAt('/')
     const link = document.getElementById('sidebar-live-view')!
     expect(link.tagName).toBe('A')
     expect(link.getAttribute('href')).toBe('/')
+    // title/aria-label sempre têm o label, mesmo com o rail recolhido (só ícone) — o <span>
+    // de texto só existe quando expandido (showLabel), não é o caso padrão deste teste.
+    expect(link.getAttribute('title')).toBe('Ao vivo')
   })
 
-  it('CA8: "Live View" (to: "/") usa match exato (end) — não fica marcado ativo em outra rota', () => {
+  it('CA8: "Ao vivo" (to: "/") usa match exato (end) — não fica marcado ativo em outra rota', () => {
     renderAt('/settings/cameras')
     const link = document.getElementById('sidebar-live-view')!
     expect(link.className).not.toContain('bg-primary')

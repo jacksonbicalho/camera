@@ -151,7 +151,7 @@ export default function Sidebar() {
               id: 'sidebar-live-view',
               to: '/',
               end: true,
-              label: 'Live View',
+              label: 'Ao vivo',
               icon: <Eye className="h-5 w-5 shrink-0" />,
             }}
             showLabel={showLabel}
