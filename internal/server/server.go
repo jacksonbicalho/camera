@@ -1443,6 +1443,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		"os":                          osName(),
 		"pid":                         os.Getpid(),
 		"cpu_percent":                 cpuPct,
+		"cpu_temp_c":                  cpuTempC(),
 		"net_mbps":                    netMbps,
 		"mem_rss_bytes":               processMemRSS(),
 		"sys_mem_total_bytes":         sysMemTotal,

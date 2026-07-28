@@ -165,6 +165,22 @@ func systemMemInfo() (total, free int64) {
 	return int64(info.Totalram) * unit, int64(info.Freeram) * unit
 }
 
+// cpuTempC lê a temperatura do primeiro sensor térmico do kernel
+// (/sys/class/thermal/thermal_zone0/temp, inteiro em milicelsius) — existe tanto em Raspberry
+// Pi quanto em boa parte dos x86 com sensor exposto pelo kernel; -1 quando o arquivo não existe
+// ou não parseia (mesma convenção de "indisponível" já usada por cpuTracker.percent/netTracker.mbps).
+func cpuTempC() float64 {
+	data, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp")
+	if err != nil {
+		return -1
+	}
+	milliC, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+	if err != nil {
+		return -1
+	}
+	return float64(milliC) / 1000
+}
+
 func osName() string {
 	f, err := os.Open("/etc/os-release")
 	if err != nil {

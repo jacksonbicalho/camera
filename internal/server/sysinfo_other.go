@@ -24,6 +24,7 @@ type netTracker struct {
 
 func (t *netTracker) mbps() float64 { return -1 }
 
-func processMemRSS() int64              { return 0 }
-func systemMemInfo() (int64, int64)     { return 0, 0 }
-func osName() string                    { return runtime.GOOS + "/" + runtime.GOARCH }
+func processMemRSS() int64          { return 0 }
+func systemMemInfo() (int64, int64) { return 0, 0 }
+func cpuTempC() float64             { return -1 }
+func osName() string                { return runtime.GOOS + "/" + runtime.GOARCH }
