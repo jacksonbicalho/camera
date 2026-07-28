@@ -371,20 +371,14 @@ func (s *Server) routes() {
 	s.mux.Handle("/stream/", s.requireStreamAccess(streamHandler))
 
 	recHandler := http.StripPrefix("/recordings/", http.FileServer(http.Dir(s.cfg.RecordingsPath)))
-	s.mux.Handle("/recordings/", s.requireRecordingsAccess(recHandler))
+	s.mux.Handle("/recordings/", s.recordingsOrSPA(recHandler))
 
 	if s.frontend != nil {
-		// Rotas exatas da SPA que colidem com o mount de arquivos /recordings/: sem elas, o
-		// mux do Go entrega qualquer GET /recordings/... pro file server gated (401 no
-		// refresh/URL direta) — um match sem barra final vence o subtree por precedência e
-		// serve o index.html. Cobre as 4 profundidades de RecordingsPage (routes.tsx):
-		// /recordings, /recordings/:date, /recordings/:date/:hour, /recordings/:date/:hour/:view
-		// (0 a 3 segmentos) — nunca colide com um arquivo de gravação real (sempre 5
-		// segmentos, camera_id/YYYY/MM/DD/arquivo.mp4).
+		// Rota exata da SPA pro caso zero-segmentos: sem ela, GET /recordings (sem barra) é
+		// redirecionado pelo mux pra /recordings/ ANTES de recordingsOrSPA decidir — um hop
+		// a mais evitável (o resultado final seria o mesmo, recordingsOrSPA trata parts[0]=""
+		// como SPA). match exato vence o subtree e serve o index.html direto, sem o redirect.
 		s.mux.Handle("GET /recordings", s.spaHandler())
-		s.mux.Handle("GET /recordings/{date}", s.spaHandler())
-		s.mux.Handle("GET /recordings/{date}/{hour}", s.spaHandler())
-		s.mux.Handle("GET /recordings/{date}/{hour}/{view}", s.spaHandler())
 		s.mux.Handle("/", s.spaHandler())
 	}
 
@@ -504,6 +498,32 @@ func (s *Server) requireStreamAccess(next http.Handler) http.HandlerFunc {
 
 func (s *Server) requireRecordingsAccess(next http.Handler) http.HandlerFunc {
 	return s.requirePrefixCameraAccess("/recordings/", next)
+}
+
+// recordingsOrSPA distingue uma requisição de ARQUIVO real (1º segmento = câmera que existe)
+// de uma rota de página da SPA sob o mesmo prefixo /recordings/ (RecordingsPage: data, hora,
+// view — qualquer profundidade, com ou sem barra final): a auth só se aplica ao primeiro caso;
+// o segundo é sempre servido como a SPA — estático (index.html), sem precisar de auth aqui, já
+// que o RequireAuth do React cuida da página depois de carregada, igual toda outra rota
+// protegida do app. Datas (ex. "2026-07-27") nunca colidem com um ID de câmera, então qualquer
+// profundidade cai pra SPA automaticamente, sem precisar registrar uma rota exata por formato
+// (a abordagem anterior — rotas exatas por profundidade — não generalizava: uma barra final
+// depois da data, ou uma profundidade futura nova, escapava e caía de volta no gate; achado
+// real do navigator testando /recordings/2026-07-27/).
+func (s *Server) recordingsOrSPA(fileHandler http.Handler) http.HandlerFunc {
+	gated := s.requireRecordingsAccess(fileHandler)
+	return func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/recordings/"), "/", 2)
+		if parts[0] != "" && s.cameraExists(parts[0]) {
+			gated(w, r)
+			return
+		}
+		if s.frontend != nil {
+			s.spaHandler().ServeHTTP(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	}
 }
 
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
