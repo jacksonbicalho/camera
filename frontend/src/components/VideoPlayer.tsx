@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { CameraCapture, Play, Pause, Repeat, Maximize, VolumeX, Volume2, Gauge } from './Icons'
+import {
+  CameraCapture,
+  Download,
+  Play,
+  Pause,
+  Repeat,
+  Maximize,
+  VolumeX,
+  Volume2,
+  Gauge,
+} from './Icons'
 import PlayerFooter from './PlayerFooter'
 import Zoom from './Zoom'
 import { usePlayerZoom } from '../hooks/usePlayerZoom'
@@ -719,6 +729,15 @@ export default function VideoPlayer({
                 >
                   <CameraCapture className="h-4 w-4" />
                 </button>
+                <a
+                  id={`${idPrefix}-download`}
+                  href={segments[curSeg]?.src}
+                  download
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  aria-label="Baixar gravação"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
                 <div ref={speedMenuRef} className="relative">
                   <button
                     id={`${idPrefix}-speed`}

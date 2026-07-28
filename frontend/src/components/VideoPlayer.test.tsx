@@ -616,6 +616,36 @@ describe('VideoPlayer', () => {
     })
   })
 
+  describe('CA4: botão de download da gravação no rodapé', () => {
+    it('aponta pro arquivo do segmento atualmente em reprodução', async () => {
+      render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+      await waitFor(() => {
+        expect(document.getElementById('p-download')).not.toBeNull()
+      })
+      const link = document.getElementById('p-download') as HTMLAnchorElement
+      expect(link.getAttribute('href')).toBe('a.mp4')
+      expect(link.hasAttribute('download')).toBe(true)
+    })
+
+    it('trocar de segmento atualiza o alvo do download pro novo arquivo ativo', async () => {
+      render(
+        <VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, 10), seg('b.mp4', 0, Infinity)]} />,
+      )
+      await waitFor(() => {
+        expect(document.getElementById('p-video')).not.toBeNull()
+      })
+      const a = document.getElementById('p-video') as HTMLVideoElement
+      fireLoadedMetadata(a, 10)
+      Object.defineProperty(a, 'currentTime', { value: 10, configurable: true })
+      a.dispatchEvent(new Event('timeupdate'))
+      await waitFor(() => {
+        expect(document.getElementById('p-video-b')?.className).toContain('z-10')
+      })
+      const link = document.getElementById('p-download') as HTMLAnchorElement
+      expect(link.getAttribute('href')).toBe('b.mp4')
+    })
+  })
+
   it('rodapé de controles é sempre visível (não mais só no hover) e theme-aware — sem cor fixa/data-on-video', async () => {
     render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
     await waitFor(() => {
