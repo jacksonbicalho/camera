@@ -46,9 +46,7 @@ function base(): StateClassifier {
     enabled: true,
     classes: ['aberto', 'fechado'],
     notify_enabled: false,
-    footer_enabled: false,
     notify_user_ids: [],
-    footer_user_ids: [],
   }
 }
 
@@ -98,18 +96,12 @@ describe('ClassifierForm — destinatários de notificação/rodapé', () => {
     )
     await screen.findByText('1 de 2')
   })
+})
 
-  it('"Exibir no rodapé" é independente da notificação', async () => {
+describe('CA3: opção "Exibir no rodapé" removida do cadastro de estados (feature órfã)', () => {
+  it('o formulário não tem mais o controle de "Exibir no rodapé"', () => {
     render(<Harness initial={base()} />)
-
-    // habilita só o rodapé
-    fireEvent.click(el('recipient-footer-enabled'))
-    await screen.findByText('alice')
-    // notify continua desabilitado (sem sua lista)
-    expect(el('recipient-notify-all')).toBeNull()
-    expect(el('recipient-footer-all')).toBeTruthy()
-
-    fireEvent.click(el('recipient-footer-all'))
-    await screen.findByText('2 de 2')
+    expect(el('recipient-footer-enabled')).toBeNull()
+    expect(screen.queryByText('Exibir no rodapé')).toBeNull()
   })
 })

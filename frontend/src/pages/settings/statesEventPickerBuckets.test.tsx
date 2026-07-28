@@ -49,9 +49,7 @@ function base(): StateClassifier {
     enabled: true,
     classes: ['acesa', 'apagada'],
     notify_enabled: false,
-    footer_enabled: false,
     notify_user_ids: [],
-    footer_user_ids: [],
   }
 }
 

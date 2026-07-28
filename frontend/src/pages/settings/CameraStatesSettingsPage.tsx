@@ -57,9 +57,7 @@ function emptyClassifier(): StateClassifier {
     enabled: true,
     classes: ['fechado', 'aberto'],
     notify_enabled: true,
-    footer_enabled: false,
     notify_user_ids: [],
-    footer_user_ids: [],
   }
 }
 
@@ -1223,15 +1221,6 @@ export function ClassifierForm({
               users={users}
               selected={value.notify_user_ids ?? []}
               onSelect={(ids) => onChange({ ...value, notify_user_ids: ids })}
-            />
-            <RecipientPicker
-              id="footer"
-              label="Exibir no rodapé"
-              enabled={value.footer_enabled ?? false}
-              onToggle={(v) => onChange({ ...value, footer_enabled: v })}
-              users={users}
-              selected={value.footer_user_ids ?? []}
-              onSelect={(ids) => onChange({ ...value, footer_user_ids: ids })}
             />
           </div>
         </div>
