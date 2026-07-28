@@ -16,9 +16,7 @@ export interface StateClassifier {
   enabled: boolean
   classes: string[]
   notify_enabled?: boolean
-  footer_enabled?: boolean
   notify_user_ids?: number[]
-  footer_user_ids?: number[]
   // Override de retenção do histórico de estado (minutos) só deste
   // classificador — null/ausente herda o default global (storage.state_history_minutes).
   history_retention_minutes?: number | null

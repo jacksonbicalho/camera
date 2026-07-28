@@ -37,9 +37,7 @@ function base(): StateClassifier {
     enabled: true,
     classes: ['aberto', 'fechado'],
     notify_enabled: false,
-    footer_enabled: false,
     notify_user_ids: [],
-    footer_user_ids: [],
   }
 }
 

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import UserMenu from './UserMenu'
@@ -10,11 +10,17 @@ vi.mock('../auth', () => ({
   clearToken: vi.fn(),
 }))
 
+let unreadCount = 0
+
 vi.mock('../contexts/UserNotificationContext', () => ({
-  useUserNotifications: () => ({ unreadCount: 0 }),
+  useUserNotifications: () => ({ unreadCount }),
 }))
 
 afterEach(cleanup)
+
+beforeEach(() => {
+  unreadCount = 0
+})
 
 function renderMenu() {
   render(
@@ -49,5 +55,23 @@ describe('UserMenu', () => {
     )!
     fireEvent.click(sairBtn)
     expect(clearToken).toHaveBeenCalled()
+  })
+
+  describe('CA2: número de notificações também ao lado de "Notificações" no dropdown', () => {
+    it('unreadCount > 0: mostra o número ao lado do item "Notificações"', () => {
+      unreadCount = 3
+      renderMenu()
+      fireEvent.click(document.getElementById('logged-in-user')!)
+      const link = document.querySelector('a[href="/notifications"]')!
+      expect(link.textContent).toContain('3')
+    })
+
+    it('unreadCount === 0: não mostra nenhum número ao lado de "Notificações"', () => {
+      unreadCount = 0
+      renderMenu()
+      fireEvent.click(document.getElementById('logged-in-user')!)
+      const link = document.querySelector('a[href="/notifications"]')!
+      expect(link.textContent).toBe('Notificações')
+    })
   })
 })
