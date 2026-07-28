@@ -83,9 +83,14 @@ export default function UserMenu() {
             <NavLink
               to="/notifications"
               onClick={() => setOpen(false)}
-              className="block px-3 py-1.5 text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
+              className="flex items-center justify-between px-3 py-1.5 text-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
             >
               Notificações
+              {unreadCount > 0 && (
+                <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-on-primary">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </NavLink>
             <NavLink
               to="/profile"
