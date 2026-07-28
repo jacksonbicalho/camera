@@ -9,6 +9,32 @@ vi.mock('../auth', () => ({
   authHeaders: () => ({ Authorization: 'Bearer test' }),
 }))
 
+// RecordingsGateway (usada por useRecordingSegments dentro do RecordingPlayerModal que o
+// events-panel passa a abrir) captura globalThis.fetch no construtor e nasce a nível de módulo
+// — mesmo padrão de mock usado em RecordingsPage.test.tsx/VideoBrowserPage.test.tsx: mock do
+// módulo, não do fetch cru.
+const recordingsGatewayMock = vi.hoisted(() => ({
+  getTimezone: vi.fn(),
+  getRecording: vi.fn(),
+  listByDay: vi.fn(),
+  getEvent: vi.fn(),
+  getPlaybackWindow: vi.fn(),
+}))
+vi.mock('../lib/recordingsGateway', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/recordingsGateway')>()
+  return {
+    ...actual,
+    RecordingsGateway: class {
+      getTimezone = recordingsGatewayMock.getTimezone
+      getRecording = recordingsGatewayMock.getRecording
+      listByDay = recordingsGatewayMock.listByDay
+      getEvent = recordingsGatewayMock.getEvent
+      getPlaybackWindow = recordingsGatewayMock.getPlaybackWindow
+      playbackURL = (r: { url: string }) => `${r.url}?token=fake`
+    },
+  }
+})
+
 const markRead = vi.fn()
 
 let notifications: Notification[] = []
@@ -48,6 +74,11 @@ function renderBell(showLabel = true) {
 beforeEach(() => {
   notifications = []
   unreadCount = 0
+  recordingsGatewayMock.getTimezone.mockResolvedValue('UTC')
+  recordingsGatewayMock.getRecording.mockResolvedValue({ filename: 'c.mp4', date: '2026-07-07' })
+  recordingsGatewayMock.listByDay.mockResolvedValue([])
+  recordingsGatewayMock.getEvent.mockResolvedValue(null)
+  recordingsGatewayMock.getPlaybackWindow.mockResolvedValue({ lead: 5, trail: 10 })
 })
 
 afterEach(() => {
@@ -90,94 +121,103 @@ describe('MotionNotificationsBell', () => {
     expect(document.body.textContent).toContain('Corredor')
   })
 
-  it('clique numa notificação resolve recordingId+motionId e navega para /recording/:cameraId/:recordingId/:motionId', async () => {
-    notifications = [n]
-    const dateStr = format(new Date(n.time), 'yyyy-MM-dd')
+  describe('CA2: clique num item abre o recording-player-modal (sem navegar)', () => {
+    it('clique numa notificação resolve recordingId+motionId e abre o recording-player-modal, sem navegar', async () => {
+      notifications = [n]
+      const dateStr = format(new Date(n.time), 'yyyy-MM-dd')
 
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url === `/api/cameras/cam1/motion?date=${dateStr}`) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ events: [{ id: 42, time: n.time, score: n.score }] }),
-          })
-        }
-        if (url.startsWith('/api/cameras/cam1/recordings?date=')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ recordings: [{ id: 7, start: '2026-07-07T09:00:00Z' }] }),
-          })
-        }
-        return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
-      }),
-    )
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url === `/api/cameras/cam1/motion?date=${dateStr}`) {
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({ events: [{ id: 42, time: n.time, score: n.score }] }),
+            })
+          }
+          if (url.startsWith('/api/cameras/cam1/recordings?date=')) {
+            return Promise.resolve({
+              ok: true,
+              json: () =>
+                Promise.resolve({ recordings: [{ id: 7, start: '2026-07-07T09:00:00Z' }] }),
+            })
+          }
+          return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
+        }),
+      )
 
-    renderBell()
-    fireEvent.click(document.getElementById('motion-notifications')!)
-    fireEvent.click(document.getElementById(`notification-${n.id}`)!)
+      renderBell()
+      fireEvent.click(document.getElementById('motion-notifications')!)
+      fireEvent.click(document.getElementById(`notification-${n.id}`)!)
 
-    await waitFor(() => {
-      expect(document.getElementById('test-location')!.textContent).toBe('/recording/cam1/7/42')
-    })
-    expect(markRead).toHaveBeenCalledWith(n.id)
-  })
-
-  it('sem evento casado, navega só com recordingId (sem motionId)', async () => {
-    notifications = [n]
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.includes('/motion?date=')) {
-          return Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [] }) })
-        }
-        if (url.includes('/recordings?date=')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ recordings: [{ id: 7, start: '2026-07-07T09:00:00Z' }] }),
-          })
-        }
-        return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
-      }),
-    )
-
-    renderBell()
-    fireEvent.click(document.getElementById('motion-notifications')!)
-    fireEvent.click(document.getElementById(`notification-${n.id}`)!)
-
-    await waitFor(() => {
-      expect(document.getElementById('test-location')!.textContent).toBe('/recording/cam1/7')
-    })
-  })
-
-  it('sem nenhuma gravação no dia, não navega', async () => {
-    notifications = [n]
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.includes('/motion?date=')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ events: [{ id: 42, time: n.time, score: n.score }] }),
-          })
-        }
-        if (url.includes('/recordings?date=')) {
-          return Promise.resolve({ ok: true, json: () => Promise.resolve({ recordings: [] }) })
-        }
-        return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
-      }),
-    )
-
-    renderBell()
-    fireEvent.click(document.getElementById('motion-notifications')!)
-    fireEvent.click(document.getElementById(`notification-${n.id}`)!)
-
-    await waitFor(() => {
+      await waitFor(() => {
+        expect(document.getElementById('recording-player-modal')).not.toBeNull()
+      })
+      expect(document.getElementById('test-location')!.textContent).toBe('/')
       expect(markRead).toHaveBeenCalledWith(n.id)
+      // O painel de eventos fecha ao abrir o modal (mesmo comportamento de antes: setOpen(false)).
+      expect(document.getElementById('events-panel')).toBeNull()
     })
-    expect(document.getElementById('test-location')!.textContent).toBe('/')
+
+    it('sem evento casado, abre o modal só com recordingId (sem motionId)', async () => {
+      notifications = [n]
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.includes('/motion?date=')) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [] }) })
+          }
+          if (url.includes('/recordings?date=')) {
+            return Promise.resolve({
+              ok: true,
+              json: () =>
+                Promise.resolve({ recordings: [{ id: 7, start: '2026-07-07T09:00:00Z' }] }),
+            })
+          }
+          return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
+        }),
+      )
+
+      renderBell()
+      fireEvent.click(document.getElementById('motion-notifications')!)
+      fireEvent.click(document.getElementById(`notification-${n.id}`)!)
+
+      await waitFor(() => {
+        expect(document.getElementById('recording-player-modal')).not.toBeNull()
+      })
+      expect(document.getElementById('test-location')!.textContent).toBe('/')
+    })
+
+    it('sem nenhuma gravação no dia, não abre o modal', async () => {
+      notifications = [n]
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.includes('/motion?date=')) {
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({ events: [{ id: 42, time: n.time, score: n.score }] }),
+            })
+          }
+          if (url.includes('/recordings?date=')) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({ recordings: [] }) })
+          }
+          return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
+        }),
+      )
+
+      renderBell()
+      fireEvent.click(document.getElementById('motion-notifications')!)
+      fireEvent.click(document.getElementById(`notification-${n.id}`)!)
+
+      await waitFor(() => {
+        expect(markRead).toHaveBeenCalledWith(n.id)
+      })
+      expect(document.getElementById('recording-player-modal')).toBeNull()
+      expect(document.getElementById('test-location')!.textContent).toBe('/')
+    })
   })
 
   it('selecionar tudo e excluir mostra o ConfirmDialog acima do painel de eventos (z-index)', () => {

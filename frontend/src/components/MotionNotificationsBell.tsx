@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useNotifications, type Notification } from '../contexts/NotificationContext'
@@ -8,8 +7,21 @@ import { navItemClass, useFlyout } from './sidebarFlyout'
 import { resolveEventRecordingUrl } from '../lib/eventNavigation'
 import ConfirmDialog from './ConfirmDialog'
 import EventsPanelHeader from './EventsPanelHeader'
+import RecordingPlayerModal from './RecordingPlayerModal'
 import { Bell, X } from './Icons'
 import { Button } from './ui/button'
+
+// Casa a URL /recording/:cameraId/:recordingId(/:motionId) resolvida por
+// resolveEventRecordingUrl — extrai os ids em vez de navegar, pro modal abrir com eles (mesmo
+// padrão de RecordingsPage.tsx: RECORDING_URL_RE local, não extraída — só 2 ocorrências hoje,
+// abaixo do limiar que justificaria uma abstração compartilhada).
+const RECORDING_URL_RE = /^\/recording\/([^/]+)\/([^/]+)(?:\/([^/]+))?$/
+
+interface ModalTarget {
+  cameraId: string
+  recordingId: string
+  motionId?: string
+}
 
 interface ConfirmState {
   title: string
@@ -76,12 +88,15 @@ function NotificationItem({
 }
 
 // MotionNotificationsBell — sino "Eventos" do sidebar novo: botão com badge de não
-// lidas + painel (portal) com a lista de notificações de movimento, seleção
-// múltipla, marcar-lidas/excluir e o toggle de notificações do navegador. Extraído
-// do sidebar legado (AppSidebar.tsx, id antigo "sidebar-notifications") — mesma
-// funcionalidade, id renomeado pra "motion-notifications" e o clique numa
-// notificação agora leva pra a página de reprodução nova
-// (/recording/:cameraId/:recordingId/:motionId) em vez do /cameras/:id legado.
+// lidas + painel (portal, id="events-panel") com a lista de notificações de
+// movimento, seleção múltipla, marcar-lidas/excluir e o toggle de notificações do
+// navegador. Extraído do sidebar legado (AppSidebar.tsx, id antigo
+// "sidebar-notifications") — mesma funcionalidade, id renomeado pra
+// "motion-notifications". Clicar numa notificação abre o player em modal
+// (RecordingPlayerModal) — não navega mais pra /recording/:cameraId/:recordingId
+// (/:motionId), mesma troca que RecordingsPage.tsx já fez pro clique num "momento";
+// a rota continua existindo intacta pra outros pontos de entrada (deep-link,
+// notificação nativa do browser via NotificationContext).
 //
 // Como a notificação (SSE de /api/motion/live) só carrega camera_id/time/score —
 // nem o id numérico do evento (motion_events.id) nem uma gravação — o clique
@@ -104,10 +119,10 @@ export default function MotionNotificationsBell({ showLabel }: { showLabel: bool
     enableBrowserNotifications,
     disableBrowserNotifications,
   } = useNotifications()
-  const navigate = useNavigate()
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const [modalTarget, setModalTarget] = useState<ModalTarget | null>(null)
 
   const allSelected = notifications.length > 0 && notifications.every((n) => selectedIds.has(n.id))
   const someSelected = selectedIds.size > 0
@@ -151,7 +166,10 @@ export default function MotionNotificationsBell({ showLabel }: { showLabel: bool
     markRead(n.id)
     setOpen(false)
     const url = await resolveEventRecordingUrl(n.cameraId, n.time)
-    if (url) navigate(url)
+    if (!url) return
+    const m = url.match(RECORDING_URL_RE)
+    if (!m) return
+    setModalTarget({ cameraId: m[1], recordingId: m[2], motionId: m[3] })
   }
 
   return (
@@ -293,6 +311,14 @@ export default function MotionNotificationsBell({ showLabel }: { showLabel: bool
         danger={confirm?.danger}
         onConfirm={handleConfirm}
         onCancel={() => setConfirm(null)}
+      />
+
+      <RecordingPlayerModal
+        open={modalTarget != null}
+        cameraId={modalTarget?.cameraId ?? null}
+        recordingId={modalTarget?.recordingId ?? null}
+        motionId={modalTarget?.motionId}
+        onClose={() => setModalTarget(null)}
       />
     </>
   )
