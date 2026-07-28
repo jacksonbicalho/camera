@@ -3,7 +3,8 @@ import type HlsType from 'hls.js'
 import { getToken } from '../auth'
 import { negotiateWebRTC } from '../lib/webrtc'
 import { usePlayerZoom } from '../hooks/usePlayerZoom'
-import { Loader2, Maximize, Play, Volume2, VolumeX } from './Icons'
+import { usePlayerSnapshot } from '../hooks/usePlayerSnapshot'
+import { CameraCapture, Loader2, Maximize, Play, Volume2, VolumeX } from './Icons'
 import PlayerFooter from './PlayerFooter'
 import { retryPlan } from './playerRetry'
 import Zoom from './Zoom'
@@ -62,6 +63,7 @@ export default function Player({
   const [connecting, setConnecting] = useState(true)
 
   const zoom = usePlayerZoom(() => videoRef.current)
+  const { takeSnapshot } = usePlayerSnapshot(() => videoRef.current, title)
   const bindZoom = zoom.setContainer
   const setContainer = useCallback(
     (node: HTMLDivElement | null) => {
@@ -329,6 +331,18 @@ export default function Player({
                 {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </button>
               <Zoom id={id} zoom={zoom} />
+              <button
+                id={`${id}-snapshot`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  takeSnapshot()
+                }}
+                aria-label="Capturar snapshot"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+              >
+                <CameraCapture className="h-4 w-4" />
+              </button>
               <button
                 id={`${id}-fullscreen`}
                 type="button"
