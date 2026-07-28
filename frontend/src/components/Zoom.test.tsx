@@ -28,6 +28,24 @@ function fakeZoom(overrides: Partial<PlayerZoom> = {}): PlayerZoom {
 }
 
 describe('Zoom — componente reutilizável de controle de zoom no rodapé (− % +)', () => {
+  describe('CA2: separadores visuais flanqueiam o grupo dos 3 elementos', () => {
+    it('renderiza um separador (aria-hidden) antes do zoom-out e outro depois do zoom-in, agrupando os 3 elementos', () => {
+      render(<Zoom id="p" zoom={fakeZoom()} />)
+      const container = document.getElementById('p-zoom-out')!.parentElement!
+      const children = Array.from(container.children)
+      const first = children[0]
+      const last = children[children.length - 1]
+
+      expect(first).not.toBe(document.getElementById('p-zoom-out'))
+      expect(first.tagName).toBe('SPAN')
+      expect(first.getAttribute('aria-hidden')).toBe('true')
+
+      expect(last).not.toBe(document.getElementById('p-zoom-in'))
+      expect(last.tagName).toBe('SPAN')
+      expect(last.getAttribute('aria-hidden')).toBe('true')
+    })
+  })
+
   describe('CA3: mostra o percentual atual e permite zoom in/out por clique', () => {
     it('mostra "100%" na escala 1 (sem zoom)', () => {
       render(<Zoom id="p" zoom={fakeZoom()} />)

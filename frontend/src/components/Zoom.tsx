@@ -18,6 +18,11 @@ const buttonClassName =
 export default function Zoom({ id, zoom }: ZoomProps) {
   return (
     <div className="flex items-center gap-0.5">
+      {/* Divisor explícito (não `divide-x`) — o reset de borda do <button> zera
+          `border-left-width` do utilitário `divide-x`, mesmo padrão de HistoryPage.tsx.
+          Flanqueia o grupo inteiro (não separa os 3 elementos entre si) — agrupa, não
+          fragmenta. */}
+      <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
       <button
         id={`${id}-zoom-out`}
         type="button"
@@ -48,6 +53,7 @@ export default function Zoom({ id, zoom }: ZoomProps) {
       >
         <ZoomIn className="h-4 w-4" />
       </button>
+      <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
     </div>
   )
 }
