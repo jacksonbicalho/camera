@@ -1102,6 +1102,61 @@ func TestGetStatsIncludesConnectedClients(t *testing.T) {
 	}
 }
 
+// CA3: connected_clients soma IPs distintos de HLS (streamSeen) e WebRTC (ConnectedIPs de
+// todos os livePublishers) — um IP presente nas duas fontes (ex. um cliente assistindo uma
+// câmera por HLS e outra por WebRTC ao mesmo tempo) conta só 1 vez.
+func TestGetStatsConnectedClientsSumsWebRTCDedupedWithHLS(t *testing.T) {
+	tmpDir := t.TempDir()
+	cameraID := "entrada"
+	streamDir := filepath.Join(tmpDir, cameraID)
+	if err := os.MkdirAll(streamDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(streamDir, "index.m3u8"), []byte("#EXTM3U\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.ServerConfig{
+		RecordingsPath: tmpDir,
+		SegmentsPath:   tmpDir,
+	}
+	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{{ID: cameraID}}, discardLogger(), nil)
+	srv = withTestUsers(t, srv)
+	token := loginAndGetToken(t, srv, "master", "secret")
+
+	// HLS: 1 IP visto recentemente.
+	streamReq := httptest.NewRequest(http.MethodGet, "/stream/"+cameraID+"/index.m3u8", nil)
+	streamReq.Header.Set("Authorization", "Bearer "+token)
+	streamReq.RemoteAddr = "10.10.10.5:12345"
+	streamW := httptest.NewRecorder()
+	srv.ServeHTTP(streamW, streamReq)
+
+	// WebRTC: 2 IPs conectados num publisher — um deles (10.10.10.5) É O MESMO do HLS acima.
+	srv.WithLivePublisher(cameraID, &fakeLivePublisher{
+		connectedIPs: []string{"10.10.10.5", "10.10.10.6"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/stats", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp struct {
+		ConnectedClients int `json:"connected_clients"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	// 10.10.10.5 (HLS) + 10.10.10.5 (WebRTC, MESMO ip — não soma de novo) + 10.10.10.6
+	// (WebRTC, novo) = 2 IPs distintos no total, não 3.
+	if resp.ConnectedClients != 2 {
+		t.Fatalf("expected connected_clients=2 (deduped across HLS+WebRTC), got %d", resp.ConnectedClients)
+	}
+}
+
 func TestGetStatsIncludesTopMotionScorePerCamera(t *testing.T) {
 	cameras := []config.CameraConfig{{ID: "entrada"}, {ID: "quintal"}}
 	cfg := config.ServerConfig{}
@@ -3299,13 +3354,13 @@ func TestGetStatsIncludesSysInfo(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 	var resp struct {
-		OS            string  `json:"os"`
-		PID           int     `json:"pid"`
-		CPUPercent    float64 `json:"cpu_percent"`
-		MemRSSBytes   int64   `json:"mem_rss_bytes"`
-		SysMemTotal   int64   `json:"sys_mem_total_bytes"`
-		SysMemFree    int64   `json:"sys_mem_free_bytes"`
-		Goroutines    int     `json:"goroutines"`
+		OS          string  `json:"os"`
+		PID         int     `json:"pid"`
+		CPUPercent  float64 `json:"cpu_percent"`
+		MemRSSBytes int64   `json:"mem_rss_bytes"`
+		SysMemTotal int64   `json:"sys_mem_total_bytes"`
+		SysMemFree  int64   `json:"sys_mem_free_bytes"`
+		Goroutines  int     `json:"goroutines"`
 	}
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
@@ -3318,6 +3373,35 @@ func TestGetStatsIncludesSysInfo(t *testing.T) {
 	}
 	if resp.Goroutines <= 0 {
 		t.Errorf("expected goroutines > 0, got %d", resp.Goroutines)
+	}
+}
+
+// CA4: /api/stats inclui cpu_temp_c — o ambiente de CI/dev normalmente não tem
+// /sys/class/thermal/thermal_zone0, então o valor esperado aqui é -1 (indisponível), não um
+// número específico; o objetivo é confirmar que o CAMPO existe e é decodificável como float,
+// não fixar um valor de hardware que varia por máquina.
+func TestGetStatsIncludesCPUTemp(t *testing.T) {
+	cfg := config.ServerConfig{}
+	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{}, discardLogger(), nil)
+	srv = withTestUsers(t, srv)
+
+	token := loginAndGetToken(t, srv, "master", "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/stats", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp struct {
+		CPUTempC *float64 `json:"cpu_temp_c"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.CPUTempC == nil {
+		t.Fatal("expected cpu_temp_c field to be present in the response")
 	}
 }
 

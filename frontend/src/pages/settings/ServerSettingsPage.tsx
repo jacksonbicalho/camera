@@ -152,6 +152,14 @@ export default function ServerSettingsPage() {
                   </p>
                   {cpuPct >= 0 && <p className="text-xs text-faint">amostra 30 s</p>}
                 </div>
+                {stats.cpu_temp_c >= 0 && (
+                  <div>
+                    <p className="text-xs text-faint mb-1">Temperatura</p>
+                    <p className="text-sm font-mono text-foreground">
+                      {stats.cpu_temp_c.toFixed(1)}°C
+                    </p>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs text-faint mb-1">Mem. processo</p>
                   <p className="text-sm font-mono text-foreground">

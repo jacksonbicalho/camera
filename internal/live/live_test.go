@@ -121,7 +121,7 @@ func TestPublisherNegotiatesAndForwardsRTP(t *testing.T) {
 		}
 	})
 
-	answer, err := pub.Negotiate(offer)
+	answer, err := pub.Negotiate(offer, "203.0.113.1")
 	if err != nil {
 		t.Fatalf("negotiate: %v", err)
 	}
@@ -139,6 +139,99 @@ func TestPublisherNegotiatesAndForwardsRTP(t *testing.T) {
 	}
 }
 
+// CA2: ConnectedIPs deduplica por IP — várias conexões do mesmo IP (ex. um viewer com vários
+// tiles abertos na LiveViewPage) contam como 1; IPs diferentes contam separadamente; fechar a
+// ÚLTIMA conexão de um IP o remove da lista.
+func TestPublisherConnectedIPsDedupesByClientIP(t *testing.T) {
+	pub, err := NewPublisher("cam1", &fakeSource{}, nil, AudioFormat{}, discardLogger())
+	if err != nil {
+		t.Fatalf("new publisher: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go pub.Run(ctx, time.Second)
+
+	negotiate := func(ip string) *webrtc.PeerConnection {
+		t.Helper()
+		client, offer := newViewer(t, false)
+		t.Cleanup(func() { client.Close() })
+		answer, err := pub.Negotiate(offer, ip)
+		if err != nil {
+			t.Fatalf("negotiate: %v", err)
+		}
+		if err := client.SetRemoteDescription(answer); err != nil {
+			t.Fatalf("set remote description: %v", err)
+		}
+		return client
+	}
+
+	negotiate("203.0.113.1")
+	negotiate("203.0.113.1") // 2ª conexão do MESMO IP (ex. 2º tile do grid)
+	negotiate("198.51.100.9")
+
+	if got := pub.Sessions(); got != 3 {
+		t.Fatalf("expected 3 raw sessions, got %d", got)
+	}
+	ips := pub.ConnectedIPs()
+	if len(ips) != 2 {
+		t.Fatalf("expected 2 distinct IPs, got %d: %v", len(ips), ips)
+	}
+	want := map[string]bool{"203.0.113.1": true, "198.51.100.9": true}
+	for _, ip := range ips {
+		if !want[ip] {
+			t.Errorf("unexpected IP in ConnectedIPs: %q", ip)
+		}
+	}
+
+	// Fecha as 2 conexões do IP duplicado uma de cada vez: some só depois da ÚLTIMA.
+	closeOneServerSidePCFor := func(ip string) {
+		t.Helper()
+		pub.mu.Lock()
+		var target *webrtc.PeerConnection
+		for pc, pcIP := range pub.pcs {
+			if pcIP == ip {
+				target = pc
+				break
+			}
+		}
+		pub.mu.Unlock()
+		if target == nil {
+			t.Fatalf("no open server-side PeerConnection found for IP %q", ip)
+		}
+		if err := target.Close(); err != nil {
+			t.Fatalf("close server-side pc: %v", err)
+		}
+		// Close() dispara OnConnectionStateChange de forma assíncrona internamente no pion —
+		// espera p.remove terminar (mesmo padrão de polling com timeout já usado nos outros
+		// testes deste arquivo, ex. gotRTP/gotAudio).
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			pub.mu.Lock()
+			_, stillOpen := pub.pcs[target]
+			pub.mu.Unlock()
+			if !stillOpen {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("timed out waiting for Publisher to remove the closed connection")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	closeOneServerSidePCFor("203.0.113.1")
+	ips = pub.ConnectedIPs()
+	if len(ips) != 2 {
+		t.Fatalf("after closing 1 of 2 connections from the same IP, expected it to remain (2 distinct IPs), got %d: %v", len(ips), ips)
+	}
+
+	closeOneServerSidePCFor("203.0.113.1")
+	ips = pub.ConnectedIPs()
+	if len(ips) != 1 || ips[0] != "198.51.100.9" {
+		t.Fatalf("after closing the LAST connection from 203.0.113.1, expected only 198.51.100.9 left, got %v", ips)
+	}
+}
+
 func TestPublisherClosesSessionAndSourceOnCancel(t *testing.T) {
 	src := &fakeSource{}
 	pub, err := NewPublisher("cam1", src, nil, AudioFormat{}, discardLogger())
@@ -151,7 +244,7 @@ func TestPublisherClosesSessionAndSourceOnCancel(t *testing.T) {
 
 	client, offer := newViewer(t, false)
 	defer client.Close()
-	answer, err := pub.Negotiate(offer)
+	answer, err := pub.Negotiate(offer, "203.0.113.1")
 	if err != nil {
 		t.Fatalf("negotiate: %v", err)
 	}
@@ -206,7 +299,7 @@ func TestPublisherWithG711AudioAnnouncesAndForwardsAudioRTP(t *testing.T) {
 		}
 	})
 
-	answer, err := pub.Negotiate(offer)
+	answer, err := pub.Negotiate(offer, "203.0.113.1")
 	if err != nil {
 		t.Fatalf("negotiate: %v", err)
 	}
@@ -253,7 +346,7 @@ func TestPublisherWithTranscodedAudioAnnouncesOpus(t *testing.T) {
 		}
 	})
 
-	answer, err := pub.Negotiate(offer)
+	answer, err := pub.Negotiate(offer, "203.0.113.1")
 	if err != nil {
 		t.Fatalf("negotiate: %v", err)
 	}
@@ -283,7 +376,7 @@ func TestPublisherWithoutAudioStillNegotiatesWhenViewerOffersAudio(t *testing.T)
 	client, offer := newViewer(t, true)
 	defer client.Close()
 
-	answer, err := pub.Negotiate(offer)
+	answer, err := pub.Negotiate(offer, "203.0.113.1")
 	if err != nil {
 		t.Fatalf("negotiate: %v", err)
 	}

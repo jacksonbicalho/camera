@@ -11,7 +11,10 @@ import (
 // here (consumer side) to keep the server decoupled from the live package and
 // testable with a fake; satisfied by *live.Publisher.
 type livePublisher interface {
-	Negotiate(offer webrtc.SessionDescription) (webrtc.SessionDescription, error)
+	Negotiate(offer webrtc.SessionDescription, clientIP string) (webrtc.SessionDescription, error)
+	// ConnectedIPs devolve os IPs distintos com pelo menos uma sessão WebRTC aberta agora —
+	// usado por activeStreamClients pra somar ao total de "conectados" junto do HLS.
+	ConnectedIPs() []string
 }
 
 // WithLivePublisher registers the WebRTC live publisher for a camera. Mirrors
@@ -52,7 +55,7 @@ func (s *Server) handleWebRTC(w http.ResponseWriter, r *http.Request) {
 	answer, err := pub.Negotiate(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
 		SDP:  body.SDP,
-	})
+	}, clientIP(r))
 	if err != nil {
 		s.log.Warn("webrtc negotiation failed", "camera", id, "error", err)
 		http.Error(w, "negotiation failed", http.StatusInternalServerError)

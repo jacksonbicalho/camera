@@ -13,13 +13,18 @@ import (
 )
 
 type fakeLivePublisher struct {
-	answer string
-	called bool
+	answer       string
+	called       bool
+	connectedIPs []string
 }
 
-func (f *fakeLivePublisher) Negotiate(offer webrtc.SessionDescription) (webrtc.SessionDescription, error) {
+func (f *fakeLivePublisher) Negotiate(offer webrtc.SessionDescription, clientIP string) (webrtc.SessionDescription, error) {
 	f.called = true
 	return webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: f.answer}, nil
+}
+
+func (f *fakeLivePublisher) ConnectedIPs() []string {
+	return f.connectedIPs
 }
 
 func TestWebRTCForbiddenForViewerWithoutAccess(t *testing.T) {

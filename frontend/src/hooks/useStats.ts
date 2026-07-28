@@ -25,6 +25,7 @@ export interface Stats {
   os: string
   pid: number
   cpu_percent: number
+  cpu_temp_c: number
   net_mbps: number
   mem_rss_bytes: number
   sys_mem_total_bytes: number

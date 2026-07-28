@@ -589,7 +589,10 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (s *Server) touchStreamClient(r *http.Request) {
+// clientIP extrai o IP do cliente a partir do request (X-Forwarded-For, senão RemoteAddr) —
+// compartilhada por touchStreamClient (HLS) e handleWebRTC (sinalização), pra "conectados"
+// contar a mesma coisa nos dois transportes.
+func clientIP(r *http.Request) string {
 	key := r.RemoteAddr
 	if host := r.Header.Get("X-Forwarded-For"); host != "" {
 		key = strings.TrimSpace(strings.Split(host, ",")[0])
@@ -597,25 +600,42 @@ func (s *Server) touchStreamClient(r *http.Request) {
 	if h, _, ok := strings.Cut(key, ":"); ok && h != "" {
 		key = h
 	}
+	return key
+}
+
+func (s *Server) touchStreamClient(r *http.Request) {
 	s.mu.Lock()
-	s.streamSeen[key] = time.Now()
+	s.streamSeen[clientIP(r)] = time.Now()
 	s.mu.Unlock()
 }
 
+// activeStreamClients conta IPs distintos com atividade recente — soma HLS (streamSeen, janela
+// de 30s por trás do polling contínuo) e WebRTC (ConnectedIPs de cada publisher, preciso via
+// OnConnectionStateChange, sem heurística de timeout) num único set deduplicado, pra um mesmo
+// IP assistindo por transportes diferentes ao mesmo tempo contar só 1 vez.
 func (s *Server) activeStreamClients(now time.Time) int {
 	const activeWindow = 30 * time.Second
 	cutoff := now.Add(-activeWindow)
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	active := 0
+	ips := make(map[string]struct{}, len(s.streamSeen))
 	for k, seen := range s.streamSeen {
 		if seen.Before(cutoff) {
 			delete(s.streamSeen, k)
 			continue
 		}
-		active++
+		ips[k] = struct{}{}
 	}
-	return active
+	publishers := make([]livePublisher, 0, len(s.livePublishers))
+	for _, pub := range s.livePublishers {
+		publishers = append(publishers, pub)
+	}
+	s.mu.Unlock()
+	for _, pub := range publishers {
+		for _, ip := range pub.ConnectedIPs() {
+			ips[ip] = struct{}{}
+		}
+	}
+	return len(ips)
 }
 
 func maskRTSP(raw string) string {
@@ -1423,6 +1443,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		"os":                          osName(),
 		"pid":                         os.Getpid(),
 		"cpu_percent":                 cpuPct,
+		"cpu_temp_c":                  cpuTempC(),
 		"net_mbps":                    netMbps,
 		"mem_rss_bytes":               processMemRSS(),
 		"sys_mem_total_bytes":         sysMemTotal,
