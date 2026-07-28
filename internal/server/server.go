@@ -500,21 +500,36 @@ func (s *Server) requireRecordingsAccess(next http.Handler) http.HandlerFunc {
 	return s.requirePrefixCameraAccess("/recordings/", next)
 }
 
-// recordingsOrSPA distingue uma requisição de ARQUIVO real (1º segmento = câmera que existe)
-// de uma rota de página da SPA sob o mesmo prefixo /recordings/ (RecordingsPage: data, hora,
-// view — qualquer profundidade, com ou sem barra final): a auth só se aplica ao primeiro caso;
-// o segundo é sempre servido como a SPA — estático (index.html), sem precisar de auth aqui, já
-// que o RequireAuth do React cuida da página depois de carregada, igual toda outra rota
-// protegida do app. Datas (ex. "2026-07-27") nunca colidem com um ID de câmera, então qualquer
-// profundidade cai pra SPA automaticamente, sem precisar registrar uma rota exata por formato
-// (a abordagem anterior — rotas exatas por profundidade — não generalizava: uma barra final
-// depois da data, ou uma profundidade futura nova, escapava e caía de volta no gate; achado
-// real do navigator testando /recordings/2026-07-27/).
+// recordingsSpecialSegments — namespaces sob /recordings/ que NÃO são um id de câmera mas
+// ainda são arquivo de verdade (gated), não rota da SPA: thumbnails/amostras de state
+// classification, servidos sob o mesmo prefixo por conveniência (storage compartilhado).
+// state_train fica de fora de propósito — usado só internamente pelo container YOLO via
+// volume compartilhado, nunca servido por HTTP pro browser. Ver internal/stateengine/
+// history.go (state_history) e samples.go (state_samples) pra onde essas URLs nascem.
+var recordingsSpecialSegments = map[string]bool{
+	"state_history": true,
+	"state_samples": true,
+}
+
+// recordingsOrSPA distingue uma requisição de ARQUIVO real (1º segmento = câmera que existe,
+// ou um dos namespaces especiais em recordingsSpecialSegments) de uma rota de página da SPA
+// sob o mesmo prefixo /recordings/ (RecordingsPage: data, hora, view — qualquer profundidade,
+// com ou sem barra final): a auth só se aplica ao primeiro caso; o segundo é sempre servido
+// como a SPA — estático (index.html), sem precisar de auth aqui, já que o RequireAuth do React
+// cuida da página depois de carregada, igual toda outra rota protegida do app. Datas (ex.
+// "2026-07-27") nunca colidem com um ID de câmera nem com os namespaces especiais, então
+// qualquer profundidade cai pra SPA automaticamente, sem precisar registrar uma rota exata por
+// formato (a abordagem anterior — rotas exatas por profundidade — não generalizava: uma barra
+// final depois da data, ou uma profundidade futura nova, escapava e caía de volta no gate;
+// achado real do navigator testando /recordings/2026-07-27/). REGRESSÃO real já causada por
+// esta função antes do allowlist existir: state_history/state_samples nunca batem com uma
+// câmera, então caíam pra SPA (servindo o index.html em vez do JPEG — thumbnails quebradas em
+// RecordingsPage/CameraStatesSettingsPage).
 func (s *Server) recordingsOrSPA(fileHandler http.Handler) http.HandlerFunc {
 	gated := s.requireRecordingsAccess(fileHandler)
 	return func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/recordings/"), "/", 2)
-		if parts[0] != "" && s.cameraExists(parts[0]) {
+		if parts[0] != "" && (s.cameraExists(parts[0]) || recordingsSpecialSegments[parts[0]]) {
 			gated(w, r)
 			return
 		}
