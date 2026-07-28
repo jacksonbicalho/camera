@@ -43,7 +43,7 @@ type Publisher struct {
 	log         *slog.Logger
 
 	mu  sync.Mutex
-	pcs map[*webrtc.PeerConnection]struct{}
+	pcs map[*webrtc.PeerConnection]string // valor = IP do cliente que abriu essa conexão
 }
 
 // NewPublisher builds a Publisher with an H.264 track, and an audio track too
@@ -69,7 +69,7 @@ func NewPublisher(cameraID string, source Source, audioSource Source, audio Audi
 		track:    track,
 		api:      webrtc.NewAPI(webrtc.WithMediaEngine(m)),
 		log:      log,
-		pcs:      make(map[*webrtc.PeerConnection]struct{}),
+		pcs:      make(map[*webrtc.PeerConnection]string),
 	}
 	if audioSource != nil {
 		mimeType := webrtc.MimeTypeOpus
@@ -147,8 +147,9 @@ func runSource(ctx context.Context, src Source, reconnect time.Duration, log *sl
 
 // Negotiate completes the WebRTC handshake for one viewer: it creates a
 // PeerConnection, attaches the shared track and returns the SDP answer. The
-// connection is tracked and closed automatically when it fails or disconnects.
-func (p *Publisher) Negotiate(offer webrtc.SessionDescription) (webrtc.SessionDescription, error) {
+// connection is tracked (keyed by clientIP, for ConnectedIPs) and closed
+// automatically when it fails or disconnects.
+func (p *Publisher) Negotiate(offer webrtc.SessionDescription, clientIP string) (webrtc.SessionDescription, error) {
 	pc, err := p.api.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		return webrtc.SessionDescription{}, fmt.Errorf("new peer connection: %w", err)
@@ -190,17 +191,38 @@ func (p *Publisher) Negotiate(offer webrtc.SessionDescription) (webrtc.SessionDe
 	<-gatherComplete
 
 	p.mu.Lock()
-	p.pcs[pc] = struct{}{}
+	p.pcs[pc] = clientIP
 	p.mu.Unlock()
 
 	return *pc.LocalDescription(), nil
 }
 
-// Sessions returns the number of currently connected viewers.
+// Sessions returns the number of currently connected viewers (conexões
+// abertas — não deduplicado por IP; ver ConnectedIPs pra isso).
 func (p *Publisher) Sessions() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return len(p.pcs)
+}
+
+// ConnectedIPs devolve os IPs distintos com pelo menos uma PeerConnection
+// aberta agora — um viewer com várias abas/tiles (ex. grid da LiveViewPage)
+// conta uma vez só, igual ao streamSeen do HLS já faz.
+func (p *Publisher) ConnectedIPs() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	seen := make(map[string]struct{}, len(p.pcs))
+	for _, ip := range p.pcs {
+		if ip == "" {
+			continue
+		}
+		seen[ip] = struct{}{}
+	}
+	ips := make([]string, 0, len(seen))
+	for ip := range seen {
+		ips = append(ips, ip)
+	}
+	return ips
 }
 
 func (p *Publisher) remove(pc *webrtc.PeerConnection) {
@@ -219,7 +241,7 @@ func (p *Publisher) closeAll() {
 	for pc := range p.pcs {
 		pcs = append(pcs, pc)
 	}
-	p.pcs = make(map[*webrtc.PeerConnection]struct{})
+	p.pcs = make(map[*webrtc.PeerConnection]string)
 	p.mu.Unlock()
 	for _, pc := range pcs {
 		_ = pc.Close()
