@@ -1376,7 +1376,14 @@ func TestSPARecordingsRouteServesIndex(t *testing.T) {
 		"index.html": &fstest.MapFile{Data: []byte("<!doctype html><title>spa-root</title>")},
 	}
 	cfg := config.ServerConfig{RecordingsPath: t.TempDir()}
-	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{}, discardLogger(), frontend)
+	// "cam" precisa ser uma câmera REGISTRADA DE VERDADE — desde o T2 (recordingsOrSPA), o
+	// que determina se um path é arquivo (gated) ou rota da SPA é o 1º segmento bater com uma
+	// câmera existente, não mais "qualquer coisa com segmentos extras".
+	srv := server.NewServer(
+		cfg, "UTC",
+		[]config.CameraConfig{{ID: "cam", Name: "Corredor"}},
+		discardLogger(), frontend,
+	)
 
 	// /recordings (rota da SPA, sem token) → 200 com o HTML, não 301→401.
 	req := httptest.NewRequest(http.MethodGet, "/recordings", nil)
@@ -1389,7 +1396,7 @@ func TestSPARecordingsRouteServesIndex(t *testing.T) {
 		t.Errorf("GET /recordings: esperava o HTML da SPA, got %q", w.Body.String())
 	}
 
-	// /recordings/{path} de arquivo segue gated (sem credencial → 401).
+	// /recordings/{path} de arquivo de uma câmera real segue gated (sem credencial → 401).
 	req = httptest.NewRequest(http.MethodGet, "/recordings/cam/2026/01/01/x.mp4", nil)
 	w = httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
@@ -1404,6 +1411,124 @@ func TestSPARecordingsRouteServesIndex(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("GET /reports: esperava 200, got %d", w.Code)
 	}
+
+	// CA2: os 3 formatos com :date/:hour/:view (1 a 3 segmentos) tinham o mesmo bug do
+	// caso zero-segmentos acima (nunca corrigido pra eles) — acessar
+	// /recordings/2026-07-27/24 direto pela URL devolvia 401 em vez da SPA.
+	t.Run("CA2: /recordings/{date} sem credencial serve o index.html da SPA", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/2026-07-27", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /recordings/{date}: esperava 200, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "spa-root") {
+			t.Errorf("GET /recordings/{date}: esperava o HTML da SPA, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("CA2: /recordings/{date}/{hour} sem credencial serve o index.html da SPA", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/2026-07-27/24", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /recordings/{date}/{hour}: esperava 200, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "spa-root") {
+			t.Errorf("GET /recordings/{date}/{hour}: esperava o HTML da SPA, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("CA2: /recordings/{date}/{hour}/{view} sem credencial serve o index.html da SPA", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/2026-07-27/24/moments", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /recordings/{date}/{hour}/{view}: esperava 200, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "spa-root") {
+			t.Errorf("GET /recordings/{date}/{hour}/{view}: esperava o HTML da SPA, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("CA2: arquivo de gravação real (5 segmentos) continua gated mesmo com os novos formatos registrados", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/cam/2026/07/27/x.mp4", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("GET /recordings/<arquivo real>: esperava 401 (gated), got %d", w.Code)
+		}
+	})
+
+	// CA3: T1 registrou rota exata por PROFUNDIDADE (0-3 segmentos, sem barra final) — uma
+	// variante fora desse formato exato (barra final, ou uma profundidade hipotética futura)
+	// cai de volta no subtree gated. Achado pelo navigator testando o pré-push:
+	// /recordings/2026-07-27/ (barra final) continuava 401.
+	t.Run("CA3: /recordings/{date}/ com barra final também serve a SPA", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/2026-07-27/", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /recordings/{date}/: esperava 200, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "spa-root") {
+			t.Errorf("GET /recordings/{date}/: esperava o HTML da SPA, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("CA3: /recordings/{date}/{hour}/ com barra final também serve a SPA", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/2026-07-27/24/", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /recordings/{date}/{hour}/: esperava 200, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "spa-root") {
+			t.Errorf("GET /recordings/{date}/{hour}/: esperava o HTML da SPA, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("CA3: profundidade além das 3 conhecidas também serve a SPA (generaliza pra rotas futuras)", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/2026-07-27/24/moments/extra/mais-fundo", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /recordings/<profundidade extra>: esperava 200, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "spa-root") {
+			t.Errorf("GET /recordings/<profundidade extra>: esperava o HTML da SPA, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("CA3: 1º segmento parecido com câmera mas inexistente também serve a SPA (não 403)", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/nao-existe-essa-camera/2026/07/27/x.mp4", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /recordings/<câmera inexistente>/...: esperava 200 (SPA), got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "spa-root") {
+			t.Errorf("GET /recordings/<câmera inexistente>/...: esperava o HTML da SPA, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("CA3: 1º segmento é uma câmera que EXISTE de verdade continua gated (arquivo real)", func(t *testing.T) {
+		frontendWithCam := fstest.MapFS{
+			"index.html": &fstest.MapFile{Data: []byte("<!doctype html><title>spa-root</title>")},
+		}
+		cfgWithCam := config.ServerConfig{RecordingsPath: t.TempDir()}
+		srvWithCam := server.NewServer(
+			cfgWithCam, "UTC",
+			[]config.CameraConfig{{ID: "cam-real", Name: "Corredor"}},
+			discardLogger(), frontendWithCam,
+		)
+		req := httptest.NewRequest(http.MethodGet, "/recordings/cam-real/2026/07/27/x.mp4", nil)
+		w := httptest.NewRecorder()
+		srvWithCam.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("GET /recordings/<câmera real>/...: esperava 401 (gated), got %d", w.Code)
+		}
+	})
 }
 
 func TestGlobalRecordings(t *testing.T) {
