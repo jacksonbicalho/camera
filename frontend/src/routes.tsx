@@ -26,7 +26,6 @@ const CameraStatesSettingsPage = lazy(() => import('./pages/settings/CameraState
 const DiscoverPage = lazy(() => import('./pages/settings/DiscoverPage'))
 const AnalysisSettingsPage = lazy(() => import('./pages/settings/AnalysisSettingsPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
-const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'))
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation()
@@ -335,22 +334,6 @@ export const routes = (
       element={
         <Lazy>
           <NotificationsPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/events"
-      element={
-        <Lazy>
-          <PlaceholderPage title="Eventos" description="Visão global de eventos em construção." />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/users"
-      element={
-        <Lazy>
-          <PlaceholderPage title="Usuários" description="Gestão de usuários em construção." />
         </Lazy>
       }
     />
