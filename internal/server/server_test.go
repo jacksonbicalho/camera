@@ -1529,6 +1529,28 @@ func TestSPARecordingsRouteServesIndex(t *testing.T) {
 			t.Fatalf("GET /recordings/<câmera real>/...: esperava 401 (gated), got %d", w.Code)
 		}
 	})
+
+	// CA2: REGRESSÃO real do T2 (recordingsOrSPA) — "state_history"/"state_samples" nunca
+	// batem com um id de câmera (UUID), então caíam pra SPA (200, HTML) em vez do JPEG real
+	// (visto no browser como imagem quebrada — RecordingsPage aba Momentos categoria "estados"
+	// e o histórico do classificador em CameraStatesSettingsPage).
+	t.Run("CA2: /recordings/state_history/{cid}/{arquivo} continua gated, não cai pra SPA", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/state_history/4/1785208051830.jpg", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("GET /recordings/state_history/...: esperava 401 (gated), got %d (body=%q)", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("CA2: /recordings/state_samples/{cid}/{label}/{arquivo} continua gated, não cai pra SPA", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/state_samples/4/aberto/x.jpg", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("GET /recordings/state_samples/...: esperava 401 (gated), got %d (body=%q)", w.Code, w.Body.String())
+		}
+	})
 }
 
 func TestGlobalRecordings(t *testing.T) {
