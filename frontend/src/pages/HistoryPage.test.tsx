@@ -4,8 +4,14 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 
 // RecordingsGateway captura globalThis.fetch no construtor e a instância nasce no nível do
 // módulo do HistoryPage — stubar fetch não a alcança (mesma razão documentada em
-// VideoBrowserPage.test.tsx). Mocka só getRecording, controlável por teste.
-const gateway = vi.hoisted(() => ({ getRecording: vi.fn() }))
+// VideoBrowserPage.test.tsx). Mocka getRecording, controlável por teste, e getTimezone
+// (precisa resolver — useRecordingSegments chama gateway.getTimezone() incondicionalmente no
+// mount, e o RecordingPlayerModal do events-panel, dentro do TopBar/Layout REAL que esta
+// página renderiza, monta esse hook mesmo com o modal fechado).
+const gateway = vi.hoisted(() => ({
+  getRecording: vi.fn(),
+  getTimezone: vi.fn().mockResolvedValue('UTC'),
+}))
 
 vi.mock('../lib/recordingsGateway', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/recordingsGateway')>()
@@ -13,6 +19,7 @@ vi.mock('../lib/recordingsGateway', async (importOriginal) => {
     ...actual,
     RecordingsGateway: class {
       getRecording = gateway.getRecording
+      getTimezone = gateway.getTimezone
     },
   }
 })
