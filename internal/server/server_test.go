@@ -1404,6 +1404,54 @@ func TestSPARecordingsRouteServesIndex(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("GET /reports: esperava 200, got %d", w.Code)
 	}
+
+	// CA2: os 3 formatos com :date/:hour/:view (1 a 3 segmentos) tinham o mesmo bug do
+	// caso zero-segmentos acima (nunca corrigido pra eles) — acessar
+	// /recordings/2026-07-27/24 direto pela URL devolvia 401 em vez da SPA.
+	t.Run("CA2: /recordings/{date} sem credencial serve o index.html da SPA", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/2026-07-27", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /recordings/{date}: esperava 200, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "spa-root") {
+			t.Errorf("GET /recordings/{date}: esperava o HTML da SPA, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("CA2: /recordings/{date}/{hour} sem credencial serve o index.html da SPA", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/2026-07-27/24", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /recordings/{date}/{hour}: esperava 200, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "spa-root") {
+			t.Errorf("GET /recordings/{date}/{hour}: esperava o HTML da SPA, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("CA2: /recordings/{date}/{hour}/{view} sem credencial serve o index.html da SPA", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/2026-07-27/24/moments", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /recordings/{date}/{hour}/{view}: esperava 200, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "spa-root") {
+			t.Errorf("GET /recordings/{date}/{hour}/{view}: esperava o HTML da SPA, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("CA2: arquivo de gravação real (5 segmentos) continua gated mesmo com os novos formatos registrados", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/recordings/cam/2026/07/27/x.mp4", nil)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("GET /recordings/<arquivo real>: esperava 401 (gated), got %d", w.Code)
+		}
+	})
 }
 
 func TestGlobalRecordings(t *testing.T) {

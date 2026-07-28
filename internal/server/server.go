@@ -374,10 +374,17 @@ func (s *Server) routes() {
 	s.mux.Handle("/recordings/", s.requireRecordingsAccess(recHandler))
 
 	if s.frontend != nil {
-		// Rota exata da SPA que colide com o mount de arquivos /recordings/: sem ela, o
-		// mux do Go redireciona GET /recordings → /recordings/ (file server gated → 401
-		// no refresh/URL direta). O match exato vence o subtree e serve o index.html.
+		// Rotas exatas da SPA que colidem com o mount de arquivos /recordings/: sem elas, o
+		// mux do Go entrega qualquer GET /recordings/... pro file server gated (401 no
+		// refresh/URL direta) — um match sem barra final vence o subtree por precedência e
+		// serve o index.html. Cobre as 4 profundidades de RecordingsPage (routes.tsx):
+		// /recordings, /recordings/:date, /recordings/:date/:hour, /recordings/:date/:hour/:view
+		// (0 a 3 segmentos) — nunca colide com um arquivo de gravação real (sempre 5
+		// segmentos, camera_id/YYYY/MM/DD/arquivo.mp4).
 		s.mux.Handle("GET /recordings", s.spaHandler())
+		s.mux.Handle("GET /recordings/{date}", s.spaHandler())
+		s.mux.Handle("GET /recordings/{date}/{hour}", s.spaHandler())
+		s.mux.Handle("GET /recordings/{date}/{hour}/{view}", s.spaHandler())
 		s.mux.Handle("/", s.spaHandler())
 	}
 
