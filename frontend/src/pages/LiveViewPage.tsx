@@ -36,6 +36,7 @@ interface Camera {
   id: string
   name: string
   live_transport?: string
+  recording_enabled?: boolean
 }
 
 // LiveViewPage — página principal do sistema (`/`, T7: absorveu o papel de landing que era
@@ -202,7 +203,7 @@ export default function LiveViewPage() {
     <Layout id="live-view-page" footerId="live-view-footer" contentClassName="p-6">
       <div id="live-view-content" className="page-content space-y-4">
         <PageHeader
-          title="Live View"
+          title="Ao vivo"
           subtitle="Arraste e redimensione os cards pra customizar o layout."
           actions={
             <div id="live-view-presets" className="flex items-center gap-1.5">
@@ -401,7 +402,7 @@ export default function LiveViewPage() {
                     }
                   >
                     <span className="absolute top-2 left-2 bg-danger text-white text-caption px-2 py-0.5 rounded font-medium pointer-events-none">
-                      AO VIVO
+                      {cam.recording_enabled === false ? 'AO VIVO' : 'GRAVANDO'}
                     </span>
                   </Player>
                 </div>
@@ -415,7 +416,7 @@ export default function LiveViewPage() {
         title="Remover câmera desta tela"
         message={
           removeTarget
-            ? `Remover "${removeTarget.name}" do Live View? A câmera continua funcionando normalmente no sistema — só sai desta tela.`
+            ? `Remover "${removeTarget.name}" do Ao vivo? A câmera continua funcionando normalmente no sistema — só sai desta tela.`
             : ''
         }
         confirmLabel="Remover"

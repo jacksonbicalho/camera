@@ -80,6 +80,15 @@ describe('routes', () => {
     expect(paths).not.toContain('/dashboard')
     expect(paths).not.toContain('/live-view')
   })
+
+  it('CA5: /events e /users não estão mais registradas (PlaceholderPage sem nenhum ponto de entrada, achado do navigator)', () => {
+    const children = (routes as ReactElement<{ children: ReactNode }>).props.children
+    const paths = (Array.isArray(children) ? children : [children])
+      .filter(Boolean)
+      .map((el) => (el as ReactElement<{ path?: string }>).props?.path)
+    expect(paths).not.toContain('/events')
+    expect(paths).not.toContain('/users')
+  })
 })
 
 describe('routes: auth', () => {

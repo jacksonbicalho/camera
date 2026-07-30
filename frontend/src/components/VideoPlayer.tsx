@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Play, Pause, Repeat, Maximize, VolumeX, Volume2, Gauge } from './Icons'
+import {
+  CameraCapture,
+  Download,
+  Play,
+  Pause,
+  Repeat,
+  Maximize,
+  VolumeX,
+  Volume2,
+  Gauge,
+} from './Icons'
 import PlayerFooter from './PlayerFooter'
 import Zoom from './Zoom'
 import { usePlayerZoom } from '../hooks/usePlayerZoom'
+import { usePlayerSnapshot } from '../hooks/usePlayerSnapshot'
 import {
   segmentDuration,
   clipTotal,
@@ -152,6 +163,7 @@ export default function VideoPlayer({
   // nova a cada troca de elemento ativo, ver comentário acima.
   const getActiveVideoEl = useCallback(() => elsRef.current[activeRef.current], [activeEl])
   const zoom = usePlayerZoom(getActiveVideoEl)
+  const { takeSnapshot } = usePlayerSnapshot(getActiveVideoEl)
 
   const setPlayingIntent = useCallback(
     (v: boolean) => {
@@ -708,6 +720,24 @@ export default function VideoPlayer({
                   {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                 </button>
                 {zoomEnabled && <Zoom id={idPrefix} zoom={zoom} />}
+                <button
+                  id={`${idPrefix}-snapshot`}
+                  type="button"
+                  onClick={takeSnapshot}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  aria-label="Capturar snapshot"
+                >
+                  <CameraCapture className="h-4 w-4" />
+                </button>
+                <a
+                  id={`${idPrefix}-download`}
+                  href={segments[curSeg]?.src}
+                  download
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  aria-label="Baixar gravação"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
                 <div ref={speedMenuRef} className="relative">
                   <button
                     id={`${idPrefix}-speed`}

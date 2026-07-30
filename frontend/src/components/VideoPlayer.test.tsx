@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import VideoPlayer, { type VideoPlayerSegment } from './VideoPlayer'
 
@@ -581,6 +581,68 @@ describe('VideoPlayer', () => {
       const aTransform = (document.getElementById('p-video') as HTMLVideoElement).style.transform
       expect(aTransform).not.toBe('')
       expect(aTransform).not.toContain('scale(1)')
+    })
+  })
+
+  describe('CA3: botão de snapshot no rodapé', () => {
+    beforeEach(() => {
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+        drawImage: vi.fn(),
+      } as unknown as CanvasRenderingContext2D)
+      HTMLCanvasElement.prototype.toBlob = vi.fn(function (
+        this: HTMLCanvasElement,
+        cb: (b: Blob | null) => void,
+      ) {
+        cb(new Blob(['x'], { type: 'image/png' }))
+      }) as unknown as typeof HTMLCanvasElement.prototype.toBlob
+      vi.stubGlobal('URL', {
+        ...URL,
+        createObjectURL: vi.fn(() => 'blob:fake'),
+        revokeObjectURL: vi.fn(),
+      })
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    })
+
+    it('mostra o botão de snapshot; clicar aciona a captura do frame atual', async () => {
+      render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+      await waitFor(() => {
+        expect(document.getElementById('p-snapshot')).not.toBeNull()
+      })
+      const video = document.getElementById('p-video') as HTMLVideoElement
+      Object.defineProperty(video, 'videoWidth', { value: 640, configurable: true })
+      Object.defineProperty(video, 'videoHeight', { value: 360, configurable: true })
+      fireEvent.click(document.getElementById('p-snapshot')!)
+      expect(HTMLCanvasElement.prototype.toBlob).toHaveBeenCalled()
+    })
+  })
+
+  describe('CA4: botão de download da gravação no rodapé', () => {
+    it('aponta pro arquivo do segmento atualmente em reprodução', async () => {
+      render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+      await waitFor(() => {
+        expect(document.getElementById('p-download')).not.toBeNull()
+      })
+      const link = document.getElementById('p-download') as HTMLAnchorElement
+      expect(link.getAttribute('href')).toBe('a.mp4')
+      expect(link.hasAttribute('download')).toBe(true)
+    })
+
+    it('trocar de segmento atualiza o alvo do download pro novo arquivo ativo', async () => {
+      render(
+        <VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, 10), seg('b.mp4', 0, Infinity)]} />,
+      )
+      await waitFor(() => {
+        expect(document.getElementById('p-video')).not.toBeNull()
+      })
+      const a = document.getElementById('p-video') as HTMLVideoElement
+      fireLoadedMetadata(a, 10)
+      Object.defineProperty(a, 'currentTime', { value: 10, configurable: true })
+      a.dispatchEvent(new Event('timeupdate'))
+      await waitFor(() => {
+        expect(document.getElementById('p-video-b')?.className).toContain('z-10')
+      })
+      const link = document.getElementById('p-download') as HTMLAnchorElement
+      expect(link.getAttribute('href')).toBe('b.mp4')
     })
   })
 
