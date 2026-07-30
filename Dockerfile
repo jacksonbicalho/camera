@@ -10,8 +10,11 @@ COPY frontend/ ./
 RUN yarn build
 
 # Desenvolvimento: imagem com live build (docker-compose camera-dev monta o código).
+# bash/git/docker-cli/docker-cli-compose/github-cli: não usados pelo processo da app em si,
+# mas permitem que este mesmo container sirva de devcontainer (.devcontainer/devcontainer.json
+# anexa aqui) — reaproveita a imagem/container que já existe em vez de criar um isolado à parte.
 FROM golang:1.25-alpine AS development
-RUN apk add --no-cache ffmpeg nodejs yarn
+RUN apk add --no-cache ffmpeg nodejs yarn bash git docker-cli docker-cli-compose github-cli
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download

@@ -35,6 +35,19 @@ make rpi                                              # alias para linux-arm64 (
 ./camera version                                      # imprime versão, commit e data do build
 ```
 
+### Devcontainer (VSCode)
+
+`.devcontainer/devcontainer.json` anexa (`dockerComposeFile`+`service: dev-camera`) ao MESMO
+container do `make run`/`docker compose --profile development up -d dev-camera` — nunca builda
+nem sobe um container isolado à parte (tentativa anterior de rodar o Claude num container próprio
+via serviço de devcontainer do VSCode estourou espaço em disco e conflitou com os containers já
+em uso; `shutdownAction: "none"` garante que fechar a janela do VSCode não derruba esse container
+compartilhado). O target `development` do `Dockerfile` ganhou `bash git docker-cli
+docker-cli-compose github-cli` (além de `ffmpeg nodejs yarn` já existentes) só para viabilizar
+esse anexo — nenhuma dessas ferramentas é usada pelo processo da app em si (`go run
+./cmd/camera`). `docker-compose.yml`'s `dev-camera` monta `/var/run/docker.sock` porque
+`scripts/check.sh`/`frontend-check.sh`/`yolo-check.sh`/`e2e.sh` chamam `docker` por baixo.
+
 ### Frontend (`frontend/src/`)
 
 SPA React/Vite/Tailwind. Páginas principais: `LoginPage` → `LiveViewPage` (landing/página principal, rota `/`, história `feat/liveview-customizavel` T7 — antes a landing era a `AllCamerasPage`, removida) → `LivePage` / `HistoryPage` / `VideoBrowserPage` / `RecordingsPage` / `ReportsPage` (ver "Páginas principais" abaixo). Seção de configurações em `/settings/*` com sidebar lateral (padrão GitHub Settings). Token JWT em `localStorage` (`auth.ts`). Em desenvolvimento, Vite faz proxy de `/api` e `/stream` para `localhost:8080`.

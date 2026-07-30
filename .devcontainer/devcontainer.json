@@ -1,0 +1,16 @@
+{
+  // Anexa ao serviço dev-camera do docker-compose.yml raiz — mesmo container
+  // (imagem + volumes) já usado pelo `make run`/desenvolvimento local, nunca
+  // um container novo/paralelo. Ver Dockerfile (target `development`) e
+  // CLAUDE.md ("Devcontainer" em Comandos principais > Frontend/Backend)
+  // para o porquê de bash/git/docker-cli/gh terem entrado nesse target.
+  "name": "os-camera (dev-camera)",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "dev-camera",
+  "workspaceFolder": "/app",
+  // O serviço já roda a app de dev (go run) por conta própria via `docker
+  // compose up`; não parar/derrubar esse processo só porque a janela do
+  // VSCode fechou — é o mesmo container que o navigator já usa fora do
+  // devcontainer.
+  "shutdownAction": "none"
+}
