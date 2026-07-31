@@ -18,8 +18,11 @@ RUN yarn build
 # executar terminais/extensões como esse usuário. Existe só porque a extensão Claude Code
 # recusa `--dangerously-skip-permissions` quando roda como root/sudo; UID/GID reais são
 # ajustados em runtime pelo Dev Containers CLI (updateRemoteUserUID), não fixados aqui.
+# openssh-client: `origin` é `git@github.com:...` (SSH) — sem o binário `ssh`, git push/fetch
+# falha ("cannot run ssh"). O agente já chega encaminhado do host via SSH_AUTH_SOCK (Remote
+# Containers), só faltava o cliente para usá-lo.
 FROM golang:1.25-alpine AS development
-RUN apk add --no-cache ffmpeg nodejs yarn bash git docker-cli docker-cli-compose github-cli sudo && \
+RUN apk add --no-cache ffmpeg nodejs yarn bash git docker-cli docker-cli-compose github-cli sudo openssh-client && \
     adduser -D -u 1000 -s /bin/bash dev && \
     echo "dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/dev && \
     chmod 0440 /etc/sudoers.d/dev

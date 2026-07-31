@@ -25,8 +25,20 @@
   // "estrangeiro" no bind mount de .:/app.
   "remoteUser": "dev",
   "updateRemoteUserUID": true,
+  // docker-compose.yml (raiz) fixa HOME=/tmp pro CONTAINER inteiro (afeta o
+  // processo da app rodando como root — não mexido aqui, é config de
+  // produção/make run). remoteEnv sobrescreve isso só nas sessões anexadas
+  // via VSCode/Claude Code (remoteUser dev): sem isso, `ssh`/`git` resolvem
+  // "~" pelo usuário real do SO (/home/dev, via getpwuid — ignora a env var
+  // HOME), então known_hosts/config escritos em $HOME (/tmp) nunca são
+  // encontrados por eles.
+  "remoteEnv": {
+    "HOME": "/home/dev"
+  },
   // Dá a "dev" acesso ao /var/run/docker.sock (montado do host) via grupo com
   // o GID real do socket — scripts/check.sh e afins chamam `docker` por
-  // baixo. Ver comentário em setup-docker-group.sh.
-  "postCreateCommand": "sudo sh .devcontainer/setup-docker-group.sh"
+  // baixo. Ver comentário em setup-docker-group.sh. Também confia na chave
+  // de host do GitHub de antemão (origin é git@github.com:..., SSH) — sem
+  // isso o 1º git push/fetch falha com "Host key verification failed".
+  "postCreateCommand": "sudo sh .devcontainer/setup-docker-group.sh && mkdir -p ~/.ssh && ssh-keyscan -H github.com >> ~/.ssh/known_hosts 2>/dev/null"
 }

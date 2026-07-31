@@ -65,6 +65,19 @@ usuário do host em runtime, evita arquivos de dono "estrangeiro" no bind mount 
 `/var/run/docker.sock` criando/entrando num grupo com o GID real do socket do host (varia por
 host, não dá pra fixar no Dockerfile).
 
+**`git push`/`ssh` dentro do devcontainer**: o stage `development` do `Dockerfile` ganhou
+`openssh-client` — `origin` é `git@github.com:...` (SSH), e sem o binário `ssh` (só `git`) todo
+`push`/`fetch` falha com `cannot run ssh: No such file or directory`; o agente já chega
+encaminhado do host via `SSH_AUTH_SOCK` (Remote Containers), só faltava o cliente pra usá-lo.
+`docker-compose.yml` (raiz) fixa `HOME=/tmp` pro container inteiro (afeta o processo da app,
+que roda como root — não mexido, é config de produção/`make run`); `devcontainer.json` ganhou
+`"remoteEnv": {"HOME": "/home/dev"}` pra corrigir isso só nas sessões anexadas (VSCode/Claude
+Code) — sem isso `ssh`/`git` resolvem `~` pelo usuário real do SO (`/home/dev`, via `getpwuid`,
+que ignora a env var `HOME`), então qualquer `known_hosts`/config escrito em `$HOME` (`/tmp`)
+nunca é encontrado por eles. `postCreateCommand` também roda `ssh-keyscan -H github.com` pra
+popular o `known_hosts` de antemão — sem isso o 1º `git push`/`fetch` falha com "Host key
+verification failed".
+
 ### Frontend (`frontend/src/`)
 
 SPA React/Vite/Tailwind. Páginas principais: `LoginPage` → `LiveViewPage` (landing/página principal, rota `/`, história `feat/liveview-customizavel` T7 — antes a landing era a `AllCamerasPage`, removida) → `LivePage` / `HistoryPage` / `VideoBrowserPage` / `RecordingsPage` / `ReportsPage` (ver "Páginas principais" abaixo). Seção de configurações em `/settings/*` com sidebar lateral (padrão GitHub Settings). Token JWT em `localStorage` (`auth.ts`). Em desenvolvimento, Vite faz proxy de `/api` e `/stream` para `localhost:8080`.
