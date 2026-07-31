@@ -4,13 +4,29 @@
   // um container novo/paralelo. Ver Dockerfile (target `development`) e
   // CLAUDE.md ("Devcontainer" em Comandos principais > Frontend/Backend)
   // para o porquê de bash/git/docker-cli/gh terem entrado nesse target.
+  // docker-compose.yml (deste diretório) é um override SÓ pro devcontainer —
+  // zera o profile do dev-camera porque o Dev Containers CLI não passa
+  // --profile/nome de serviço pro `docker compose up`; ver comentário nele.
   "name": "os-camera (dev-camera)",
-  "dockerComposeFile": ["../docker-compose.yml"],
+  "dockerComposeFile": ["../docker-compose.yml", "docker-compose.yml"],
   "service": "dev-camera",
   "workspaceFolder": "/app",
   // O serviço já roda a app de dev (go run) por conta própria via `docker
   // compose up`; não parar/derrubar esse processo só porque a janela do
   // VSCode fechou — é o mesmo container que o navigator já usa fora do
   // devcontainer.
-  "shutdownAction": "none"
+  "shutdownAction": "none",
+  // Só afeta como VSCode/extensões (inclusive Claude Code) executam DENTRO do
+  // container já rodando — não muda o usuário do processo da app (CMD do
+  // Dockerfile, que continua root, igual sempre). Existe porque a extensão
+  // Claude Code recusa `--dangerously-skip-permissions` como root/sudo.
+  // updateRemoteUserUID ajusta o UID/GID de "dev" (criado no Dockerfile, stage
+  // development) pro mesmo do usuário do host, evitando arquivos com dono
+  // "estrangeiro" no bind mount de .:/app.
+  "remoteUser": "dev",
+  "updateRemoteUserUID": true,
+  // Dá a "dev" acesso ao /var/run/docker.sock (montado do host) via grupo com
+  // o GID real do socket — scripts/check.sh e afins chamam `docker` por
+  // baixo. Ver comentário em setup-docker-group.sh.
+  "postCreateCommand": "sudo sh .devcontainer/setup-docker-group.sh"
 }

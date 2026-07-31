@@ -47,6 +47,23 @@ docker-cli-compose github-cli` (além de `ffmpeg nodejs yarn` já existentes) s�
 esse anexo — nenhuma dessas ferramentas é usada pelo processo da app em si (`go run
 ./cmd/camera`). `docker-compose.yml`'s `dev-camera` monta `/var/run/docker.sock` porque
 `scripts/check.sh`/`frontend-check.sh`/`yolo-check.sh`/`e2e.sh` chamam `docker` por baixo.
+`.devcontainer/docker-compose.yml` é um override só para o devcontainer (nunca usado por
+`make run`/scripts): zera o `profiles` do `dev-camera` via `!override` — o Dev Containers CLI do
+VSCode roda `docker compose up` sem `--profile`/nome de serviço, e com `dev-camera` atrás de
+`profiles: [development]` (como no `docker-compose.yml` raiz) o Compose não seleciona nada e falha
+com "no service selected".
+
+**Usuário não-root (`dev`)**: a extensão Claude Code recusa `--dangerously-skip-permissions` quando
+roda como root/sudo, e o processo da app (`CMD` do Dockerfile) sempre rodou como root nesse
+container. Em vez de mudar esse `CMD` (afetaria `make run`/produção do dev-camera), o stage
+`development` do `Dockerfile` ganhou um usuário `dev` (sudo sem senha) só para as sessões
+interativas: `devcontainer.json` seta `"remoteUser": "dev"` (VSCode/extensões passam a rodar como
+`dev` via `docker exec -u dev`, o `CMD` do container continua root, sem mudança de comportamento
+para quem sobe via `make run`) + `"updateRemoteUserUID": true` (ajusta UID/GID de `dev` pro do
+usuário do host em runtime, evita arquivos de dono "estrangeiro" no bind mount `.:/app`).
+`postCreateCommand` (`.devcontainer/setup-docker-group.sh`) dá a `dev` acesso ao
+`/var/run/docker.sock` criando/entrando num grupo com o GID real do socket do host (varia por
+host, não dá pra fixar no Dockerfile).
 
 ### Frontend (`frontend/src/`)
 
