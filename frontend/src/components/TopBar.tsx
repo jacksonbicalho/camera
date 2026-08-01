@@ -3,7 +3,10 @@ import UserMenu from './UserMenu'
 import ThemeModeNav from './ThemeModeNav'
 import MotionNotificationsBell from './MotionNotificationsBell'
 import AppHelpMenu from './AppHelpMenu'
-import { CameraLogo } from './Icons'
+import { CameraLogo, Menu } from './Icons'
+import { navItemClass } from './sidebarFlyout'
+import { cn } from '@/lib/utils'
+import { useMobileNav } from '../contexts/MobileNavContext'
 
 // TopBar — barra fixa no topo do app, full-width (acima da linha Sidebar +
 // conteúdo), altura h-14 — mesma altura que a antiga linha de logo dentro do
@@ -30,20 +33,33 @@ import { CameraLogo } from './Icons'
 // ação no canto superior direito das páginas (`PageHeader`) — agora ele é só
 // mais um item em fluxo dentro desta barra.
 export default function TopBar() {
+  const { toggle } = useMobileNav()
   return (
     <div
       id="top-bar"
       className="sticky top-0 z-20 flex h-14 flex-none items-center justify-between border-b border-border bg-surface pl-4 pr-6"
     >
-      <Link
-        to="/"
-        id="logo-app"
-        className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-        title="os-camera"
-      >
-        <CameraLogo className="w-8 h-8 shrink-0" />
-        <span className="text-base font-bold text-foreground truncate">os-camera</span>
-      </Link>
+      <div id="top-bar-left" className="flex items-center gap-2">
+        <button
+          id="mobile-nav-toggle"
+          type="button"
+          onClick={toggle}
+          title="Abrir menu de navegação"
+          aria-label="Abrir menu de navegação"
+          className={cn(navItemClass(false, false), 'lg:hidden')}
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <Link
+          to="/"
+          id="logo-app"
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          title="os-camera"
+        >
+          <CameraLogo className="w-8 h-8 shrink-0" />
+          <span className="text-base font-bold text-foreground truncate">os-camera</span>
+        </Link>
+      </div>
       <div id="top-bar-actions" className="flex items-center gap-1">
         <AppHelpMenu />
         <ThemeModeNav showLabel={false} />

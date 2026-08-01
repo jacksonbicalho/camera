@@ -9,6 +9,7 @@ import { DisplayModeProvider } from './contexts/DisplayModeContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { NotificationProvider } from './contexts/NotificationContext'
 import { UserNotificationProvider } from './contexts/UserNotificationContext'
+import { MobileNavProvider } from './contexts/MobileNavContext'
 
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const ProfileChangePasswordPage = lazy(() => import('./pages/ProfileChangePasswordPage'))
@@ -32,47 +33,49 @@ export default function App() {
         <NotificationProvider>
           <UserNotificationProvider>
             <DisplayModeProvider>
-              <UnauthorizedHandler />
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
-                <Route path="/change-password" element={<ChangePasswordPage />} />
-                {routes}
-                <Route
-                  path="/profile"
-                  element={
-                    <Lazy>
-                      <ProfilePage />
-                    </Lazy>
-                  }
-                />
-                <Route
-                  path="/profile/edit"
-                  element={
-                    <Lazy>
-                      <ProfilePage />
-                    </Lazy>
-                  }
-                />
-                <Route
-                  path="/profile/change-email"
-                  element={
-                    <Lazy>
-                      <ProfilePage />
-                    </Lazy>
-                  }
-                />
-                <Route
-                  path="/profile/change-password"
-                  element={
-                    <Lazy>
-                      <ProfileChangePasswordPage />
-                    </Lazy>
-                  }
-                />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
+              <MobileNavProvider>
+                <UnauthorizedHandler />
+                <Routes>
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/reset-password" element={<ResetPasswordPage />} />
+                  <Route path="/change-password" element={<ChangePasswordPage />} />
+                  {routes}
+                  <Route
+                    path="/profile"
+                    element={
+                      <Lazy>
+                        <ProfilePage />
+                      </Lazy>
+                    }
+                  />
+                  <Route
+                    path="/profile/edit"
+                    element={
+                      <Lazy>
+                        <ProfilePage />
+                      </Lazy>
+                    }
+                  />
+                  <Route
+                    path="/profile/change-email"
+                    element={
+                      <Lazy>
+                        <ProfilePage />
+                      </Lazy>
+                    }
+                  />
+                  <Route
+                    path="/profile/change-password"
+                    element={
+                      <Lazy>
+                        <ProfileChangePasswordPage />
+                      </Lazy>
+                    }
+                  />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </MobileNavProvider>
             </DisplayModeProvider>
           </UserNotificationProvider>
         </NotificationProvider>
