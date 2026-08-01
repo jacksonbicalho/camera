@@ -3,6 +3,8 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { getRole } from '../auth'
 import { useDisplayMode, useSetDisplayMode } from '../contexts/DisplayModeContext'
+import { useMobileNav } from '../contexts/MobileNavContext'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { navItemClass } from './sidebarFlyout'
 import {
   BarChart2,
@@ -111,169 +113,197 @@ export default function Sidebar() {
   const { sidebar: sidebarMode } = useDisplayMode()
   const setDisplayMode = useSetDisplayMode()
   const collapsed = sidebarMode === 'icons-only'
-  const showLabel = !collapsed
+  const { open, close } = useMobileNav()
+  // No drawer mobile (open=true), sempre mostra os rótulos — a preferência de
+  // colapso persistida é só pro rail de desktop (icons-only por padrão); sem
+  // isso, um usuário que só acessa via celular abriria o drawer e veria só
+  // ícones sem legenda, sem NENHUM jeito de expandir (o botão sidebar-collapse
+  // é `hidden lg:flex`, não existe no drawer). `open` só é `true` via o
+  // hamburguer (`lg:hidden`), então isso não afeta o comportamento em desktop.
+  const showLabel = !collapsed || open
   const isAdmin = getRole() === 'admin'
 
   function toggleCollapse() {
     setDisplayMode('sidebar', collapsed ? 'icons-text' : 'icons-only')
   }
 
+  // Abaixo de `lg` o rail vira um drawer off-canvas (`position: fixed`, sai do
+  // fluxo sozinho — ver Layout.tsx); em `lg`+ nada muda, mesmo rail
+  // persistente de sempre. Fecha ao clicar num link (delegação — qualquer <a>
+  // dentro do rail, evita passar onClick por cada item), no backdrop, ou via
+  // Escape.
+  function handleNavClick(e: React.MouseEvent<HTMLElement>) {
+    if ((e.target as HTMLElement).closest('a')) close()
+  }
+  useEscapeKey(close, open)
+
   return (
-    <nav
-      id="sidebar"
-      aria-label="Navegação"
-      className={cn(
-        'flex shrink-0 flex-col border-r border-border bg-surface transition-[width]',
-        showLabel ? 'w-48 items-stretch' : 'w-14 items-center',
+    <>
+      {open && (
+        <div
+          id="mobile-nav-backdrop"
+          className="fixed inset-0 z-20 bg-black/50 lg:hidden"
+          onClick={close}
+        />
       )}
-    >
-      <div
+      <nav
+        id="sidebar"
+        aria-label="Navegação"
+        onClick={handleNavClick}
         className={cn(
-          'scrollbar-thin flex flex-1 flex-col gap-2 overflow-y-auto py-3',
-          showLabel ? 'items-stretch px-2' : 'items-center',
+          'fixed inset-y-0 left-0 z-30 flex flex-col border-r border-border bg-surface transition-transform lg:static lg:z-auto lg:shrink-0 lg:translate-x-0 lg:transition-[width]',
+          open ? 'translate-x-0' : '-translate-x-full',
+          showLabel ? 'w-48 items-stretch' : 'w-14 items-center',
         )}
       >
-        <button
-          id="sidebar-collapse"
-          type="button"
-          onClick={toggleCollapse}
-          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          className={cn(navItemClass(false, showLabel))}
-        >
-          <Menu className="h-5 w-5 shrink-0" />
-          {showLabel && <span className="truncate text-sm">Recolher menu</span>}
-        </button>
-
-        <SidebarSection showLabel={showLabel} divider>
-          <SidebarNavLink
-            item={{
-              id: 'sidebar-live-view',
-              to: '/',
-              end: true,
-              label: 'Ao vivo',
-              icon: <Eye className="h-5 w-5 shrink-0" />,
-            }}
-            showLabel={showLabel}
-          />
-        </SidebarSection>
-
-        <SidebarSection label="Sistema" showLabel={showLabel} divider>
-          <SidebarNavLink
-            item={{
-              id: 'sidebar-cameras',
-              to: '/settings/cameras',
-              label: 'Câmeras',
-              icon: <Cctv className="h-5 w-5 shrink-0" />,
-            }}
-            showLabel={showLabel}
-          />
-          {isAdmin && (
-            <SidebarNavLink
-              item={{
-                id: 'sidebar-discover',
-                to: '/settings/discover',
-                label: 'Rastrear câmeras',
-                icon: <Search className="h-5 w-5 shrink-0" />,
-              }}
-              showLabel={showLabel}
-            />
+        <div
+          className={cn(
+            'scrollbar-thin flex flex-1 flex-col gap-2 overflow-y-auto py-3',
+            showLabel ? 'items-stretch px-2' : 'items-center',
           )}
-        </SidebarSection>
+        >
+          <button
+            id="sidebar-collapse"
+            type="button"
+            onClick={toggleCollapse}
+            title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+            aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+            className={cn(navItemClass(false, showLabel), 'hidden lg:flex')}
+          >
+            <Menu className="h-5 w-5 shrink-0" />
+            {showLabel && <span className="truncate text-sm">Recolher menu</span>}
+          </button>
 
-        {isAdmin && (
-          <SidebarSection label="Movimentos" showLabel={showLabel}>
+          <SidebarSection showLabel={showLabel} divider>
             <SidebarNavLink
               item={{
-                id: 'sidebar-analysis',
-                to: '/settings/analysis',
-                label: 'Análise de vídeo',
-                icon: <Zap className="h-5 w-5 shrink-0" />,
-                matchHash: '',
-              }}
-              showLabel={showLabel}
-            />
-            <SidebarNavLink
-              item={{
-                id: 'sidebar-label-events',
-                to: '/settings/analysis#label-events',
-                label: 'Rotular eventos',
-                icon: <Pencil className="h-5 w-5 shrink-0" />,
-                matchHash: '#label-events',
-              }}
-              showLabel={showLabel}
-            />
-            <SidebarNavLink
-              item={{
-                id: 'sidebar-history',
-                to: '/history',
-                label: 'Histórico',
-                icon: <History className="h-5 w-5 shrink-0" />,
-              }}
-              showLabel={showLabel}
-            />
-            <SidebarNavLink
-              item={{
-                id: 'sidebar-recordings',
-                to: '/recordings',
-                label: 'Gravações',
-                icon: <Film className="h-5 w-5 shrink-0" />,
-              }}
-              showLabel={showLabel}
-            />
-            <SidebarNavLink
-              item={{
-                id: 'sidebar-relatorios',
-                to: '/reports',
-                label: 'Relatórios',
-                icon: <BarChart2 className="h-5 w-5 shrink-0" />,
+                id: 'sidebar-live-view',
+                to: '/',
+                end: true,
+                label: 'Ao vivo',
+                icon: <Eye className="h-5 w-5 shrink-0" />,
               }}
               showLabel={showLabel}
             />
           </SidebarSection>
-        )}
 
-        {isAdmin && (
-          <SidebarSection label="Administração" showLabel={showLabel} divider>
+          <SidebarSection label="Sistema" showLabel={showLabel} divider>
             <SidebarNavLink
               item={{
-                id: 'sidebar-server',
-                to: '/settings/server',
-                label: 'Servidor',
-                icon: <Server className="h-5 w-5 shrink-0" />,
+                id: 'sidebar-cameras',
+                to: '/settings/cameras',
+                label: 'Câmeras',
+                icon: <Cctv className="h-5 w-5 shrink-0" />,
               }}
               showLabel={showLabel}
             />
-            <SidebarNavLink
-              item={{
-                id: 'sidebar-storage',
-                to: '/settings/storage',
-                label: 'Armazenamento',
-                icon: <HardDrive className="h-5 w-5 shrink-0" />,
-              }}
-              showLabel={showLabel}
-            />
-            <SidebarNavLink
-              item={{
-                id: 'sidebar-users',
-                to: '/settings/users',
-                label: 'Usuários',
-                icon: <Users className="h-5 w-5 shrink-0" />,
-              }}
-              showLabel={showLabel}
-            />
-            <SidebarNavLink
-              item={{
-                id: 'sidebar-appearance',
-                to: '/settings/appearance',
-                label: 'Aparência',
-                icon: <Palette className="h-5 w-5 shrink-0" />,
-              }}
-              showLabel={showLabel}
-            />
+            {isAdmin && (
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-discover',
+                  to: '/settings/discover',
+                  label: 'Rastrear câmeras',
+                  icon: <Search className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+            )}
           </SidebarSection>
-        )}
-      </div>
-    </nav>
+
+          {isAdmin && (
+            <SidebarSection label="Movimentos" showLabel={showLabel}>
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-analysis',
+                  to: '/settings/analysis',
+                  label: 'Análise de vídeo',
+                  icon: <Zap className="h-5 w-5 shrink-0" />,
+                  matchHash: '',
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-label-events',
+                  to: '/settings/analysis#label-events',
+                  label: 'Rotular eventos',
+                  icon: <Pencil className="h-5 w-5 shrink-0" />,
+                  matchHash: '#label-events',
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-history',
+                  to: '/history',
+                  label: 'Histórico',
+                  icon: <History className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-recordings',
+                  to: '/recordings',
+                  label: 'Gravações',
+                  icon: <Film className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-relatorios',
+                  to: '/reports',
+                  label: 'Relatórios',
+                  icon: <BarChart2 className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+            </SidebarSection>
+          )}
+
+          {isAdmin && (
+            <SidebarSection label="Administração" showLabel={showLabel} divider>
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-server',
+                  to: '/settings/server',
+                  label: 'Servidor',
+                  icon: <Server className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-storage',
+                  to: '/settings/storage',
+                  label: 'Armazenamento',
+                  icon: <HardDrive className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-users',
+                  to: '/settings/users',
+                  label: 'Usuários',
+                  icon: <Users className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-appearance',
+                  to: '/settings/appearance',
+                  label: 'Aparência',
+                  icon: <Palette className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+            </SidebarSection>
+          )}
+        </div>
+      </nav>
+    </>
   )
 }

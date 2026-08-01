@@ -12,4 +12,18 @@ export class Sidebar {
   settingsLink(href: string): Locator {
     return this.page.locator(`a[href="${href}"]`)
   }
+
+  // Navegação mobile (drawer off-canvas, história feat/mobile-layout-responsivo):
+  // hamburguer na TopBar abre/fecha o mesmo rail como overlay abaixo de `lg`.
+  get mobileNavToggle(): Locator {
+    return this.page.locator('#mobile-nav-toggle')
+  }
+
+  get backdrop(): Locator {
+    return this.page.locator('#mobile-nav-backdrop')
+  }
+
+  get rail(): Locator {
+    return this.page.locator('#sidebar')
+  }
 }
