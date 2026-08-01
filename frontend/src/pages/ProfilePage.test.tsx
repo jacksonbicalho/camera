@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import ProfilePage from './ProfilePage'
 
 afterEach(() => {
@@ -45,13 +46,22 @@ function stubFetch(profile: typeof adminProfile = adminProfile) {
   )
 }
 
-describe('ProfilePage', () => {
-  beforeEach(() => {
-    stubFetch()
-  })
+function renderAt(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/profile/edit" element={<ProfilePage />} />
+        <Route path="/profile/change-email" element={<ProfilePage />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
 
+describe('ProfilePage', () => {
   it('mostra os campos na ordem Nome, E-mail, Usuário, Perfil de acesso (admin vê o perfil de acesso)', async () => {
-    render(<ProfilePage />)
+    stubFetch()
+    renderAt('/profile')
     await waitFor(() => {
       expect(document.getElementById('profile-details')).not.toBeNull()
     })
@@ -64,7 +74,7 @@ describe('ProfilePage', () => {
 
   it('viewer NÃO vê "Perfil de acesso"', async () => {
     stubFetch(viewerProfile)
-    render(<ProfilePage />)
+    renderAt('/profile')
     await waitFor(() => {
       expect(document.getElementById('profile-details')).not.toBeNull()
     })
@@ -74,22 +84,63 @@ describe('ProfilePage', () => {
     expect(labels).toEqual(['Nome', 'E-mail', 'Usuário'])
   })
 
-  it('"Editar" (e-mail) abre o form de novo e-mail; "Cancelar" volta pro modo leitura', async () => {
-    render(<ProfilePage />)
-    await waitFor(() => expect(document.getElementById('profile-edit-email')).not.toBeNull())
+  it('card de visualização não tem mais um botão de editar e-mail inline', async () => {
+    stubFetch()
+    renderAt('/profile')
+    await waitFor(() => {
+      expect(document.getElementById('profile-details')).not.toBeNull()
+    })
+    expect(document.getElementById('profile-edit-email')).toBeNull()
+  })
 
-    fireEvent.click(document.getElementById('profile-edit-email')!)
-    expect(screen.getByLabelText('Novo e-mail')).toBeTruthy()
+  describe('CA2: /profile/edit e /profile/change-email funcionam via deep-link direto, sem depender de clique prévio', () => {
+    it('/profile/edit: form de Nome/Usuário aparece pré-preenchido direto, sem clicar em nada', async () => {
+      stubFetch()
+      renderAt('/profile/edit')
+      await waitFor(() => {
+        expect((screen.getByLabelText('Nome') as HTMLInputElement).value).toBe('Jackson')
+      })
+      expect((screen.getByLabelText('Usuário') as HTMLInputElement).value).toBe('jackson')
+    })
 
-    fireEvent.click(document.getElementById('profile-cancel-email')!)
-    expect(screen.queryByLabelText('Novo e-mail')).toBeNull()
-    expect(document.getElementById('profile-edit-email')).not.toBeNull()
+    it('/profile/change-email: form de novo e-mail aparece direto, sem clicar em nada', async () => {
+      stubFetch()
+      renderAt('/profile/change-email')
+      await waitFor(() => {
+        expect(screen.getByLabelText('Novo e-mail')).toBeTruthy()
+      })
+    })
+
+    it('"Editar" (Nome/Usuário) navega pra /profile/edit; "Cancelar" volta pra /profile', async () => {
+      stubFetch()
+      renderAt('/profile')
+      await waitFor(() => expect(document.getElementById('profile-edit-basic')).not.toBeNull())
+      fireEvent.click(document.getElementById('profile-edit-basic')!)
+      await waitFor(() => {
+        expect((screen.getByLabelText('Nome') as HTMLInputElement).value).toBe('Jackson')
+      })
+      fireEvent.click(document.getElementById('profile-cancel-basic')!)
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Nome')).toBeNull()
+      })
+      expect(document.getElementById('profile-edit-basic')).not.toBeNull()
+    })
+
+    it('cancelar a troca de e-mail (a partir do deep-link) volta pra /profile', async () => {
+      stubFetch()
+      renderAt('/profile/change-email')
+      await waitFor(() => expect(document.getElementById('profile-cancel-email')).not.toBeNull())
+      fireEvent.click(document.getElementById('profile-cancel-email')!)
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Novo e-mail')).toBeNull()
+      })
+    })
   })
 
   it('enviar código chama request-change e mostra o form de código; confirmar chama confirm-change', async () => {
-    render(<ProfilePage />)
-    await waitFor(() => expect(document.getElementById('profile-edit-email')).not.toBeNull())
-    fireEvent.click(document.getElementById('profile-edit-email')!)
+    stubFetch()
+    renderAt('/profile/change-email')
+    await waitFor(() => expect(screen.getByLabelText('Novo e-mail')).toBeTruthy())
 
     fireEvent.change(screen.getByLabelText('Novo e-mail'), {
       target: { value: 'novo@example.com' },
@@ -120,11 +171,14 @@ describe('ProfilePage', () => {
   })
 
   it('"Editar" no rodapé abre form de Nome/Usuário pré-preenchido; salvar chama PUT /api/me', async () => {
-    render(<ProfilePage />)
+    stubFetch()
+    renderAt('/profile')
     await waitFor(() => expect(document.getElementById('profile-edit-basic')).not.toBeNull())
 
     fireEvent.click(document.getElementById('profile-edit-basic')!)
-    expect((screen.getByLabelText('Nome') as HTMLInputElement).value).toBe('Jackson')
+    await waitFor(() => {
+      expect((screen.getByLabelText('Nome') as HTMLInputElement).value).toBe('Jackson')
+    })
     expect((screen.getByLabelText('Usuário') as HTMLInputElement).value).toBe('jackson')
 
     fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Jackson B.' } })
@@ -144,13 +198,15 @@ describe('ProfilePage', () => {
   })
 
   it('cancelar a edição de Nome/Usuário descarta as mudanças sem chamar a API', async () => {
-    render(<ProfilePage />)
+    stubFetch()
+    renderAt('/profile')
     await waitFor(() => expect(document.getElementById('profile-edit-basic')).not.toBeNull())
     fireEvent.click(document.getElementById('profile-edit-basic')!)
+    await waitFor(() => expect(screen.queryByLabelText('Nome')).toBeTruthy())
     fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Outro nome' } })
     fireEvent.click(document.getElementById('profile-cancel-basic')!)
 
-    expect(screen.queryByLabelText('Nome')).toBeNull()
+    await waitFor(() => expect(screen.queryByLabelText('Nome')).toBeNull())
     expect(document.getElementById('profile-edit-basic')).not.toBeNull()
   })
 
@@ -171,9 +227,10 @@ describe('ProfilePage', () => {
         return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') })
       }),
     )
-    render(<ProfilePage />)
+    renderAt('/profile')
     await waitFor(() => expect(document.getElementById('profile-edit-basic')).not.toBeNull())
     fireEvent.click(document.getElementById('profile-edit-basic')!)
+    await waitFor(() => expect(screen.queryByLabelText('Usuário')).toBeTruthy())
     fireEvent.change(screen.getByLabelText('Usuário'), { target: { value: 'jaocupado' } })
     fireEvent.click(screen.getByRole('button', { name: /^salvar$/i }))
 

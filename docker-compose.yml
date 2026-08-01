@@ -33,10 +33,6 @@ services:
       - .:/app
       - ./storage:/data
       #- frontend_node_modules:/app/frontend/node_modules
-      # Socket do host: bash/git/docker-cli/gh (target development, ver Dockerfile) usam este
-      # container como devcontainer (.devcontainer/devcontainer.json anexa aqui); scripts/check.sh
-      # e afins chamam `docker` por baixo (frontend-check.sh/yolo-check.sh/e2e.sh).
-      - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - path: .env
         required: false

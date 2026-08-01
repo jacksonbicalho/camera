@@ -44,29 +44,42 @@ function renderAt(path: string) {
 }
 
 describe('ProfileLayout', () => {
-  it('renderiza os filhos e os 2 links do Perfil (Perfil / Alterar senha)', () => {
+  it('renderiza os filhos e os links do Perfil (Perfil / Alterar e-mail / Alterar senha)', () => {
     renderAt('/profile')
     expect(document.body.textContent).toContain('conteúdo')
     expect(document.getElementById('profile-nav-perfil')?.getAttribute('href')).toBe('/profile')
-    expect(document.getElementById('profile-nav-senha')?.getAttribute('href')).toBe(
+    expect(document.getElementById('profile-edit-senha')?.getAttribute('href')).toBe(
       '/profile/change-password',
     )
   })
 
   it('marca o link ativo conforme a rota atual', () => {
     renderAt('/profile/change-password')
-    expect(document.getElementById('profile-nav-senha')?.getAttribute('aria-current')).toBe('page')
+    expect(document.getElementById('profile-edit-senha')?.getAttribute('aria-current')).toBe('page')
     expect(document.getElementById('profile-nav-perfil')?.getAttribute('aria-current')).toBeNull()
   })
 
   it('os links do Perfil continuam visíveis independente da sub-rota (não somem ao trocar de página)', () => {
     renderAt('/profile')
     expect(document.getElementById('profile-nav-perfil')).not.toBeNull()
-    expect(document.getElementById('profile-nav-senha')).not.toBeNull()
+    expect(document.getElementById('profile-edit-senha')).not.toBeNull()
     cleanup()
     renderAt('/profile/change-password')
     expect(document.getElementById('profile-nav-perfil')).not.toBeNull()
-    expect(document.getElementById('profile-nav-senha')).not.toBeNull()
+    expect(document.getElementById('profile-edit-senha')).not.toBeNull()
+  })
+
+  describe('CA3: link "Alterar e-mail" aparece antes do link de senha (profile-edit-senha)', () => {
+    it('profile-edit-email existe, aponta pra /profile/change-email, e vem antes de profile-edit-senha no DOM', () => {
+      renderAt('/profile')
+      const emailLink = document.getElementById('profile-edit-email')
+      const senhaLink = document.getElementById('profile-edit-senha')
+      expect(emailLink?.getAttribute('href')).toBe('/profile/change-email')
+      expect(senhaLink).not.toBeNull()
+      expect(
+        emailLink!.compareDocumentPosition(senhaLink!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+    })
   })
 
   it('inclui o Sidebar (rail principal) — chegada normal via Layout novo', () => {
