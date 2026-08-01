@@ -33,6 +33,11 @@ import {
 
 const ResponsiveGridLayout = WidthProvider(GridLayout)
 
+// GRID_MARGIN — espaçamento ENTRE tiles (`margin` default do react-grid-layout, não alterado
+// neste projeto); usado só pelo overlay de células vazias (`live-view-grid-overlay`, T2) pra
+// aproximar o tamanho real de cada célula no fundo desenhado via CSS.
+const GRID_MARGIN = 10
+
 interface Camera {
   id: string
   name: string
@@ -373,7 +378,30 @@ export default function LiveViewPage() {
           // (bug real reportado pelo navigator). Zerar aqui faz os tiles começarem exatamente
           // na borda do `p-6`, igual a qualquer outra página; o espaçamento ENTRE tiles
           // continua vindo de `margin` (default da lib, não mexido).
-          <div id="live-view-grid" ref={bindGridWrap}>
+          <div id="live-view-grid" ref={bindGridWrap} className="relative">
+            {editMode && (
+              // Contorno das células do grid (inclusive vazias) em modo de edição — pedido do
+              // navigator: sem isso, só os tiles já posicionados dão alguma pista da estrutura
+              // do grid por trás, mesmo com espaço livre pra mais câmeras. react-grid-layout
+              // não tem suporte nativo a "fundo de grid" — desenhado por cima via CSS puro
+              // (2 gradientes lineares repetidos, um por eixo), sem depender de medir células
+              // reais da lib. GRID_MARGIN casa com o `margin` default da lib (não alterado
+              // neste projeto) — aproximação suficiente pra indicar a estrutura, não precisa
+              // bater pixel a pixel com os tiles de verdade.
+              <div
+                id="live-view-grid-overlay"
+                aria-hidden="true"
+                data-cols={effectiveCols}
+                data-row-height={rowHeight}
+                className="pointer-events-none absolute inset-0 z-10"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to right, var(--color-border) 1px, transparent 1px), ' +
+                    'linear-gradient(to bottom, var(--color-border) 1px, transparent 1px)',
+                  backgroundSize: `${columnWidth + GRID_MARGIN}px ${rowHeight + GRID_MARGIN}px`,
+                }}
+              />
+            )}
             <ResponsiveGridLayout
               className="layout"
               layout={layout}

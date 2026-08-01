@@ -306,6 +306,37 @@ describe('CA2: rowHeight nunca distorce um tile além da proporção do vídeo (
   })
 })
 
+describe('CA3: contorno das células do grid (inclusive vazias) aparece em modo de edição', () => {
+  it('fora do modo de edição, o overlay não existe', async () => {
+    renderPage()
+    await waitFor(() => expect(document.getElementById('live-view-grid')).not.toBeNull())
+    expect(document.getElementById('live-view-grid-overlay')).toBeNull()
+  })
+
+  it('ao entrar em "Editar grid", o overlay aparece refletindo cols/rowHeight atuais', async () => {
+    renderPage()
+    await waitFor(() => expect(document.getElementById('live-view-edit-toggle')).not.toBeNull())
+    fireEvent.click(document.getElementById('live-view-edit-toggle')!)
+    await waitFor(() => {
+      const overlay = document.getElementById('live-view-grid-overlay')
+      expect(overlay).not.toBeNull()
+      expect(overlay?.getAttribute('data-cols')).toBe(String(gridLayoutMock.lastProps?.cols))
+      expect(overlay?.getAttribute('data-row-height')).toBe(
+        String(gridLayoutMock.lastProps?.rowHeight),
+      )
+    })
+  })
+
+  it('ao sair do modo de edição ("Aplicar alterações"), o overlay some de novo', async () => {
+    renderPage()
+    await waitFor(() => expect(document.getElementById('live-view-edit-toggle')).not.toBeNull())
+    fireEvent.click(document.getElementById('live-view-edit-toggle')!)
+    await waitFor(() => expect(document.getElementById('live-view-grid-overlay')).not.toBeNull())
+    fireEvent.click(document.getElementById('live-view-edit-toggle')!)
+    await waitFor(() => expect(document.getElementById('live-view-grid-overlay')).toBeNull())
+  })
+})
+
 describe('CA7: aplicar preset não ressuscita uma câmera explicitamente removida', () => {
   it('remover cam1 e depois clicar num preset (2x2) mantém cam1 fora da grade', async () => {
     renderPage()
