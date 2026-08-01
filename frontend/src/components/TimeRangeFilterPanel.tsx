@@ -71,13 +71,21 @@ const PICKER_SX = {
 // distinção pra leitor de tela mesmo sem o rótulo visual. `flex-1` em vez de largura
 // fixa — a linha é só dele agora (não divide mais espaço com o `DatePicker`, que ganhou
 // linha própria acima), então os dois picker esticam pra usar a largura toda disponível.
-// Filtra AO VIVO: sem botão "Aplicar" — cada edição sem conflito já chama `onChange`
-// direto, que o HistoryPage aplica de imediato (lib/timeRange.ts's matchesTimeRange trata
-// cada lado ausente como um filtro aberto — só "De" já filtra a partir daquele horário, só
-// "Até" já filtra até aquele horário). "Até" nunca pode ficar menor que "De" (nem "De"
-// maior que "Até"): applyTimeRangeChange (lib/timeRange.ts) decide se a edição é `ok`
-// (propaga direto) ou `conflict` — nesse caso abre um ConfirmDialog perguntando se zera o
-// lado oposto em vez de aplicar a mudança; cancelar não altera nada.
+// Filtra AO VIVO: sem botão "Aplicar" — cada seleção COMPLETA (hora + minuto) sem conflito
+// já chama `onChange` direto, que o HistoryPage aplica de imediato (lib/timeRange.ts's
+// matchesTimeRange trata cada lado ausente como um filtro aberto — só "De" já filtra a
+// partir daquele horário, só "Até" já filtra até aquele horário). A validação usa
+// `onAccept` do TimePicker (não `onChange`) de propósito: `onChange` dispara a cada
+// PASSO intermediário do dial (ex.: só a hora escolhida, minuto ainda não) — validar ali
+// comparava um valor incompleto contra o outro lado e podia abrir o modal de conflito à
+// toa antes do usuário terminar de escolher o minuto (bug relatado pelo navigator: querer
+// "02:00–02:30", mesma hora nos dois, o modal abria só de bater a hora). `onAccept` só
+// dispara quando a seleção termina (minuto escolhido, picker fecha) — mesmo padrão
+// recomendado pelo MUI X pra separar feedback visual intermediário de commit final. "Até"
+// nunca pode ficar menor que "De" (nem "De" maior que "Até"): applyTimeRangeChange
+// (lib/timeRange.ts) decide se a edição é `ok` (propaga direto) ou `conflict` — nesse caso
+// abre um ConfirmDialog perguntando se zera o lado oposto em vez de aplicar a mudança;
+// cancelar não altera nada.
 export default function TimeRangeFilterPanel({ from, to, onChange }: TimeRangeFilterPanelProps) {
   const [pendingConflict, setPendingConflict] = useState<{
     field: 'from' | 'to'
@@ -114,7 +122,7 @@ export default function TimeRangeFilterPanel({ from, to, onChange }: TimeRangeFi
         <div id="history-time-range-filter" className="flex w-full items-center gap-1">
           <TimePicker
             value={clockTimeToDate(from)}
-            onChange={(d) => handleFieldChange('from', dateToClockTime(d))}
+            onAccept={(d) => handleFieldChange('from', dateToClockTime(d))}
             viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
             ampm={false}
             slotProps={{
@@ -124,7 +132,7 @@ export default function TimeRangeFilterPanel({ from, to, onChange }: TimeRangeFi
           />
           <TimePicker
             value={clockTimeToDate(to)}
-            onChange={(d) => handleFieldChange('to', dateToClockTime(d))}
+            onAccept={(d) => handleFieldChange('to', dateToClockTime(d))}
             viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
             ampm={false}
             slotProps={{
