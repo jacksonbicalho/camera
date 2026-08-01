@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
+import EntitySubtitle from '../../components/EntitySubtitle'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { authHeaders } from '../../auth'
 import { Button } from '@/components/ui/button'
@@ -55,8 +56,16 @@ export default function CameraAnalysisSettingsPage() {
 
   return (
     <SettingsLayout id="camera-analysis-page" footerId="camera-analysis-footer">
-      <PageHeader title="Câmeras" subtitle="Análise" />
-      <CameraSettingsTabs id={id!} active="analysis" camName={cam?.name} />
+      <PageHeader
+        title="Câmeras"
+        subtitle={
+          <EntitySubtitle
+            parent={{ label: cam?.name ?? '...', to: `/settings/cameras/${id}` }}
+            current="Análise"
+          />
+        }
+      />
+      <CameraSettingsTabs id={id!} active="analysis" />
 
       <div className="space-y-6">
         <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">

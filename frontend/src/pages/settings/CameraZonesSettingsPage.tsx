@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
+import EntitySubtitle from '../../components/EntitySubtitle'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { authHeaders, getRole, getToken } from '../../auth'
 import { negotiateWebRTC } from '../../lib/webrtc'
@@ -807,8 +808,16 @@ export default function CameraZonesSettingsPage() {
 
   return (
     <SettingsLayout id="camera-zones-page" footerId="camera-zones-footer">
-      <PageHeader title="Câmeras" subtitle="Zonas" />
-      <CameraSettingsTabs id={id!} active="zones" camName={cam?.name} />
+      <PageHeader
+        title="Câmeras"
+        subtitle={
+          <EntitySubtitle
+            parent={{ label: cam?.name ?? '...', to: `/settings/cameras/${id}` }}
+            current="Zonas"
+          />
+        }
+      />
+      <CameraSettingsTabs id={id!} active="zones" />
 
       {isAdmin && (
         <p className="text-xs text-muted-foreground mb-5">

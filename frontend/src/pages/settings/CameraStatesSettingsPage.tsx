@@ -5,6 +5,7 @@ import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import DatePicker from '../../components/DatePicker'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
+import EntitySubtitle from '../../components/EntitySubtitle'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import BboxCanvas, { type BboxRect } from '../../components/BboxCanvas'
 import { authHeaders, onUnauthorized, getRole, getToken } from '../../auth'
@@ -323,8 +324,16 @@ export default function CameraStatesSettingsPage() {
   if (!isAdmin) {
     return (
       <SettingsLayout id="camera-states-page" footerId="camera-states-footer">
-        <PageHeader title="Câmeras" subtitle="Estados" />
-        <CameraSettingsTabs id={id!} active="states" camName={camName} />
+        <PageHeader
+          title="Câmeras"
+          subtitle={
+            <EntitySubtitle
+              parent={{ label: camName ?? '...', to: `/settings/cameras/${id}` }}
+              current="Estados"
+            />
+          }
+        />
+        <CameraSettingsTabs id={id!} active="states" />
         <p className="text-muted-foreground text-sm">Apenas administradores.</p>
       </SettingsLayout>
     )
@@ -332,8 +341,16 @@ export default function CameraStatesSettingsPage() {
 
   return (
     <SettingsLayout id="camera-states-page" footerId="camera-states-footer">
-      <PageHeader title="Câmeras" subtitle="Estados" />
-      <CameraSettingsTabs id={id!} active="states" camName={camName} />
+      <PageHeader
+        title="Câmeras"
+        subtitle={
+          <EntitySubtitle
+            parent={{ label: camName ?? '...', to: `/settings/cameras/${id}` }}
+            current="Estados"
+          />
+        }
+      />
+      <CameraSettingsTabs id={id!} active="states" />
 
       {error && (
         <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">

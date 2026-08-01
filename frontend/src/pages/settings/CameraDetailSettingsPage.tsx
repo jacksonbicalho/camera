@@ -5,6 +5,7 @@ import PageHeader from '../../components/PageHeader'
 import SettingsSection from '../../components/SettingsSection'
 import CameraForm from '../../components/CameraForm'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
+import EntitySubtitle from '../../components/EntitySubtitle'
 import DeviceInfoPanel from '../../components/DeviceInfoPanel'
 import { type CameraFormData, type Camera, formToPayload } from '../../components/cameraFormUtils'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
@@ -109,8 +110,8 @@ export default function CameraDetailSettingsPage() {
   if (!isAdmin) {
     return (
       <SettingsLayout id="camera-detail-page" footerId="camera-detail-footer">
-        <PageHeader title="Câmeras" subtitle={viewerCam?.name} />
-        <CameraSettingsTabs id={id!} active="detail" camName={viewerCam?.name} />
+        <PageHeader title="Câmeras" subtitle={viewerCam?.name ?? '...'} />
+        <CameraSettingsTabs id={id!} active="detail" />
         {viewerLoading ? (
           <p className="text-muted-foreground text-sm">Carregando...</p>
         ) : !viewerCam ? (
@@ -162,7 +163,16 @@ export default function CameraDetailSettingsPage() {
     <SettingsLayout id="camera-detail-page" footerId="camera-detail-footer">
       <PageHeader
         title="Câmeras"
-        subtitle={cam?.name}
+        subtitle={
+          editing ? (
+            <EntitySubtitle
+              parent={{ label: cam?.name ?? '...', to: `/settings/cameras/${id}` }}
+              current="Editar"
+            />
+          ) : (
+            (cam?.name ?? '...')
+          )
+        }
         actions={
           settings && cam && !editing ? (
             <Button
@@ -176,7 +186,7 @@ export default function CameraDetailSettingsPage() {
           ) : undefined
         }
       />
-      <CameraSettingsTabs id={id!} active="detail" camName={cam?.name} />
+      <CameraSettingsTabs id={id!} active="detail" />
 
       {error && (
         <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
