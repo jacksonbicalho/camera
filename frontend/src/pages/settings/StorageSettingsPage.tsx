@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
+import SettingsSection from '../../components/SettingsSection'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { useSettings } from '../../hooks/useSettings'
 import { useStats } from '../../hooks/useStats'
@@ -22,6 +24,11 @@ function partsToMinutes(value: number, unit: 'min' | 'h' | 'd'): number {
   if (unit === 'd') return value * 60 * 24
   if (unit === 'h') return value * 60
   return value
+}
+
+function formatMinutes(m: number): string {
+  const { value, unit } = minutesToParts(m)
+  return `${value} ${unit}`
 }
 
 // ── sub-components ─────────────────────────────────────────────────────────
@@ -101,6 +108,13 @@ const emptyDriveForm = () => ({
 
 export default function StorageSettingsPage() {
   const isAdmin = getRole() === 'admin'
+  const location = useLocation()
+  const navigate = useNavigate()
+  // Edição tem URL própria (/settings/storage/edit) — mesmo padrão de
+  // /settings/cameras/edit/:id e /settings/users/edit/:id: `editing` é
+  // DERIVADO da rota, nunca de useState/location.state, pra sobreviver a
+  // reload/deep-link.
+  const editing = location.pathname === '/settings/storage/edit'
   const { settings, reload } = useSettings()
   const s = settings?.storage
   const { stats } = useStats()
@@ -208,9 +222,21 @@ export default function StorageSettingsPage() {
         setOverrides({})
         reload()
         setStorageSaved(true)
+        navigate('/settings/storage')
       })
       .catch(() => {})
       .finally(() => setStorageSaving(false))
+  }
+
+  const cancelStorageEdit = () => {
+    setOverrides({})
+    navigate('/settings/storage')
+  }
+
+  const retentionLabel = (category: string): string => {
+    const rc = retentionFor(category)
+    if (rc.action !== 'send_to_drive' || !rc.drive_id) return 'Apagar'
+    return drives.find((dr) => dr.id === rc.drive_id)?.name ?? 'Apagar'
   }
 
   // ── drive CRUD ──────────────────────────────────────────────────────────────
@@ -297,6 +323,18 @@ export default function StorageSettingsPage() {
       <PageHeader
         title="Armazenamento"
         subtitle="Retenção, limpeza automática e espaço em disco."
+        actions={
+          s && !editing ? (
+            <Button
+              id="storage-edit"
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/settings/storage/edit')}
+            >
+              Editar
+            </Button>
+          ) : undefined
+        }
       />
       {/* Uso de disco — migrado de StatsPage (pedido do navigator: "a sessão
           Armazenamento de estatísticas deve ir para a página armazenamento"),
@@ -356,7 +394,46 @@ export default function StorageSettingsPage() {
           )}
         </div>
       )}
-      {form ? (
+      {form && !editing && (
+        <div className="mb-4">
+          <SettingsSection
+            title="Configuração"
+            fields={[
+              { label: 'Diretório', value: s?.path || '—' },
+              {
+                label: 'Máximo',
+                value: s && s.max_size_gb > 0 ? `${s.max_size_gb} GB` : '0 = off',
+              },
+              { label: 'Alerta', value: s ? `${s.warn_percent}%` : '—' },
+              {
+                label: 'Intervalo de verificação',
+                value: s ? formatMinutes(s.interval_minutes === 0 ? 60 : s.interval_minutes) : '—',
+              },
+              {
+                label: 'Histórico de estados (padrão)',
+                value: s
+                  ? s.state_history_minutes <= 0
+                    ? 'para sempre'
+                    : formatMinutes(s.state_history_minutes)
+                  : '—',
+              },
+              {
+                label: 'Com movimento',
+                value: s
+                  ? `${formatMinutes(s.with_motion_minutes)} · ${retentionLabel('with_motion')}`
+                  : '—',
+              },
+              {
+                label: 'Sem movimento',
+                value: s
+                  ? `${formatMinutes(s.without_motion_minutes)} · ${retentionLabel('without_motion')}`
+                  : '—',
+              },
+            ]}
+          />
+        </div>
+      )}
+      {form && editing ? (
         <div className="space-y-2 mb-4">
           {/* Diretório + Máximo + Alerta + Intervalo */}
           <div className="bg-surface-2 rounded-lg px-4 py-3 grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-x-8 gap-y-3 items-start">
@@ -477,13 +554,16 @@ export default function StorageSettingsPage() {
 
           <div className="flex justify-end items-center gap-3 pt-1">
             {storageSaved && <span className="text-xs text-green-400">Salvo</span>}
+            <Button id="storage-cancel" variant="outline" onClick={cancelStorageEdit}>
+              Cancelar
+            </Button>
             <Button id="storage-save" onClick={handleStorageSave} disabled={storageSaving}>
               {storageSaving ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>
         </div>
       ) : (
-        <p className="text-muted-foreground text-sm mb-4">Carregando...</p>
+        !form && <p className="text-muted-foreground text-sm mb-4">Carregando...</p>
       )}
 
       {drives.length === 0 && retention.some((r) => r.action === 'send_to_drive') && (
