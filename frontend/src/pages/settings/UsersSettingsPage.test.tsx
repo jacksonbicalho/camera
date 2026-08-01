@@ -81,4 +81,16 @@ describe('UsersSettingsPage', () => {
       expect(document.getElementById('test-location')!.textContent).toBe('/settings/users')
     })
   })
+
+  describe('CA6: o botão "Editar" da listagem navega direto pra /settings/users/edit/:id', () => {
+    it('link "Editar" da linha do usuário aponta pra /settings/users/edit/:id', async () => {
+      stubFetch()
+      renderAt('/settings/users')
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('jackson')
+      })
+      const link = document.querySelector('a[href="/settings/users/edit/1"]')
+      expect(link).toBeTruthy()
+    })
+  })
 })

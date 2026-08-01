@@ -179,9 +179,7 @@ export default function UsersSettingsPage() {
                 )}
                 <div className="ml-auto flex items-center gap-1 pl-3 shrink-0">
                   <Button asChild variant="outline" size="sm">
-                    <Link to={`/settings/users/${user.id}`} state={{ editing: true }}>
-                      Editar
-                    </Link>
+                    <Link to={`/settings/users/edit/${user.id}`}>Editar</Link>
                   </Button>
                   <Button
                     variant="outline"

@@ -5,6 +5,7 @@ import PageHeader from '../../components/PageHeader'
 import SettingsSection from '../../components/SettingsSection'
 import MotionScoreChart from '../../components/MotionScoreChart'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
+import EntitySubtitle from '../../components/EntitySubtitle'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { useMotionPeak, type MotionDailyPeak } from '../../hooks/useMotionPeak'
 import {
@@ -439,14 +440,20 @@ export default function CameraMotionSettingsPage() {
       .finally(() => setViewerLoading(false))
   }, [isAdmin, id])
 
+  const camName = isAdmin ? cam?.name : viewerCam?.name
+
   return (
     <SettingsLayout id="camera-motion-page" footerId="camera-motion-footer">
-      <PageHeader title="Câmeras" subtitle="Detecção de movimento" />
-      <CameraSettingsTabs
-        id={id!}
-        active="motion"
-        camName={isAdmin ? cam?.name : viewerCam?.name}
+      <PageHeader
+        title="Câmeras"
+        subtitle={
+          <EntitySubtitle
+            parent={{ label: camName ?? '...', to: `/settings/cameras/${id}` }}
+            current="Detecção de movimento"
+          />
+        }
       />
+      <CameraSettingsTabs id={id!} active="motion" />
       {!isAdmin ? (
         viewerLoading ? (
           <p className="text-muted-foreground text-sm">Carregando...</p>

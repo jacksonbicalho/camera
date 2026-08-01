@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useParams, useLocation, useNavigate } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
+import EntitySubtitle from '../../components/EntitySubtitle'
 import SettingsSection from '../../components/SettingsSection'
 import UserForm, { type UserFormData } from '../../components/UserForm'
 import RoleBadge from '../../components/RoleBadge'
@@ -28,12 +29,14 @@ export default function UserDetailSettingsPage() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const navigate = useNavigate()
-  const startEditing = (location.state as { editing?: boolean } | null)?.editing ?? false
+  // Edição tem URL própria (/settings/users/edit/:id). `editing` é DERIVADO da
+  // rota — mesmo padrão de CameraDetailSettingsPage — pra sobreviver a
+  // reload/deep-link, ao contrário do `state` de navegação anterior.
+  const editing = location.pathname.startsWith('/settings/users/edit/')
 
   const [user, setUser] = useState<User | null>(null)
   const [cameras, setCameras] = useState<Camera[]>([])
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(startEditing)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,7 +84,7 @@ export default function UserDetailSettingsPage() {
       const updated: User[] = await (await fetch('/api/users', { headers: authHeaders() })).json()
       const refreshed = updated.find((u) => u.id === user.id)
       if (refreshed) setUser(refreshed)
-      setEditing(false)
+      navigate(`/settings/users/${id}`)
     } finally {
       setSaving(false)
     }
@@ -91,7 +94,16 @@ export default function UserDetailSettingsPage() {
     <SettingsLayout id="user-detail-page" footerId="user-detail-footer">
       <PageHeader
         title="Usuários"
-        subtitle={user?.username}
+        subtitle={
+          editing ? (
+            <EntitySubtitle
+              parent={{ label: user?.username ?? '...', to: '/settings/users' }}
+              current="Editar"
+            />
+          ) : (
+            (user?.username ?? '...')
+          )
+        }
         actions={
           <div className="flex items-center gap-2">
             {user && !editing && (
@@ -100,8 +112,8 @@ export default function UserDetailSettingsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setEditing(true)
                   setError(null)
+                  navigate(`/settings/users/edit/${id}`)
                 }}
               >
                 Editar
@@ -115,13 +127,6 @@ export default function UserDetailSettingsPage() {
           </div>
         }
       />
-      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
-        <Link to="/settings/users" className="hover:text-foreground transition-colors">
-          Usuários
-        </Link>
-        <span>/</span>
-        <span className="text-foreground">{user?.username ?? '...'}</span>
-      </nav>
 
       {error && (
         <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
@@ -137,8 +142,8 @@ export default function UserDetailSettingsPage() {
           initial={user}
           onSave={handleUpdate}
           onCancel={() => {
-            setEditing(false)
             setError(null)
+            navigate(`/settings/users/${id}`)
           }}
           saving={saving}
         />

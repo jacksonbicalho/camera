@@ -8,7 +8,6 @@ type Tab = 'detail' | 'motion' | 'zones' | 'analysis' | 'states'
 interface Props {
   id: string
   active: Tab
-  camName?: string
 }
 
 const TABS: { key: Tab; label: string; path: (id: string) => string }[] = [
@@ -19,17 +18,10 @@ const TABS: { key: Tab; label: string; path: (id: string) => string }[] = [
   { key: 'states', label: 'Estados', path: (id) => `/settings/cameras/states/${id}` },
 ]
 
-export default function CameraSettingsTabs({ id, active, camName }: Props) {
+export default function CameraSettingsTabs({ id, active }: Props) {
   const isAdmin = getRole() === 'admin'
   return (
     <div className="mb-6">
-      <nav className="flex items-center gap-1.5 text-xs text-faint mb-4">
-        <Link to="/settings/cameras" className="hover:text-foreground transition-colors">
-          Câmeras
-        </Link>
-        <span>/</span>
-        <span className="text-foreground">{camName || id}</span>
-      </nav>
       <div className="flex items-center justify-between border-b border-border">
         <div className="flex gap-1">
           {TABS.map((tab) => (
