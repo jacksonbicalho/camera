@@ -76,7 +76,8 @@ Code) — sem isso `ssh`/`git` resolvem `~` pelo usuário real do SO (`/home/dev
 que ignora a env var `HOME`), então qualquer `known_hosts`/config escrito em `$HOME` (`/tmp`)
 nunca é encontrado por eles. `postCreateCommand` também roda `ssh-keyscan -H github.com` pra
 popular o `known_hosts` de antemão — sem isso o 1º `git push`/`fetch` falha com "Host key
-verification failed".
+verification failed". O stage `development` também ganhou `jq` — `scripts/merge-when-green.sh`
+(e outros `scripts/` que chamam `gh api`/`gh pr view --json`) exigem `jq` pra parsear a saída.
 
 ### Frontend (`frontend/src/`)
 

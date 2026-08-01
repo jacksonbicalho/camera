@@ -32,6 +32,25 @@ resolve_story() {
   return 1
 }
 
+# resolve_story_for_branch — como resolve_story, mas SEM o fallback "story mais
+# recente": só resolve se o slug da branch atual bater com uma story de verdade.
+# Usado pelo hook de commit (story-approved.sh): uma branch de chore avulso, sem
+# story própria (ex. chore/devcontainer-jq), não pode ficar amarrada à story
+# mais recente só porque ela existe no diretório — isso bloquearia commits sem
+# relação nenhuma com o gate daquela story.
+resolve_story_for_branch() {
+  branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || branch=""
+  slug=${branch#*/}
+  if [ -n "$slug" ] && [ "$slug" != "$branch" ]; then
+    match=$(ls work_progress/stories/*_"$slug".md 2>/dev/null | tail -n 1)
+    if [ -n "$match" ]; then
+      printf '%s\n' "$match"
+      return 0
+    fi
+  fi
+  return 1
+}
+
 # Checkbox helpers — convenção do repo: não-marcado `[]`, marcado `[x]`.
 # checkbox_marked <arquivo> <texto>  → 0 se `- [x] <texto>` existe (case-insensitive)
 checkbox_marked() {

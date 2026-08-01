@@ -39,7 +39,11 @@ case "$branch" in
 esac
 
 . scripts/lib/story.sh 2>/dev/null || exit 0
-story=$(resolve_story "" 2>/dev/null) || exit 0
+# resolve_story_for_branch (não resolve_story): sem o fallback "story mais
+# recente" — uma branch de chore avulso sem story própria (slug não bate com
+# nenhum arquivo em work_progress/stories/) não deve ficar amarrada ao gate de
+# uma story qualquer só porque ela existe no diretório. Ver comentário na lib.
+story=$(resolve_story_for_branch 2>/dev/null) || exit 0
 
 # MODO legado: story aprovada libera qualquer commit (fix trivial pós-aprovação — Política A)
 if checkbox_marked "$story" 'aprovado[[:space:]]*$'; then
