@@ -33,6 +33,11 @@ import {
 
 const ResponsiveGridLayout = WidthProvider(GridLayout)
 
+// GRID_MARGIN — espaçamento ENTRE tiles (`margin` default do react-grid-layout, não alterado
+// neste projeto); usado só pelo overlay de células vazias (`live-view-grid-overlay`, T2) pra
+// aproximar o tamanho real de cada célula no fundo desenhado via CSS.
+const GRID_MARGIN = 10
+
 interface Camera {
   id: string
   name: string
@@ -76,6 +81,7 @@ export default function LiveViewPage() {
     typeof window === 'undefined' ? 1280 : window.innerWidth,
   )
   const [gridTop, setGridTop] = useState(0)
+  const [gridWidth, setGridWidth] = useState(0)
   const gridWrapRef = useRef<HTMLDivElement | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [hiddenIds, setHiddenIds] = useState<string[]>(() => loadHiddenCameraIds())
@@ -128,16 +134,21 @@ export default function LiveViewPage() {
       .catch(() => {})
   }, [navigate])
 
-  // Mede o topo do grid (distância até o topo da viewport) pra computeRowHeight saber quanta
-  // altura está disponível abaixo dele — `getBoundingClientRect().top` não depende do próprio
-  // rowHeight (só do que vem ACIMA do grid: PageHeader), então não há realimentação. Ref
-  // callback (não useRef+useEffect vazio) porque o elemento só existe depois que `cameras`
-  // carrega — mesmo motivo de sempre (HistoryPage.tsx). Recalcula também no resize da janela.
+  // Mede o topo E a largura do grid (mesmo getBoundingClientRect, um único DOM read) pra
+  // computeRowHeight saber quanta altura está disponível abaixo dele E qual a largura real de
+  // coluna (T1, história fix/liveview-mobile-player-notificacoes — sem a largura, o rowHeight
+  // não tinha como respeitar a proporção do vídeo em viewports estreitas). Nenhum dos dois
+  // depende do próprio rowHeight (só do que vem ACIMA do grid: PageHeader), então não há
+  // realimentação. Ref callback (não useRef+useEffect vazio) porque o elemento só existe
+  // depois que `cameras` carrega — mesmo motivo de sempre (HistoryPage.tsx). Recalcula também
+  // no resize da janela.
   const recomputeViewport = useCallback(() => {
     setViewportHeight(window.innerHeight)
     setViewportWidth(window.innerWidth)
     if (gridWrapRef.current) {
-      setGridTop(gridWrapRef.current.getBoundingClientRect().top)
+      const rect = gridWrapRef.current.getBoundingClientRect()
+      setGridTop(rect.top)
+      setGridWidth(rect.width)
     }
   }, [])
 
@@ -159,7 +170,8 @@ export default function LiveViewPage() {
   // escolhido, ex. "3×3" no dropdown) não muda, pra voltar ao normal sozinho
   // quando a tela alargar de novo.
   const effectiveCols = clampColsForViewport(cols, viewportWidth)
-  const rowHeight = computeRowHeight(viewportHeight, gridTop, effectiveCols)
+  const columnWidth = gridWidth / Math.max(1, effectiveCols)
+  const rowHeight = computeRowHeight(viewportHeight, gridTop, effectiveCols, columnWidth)
 
   // react-grid-layout entrega um array `readonly` (Layout) pro callback — copia pra um
   // array mutável antes de guardar no estado/persistir (TileLayout tem o mesmo shape).
@@ -366,7 +378,30 @@ export default function LiveViewPage() {
           // (bug real reportado pelo navigator). Zerar aqui faz os tiles começarem exatamente
           // na borda do `p-6`, igual a qualquer outra página; o espaçamento ENTRE tiles
           // continua vindo de `margin` (default da lib, não mexido).
-          <div id="live-view-grid" ref={bindGridWrap}>
+          <div id="live-view-grid" ref={bindGridWrap} className="relative">
+            {editMode && (
+              // Contorno das células do grid (inclusive vazias) em modo de edição — pedido do
+              // navigator: sem isso, só os tiles já posicionados dão alguma pista da estrutura
+              // do grid por trás, mesmo com espaço livre pra mais câmeras. react-grid-layout
+              // não tem suporte nativo a "fundo de grid" — desenhado por cima via CSS puro
+              // (2 gradientes lineares repetidos, um por eixo), sem depender de medir células
+              // reais da lib. GRID_MARGIN casa com o `margin` default da lib (não alterado
+              // neste projeto) — aproximação suficiente pra indicar a estrutura, não precisa
+              // bater pixel a pixel com os tiles de verdade.
+              <div
+                id="live-view-grid-overlay"
+                aria-hidden="true"
+                data-cols={effectiveCols}
+                data-row-height={rowHeight}
+                className="pointer-events-none absolute inset-0 z-10"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to right, var(--color-border) 1px, transparent 1px), ' +
+                    'linear-gradient(to bottom, var(--color-border) 1px, transparent 1px)',
+                  backgroundSize: `${columnWidth + GRID_MARGIN}px ${rowHeight + GRID_MARGIN}px`,
+                }}
+              />
+            )}
             <ResponsiveGridLayout
               className="layout"
               layout={layout}

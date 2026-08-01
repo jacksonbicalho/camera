@@ -37,11 +37,15 @@ vi.mock('../contexts/UserNotificationContext', () => ({
   useUserNotifications: () => ({ unreadCount: 0 }),
 }))
 
+// markReadByEvent hoisted separado — precisa ser o MESMO vi.fn() em toda renderização de
+// useNotifications() pra as asserções de CA5 conseguirem inspecionar as chamadas.
+const notif = vi.hoisted(() => ({ markReadByEvent: vi.fn() }))
 vi.mock('../contexts/NotificationContext', () => ({
   useNotifications: () => ({
     notifications: [],
     unreadCount: 0,
     markRead: vi.fn(),
+    markReadByEvent: notif.markReadByEvent,
     markSelectedRead: vi.fn(),
     remove: vi.fn(),
     removeAll: vi.fn(),
@@ -1341,6 +1345,25 @@ describe('HistoryPage', () => {
           'false',
         )
       })
+    })
+  })
+
+  describe('CA5: abrir o Histórico com :motionId marca a notificação do evento como lida', () => {
+    it('com :motionId na URL, chama markReadByEvent(cameraId, evento.time)', async () => {
+      stubFetch(recordingsJul4, [{ id: 99, time: '2026-07-04T10:00:30Z', score: 1 }])
+      gateway.getRecording.mockResolvedValue({ filename: 'c.mp4', date: '2026-07-04' })
+      renderAt('/history/cam1/3/99')
+      await waitFor(() => {
+        expect(notif.markReadByEvent).toHaveBeenCalledWith('cam1', '2026-07-04T10:00:30Z')
+      })
+    })
+
+    it('sem :motionId na URL, não marca nada como lido', async () => {
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-header')).not.toBeNull()
+      })
+      expect(notif.markReadByEvent).not.toHaveBeenCalled()
     })
   })
 

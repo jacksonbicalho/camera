@@ -47,4 +47,42 @@ describe('PageHeader', () => {
     expect(screen.getByText('sub')).toBeTruthy()
     expect(screen.getByText('Ação')).toBeTruthy()
   })
+
+  describe('CA7: o bloco de ações quebra linha no celular em vez de vazar pra fora da tela (achado real, RecordingsPage no mobile)', () => {
+    it('o container das ações tem flex-wrap — item que não cabe desce pra linha de baixo, não vaza à direita', () => {
+      render(<PageHeader title="T" actions={<button>Ação</button>} />)
+      const actionsContainer = screen.getByText('Ação').parentElement!
+      expect(actionsContainer.className).toContain('flex-wrap')
+    })
+
+    it('no mobile, itens quebrados alinham à ESQUERDA (justify-start) — acompanha o campo de busca, pedido explícito do navigator', () => {
+      render(<PageHeader title="T" actions={<button>Ação</button>} />)
+      const actionsContainer = screen.getByText('Ação').parentElement!
+      expect(actionsContainer.className).toContain('justify-start')
+    })
+
+    it('a partir do breakpoint sm, volta a alinhar à direita (sm:justify-end) — junto do título, mesma linha, quando não há quebra', () => {
+      render(<PageHeader title="T" actions={<button>Ação</button>} />)
+      const actionsContainer = screen.getByText('Ação').parentElement!
+      expect(actionsContainer.className).toContain('sm:justify-end')
+    })
+
+    it('largura total no mobile (w-full) — sem isso, um container shrink-0 sem largura explícita dimensiona pelo conteúdo máximo e flex-wrap sozinho não força a quebra', () => {
+      render(<PageHeader title="T" actions={<button>Ação</button>} />)
+      const actionsContainer = screen.getByText('Ação').parentElement!
+      expect(actionsContainer.className).toContain('w-full')
+    })
+
+    it('a partir do breakpoint sm, volta a dimensionar pelo conteúdo (sm:w-auto) — não força largura total em telas onde tudo já cabe numa linha', () => {
+      render(<PageHeader title="T" actions={<button>Ação</button>} />)
+      const actionsContainer = screen.getByText('Ação').parentElement!
+      expect(actionsContainer.className).toContain('sm:w-auto')
+    })
+
+    it('REGRESSÃO: o container EXTERNO (título+ações) tem flex-wrap por padrão, sem precisar da prop className — achado real (medido via Chromium headless): sem isso, o bloco de ações com w-full consome a linha inteira e o TÍTULO colapsa pra width:0 (fica invisível) em qualquer página que não passasse className="flex-wrap" manualmente', () => {
+      render(<PageHeader id="ph" title="T" actions={<button>Ação</button>} />)
+      const outer = document.getElementById('ph')!
+      expect(outer.className).toContain('flex-wrap')
+    })
+  })
 })

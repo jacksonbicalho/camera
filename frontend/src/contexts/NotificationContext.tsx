@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getToken } from '../auth'
 import { useBrowserNotifications } from '../hooks/useBrowserNotifications'
@@ -24,6 +24,7 @@ interface NotificationContextValue {
   notifications: Notification[]
   unreadCount: number
   markRead(id: string): void
+  markReadByEvent(cameraId: string, time: string): void
   markAllRead(): void
   markSelectedRead(ids: string[]): void
   markAllUnread(ids: string[]): void
@@ -87,6 +88,45 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     save(next)
   }
 
+  // markRead — useCallback com deps vazias (updater FUNCIONAL de setNotifications, nunca lê
+  // `notifications` do closure) por dois motivos: (1) identidade ESTÁVEL entre renders — T4
+  // (história fix/liveview-mobile-player-notificacoes) passou a chamar `markReadByEvent`
+  // (abaixo) de dentro de `useEffect`s em componentes consumidores, com ela própria na
+  // dependency array; sem identidade estável, cada render do Provider recriaria a função,
+  // disparando esses efeitos de novo — e cada disparo, se causasse uma mudança de estado,
+  // causaria outro render do Provider, num loop (achado real do code review, confirmado com
+  // um repro que travava em ~30s). (2) BAIL-OUT: quando o id não existe ou já está lido,
+  // devolve a MESMA referência `prev` — React pula o re-render inteiro nesse caso (nenhuma
+  // mudança de estado real), o que é o que efetivamente quebra o loop (mesmo que a função já
+  // fosse estável, um `useEffect` chamando `markReadByEvent` para um evento JÁ lido não pode
+  // ficar re-renderizando o Provider a cada disparo).
+  const markRead = useCallback((id: string) => {
+    setNotifications((prev) => {
+      const idx = prev.findIndex((n) => n.id === id)
+      if (idx === -1 || prev[idx].read) return prev
+      closeBrowserRef.current(prev[idx].cameraId)
+      const next = [...prev]
+      next[idx] = { ...next[idx], read: true }
+      save(next)
+      return next
+    })
+  }, [])
+
+  // markReadByEvent — marca como lida a notificação da câmera+instante indicados, usada por
+  // qualquer ponto do sistema que iniciar a reprodução do evento correspondente (não só o
+  // clique dentro do próprio sino, que já chamava `markRead` diretamente): RecordingPlayerModal
+  // (cobre sino/Momentos/RecordingsPage), VideoBrowserPage (deep-link /recording/:cameraId/
+  // :recordingId/:motionId) e HistoryPage (abertura com :motionId). No-op silencioso se não
+  // houver notificação com esse id (`${cameraId}-${time}`, mesmo formato usado ao criar a
+  // notificação a partir do SSE) — reproduzir um evento sem notificação correspondente (ex.
+  // evento antigo, notificação já removida) não é erro. Mesma identidade estável de `markRead`
+  // (deps só `[markRead]`, que por sua vez nunca muda) — necessário pelo mesmo motivo (ver
+  // comentário de `markRead`).
+  const markReadByEvent = useCallback(
+    (cameraId: string, time: string) => markRead(`${cameraId}-${time}`),
+    [markRead],
+  )
+
   // Single SSE connection that receives events from all accessible cameras.
   // Re-opens on auth changes so notifications work immediately after login.
   useEffect(() => {
@@ -130,6 +170,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             score,
             label,
             async () => {
+              markReadByEvent(id, time)
               const url = await resolveEventRecordingUrl(id, time)
               if (url) navigate(url)
             },
@@ -147,13 +188,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       window.removeEventListener('camera:token-changed', connect)
       if (es) es.close()
     }
-  }, [navigate])
-
-  function markRead(id: string) {
-    const n = notifications.find((n) => n.id === id)
-    if (n && !n.read) closeBrowserRef.current(n.cameraId)
-    update(notifications.map((n) => (n.id === id ? { ...n, read: true } : n)))
-  }
+    // markReadByEvent tem identidade estável (useCallback, ver comentário lá) — incluí-la aqui
+    // não reabre a conexão SSE à toa; é só o eslint exhaustive-deps satisfeito honestamente,
+    // em vez de um ref indireto só pra escapar da lista de dependências.
+  }, [navigate, markReadByEvent])
 
   function markAllRead() {
     closeAllBrowserRef.current()
@@ -198,6 +236,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         notifications,
         unreadCount,
         markRead,
+        markReadByEvent,
         markAllRead,
         markSelectedRead,
         markAllUnread,

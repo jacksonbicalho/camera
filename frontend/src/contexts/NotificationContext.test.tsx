@@ -142,18 +142,21 @@ describe('NotificationContext — recebimento de eventos SSE', () => {
   })
 })
 
+// setupWithNotification — hoisted (usada também por "markReadByEvent", abaixo): renderiza o
+// provider, aguarda a conexão SSE e emite 1 notificação de movimento (cam1, 2026-01-01T12:00:00Z
+// → id "cam1-2026-01-01T12:00:00Z"), não lida.
+async function setupWithNotification() {
+  const { result } = renderHook(() => useNotifications(), { wrapper })
+  await flush()
+
+  const es = FakeEventSource.instances.find((e) => e.url.includes('/api/motion/live'))!
+  act(() => {
+    es.emit(JSON.stringify({ camera_id: 'cam1', score: 0.5, time: '2026-01-01T12:00:00Z' }))
+  })
+  return result
+}
+
 describe('NotificationContext — operações', () => {
-  async function setupWithNotification() {
-    const { result } = renderHook(() => useNotifications(), { wrapper })
-    await flush()
-
-    const es = FakeEventSource.instances.find((e) => e.url.includes('/api/motion/live'))!
-    act(() => {
-      es.emit(JSON.stringify({ camera_id: 'cam1', score: 0.5, time: '2026-01-01T12:00:00Z' }))
-    })
-    return result
-  }
-
   it('markRead marca uma notificação como lida', async () => {
     const result = await setupWithNotification()
     const id = result.current.notifications[0].id
@@ -258,5 +261,85 @@ describe('NotificationContext — sem token', () => {
     await flush()
 
     expect(FakeEventSource.instances[0].closed).toBe(true)
+  })
+})
+
+describe('CA5: markReadByEvent — marca como lida a notificação da câmera+instante, usado por qualquer ponto do sistema que iniciar a reprodução do evento', () => {
+  it('câmera+time batendo com uma notificação existente marca ela como lida', async () => {
+    const result = await setupWithNotification()
+    expect(result.current.notifications[0].read).toBe(false)
+
+    act(() => {
+      result.current.markReadByEvent('cam1', '2026-01-01T12:00:00Z')
+    })
+
+    expect(result.current.notifications[0].read).toBe(true)
+    expect(result.current.unreadCount).toBe(0)
+  })
+
+  it('câmera diferente com o mesmo instante não marca nada (id não bate)', async () => {
+    const result = await setupWithNotification()
+
+    act(() => {
+      result.current.markReadByEvent('cam-outra', '2026-01-01T12:00:00Z')
+    })
+
+    expect(result.current.notifications[0].read).toBe(false)
+  })
+
+  it('instante diferente na mesma câmera não marca nada (id não bate)', async () => {
+    const result = await setupWithNotification()
+
+    act(() => {
+      result.current.markReadByEvent('cam1', '2026-01-01T00:00:00Z')
+    })
+
+    expect(result.current.notifications[0].read).toBe(false)
+  })
+
+  it('sem nenhuma notificação correspondente, não lança e não altera o estado', async () => {
+    const { result } = renderHook(() => useNotifications(), { wrapper })
+    await flush()
+
+    expect(() => {
+      act(() => {
+        result.current.markReadByEvent('cam-inexistente', '2026-01-01T00:00:00Z')
+      })
+    }).not.toThrow()
+    expect(result.current.notifications).toEqual([])
+  })
+
+  // REGRESSÃO (achado do code review): RecordingPlayerModal/VideoBrowserPage/HistoryPage
+  // chamam markReadByEvent de dentro de um useEffect com ela própria na dependency array —
+  // se a identidade da função mudasse a cada render do NotificationProvider, esse padrão
+  // entraria em loop (efeito dispara → markReadByEvent causa um re-render → nova identidade →
+  // efeito dispara de novo → ...). Um teste que efetivamente MONTA esse padrão e deixa rodar
+  // não é seguro aqui: se o loop reaparecer, é uma cascata SÍNCRONA dentro do commit do React
+  // (não passa por nenhum timer), então nenhum timeout do vitest consegue interrompê-la —
+  // trava o processo de teste inteiro, não só este arquivo. Em vez disso, verificamos
+  // diretamente a causa raiz (a garantia que quebra o loop): a identidade de
+  // `markReadByEvent`/`markRead` tem que continuar a MESMA depois de uma chamada (achando ou
+  // não uma notificação) seguida de um re-render — sem depender de montar o cenário de loop
+  // de verdade.
+  it('mantém a mesma identidade entre renders, mesmo depois de marcar (ou tentar marcar) uma notificação — evita o loop de useEffect nos consumidores', async () => {
+    const result = await setupWithNotification()
+    const markReadByEventBefore = result.current.markReadByEvent
+    const markReadBefore = result.current.markRead
+
+    act(() => {
+      result.current.markReadByEvent('cam1', '2026-01-01T12:00:00Z') // marca de verdade
+    })
+    expect(result.current.markReadByEvent).toBe(markReadByEventBefore)
+    expect(result.current.markRead).toBe(markReadBefore)
+
+    act(() => {
+      result.current.markReadByEvent('cam1', '2026-01-01T12:00:00Z') // já lida, no-op
+    })
+    expect(result.current.markReadByEvent).toBe(markReadByEventBefore)
+
+    act(() => {
+      result.current.markReadByEvent('cam-inexistente', '2026-01-01T00:00:00Z') // não existe, no-op
+    })
+    expect(result.current.markReadByEvent).toBe(markReadByEventBefore)
   })
 })

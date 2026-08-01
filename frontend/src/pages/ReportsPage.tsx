@@ -267,7 +267,6 @@ export default function ReportsPage() {
       <div id="reports-content" className="page-content space-y-4">
         <PageHeader
           title="Relatórios"
-          className="flex-wrap"
           subtitle={
             <>
               {camName && (

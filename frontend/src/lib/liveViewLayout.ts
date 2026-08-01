@@ -67,15 +67,28 @@ export function saveCols(cols: number): void {
 // um respiro pro rodapé da página. `minRowHeight` evita células degeneradas (viewport muito
 // baixa ou preset com muitas linhas) — nesse caso o grid volta a exigir scroll, mesmo
 // trade-off de sempre (resize manual também não é travado, ver T4).
+//
+// `columnWidth` (história fix/liveview-mobile-player-notificacoes, T1): a altura por linha
+// nunca passa de `columnWidth / aspectRatio` — sem isso, em viewports estreitas/altas
+// (celular em retrato, poucas colunas efetivas via `clampColsForViewport`) a altura
+// continuava vindo só da divisão por linhas, produzindo tiles bem mais altos que largos
+// (distorcidos/cortados pelo `object-cover` do Player) mesmo a largura da coluna tendo
+// encolhido bastante. `Math.min` entre os dois candidatos garante que a proporção do vídeo
+// nunca é violada, preferindo caber na viewport (sem scroll) só quando isso não exige
+// distorcer o tile.
 export function computeRowHeight(
   viewportHeight: number,
   gridTop: number,
   rows: number,
+  columnWidth: number,
+  aspectRatio = 16 / 9,
   bottomMargin = 16,
   minRowHeight = 80,
 ): number {
   const available = viewportHeight - gridTop - bottomMargin
-  return Math.max(minRowHeight, available / Math.max(1, rows))
+  const byHeight = available / Math.max(1, rows)
+  const byAspectRatio = columnWidth / aspectRatio
+  return Math.max(minRowHeight, Math.min(byHeight, byAspectRatio))
 }
 
 // clampColsForViewport — história feat/mobile-layout-responsivo: reduz o nº de
