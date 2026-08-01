@@ -223,6 +223,14 @@ export const routes = (
       }
     />
     <Route
+      path="/settings/users/edit/:id"
+      element={
+        <Lazy>
+          <UserDetailSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
       path="/settings/appearance"
       element={
         <Lazy>
