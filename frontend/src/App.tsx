@@ -48,6 +48,22 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/profile/edit"
+                  element={
+                    <Lazy>
+                      <ProfilePage />
+                    </Lazy>
+                  }
+                />
+                <Route
+                  path="/profile/change-email"
+                  element={
+                    <Lazy>
+                      <ProfilePage />
+                    </Lazy>
+                  }
+                />
+                <Route
                   path="/profile/change-password"
                   element={
                     <Lazy>

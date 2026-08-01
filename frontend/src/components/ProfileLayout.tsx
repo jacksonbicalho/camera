@@ -5,7 +5,8 @@ import SectionNavList from './SectionNavList'
 
 const PROFILE_NAV_LINKS = [
   { id: 'profile-nav-perfil', to: '/profile', label: 'Perfil' },
-  { id: 'profile-nav-senha', to: '/profile/change-password', label: 'Alterar senha' },
+  { id: 'profile-edit-email', to: '/profile/change-email', label: 'Alterar e-mail' },
+  { id: 'profile-edit-senha', to: '/profile/change-password', label: 'Alterar senha' },
 ]
 
 interface ProfileLayoutProps {
@@ -13,10 +14,13 @@ interface ProfileLayoutProps {
 }
 
 // ProfileLayout — layout dedicado ao Perfil (chegada via UserMenu do Sidebar novo): coluna
-// esquerda com 2 links (Perfil / Alterar senha) que persistem entre as duas sub-rotas, coluna
-// direita = conteúdo. Não reaproveita SettingsLayout/SettingsSidebar (aquele é específico de
-// /settings/*, com sua própria lista de links de admin, e usa o AppLayout legado) — aqui são só
-// 2 itens, sobre o Layout novo (mesmo rail que trouxe o usuário até aqui).
+// esquerda com 3 links (Perfil / Alterar e-mail / Alterar senha, ids profile-nav-perfil /
+// profile-edit-email / profile-edit-senha) que persistem entre as sub-rotas, coluna direita =
+// conteúdo (ProfilePage, montado em /profile, /profile/edit e /profile/change-email — ver
+// padrão de edição via rota dedicada no CLAUDE.md). Não reaproveita SettingsLayout/
+// SettingsSidebar (aquele é específico de /settings/*, com sua própria lista de links de admin,
+// e usa o AppLayout legado) — aqui são só os 3 itens acima, sobre o Layout novo (mesmo rail que
+// trouxe o usuário até aqui).
 export default function ProfileLayout({ children }: ProfileLayoutProps) {
   return (
     <Layout id="profile-page" footerId="profile-footer" contentClassName="p-6">

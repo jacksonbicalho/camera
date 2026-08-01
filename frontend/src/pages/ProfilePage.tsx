@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import ProfileLayout from '../components/ProfileLayout'
 import { authHeaders, onUnauthorized } from '../auth'
 import { Button } from '@/components/ui/button'
@@ -27,23 +28,32 @@ function Field({ label, value, action }: { label: string; value: string; action?
 
 // ProfilePage — dados do usuário (Nome, E-mail, Usuário, Perfil de acesso — nessa ordem) +
 // edição. "Perfil de acesso" só aparece pra administradores (papel é gerido em
-// /settings/users, nunca editável aqui — só exibido, e só pra quem já é admin). E-mail tem seu
-// próprio "Editar" (fluxo de código de confirmação, enviado ao endereço NOVO); Nome e Usuário
-// dividem um "Editar" no rodapé (ambos são campos simples — usuário com checagem de
+// /settings/users, nunca editável aqui — só exibido, e só pra quem já é admin). Montado em 3
+// rotas (/profile, /profile/edit, /profile/change-email) — ver ProfileLayout/App.tsx. E-mail
+// tem seu próprio fluxo (código de confirmação, enviado ao endereço NOVO), sem botão inline no
+// card de visualização — a entrada é só o link "Alterar e-mail" em ProfileLayout; Nome e
+// Usuário dividem um "Editar" no rodapé (ambos são campos simples — usuário com checagem de
 // duplicidade, igual e-mail; nome sem restrição).
 export default function ProfilePage() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  // Edição via rota dedicada (padrão de CameraDetailSettingsPage/UserDetailSettingsPage,
+  // ver CLAUDE.md): `editing*` é DERIVADO da URL, nunca useState — navegar entre /profile,
+  // /profile/edit e /profile/change-email não remonta o componente (mesmo elemento montado
+  // nas 3 rotas), então um useState inicial não sobreviveria a essa troca.
+  const editingBasic = location.pathname === '/profile/edit'
+  const editingEmail = location.pathname === '/profile/change-email'
+
   const [profile, setProfile] = useState<Profile | null>(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
 
   // Edição de Nome/Usuário.
-  const [editingBasic, setEditingBasic] = useState(false)
   const [nameInput, setNameInput] = useState('')
   const [usernameInput, setUsernameInput] = useState('')
 
   // Troca de e-mail (código de confirmação).
-  const [editingEmail, setEditingEmail] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [code, setCode] = useState('')
   const [codeSent, setCodeSent] = useState(false)
@@ -64,17 +74,45 @@ export default function ProfilePage() {
 
   useEffect(loadProfile, [])
 
+  // Reidrata o form de Nome/Usuário a partir de `profile` sempre que entra em modo edição —
+  // cobre tanto o clique em "Editar" (profile já carregado) quanto o deep-link direto pra
+  // /profile/edit (profile pode chegar DEPOIS da rota já bater). Ajuste durante o RENDER, não
+  // um useEffect com setState (react-hooks/set-state-in-effect barra isso) — mesmo padrão
+  // "adjusting state when a prop changes" já usado em CameraViewTabs.tsx. Reage a duas
+  // transições: `editingBasic` (clique) OU `profile` mudando de referência enquanto já em
+  // edição (chegada tardia do fetch).
+  const [prevEditingBasic, setPrevEditingBasic] = useState(editingBasic)
+  const [syncedProfile, setSyncedProfile] = useState<Profile | null>(null)
+  if (editingBasic && profile && (editingBasic !== prevEditingBasic || profile !== syncedProfile)) {
+    setNameInput(profile.name ?? '')
+    setUsernameInput(profile.username ?? '')
+    setSyncedProfile(profile)
+  }
+  if (editingBasic !== prevEditingBasic) setPrevEditingBasic(editingBasic)
+
+  // Reseta o form de e-mail sempre que entra em modo edição (mesmo padrão render-time acima)
+  // — sem isso, um cancelamento no meio do fluxo (código já enviado) deixaria `codeSent`/`code`
+  // "vazando" pra próxima vez que o usuário reabrir /profile/change-email (o componente não
+  // remonta ao trocar de rota).
+  const [prevEditingEmail, setPrevEditingEmail] = useState(editingEmail)
+  if (editingEmail !== prevEditingEmail) {
+    setPrevEditingEmail(editingEmail)
+    if (editingEmail) {
+      setNewEmail('')
+      setCode('')
+      setCodeSent(false)
+    }
+  }
+
   function startEditBasic() {
     setError('')
     setMessage('')
-    setNameInput(profile?.name ?? '')
-    setUsernameInput(profile?.username ?? '')
-    setEditingBasic(true)
+    navigate('/profile/edit')
   }
 
   function cancelEditBasic() {
-    setEditingBasic(false)
     setError('')
+    navigate('/profile')
   }
 
   async function handleSaveBasic(e: FormEvent) {
@@ -100,27 +138,17 @@ export default function ProfilePage() {
         )
         return
       }
-      setEditingBasic(false)
       setMessage('Dados atualizados com sucesso.')
       loadProfile()
+      navigate('/profile')
     } finally {
       setLoading(false)
     }
   }
 
-  function startEditEmail() {
-    setError('')
-    setMessage('')
-    setNewEmail('')
-    setCode('')
-    setCodeSent(false)
-    setEditingEmail(true)
-  }
-
   function cancelEditEmail() {
-    setEditingEmail(false)
-    setCodeSent(false)
     setError('')
+    navigate('/profile')
   }
 
   async function handleRequestCode(e: FormEvent) {
@@ -169,11 +197,11 @@ export default function ProfilePage() {
         return
       }
       setMessage('E-mail atualizado com sucesso.')
-      setEditingEmail(false)
       setCodeSent(false)
       setNewEmail('')
       setCode('')
       loadProfile()
+      navigate('/profile')
     } finally {
       setLoading(false)
     }
@@ -187,21 +215,7 @@ export default function ProfilePage() {
         {profile && !editing && (
           <div className="space-y-3 rounded-lg border border-border bg-surface p-4">
             <Field label="Nome" value={profile.name || '—'} />
-            <Field
-              label="E-mail"
-              value={profile.email || 'nenhum cadastrado'}
-              action={
-                <Button
-                  id="profile-edit-email"
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={startEditEmail}
-                >
-                  Editar
-                </Button>
-              }
-            />
+            <Field label="E-mail" value={profile.email || 'nenhum cadastrado'} />
             <Field label="Usuário" value={profile.username} />
             {profile.role === 'admin' && <Field label="Perfil de acesso" value="Administrador" />}
           </div>
