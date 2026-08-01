@@ -39,13 +39,26 @@ func StubSendMail(fn func(addr string, a smtp.Auth, from string, to []string, ms
 	return func() { sendMail = original }
 }
 
+// defaultFromName is used when SMTPConfig.FromName is not set — every
+// outbound e-mail identifies the app in the sender's display name, even
+// with zero SMTP-specific configuration beyond host/username/password.
+const defaultFromName = "os-camera"
+
 func (s *SMTPSender) Send(to, subject, body string) error {
 	addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 	var auth smtp.Auth
 	if s.cfg.Username != "" {
 		auth = smtp.PlainAuth("", s.cfg.Username, s.cfg.Password, s.cfg.Host)
 	}
-	msg := fmt.Appendf(nil, "To: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s\r\n",
-		to, subject, body)
-	return sendMail(addr, auth, s.cfg.Username, []string{to}, msg)
+	fromName := s.cfg.FromName
+	if fromName == "" {
+		fromName = defaultFromName
+	}
+	fromEmail := s.cfg.FromEmail
+	if fromEmail == "" {
+		fromEmail = s.cfg.Username
+	}
+	msg := fmt.Appendf(nil, "From: %s <%s>\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s\r\n",
+		fromName, fromEmail, to, subject, body)
+	return sendMail(addr, auth, fromEmail, []string{to}, msg)
 }

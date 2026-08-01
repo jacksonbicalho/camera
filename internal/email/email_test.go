@@ -49,6 +49,66 @@ func TestSMTPSender_Send_CallsSendMailWithExpectedArgs(t *testing.T) {
 	}
 }
 
+func TestSMTPSender_Send_FromHeader(t *testing.T) {
+	t.Run("CA2: sem FromName/FromEmail configurados, usa \"os-camera\" e Username", func(t *testing.T) {
+		var gotFrom string
+		var gotMsg []byte
+		restore := email.StubSendMail(func(addr string, _ smtp.Auth, from string, to []string, msg []byte) error {
+			gotFrom = from
+			gotMsg = msg
+			return nil
+		})
+		defer restore()
+
+		s := email.NewSMTPSender(config.SMTPConfig{
+			Host:     "smtp.example.com",
+			Port:     587,
+			Username: "no-reply@example.com",
+		})
+
+		if err := s.Send("dest@example.com", "Assunto", "Corpo"); err != nil {
+			t.Fatalf("Send: %v", err)
+		}
+
+		if gotFrom != "no-reply@example.com" {
+			t.Errorf("expected envelope from no-reply@example.com, got %q", gotFrom)
+		}
+		if !strings.Contains(string(gotMsg), "From: os-camera <no-reply@example.com>") {
+			t.Errorf("expected message to contain the From header with the app name, got: %s", gotMsg)
+		}
+	})
+
+	t.Run("CA2: com FromName/FromEmail configurados, usa esses valores no cabeçalho e no envelope", func(t *testing.T) {
+		var gotFrom string
+		var gotMsg []byte
+		restore := email.StubSendMail(func(addr string, _ smtp.Auth, from string, to []string, msg []byte) error {
+			gotFrom = from
+			gotMsg = msg
+			return nil
+		})
+		defer restore()
+
+		s := email.NewSMTPSender(config.SMTPConfig{
+			Host:      "smtp.example.com",
+			Port:      587,
+			Username:  "smtp-auth@example.com",
+			FromName:  "Minha Instância",
+			FromEmail: "alerts@example.com",
+		})
+
+		if err := s.Send("dest@example.com", "Assunto", "Corpo"); err != nil {
+			t.Fatalf("Send: %v", err)
+		}
+
+		if gotFrom != "alerts@example.com" {
+			t.Errorf("expected envelope from alerts@example.com, got %q", gotFrom)
+		}
+		if !strings.Contains(string(gotMsg), "From: Minha Instância <alerts@example.com>") {
+			t.Errorf("expected message to contain the custom From header, got: %s", gotMsg)
+		}
+	})
+}
+
 func TestSMTPSender_Send_PropagatesError(t *testing.T) {
 	restore := email.StubSendMail(func(string, smtp.Auth, string, []string, []byte) error {
 		return errBoom

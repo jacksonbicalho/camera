@@ -239,9 +239,11 @@ Todas seguem o prefixo `OS_CAMERA_`.
 | `OS_CAMERA_SMTP_PORT` | `smtp.port` |
 | `OS_CAMERA_SMTP_USERNAME` | `smtp.username` |
 | `OS_CAMERA_SMTP_PASSWORD` | `smtp.password` |
+| `OS_CAMERA_SMTP_FROM_NAME` | `smtp.from_name` (nome de exibição do remetente; default `"os-camera"`) |
+| `OS_CAMERA_SMTP_FROM_EMAIL` | `smtp.from_email` (e-mail do remetente/envelope `MAIL FROM`; default = `smtp.username`) |
 | `OS_CAMERA_STORAGE_PATH` | `storage.path` (diretório raiz das gravações) |
 
-`smtp.*` é configuração de conexão (`internal/config.SMTPConfig`); o envio em si é feito por `internal/email` (ver tabela de pacotes internos acima).
+`smtp.*` é configuração de conexão (`internal/config.SMTPConfig`); o envio em si é feito por `internal/email` (ver tabela de pacotes internos acima). `FromName`/`FromEmail` resolvem seus defaults (`"os-camera"`/`Username`) em `internal/email.SMTPSender.Send`, não em `Load()` — os campos ficam vazios em `SMTPConfig` quando não configurados.
 
 ## Diretório `work_progress/`
 
