@@ -34,6 +34,8 @@ storage:
 #   port: 587                       # env: OS_CAMERA_SMTP_PORT
 #   username: no-reply@example.com  # env: OS_CAMERA_SMTP_USERNAME
 #   password: ""                    # env: OS_CAMERA_SMTP_PASSWORD
+#   from_name: "os-camera"          # opcional — nome de exibição do remetente; env: OS_CAMERA_SMTP_FROM_NAME
+#   from_email: ""                  # opcional — e-mail do remetente/envelope; default = username; env: OS_CAMERA_SMTP_FROM_EMAIL
 
 admin:
   username: admin                  # usuário administrador criado na primeira inicialização

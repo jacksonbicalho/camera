@@ -417,6 +417,8 @@ func TestLoadEnvVarOverridesSMTP(t *testing.T) {
 	t.Setenv("OS_CAMERA_SMTP_PORT", "587")
 	t.Setenv("OS_CAMERA_SMTP_USERNAME", "no-reply@example.com")
 	t.Setenv("OS_CAMERA_SMTP_PASSWORD", "s3cr3t")
+	t.Setenv("OS_CAMERA_SMTP_FROM_NAME", "Minha Instância")
+	t.Setenv("OS_CAMERA_SMTP_FROM_EMAIL", "alerts@example.com")
 
 	path := writeTempYAML(t, `storage:
   path: /tmp`)
@@ -436,6 +438,12 @@ func TestLoadEnvVarOverridesSMTP(t *testing.T) {
 	}
 	if cfg.SMTP.Password != "s3cr3t" {
 		t.Errorf("expected Password from env var, got %q", cfg.SMTP.Password)
+	}
+	if cfg.SMTP.FromName != "Minha Instância" {
+		t.Errorf("expected FromName from env var, got %q", cfg.SMTP.FromName)
+	}
+	if cfg.SMTP.FromEmail != "alerts@example.com" {
+		t.Errorf("expected FromEmail from env var, got %q", cfg.SMTP.FromEmail)
 	}
 }
 

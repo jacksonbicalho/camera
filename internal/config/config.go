@@ -43,6 +43,11 @@ type SMTPConfig struct {
 	Port     int    `yaml:"port"`
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
+	// FromName/FromEmail controlam o cabeçalho From: e o envelope MAIL FROM
+	// dos e-mails enviados. Vazios por padrão — internal/email.SMTPSender
+	// resolve os defaults ("os-camera" / Username) em tempo de envio.
+	FromName  string `yaml:"from_name"`
+	FromEmail string `yaml:"from_email"`
 }
 
 type LogConfig struct {
@@ -236,6 +241,12 @@ func Load(path string) (Config, error) {
 	}
 	if v := os.Getenv("OS_CAMERA_SMTP_PASSWORD"); v != "" {
 		cfg.SMTP.Password = v
+	}
+	if v := os.Getenv("OS_CAMERA_SMTP_FROM_NAME"); v != "" {
+		cfg.SMTP.FromName = v
+	}
+	if v := os.Getenv("OS_CAMERA_SMTP_FROM_EMAIL"); v != "" {
+		cfg.SMTP.FromEmail = v
 	}
 	if v := os.Getenv("OS_CAMERA_STORAGE_PATH"); v != "" {
 		cfg.Storage.Path = v
