@@ -10,30 +10,13 @@ COPY frontend/ ./
 RUN yarn build
 
 # Desenvolvimento: imagem com live build (docker-compose camera-dev monta o código).
-# bash/git/docker-cli/docker-cli-compose/github-cli: não usados pelo processo da app em si,
-# mas permitem que este mesmo container sirva de devcontainer (.devcontainer/devcontainer.json
-# anexa aqui) — reaproveita a imagem/container que já existe em vez de criar um isolado à parte.
-# Usuário "dev" (sudo sem senha): o processo da app (CMD abaixo) continua rodando como root,
-# igual sempre — só o devcontainer.json ("remoteUser": "dev") faz o VSCode/Claude Code
-# executar terminais/extensões como esse usuário. Existe só porque a extensão Claude Code
-# recusa `--dangerously-skip-permissions` quando roda como root/sudo; UID/GID reais são
-# ajustados em runtime pelo Dev Containers CLI (updateRemoteUserUID), não fixados aqui.
-# openssh-client: `origin` é `git@github.com:...` (SSH) — sem o binário `ssh`, git push/fetch
-# falha ("cannot run ssh"). O agente já chega encaminhado do host via SSH_AUTH_SOCK (Remote
-# Containers), só faltava o cliente para usá-lo.
-# jq: scripts/merge-when-green.sh (e outros scripts/ que chamam `gh api`/`gh pr view --json`)
-# exigem jq pra parsear a saída — sem ele, o script falha cedo com "jq não encontrado".
 FROM golang:1.25-alpine AS development
-RUN apk add --no-cache ffmpeg nodejs yarn bash git docker-cli docker-cli-compose github-cli sudo openssh-client jq && \
-    adduser -D -u 1000 -s /bin/bash dev && \
-    echo "dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/dev && \
-    chmod 0440 /etc/sudoers.d/dev
+RUN apk add --no-cache ffmpeg nodejs yarn
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY frontend/package.json frontend/yarn.lock ./frontend/
 RUN cd frontend && yarn install --frozen-lockfile --non-interactive
-RUN chown -R dev:dev /go /app
 CMD ["go", "run", "./cmd/camera"]
 
 # Builder: roda no host de build (BUILDPLATFORM) e CROSS-compila para a arch alvo do

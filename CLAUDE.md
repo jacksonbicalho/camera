@@ -35,50 +35,6 @@ make rpi                                              # alias para linux-arm64 (
 ./camera version                                      # imprime versão, commit e data do build
 ```
 
-### Devcontainer (VSCode)
-
-`.devcontainer/devcontainer.json` anexa (`dockerComposeFile`+`service: dev-camera`) ao MESMO
-container do `make run`/`docker compose --profile development up -d dev-camera` — nunca builda
-nem sobe um container isolado à parte (tentativa anterior de rodar o Claude num container próprio
-via serviço de devcontainer do VSCode estourou espaço em disco e conflitou com os containers já
-em uso; `shutdownAction: "none"` garante que fechar a janela do VSCode não derruba esse container
-compartilhado). O target `development` do `Dockerfile` ganhou `bash git docker-cli
-docker-cli-compose github-cli` (além de `ffmpeg nodejs yarn` já existentes) só para viabilizar
-esse anexo — nenhuma dessas ferramentas é usada pelo processo da app em si (`go run
-./cmd/camera`). `docker-compose.yml`'s `dev-camera` monta `/var/run/docker.sock` porque
-`scripts/check.sh`/`frontend-check.sh`/`yolo-check.sh`/`e2e.sh` chamam `docker` por baixo.
-`.devcontainer/docker-compose.yml` é um override só para o devcontainer (nunca usado por
-`make run`/scripts): zera o `profiles` do `dev-camera` via `!override` — o Dev Containers CLI do
-VSCode roda `docker compose up` sem `--profile`/nome de serviço, e com `dev-camera` atrás de
-`profiles: [development]` (como no `docker-compose.yml` raiz) o Compose não seleciona nada e falha
-com "no service selected".
-
-**Usuário não-root (`dev`)**: a extensão Claude Code recusa `--dangerously-skip-permissions` quando
-roda como root/sudo, e o processo da app (`CMD` do Dockerfile) sempre rodou como root nesse
-container. Em vez de mudar esse `CMD` (afetaria `make run`/produção do dev-camera), o stage
-`development` do `Dockerfile` ganhou um usuário `dev` (sudo sem senha) só para as sessões
-interativas: `devcontainer.json` seta `"remoteUser": "dev"` (VSCode/extensões passam a rodar como
-`dev` via `docker exec -u dev`, o `CMD` do container continua root, sem mudança de comportamento
-para quem sobe via `make run`) + `"updateRemoteUserUID": true` (ajusta UID/GID de `dev` pro do
-usuário do host em runtime, evita arquivos de dono "estrangeiro" no bind mount `.:/app`).
-`postCreateCommand` (`.devcontainer/setup-docker-group.sh`) dá a `dev` acesso ao
-`/var/run/docker.sock` criando/entrando num grupo com o GID real do socket do host (varia por
-host, não dá pra fixar no Dockerfile).
-
-**`git push`/`ssh` dentro do devcontainer**: o stage `development` do `Dockerfile` ganhou
-`openssh-client` — `origin` é `git@github.com:...` (SSH), e sem o binário `ssh` (só `git`) todo
-`push`/`fetch` falha com `cannot run ssh: No such file or directory`; o agente já chega
-encaminhado do host via `SSH_AUTH_SOCK` (Remote Containers), só faltava o cliente pra usá-lo.
-`docker-compose.yml` (raiz) fixa `HOME=/tmp` pro container inteiro (afeta o processo da app,
-que roda como root — não mexido, é config de produção/`make run`); `devcontainer.json` ganhou
-`"remoteEnv": {"HOME": "/home/dev"}` pra corrigir isso só nas sessões anexadas (VSCode/Claude
-Code) — sem isso `ssh`/`git` resolvem `~` pelo usuário real do SO (`/home/dev`, via `getpwuid`,
-que ignora a env var `HOME`), então qualquer `known_hosts`/config escrito em `$HOME` (`/tmp`)
-nunca é encontrado por eles. `postCreateCommand` também roda `ssh-keyscan -H github.com` pra
-popular o `known_hosts` de antemão — sem isso o 1º `git push`/`fetch` falha com "Host key
-verification failed". O stage `development` também ganhou `jq` — `scripts/merge-when-green.sh`
-(e outros `scripts/` que chamam `gh api`/`gh pr view --json`) exigem `jq` pra parsear a saída.
-
 ### Frontend (`frontend/src/`)
 
 SPA React/Vite/Tailwind. Páginas principais: `LoginPage` → `LiveViewPage` (landing/página principal, rota `/`, história `feat/liveview-customizavel` T7 — antes a landing era a `AllCamerasPage`, removida) → `LivePage` / `HistoryPage` / `VideoBrowserPage` / `RecordingsPage` / `ReportsPage` (ver "Páginas principais" abaixo). Seção de configurações em `/settings/*` com sidebar lateral (padrão GitHub Settings). Token JWT em `localStorage` (`auth.ts`). Em desenvolvimento, Vite faz proxy de `/api` e `/stream` para `localhost:8080`.
