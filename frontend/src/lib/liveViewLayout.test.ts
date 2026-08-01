@@ -162,22 +162,47 @@ describe('CA5: loadSavedCols/saveCols — persistência do preset de layout esco
 })
 
 describe('CA6: computeRowHeight — grade NxN dimensionada pra caber na viewport disponível (não na largura)', () => {
+  // Coluna larga o bastante pra nunca ser o fator limitante nestes casos (ver CA2 abaixo pro
+  // caso em que a largura da coluna É o fator limitante — celular/poucas colunas).
+  const WIDE_COLUMN = 10000
+
   it('divide a altura disponível (viewport - topo do grid - margem) pelo nº de linhas', () => {
-    expect(computeRowHeight(800, 200, 2)).toBe((800 - 200 - 16) / 2)
+    expect(computeRowHeight(800, 200, 2, WIDE_COLUMN)).toBe((800 - 200 - 16) / 2)
   })
 
   it('preset 1x1 (1 linha) usa toda a altura disponível numa célula só', () => {
-    expect(computeRowHeight(800, 200, 1)).toBe(800 - 200 - 16)
+    expect(computeRowHeight(800, 200, 1, WIDE_COLUMN)).toBe(800 - 200 - 16)
   })
 
   it('mais linhas → células mais baixas (mesma altura disponível dividida por mais)', () => {
-    const h2 = computeRowHeight(800, 200, 2)
-    const h4 = computeRowHeight(800, 200, 4)
+    const h2 = computeRowHeight(800, 200, 2, WIDE_COLUMN)
+    const h4 = computeRowHeight(800, 200, 4, WIDE_COLUMN)
     expect(h4).toBeLessThan(h2)
   })
 
   it('altura disponível degenerada (viewport baixa/muitas linhas) não passa do mínimo', () => {
-    expect(computeRowHeight(300, 250, 4)).toBe(80)
+    expect(computeRowHeight(300, 250, 4, WIDE_COLUMN)).toBe(80)
+  })
+})
+
+describe('CA2: computeRowHeight — nunca distorce o tile além da proporção do vídeo (coluna estreita, celular)', () => {
+  it('coluna larga o bastante: comportamento inalterado, altura vem da divisão por linhas (mesmo caso de sempre)', () => {
+    expect(computeRowHeight(800, 100, 1, 2000)).toBe(800 - 100 - 16)
+  })
+
+  it('coluna estreita (1 coluna, viewport de celular): altura respeita 16:9 da coluna, não estica pra preencher a viewport', () => {
+    const height = computeRowHeight(700, 60, 1, 320)
+    expect(height).toBeCloseTo(320 / (16 / 9))
+    expect(height).toBeLessThan(700 - 60 - 16) // não usa toda a altura disponível — ficaria distorcido
+  })
+
+  it('aspectRatio customizado é respeitado (não trava sempre em 16:9)', () => {
+    const height = computeRowHeight(700, 60, 1, 320, 4 / 3)
+    expect(height).toBeCloseTo(320 / (4 / 3))
+  })
+
+  it('mesmo com coluna muito estreita, nunca fica abaixo do mínimo', () => {
+    expect(computeRowHeight(700, 60, 1, 50)).toBe(80)
   })
 })
 

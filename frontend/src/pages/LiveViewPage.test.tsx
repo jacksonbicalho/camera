@@ -237,12 +237,15 @@ describe('CA5: presets de layout (1×1/2×2/3×3/4×4) num dropdown (mesmo padr�
 describe('CA6: grade NxN dimensionada pela viewport (não pela largura)', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true })
+    // width: 1200 — larga o bastante pra a coluna (1200/3=400) não ser o fator limitante do
+    // rowHeight neste cenário (ver CA2 em liveViewLayout.test.ts pro caso em que a largura da
+    // coluna É o fator limitante — celular/poucas colunas).
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
       top: 200,
       left: 0,
       right: 0,
       bottom: 0,
-      width: 0,
+      width: 1200,
       height: 0,
       x: 0,
       y: 0,
@@ -259,6 +262,47 @@ describe('CA6: grade NxN dimensionada pela viewport (não pela largura)', () => 
     await waitFor(() => {
       expect(gridLayoutMock.lastProps?.rowHeight).toBe((800 - 200 - 16) / 3)
     })
+  })
+})
+
+describe('CA2: rowHeight nunca distorce um tile além da proporção do vídeo (coluna estreita, celular)', () => {
+  it('viewport estreita (1 coluna efetiva): rowHeight respeita 16:9 da coluna, não estica pra preencher a viewport', async () => {
+    // window.innerWidth/innerHeight não são spies (Object.defineProperty) — vi.restoreAllMocks()
+    // não os desfaz, e o jsdom NÃO reseta window entre testes do mesmo arquivo (só entre
+    // arquivos). Sem restaurar os valores originais no finally, os testes seguintes deste
+    // arquivo (ex. CA7, que depende de innerWidth "normal" pra não clampar cols) herdariam
+    // 375px pra sempre — achado real ao rodar a suíte completa.
+    const originalInnerWidth = window.innerWidth
+    const originalInnerHeight = window.innerHeight
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 700, configurable: true })
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 60,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: 375, // grid full-bleed na largura da viewport — 1 coluna efetiva (clampColsForViewport)
+      height: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+    try {
+      renderPage()
+      await waitFor(() => {
+        const rowHeight = gridLayoutMock.lastProps?.rowHeight as number
+        expect(rowHeight).toBeCloseTo(375 / (16 / 9))
+        // não usa a altura toda disponível (700-60-16=624) — ficaria bem mais alto que largo
+        expect(rowHeight).toBeLessThan(700 - 60 - 16)
+      })
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: originalInnerWidth, configurable: true })
+      Object.defineProperty(window, 'innerHeight', {
+        value: originalInnerHeight,
+        configurable: true,
+      })
+      vi.restoreAllMocks()
+    }
   })
 })
 

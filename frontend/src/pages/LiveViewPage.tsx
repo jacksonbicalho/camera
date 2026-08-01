@@ -76,6 +76,7 @@ export default function LiveViewPage() {
     typeof window === 'undefined' ? 1280 : window.innerWidth,
   )
   const [gridTop, setGridTop] = useState(0)
+  const [gridWidth, setGridWidth] = useState(0)
   const gridWrapRef = useRef<HTMLDivElement | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [hiddenIds, setHiddenIds] = useState<string[]>(() => loadHiddenCameraIds())
@@ -128,16 +129,21 @@ export default function LiveViewPage() {
       .catch(() => {})
   }, [navigate])
 
-  // Mede o topo do grid (distância até o topo da viewport) pra computeRowHeight saber quanta
-  // altura está disponível abaixo dele — `getBoundingClientRect().top` não depende do próprio
-  // rowHeight (só do que vem ACIMA do grid: PageHeader), então não há realimentação. Ref
-  // callback (não useRef+useEffect vazio) porque o elemento só existe depois que `cameras`
-  // carrega — mesmo motivo de sempre (HistoryPage.tsx). Recalcula também no resize da janela.
+  // Mede o topo E a largura do grid (mesmo getBoundingClientRect, um único DOM read) pra
+  // computeRowHeight saber quanta altura está disponível abaixo dele E qual a largura real de
+  // coluna (T1, história fix/liveview-mobile-player-notificacoes — sem a largura, o rowHeight
+  // não tinha como respeitar a proporção do vídeo em viewports estreitas). Nenhum dos dois
+  // depende do próprio rowHeight (só do que vem ACIMA do grid: PageHeader), então não há
+  // realimentação. Ref callback (não useRef+useEffect vazio) porque o elemento só existe
+  // depois que `cameras` carrega — mesmo motivo de sempre (HistoryPage.tsx). Recalcula também
+  // no resize da janela.
   const recomputeViewport = useCallback(() => {
     setViewportHeight(window.innerHeight)
     setViewportWidth(window.innerWidth)
     if (gridWrapRef.current) {
-      setGridTop(gridWrapRef.current.getBoundingClientRect().top)
+      const rect = gridWrapRef.current.getBoundingClientRect()
+      setGridTop(rect.top)
+      setGridWidth(rect.width)
     }
   }, [])
 
@@ -159,7 +165,8 @@ export default function LiveViewPage() {
   // escolhido, ex. "3×3" no dropdown) não muda, pra voltar ao normal sozinho
   // quando a tela alargar de novo.
   const effectiveCols = clampColsForViewport(cols, viewportWidth)
-  const rowHeight = computeRowHeight(viewportHeight, gridTop, effectiveCols)
+  const columnWidth = gridWidth / Math.max(1, effectiveCols)
+  const rowHeight = computeRowHeight(viewportHeight, gridTop, effectiveCols, columnWidth)
 
   // react-grid-layout entrega um array `readonly` (Layout) pro callback — copia pra um
   // array mutável antes de guardar no estado/persistir (TileLayout tem o mesmo shape).
