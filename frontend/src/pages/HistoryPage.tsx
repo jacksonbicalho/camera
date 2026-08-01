@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { authHeaders, getToken, onUnauthorized } from '../auth'
+import { useNotifications } from '../contexts/NotificationContext'
 import Layout from '../components/Layout'
 import CameraStageHeader from '../components/CameraStageHeader'
 import DatePicker from '../components/DatePicker'
@@ -106,6 +107,7 @@ export default function HistoryPage() {
   }>()
   const navigate = useNavigate()
   const location = useLocation()
+  const { markReadByEvent } = useNotifications()
   // Congela o :recordingId (e a câmera a que ele pertence) da URL só no 1º render —
   // navegações subsequentes que a própria página disparar (URL sync abaixo, ou o
   // `<select>` de troca de câmera) não devem re-disparar a resolução. Sem
@@ -663,6 +665,18 @@ export default function HistoryPage() {
       )
     }
   }
+  // Marca como lida a notificação do evento quando o Histórico abre com :motionId — mesmo
+  // evento resolvido acima (`events.find`), mas via useEffect (não dentro do bloco de ajuste
+  // de estado durante o render acima): chamar `markReadByEvent` ali dispararia o setState do
+  // NotificationProvider (um componente ANCESTRAL) durante o render do HistoryPage — React
+  // não permite atualizar o estado de OUTRO componente durante o render do componente atual
+  // (diferente do padrão "ajuste durante o render" já usado nesta página, que só vale pro
+  // PRÓPRIO estado do componente que está renderizando).
+  useEffect(() => {
+    if (!clipActive || !camera) return
+    const ev = events.find((e) => String(e.id) === initialMotionId)
+    if (ev) markReadByEvent(camera.id, ev.time)
+  }, [clipActive, camera, events, initialMotionId, markReadByEvent])
   // Prioridade: contínua > clipe (só enquanto `clipActive` — sai do modo, mesmo com um
   // clipe já congelado em `resolvedClipSegments`, cai pro chunk inteiro) > gravação única.
   // Sem sobreposição real (ex.: a gravação-alvo sumiu do dia, `resolvedClipSegments` congela

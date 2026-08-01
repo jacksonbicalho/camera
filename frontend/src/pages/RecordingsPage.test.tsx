@@ -13,6 +13,29 @@ vi.mock('../components/Layout', () => ({
 }))
 vi.mock('../components/DatePicker', () => ({ default: () => <div data-testid="datepicker" /> }))
 
+// RecordingPlayerModal (renderizado sempre, mesmo com open=false — ver comentário abaixo)
+// chama useNotifications() incondicionalmente desde a story player-modal-recordings/T4
+// (markReadByEvent ao resolver um evento) — sem este mock, useNotifications() lança "must be
+// used inside NotificationProvider" e quebra todo teste do arquivo. As chamadas em si (CA5)
+// já são verificadas isoladamente em RecordingPlayerModal.test.tsx; aqui só evita o crash.
+vi.mock('../contexts/NotificationContext', () => ({
+  useNotifications: () => ({
+    notifications: [],
+    unreadCount: 0,
+    markRead: vi.fn(),
+    markReadByEvent: vi.fn(),
+    markSelectedRead: vi.fn(),
+    remove: vi.fn(),
+    removeAll: vi.fn(),
+    removeSelected: vi.fn(),
+    browserSupported: false,
+    browserPermission: 'default',
+    browserEnabled: false,
+    enableBrowserNotifications: vi.fn(),
+    disableBrowserNotifications: vi.fn(),
+  }),
+}))
+
 // RecordingsGateway (usada por useRecordingSegments dentro do RecordingPlayerModal, T2/T3 da
 // story player-modal-recordings) captura globalThis.fetch no construtor e nasce a nível de
 // módulo — mesmo padrão de VideoBrowserPage.test.tsx: mock do módulo, não do fetch cru.

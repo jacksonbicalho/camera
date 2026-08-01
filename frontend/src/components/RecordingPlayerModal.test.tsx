@@ -10,6 +10,28 @@ const g = vi.hoisted(() => ({
   getPlaybackWindow: vi.fn(),
 }))
 
+// markReadByEvent hoisted separado do resto do mock — precisa ser o MESMO vi.fn() em toda
+// renderização de useNotifications() pra as asserções de CA5 conseguirem inspecionar as
+// chamadas (o resto do valor do contexto não importa pra este arquivo).
+const notif = vi.hoisted(() => ({ markReadByEvent: vi.fn() }))
+vi.mock('../contexts/NotificationContext', () => ({
+  useNotifications: () => ({
+    notifications: [],
+    unreadCount: 0,
+    markRead: vi.fn(),
+    markReadByEvent: notif.markReadByEvent,
+    markSelectedRead: vi.fn(),
+    remove: vi.fn(),
+    removeAll: vi.fn(),
+    removeSelected: vi.fn(),
+    browserSupported: false,
+    browserPermission: 'default',
+    browserEnabled: false,
+    enableBrowserNotifications: vi.fn(),
+    disableBrowserNotifications: vi.fn(),
+  }),
+}))
+
 vi.mock('../lib/recordingsGateway', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/recordingsGateway')>()
   return {
@@ -335,5 +357,31 @@ describe('CA8: botão de fechar usa o padrão de botão-ícone redondo (com áre
     // não um token de superfície sólido específico.
     expect(closeButton.className).not.toContain('hover:bg-surface-2')
     expect(closeButton.className).toContain('hover:bg-foreground/10')
+  })
+})
+
+describe('CA5: iniciar a reprodução de um evento dentro do modal marca a notificação correspondente como lida', () => {
+  it('com motionId resolvido, chama markReadByEvent(cameraId, evento.time)', async () => {
+    g.getEvent.mockResolvedValue({ id: 9, time: '2026-01-01T12:00:05Z', score: 1 })
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={1} motionId={9} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(notif.markReadByEvent).toHaveBeenCalledWith('cam1', '2026-01-01T12:00:05Z')
+    })
+  })
+
+  it('sem motionId (reprodução do chunk inteiro, sem evento associado), não marca nada como lido', async () => {
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={1} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('recording-player-video')).not.toBeNull()
+    })
+    expect(notif.markReadByEvent).not.toHaveBeenCalled()
   })
 })

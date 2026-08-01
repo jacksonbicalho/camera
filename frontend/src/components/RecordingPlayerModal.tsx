@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import { useNotifications } from '../contexts/NotificationContext'
 import { useDraggableResizable, type ResizeCorner } from '../hooks/useDraggableResizable'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useRecordingSegments } from '../hooks/useRecordingSegments'
@@ -57,6 +59,7 @@ export default function RecordingPlayerModal({
   onClose,
 }: RecordingPlayerModalProps) {
   const navigate = useNavigate()
+  const { markReadByEvent } = useNotifications()
   useEscapeKey(onClose, open)
   // cameraId/recordingId só passam pro hook quando o modal está aberto — fechado, não
   // dispara fetch nenhum (e não mantém segments velhos vivos escondidos atrás do overlay).
@@ -71,6 +74,15 @@ export default function RecordingPlayerModal({
     minWidth: MODAL_MIN_WIDTH,
     chromeHeight: MODAL_CHROME_HEIGHT,
   })
+
+  // Marca como lida a notificação do evento assim que ele resolve (mesmo timing que o clique
+  // direto no sino já usava: antes mesmo do vídeo carregar de fato — os players autoplay
+  // mudo por padrão) — cobre TODOS os chamadores deste modal (sino, RecordingsPage/Momentos),
+  // não só quem já chamava markRead no próprio clique. Sem motionId (reprodução do chunk
+  // inteiro, sem evento associado), `event` fica `null` e nada é marcado.
+  useEffect(() => {
+    if (cameraId && event) markReadByEvent(cameraId, event.time)
+  }, [cameraId, event, markReadByEvent])
 
   if (!open) return null
 

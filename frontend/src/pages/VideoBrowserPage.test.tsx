@@ -18,11 +18,15 @@ vi.mock('../contexts/UserNotificationContext', () => ({
   useUserNotifications: () => ({ unreadCount: 0 }),
 }))
 
+// markReadByEvent hoisted separado — precisa ser o MESMO vi.fn() em toda renderização de
+// useNotifications() pra as asserções de CA5 conseguirem inspecionar as chamadas.
+const notif = vi.hoisted(() => ({ markReadByEvent: vi.fn() }))
 vi.mock('../contexts/NotificationContext', () => ({
   useNotifications: () => ({
     notifications: [],
     unreadCount: 0,
     markRead: vi.fn(),
+    markReadByEvent: notif.markReadByEvent,
     markSelectedRead: vi.fn(),
     remove: vi.fn(),
     removeAll: vi.fn(),
@@ -190,5 +194,23 @@ describe('VideoBrowserPage — StrictMode (efeito de carga duplicado no mount em
     })
     expect(signals).toHaveLength(2)
     expect(signals[0]?.aborted).toBe(true)
+  })
+})
+
+describe('CA5: iniciar a reprodução de um evento (via :motionId) marca a notificação correspondente como lida', () => {
+  it('resolve o evento e chama markReadByEvent(cameraId, evento.time)', async () => {
+    g.getEvent.mockResolvedValue({ id: 9, time: '2026-01-01T12:00:05Z', score: 1 })
+    renderAt('/recording/cam1/1/9')
+    await waitFor(() => {
+      expect(notif.markReadByEvent).toHaveBeenCalledWith('cam1', '2026-01-01T12:00:05Z')
+    })
+  })
+
+  it('sem motionId (chunk-âncora inteiro), não marca nada como lido', async () => {
+    renderAt('/recording/cam1/1')
+    await waitFor(() => {
+      expect(document.getElementById('video-browser-header')).not.toBeNull()
+    })
+    expect(notif.markReadByEvent).not.toHaveBeenCalled()
   })
 })
