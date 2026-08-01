@@ -152,9 +152,10 @@ export default function HistoryPage() {
   const [filter, setFilter] = useState<TimelineFilter>('todos')
   // Filtro de intervalo de horário (painel na coluna lateral, mesma linha do calendário) —
   // filtra AO VIVO: cada edição (onChange) já atualiza este estado direto, sem botão
-  // "Aplicar" — matchesTimeRange trata um horário só parcialmente preenchido (from OU to
-  // ausente) como "sem filtro" (ver lib/timeRange.ts), então digitar só o "De" ainda não
-  // filtra nada até o "Até" também ser preenchido, sem exigir confirmação extra.
+  // "Aplicar". matchesTimeRange (ver lib/timeRange.ts) trata cada lado ausente como um
+  // filtro ABERTO — só "De" já filtra a partir daquele horário até o fim do dia, só "Até"
+  // filtra do início do dia até aquele horário; só quando os DOIS estão ausentes é que não
+  // há filtro nenhum. TimeRangeFilterPanel garante from <= to antes de propagar pra cá.
   const [timeRange, setTimeRange] = useState<{ from: ClockTime | null; to: ClockTime | null }>({
     from: null,
     to: null,

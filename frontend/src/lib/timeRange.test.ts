@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { clockTimeToMinutes, matchesTimeRange, type ClockTime } from './timeRange'
+import {
+  applyTimeRangeChange,
+  clockTimeToMinutes,
+  matchesTimeRange,
+  type ClockTime,
+} from './timeRange'
 
 describe('clockTimeToMinutes', () => {
   it('converte hora:minuto pra minutos desde meia-noite', () => {
@@ -10,19 +15,40 @@ describe('clockTimeToMinutes', () => {
 })
 
 describe('matchesTimeRange', () => {
-  describe('CA3: filtro incompleto (from/to ausente) sempre casa — o filtro só entra em vigor com os dois preenchidos', () => {
+  describe('CA2: sem from nem to, sempre casa (sem filtro)', () => {
     it('sem from nem to, sempre true', () => {
       expect(matchesTimeRange('2026-07-05T10:00:00Z', null, null)).toBe(true)
     })
-    it('só from ou só to (filtro incompleto), sempre true', () => {
-      const from: ClockTime = { hour: 9, minute: 0 }
-      const to: ClockTime = { hour: 17, minute: 0 }
-      expect(matchesTimeRange('2026-07-05T23:00:00Z', from, null)).toBe(true)
-      expect(matchesTimeRange('2026-07-05T23:00:00Z', null, to)).toBe(true)
+  })
+
+  describe('CA2: só "De" preenchido — filtro aberto a partir daquele horário até o fim do dia', () => {
+    const from: ClockTime = { hour: 9, minute: 0 }
+    it('horário depois de "from" casa', () => {
+      expect(matchesTimeRange('2026-07-05T23:00:00', from, null)).toBe(true)
+    })
+    it('horário igual a "from" casa (inclusivo)', () => {
+      expect(matchesTimeRange('2026-07-05T09:00:00', from, null)).toBe(true)
+    })
+    it('horário antes de "from" não casa', () => {
+      expect(matchesTimeRange('2026-07-05T08:59:00', from, null)).toBe(false)
     })
   })
 
-  describe('CA3: intervalo normal (from < to) — comparação só de hora:minuto LOCAL, ignora a data', () => {
+  describe('CA2: só "Até" preenchido — filtro aberto do início do dia até aquele horário', () => {
+    const to: ClockTime = { hour: 17, minute: 0 }
+    it('horário antes de "to" casa', () => {
+      expect(matchesTimeRange('2026-07-05T00:00:00', null, to)).toBe(true)
+      expect(matchesTimeRange('2026-07-05T16:59:00', null, to)).toBe(true)
+    })
+    it('horário igual a "to" NÃO casa (exclusivo, mesma convenção do limite superior de sempre)', () => {
+      expect(matchesTimeRange('2026-07-05T17:00:00', null, to)).toBe(false)
+    })
+    it('horário depois de "to" não casa', () => {
+      expect(matchesTimeRange('2026-07-05T17:01:00', null, to)).toBe(false)
+    })
+  })
+
+  describe('CA2: intervalo normal (from < to) — comparação só de hora:minuto LOCAL, ignora a data', () => {
     const from: ClockTime = { hour: 9, minute: 0 }
     const to: ClockTime = { hour: 17, minute: 0 }
     it('horário dentro do intervalo casa', () => {
@@ -40,31 +66,83 @@ describe('matchesTimeRange', () => {
     })
   })
 
-  describe('CA3: intervalo cruzando a meia-noite (from > to, ex.: 22:00–02:00)', () => {
-    const from: ClockTime = { hour: 22, minute: 0 }
-    const to: ClockTime = { hour: 2, minute: 0 }
-    it('horário logo depois de "from" (antes da meia-noite) casa', () => {
-      expect(matchesTimeRange('2026-07-05T23:30:00', from, to)).toBe(true)
-    })
-    it('horário logo antes de "to" (depois da meia-noite) casa', () => {
-      expect(matchesTimeRange('2026-07-05T01:30:00', from, to)).toBe(true)
-    })
-    it('horário durante o dia (fora do range noturno) não casa', () => {
-      expect(matchesTimeRange('2026-07-05T12:00:00', from, to)).toBe(false)
-    })
-    it('horário igual ao limite inferior ("from") casa (inclusivo)', () => {
-      expect(matchesTimeRange('2026-07-05T22:00:00', from, to)).toBe(true)
-    })
-    it('horário igual ao limite superior ("to") NÃO casa (exclusivo)', () => {
-      expect(matchesTimeRange('2026-07-06T02:00:00', from, to)).toBe(false)
-    })
-  })
-
-  describe('CA3: startIso inválido — falha aberta (sempre casa) em vez de quebrar o filtro', () => {
+  describe('CA2: startIso inválido — falha aberta (sempre casa) em vez de quebrar o filtro', () => {
     it('string que não é uma data válida sempre casa', () => {
       const from: ClockTime = { hour: 9, minute: 0 }
       const to: ClockTime = { hour: 17, minute: 0 }
       expect(matchesTimeRange('not-a-date', from, to)).toBe(true)
+    })
+  })
+})
+
+describe('applyTimeRangeChange', () => {
+  const from: ClockTime = { hour: 9, minute: 0 }
+  const to: ClockTime = { hour: 17, minute: 0 }
+
+  describe('CA3: editar um lado sem conflito propaga direto ("ok")', () => {
+    it('editar "from" sem "to" preenchido, sempre ok', () => {
+      expect(applyTimeRangeChange({ from: null, to: null }, 'from', from)).toEqual({
+        kind: 'ok',
+        from,
+        to: null,
+      })
+    })
+    it('editar "to" sem "from" preenchido, sempre ok', () => {
+      expect(applyTimeRangeChange({ from: null, to: null }, 'to', to)).toEqual({
+        kind: 'ok',
+        from: null,
+        to,
+      })
+    })
+    it('editar "to" >= "from" (ordem válida), ok', () => {
+      expect(applyTimeRangeChange({ from, to: null }, 'to', to)).toEqual({
+        kind: 'ok',
+        from,
+        to,
+      })
+    })
+    it('editar "to" igual a "from" (limite, ainda válido), ok', () => {
+      expect(applyTimeRangeChange({ from, to: null }, 'to', from)).toEqual({
+        kind: 'ok',
+        from,
+        to: from,
+      })
+    })
+    it('editar "from" <= "to" (ordem válida), ok', () => {
+      expect(applyTimeRangeChange({ from: null, to }, 'from', from)).toEqual({
+        kind: 'ok',
+        from,
+        to,
+      })
+    })
+    it('limpar um lado (value=null) nunca gera conflito, mesmo com o outro preenchido', () => {
+      expect(applyTimeRangeChange({ from, to }, 'from', null)).toEqual({
+        kind: 'ok',
+        from: null,
+        to,
+      })
+      expect(applyTimeRangeChange({ from, to }, 'to', null)).toEqual({
+        kind: 'ok',
+        from,
+        to: null,
+      })
+    })
+  })
+
+  describe('CA4: editar um lado em conflito com o outro devolve "conflict" (não propaga)', () => {
+    it('editar "to" pra um valor menor que "from" — conflito, resetSide "from"', () => {
+      const novoTo: ClockTime = { hour: 8, minute: 0 }
+      expect(applyTimeRangeChange({ from, to: null }, 'to', novoTo)).toEqual({
+        kind: 'conflict',
+        resetSide: 'from',
+      })
+    })
+    it('editar "from" pra um valor maior que "to" — conflito, resetSide "to"', () => {
+      const novoFrom: ClockTime = { hour: 18, minute: 0 }
+      expect(applyTimeRangeChange({ from: null, to }, 'from', novoFrom)).toEqual({
+        kind: 'conflict',
+        resetSide: 'to',
+      })
     })
   })
 })
