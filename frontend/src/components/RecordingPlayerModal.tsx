@@ -19,6 +19,15 @@ const VIDEO_ASPECT_RATIO = 16 / 9
 const MODAL_CHROME_HEIGHT = 140
 const MODAL_INITIAL_WIDTH = 896 // mesma largura que `max-w-4xl` tinha antes (56rem = 896px)
 const MODAL_MIN_WIDTH = 360
+// Abaixo desta largura, o modal usa o modo celular (T5, história
+// fix/liveview-mobile-player-notificacoes): largura total da tela (sem margem), altura NÃO
+// travada por MODAL_CHROME_HEIGHT (estimativa fixa que corta o rodapé de controles em telas
+// estreitas — o cabeçalho/rodapé reais passam a quebrar linha nessa largura) e sem alças de
+// resize (a caixa já ocupa a tela inteira; redimensionar não faz sentido). Mesmo breakpoint de
+// `clampColsForViewport` (lib/liveViewLayout.ts). Lido uma vez por render (não há listener de
+// `resize` novo aqui) — girar o aparelho com o modal já aberto não reavalia o modo, escopo
+// deliberado (ver `## Revisão` da story).
+const MOBILE_BREAKPOINT = 640
 
 // RESIZE_HANDLE_SPECS — uma entrada por quina: posição (Tailwind), cursor (direção da
 // diagonal) e o ângulo do gradiente que desenha as 3 linhas diagonais (nwse: topo-esquerda/
@@ -68,12 +77,25 @@ export default function RecordingPlayerModal({
     open ? recordingId : null,
     motionId,
   )
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT
   const { style, dragHandleProps, resizeHandleProps } = useDraggableResizable({
     aspectRatio: VIDEO_ASPECT_RATIO,
     initialWidth: MODAL_INITIAL_WIDTH,
     minWidth: MODAL_MIN_WIDTH,
     chromeHeight: MODAL_CHROME_HEIGHT,
+    resizable: !isMobile,
+    lockAspectRatio: !isMobile,
+    viewportMargin: isMobile ? 0 : undefined,
   })
+  // dragHandleProps não é espalhado no cabeçalho no mobile (abaixo) — o clamp vertical do
+  // arraste (useDraggableResizable.ts) ainda usa a MESMA altura estimada (aspectRatio+
+  // chromeHeight) que este ticket já provou estar errada em telas estreitas (cabeçalho/
+  // rodapé reais quebram linha e ficam mais altos que a estimativa); arrastar o cabeçalho pra
+  // baixo empurraria a caixa (mais alta na realidade) pra além do fundo da viewport,
+  // reproduzindo o mesmo corte que lockAspectRatio=false corrigiu no layout inicial — achado
+  // do code review. Sem drag, a caixa fica onde nasceu (top: 0, full-bleed), suficiente pro
+  // que foi pedido (largura total + sem corte); consertar o clamp em si (medir a altura real)
+  // é trabalho de hook, fora do escopo mínimo deste ticket.
 
   // Marca como lida a notificação do evento assim que ele resolve (mesmo timing que o clique
   // direto no sino já usava: antes mesmo do vídeo carregar de fato — os players autoplay
@@ -112,7 +134,7 @@ export default function RecordingPlayerModal({
         <div
           id="recording-player-modal-header"
           className="flex cursor-move select-none items-center justify-between border-b border-border px-3 py-1.5"
-          {...dragHandleProps}
+          {...(isMobile ? {} : dragHandleProps)}
         >
           <span className="text-caption text-foreground">
             {event

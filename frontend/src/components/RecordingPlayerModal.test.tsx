@@ -385,3 +385,74 @@ describe('CA5: iniciar a reprodução de um evento dentro do modal marca a notif
     expect(notif.markReadByEvent).not.toHaveBeenCalled()
   })
 })
+
+describe('CA6: no celular, o modal abre em largura total, sem corte no rodapé e sem resize', () => {
+  const MOBILE_WIDTH = 375
+  const originalInnerWidth = window.innerWidth
+
+  beforeEach(() => {
+    Object.defineProperty(window, 'innerWidth', { value: MOBILE_WIDTH, configurable: true })
+  })
+  afterEach(() => {
+    Object.defineProperty(window, 'innerWidth', { value: originalInnerWidth, configurable: true })
+  })
+
+  it('largura da caixa é a largura da viewport inteira, encostada na borda esquerda', async () => {
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={1} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('recording-player-modal-box')).not.toBeNull()
+    })
+    const box = document.getElementById('recording-player-modal-box')!
+    expect(parseFloat(box.style.width)).toBe(MOBILE_WIDTH)
+    expect(box.style.left).toBe('0px')
+  })
+
+  it('altura não é travada por uma estimativa fixa (não corta o rodapé de controles)', async () => {
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={1} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('recording-player-modal-box')).not.toBeNull()
+    })
+    expect(document.getElementById('recording-player-modal-box')!.style.height).toBe('')
+  })
+
+  it('nenhuma alça de redimensionar é renderizada', async () => {
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={1} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('recording-player-modal-box')).not.toBeNull()
+    })
+    expect(document.getElementById('recording-player-modal-resize-handle-br')).toBeNull()
+    expect(document.getElementById('recording-player-modal-resize-handle-tl')).toBeNull()
+    expect(document.getElementById('recording-player-modal-resize-handle-tr')).toBeNull()
+    expect(document.getElementById('recording-player-modal-resize-handle-bl')).toBeNull()
+  })
+
+  it('o cabeçalho também não é arrastável no celular (achado do code review: o clamp vertical do drag usa a mesma altura estimada que corta o rodapé — arrastar reabriria o mesmo bug)', async () => {
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={1} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('recording-player-modal-header')).not.toBeNull()
+    })
+    const box = document.getElementById('recording-player-modal-box')!
+    const header = document.getElementById('recording-player-modal-header')!
+    const topBefore = box.style.top
+    fireEvent.pointerDown(header, { clientX: 100, clientY: 50, pointerId: 1 })
+    fireEvent.pointerMove(header, { clientX: 100, clientY: 300, pointerId: 1 })
+    fireEvent.pointerUp(header, { clientX: 100, clientY: 300, pointerId: 1 })
+    expect(box.style.top).toBe(topBefore)
+  })
+})
