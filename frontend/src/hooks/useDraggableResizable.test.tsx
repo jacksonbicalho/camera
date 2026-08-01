@@ -11,6 +11,9 @@ interface HarnessProps {
   minWidth?: number
   maxWidth?: number
   chromeHeight?: number
+  resizable?: boolean
+  lockAspectRatio?: boolean
+  viewportMargin?: number
 }
 
 function Harness({
@@ -19,6 +22,9 @@ function Harness({
   minWidth = 320,
   maxWidth,
   chromeHeight = 80,
+  resizable,
+  lockAspectRatio,
+  viewportMargin,
 }: HarnessProps) {
   const { style, dragHandleProps, resizeHandleProps } = useDraggableResizable({
     aspectRatio,
@@ -26,11 +32,21 @@ function Harness({
     minWidth,
     maxWidth,
     chromeHeight,
+    resizable,
+    lockAspectRatio,
+    viewportMargin,
   })
   return (
     <div id="box" style={style}>
       <div id="handle" {...dragHandleProps} />
-      <div id="resize-handle" {...resizeHandleProps} />
+      {resizeHandleProps && (
+        <>
+          <div id="resize-handle-tl" {...resizeHandleProps.tl} />
+          <div id="resize-handle-tr" {...resizeHandleProps.tr} />
+          <div id="resize-handle-bl" {...resizeHandleProps.bl} />
+          <div id="resize-handle-br" {...resizeHandleProps.br} />
+        </>
+      )}
     </div>
   )
 }
@@ -46,7 +62,7 @@ describe('useDraggableResizable', () => {
 
     it('arrastar a alça de resize muda a largura E recalcula a altura mantendo a proporção 16:9', () => {
       render(<Harness initialWidth={800} aspectRatio={16 / 9} chromeHeight={80} minWidth={320} />)
-      const handle = document.getElementById('resize-handle')!
+      const handle = document.getElementById('resize-handle-br')!
       fireEvent.pointerDown(handle, { clientX: 800, clientY: 450, pointerId: 1 })
       fireEvent.pointerMove(handle, { clientX: 900, clientY: 450, pointerId: 1 })
       fireEvent.pointerUp(handle, { clientX: 900, clientY: 450, pointerId: 1 })
@@ -57,7 +73,7 @@ describe('useDraggableResizable', () => {
 
     it('não redimensiona abaixo de minWidth', () => {
       render(<Harness initialWidth={400} aspectRatio={16 / 9} chromeHeight={80} minWidth={320} />)
-      const handle = document.getElementById('resize-handle')!
+      const handle = document.getElementById('resize-handle-br')!
       fireEvent.pointerDown(handle, { clientX: 400, clientY: 300, pointerId: 1 })
       fireEvent.pointerMove(handle, { clientX: 0, clientY: 300, pointerId: 1 })
       fireEvent.pointerUp(handle, { clientX: 0, clientY: 300, pointerId: 1 })
@@ -66,7 +82,7 @@ describe('useDraggableResizable', () => {
 
     it('não redimensiona acima de maxWidth', () => {
       render(<Harness initialWidth={400} aspectRatio={16 / 9} chromeHeight={80} maxWidth={500} />)
-      const handle = document.getElementById('resize-handle')!
+      const handle = document.getElementById('resize-handle-br')!
       fireEvent.pointerDown(handle, { clientX: 400, clientY: 300, pointerId: 1 })
       fireEvent.pointerMove(handle, { clientX: 2000, clientY: 300, pointerId: 1 })
       fireEvent.pointerUp(handle, { clientX: 2000, clientY: 300, pointerId: 1 })
@@ -147,7 +163,7 @@ describe('useDraggableResizable', () => {
       const left = parseFloat(box.style.left)
       const top = parseFloat(box.style.top)
 
-      const resizeHandle = document.getElementById('resize-handle')!
+      const resizeHandle = document.getElementById('resize-handle-br')!
       const widthBefore = parseFloat(box.style.width)
       fireEvent.pointerDown(resizeHandle, { clientX: widthBefore, clientY: 0, pointerId: 1 })
       fireEvent.pointerMove(resizeHandle, {
@@ -186,7 +202,7 @@ describe('useDraggableResizable', () => {
     it('redimensionar (resize): depois do overshoot ser clampado, mover só um pouco na direção oposta já encolhe a caixa de imediato', () => {
       render(<Harness initialWidth={300} aspectRatio={16 / 9} chromeHeight={80} maxWidth={500} />)
       const box = document.getElementById('box')!
-      const handle = document.getElementById('resize-handle')!
+      const handle = document.getElementById('resize-handle-br')!
       const widthStart = parseFloat(box.style.width)
       fireEvent.pointerDown(handle, { clientX: widthStart, clientY: 0, pointerId: 1 })
       fireEvent.pointerMove(handle, { clientX: widthStart + 100000, clientY: 0, pointerId: 1 })
@@ -217,7 +233,7 @@ describe('useDraggableResizable', () => {
 
     it('pointerdown na alça de resize chama preventDefault (suprime seleção nativa)', () => {
       render(<Harness />)
-      const handle = document.getElementById('resize-handle')!
+      const handle = document.getElementById('resize-handle-br')!
       const event = fireEvent.pointerDown(handle, { clientX: 800, clientY: 450, pointerId: 1 })
       expect(event).toBe(false)
     })
@@ -230,6 +246,145 @@ describe('useDraggableResizable', () => {
       const event = fireEvent.pointerDown(btn, { clientX: 10, clientY: 10, pointerId: 1 })
       expect(event).toBe(true)
       expect(box).toBeTruthy()
+    })
+  })
+
+  describe('CA4: redimensionar pelas 4 quinas — a quina OPOSTA à arrastada fica fixa', () => {
+    it('quina tl (superior-esquerda): a quina oposta (inferior-direita) fica fixa; a caixa cresce pra cima/esquerda', () => {
+      render(<Harness initialWidth={400} aspectRatio={16 / 9} chromeHeight={80} minWidth={200} />)
+      const box = document.getElementById('box')!
+      const leftBefore = parseFloat(box.style.left)
+      const topBefore = parseFloat(box.style.top)
+      const widthBefore = parseFloat(box.style.width)
+      const heightBefore = parseFloat(box.style.height)
+      const anchorX = leftBefore + widthBefore
+      const anchorY = topBefore + heightBefore
+
+      const handle = document.getElementById('resize-handle-tl')!
+      fireEvent.pointerDown(handle, { clientX: leftBefore, clientY: topBefore, pointerId: 1 })
+      fireEvent.pointerMove(handle, {
+        clientX: leftBefore - 50,
+        clientY: topBefore - 50,
+        pointerId: 1,
+      })
+      fireEvent.pointerUp(handle, {
+        clientX: leftBefore - 50,
+        clientY: topBefore - 50,
+        pointerId: 1,
+      })
+
+      const widthAfter = parseFloat(box.style.width)
+      const heightAfter = parseFloat(box.style.height)
+      expect(widthAfter).toBe(widthBefore + 50)
+      expect(heightAfter).toBeCloseTo(widthAfter / (16 / 9) + 80)
+      // a quina inferior-direita (anchor) não se move
+      expect(parseFloat(box.style.left) + widthAfter).toBeCloseTo(anchorX)
+      expect(parseFloat(box.style.top) + heightAfter).toBeCloseTo(anchorY)
+    })
+
+    it('quina tr (superior-direita): a quina oposta (inferior-esquerda) fica fixa; a caixa cresce pra cima/direita', () => {
+      render(<Harness initialWidth={400} aspectRatio={16 / 9} chromeHeight={80} minWidth={200} />)
+      const box = document.getElementById('box')!
+      const leftBefore = parseFloat(box.style.left)
+      const topBefore = parseFloat(box.style.top)
+      const widthBefore = parseFloat(box.style.width)
+      const heightBefore = parseFloat(box.style.height)
+      const anchorX = leftBefore // esquerda fixa (mesmo lado da quina inferior-esquerda)
+      const anchorY = topBefore + heightBefore // base fixa
+
+      const handle = document.getElementById('resize-handle-tr')!
+      fireEvent.pointerDown(handle, {
+        clientX: leftBefore + widthBefore,
+        clientY: topBefore,
+        pointerId: 1,
+      })
+      fireEvent.pointerMove(handle, {
+        clientX: leftBefore + widthBefore + 50,
+        clientY: topBefore,
+        pointerId: 1,
+      })
+      fireEvent.pointerUp(handle, {
+        clientX: leftBefore + widthBefore + 50,
+        clientY: topBefore,
+        pointerId: 1,
+      })
+
+      const widthAfter = parseFloat(box.style.width)
+      const heightAfter = parseFloat(box.style.height)
+      expect(widthAfter).toBe(widthBefore + 50)
+      expect(parseFloat(box.style.left)).toBeCloseTo(anchorX) // esquerda não se move
+      expect(parseFloat(box.style.top)).toBeCloseTo(anchorY - heightAfter) // topo sobe, base fixa
+    })
+
+    it('quina bl (inferior-esquerda): a quina oposta (superior-direita) fica fixa; a caixa cresce pra baixo/esquerda', () => {
+      render(<Harness initialWidth={400} aspectRatio={16 / 9} chromeHeight={80} minWidth={200} />)
+      const box = document.getElementById('box')!
+      const leftBefore = parseFloat(box.style.left)
+      const topBefore = parseFloat(box.style.top)
+      const widthBefore = parseFloat(box.style.width)
+
+      const handle = document.getElementById('resize-handle-bl')!
+      fireEvent.pointerDown(handle, { clientX: leftBefore, clientY: topBefore, pointerId: 1 })
+      fireEvent.pointerMove(handle, { clientX: leftBefore - 50, clientY: topBefore, pointerId: 1 })
+      fireEvent.pointerUp(handle, { clientX: leftBefore - 50, clientY: topBefore, pointerId: 1 })
+
+      const widthAfter = parseFloat(box.style.width)
+      expect(widthAfter).toBe(widthBefore + 50)
+      expect(parseFloat(box.style.top)).toBeCloseTo(topBefore) // topo não se move (quina de baixo)
+      expect(parseFloat(box.style.left)).toBeCloseTo(leftBefore - 50) // esquerda segue o mouse
+    })
+
+    it('quina br (inferior-direita) continua sendo a mesma de sempre — não muda com a introdução das outras 3', () => {
+      render(<Harness initialWidth={400} aspectRatio={16 / 9} chromeHeight={80} minWidth={200} />)
+      const box = document.getElementById('box')!
+      const leftBefore = parseFloat(box.style.left)
+      const topBefore = parseFloat(box.style.top)
+      const widthBefore = parseFloat(box.style.width)
+
+      const handle = document.getElementById('resize-handle-br')!
+      fireEvent.pointerDown(handle, { clientX: 0, clientY: 0, pointerId: 1 })
+      fireEvent.pointerMove(handle, { clientX: 50, clientY: 0, pointerId: 1 })
+      fireEvent.pointerUp(handle, { clientX: 50, clientY: 0, pointerId: 1 })
+
+      expect(parseFloat(box.style.width)).toBe(widthBefore + 50)
+      expect(parseFloat(box.style.left)).toBeCloseTo(leftBefore) // topo-esquerda (anchor) intacto
+      expect(parseFloat(box.style.top)).toBeCloseTo(topBefore)
+    })
+  })
+
+  describe('CA4: resizable=false desliga todas as alças de resize (usado no celular)', () => {
+    it('resizeHandleProps é null — nenhuma alça é renderizada', () => {
+      render(<Harness resizable={false} />)
+      expect(document.getElementById('resize-handle-br')).toBeNull()
+      expect(document.getElementById('resize-handle-tl')).toBeNull()
+      expect(document.getElementById('resize-handle-tr')).toBeNull()
+      expect(document.getElementById('resize-handle-bl')).toBeNull()
+      // arrastar pelo cabeçalho continua funcionando — só o resize é desligado
+      expect(document.getElementById('handle')).not.toBeNull()
+    })
+  })
+
+  describe('CA4: lockAspectRatio=false — altura não é travada, caixa nasce encostada no topo', () => {
+    it('style.height não é definido (conteúdo real dita o tamanho, sem cortar nada por uma estimativa fixa)', () => {
+      render(<Harness lockAspectRatio={false} />)
+      expect(document.getElementById('box')!.style.height).toBe('')
+    })
+
+    it('caixa nasce encostada no topo (top: 0), não centralizada por uma altura que não existe', () => {
+      render(<Harness lockAspectRatio={false} />)
+      expect(document.getElementById('box')!.style.top).toBe('0px')
+    })
+  })
+
+  describe('CA4: viewportMargin=0 — a largura pode ocupar a viewport inteira (full-bleed, celular)', () => {
+    it('largura inicial vai até innerWidth, sem margem', () => {
+      render(<Harness initialWidth={10000} viewportMargin={0} />)
+      expect(parseFloat(document.getElementById('box')!.style.width)).toBe(window.innerWidth)
+    })
+
+    it('caixa nasce encostada na borda esquerda (left: 0)', () => {
+      render(<Harness initialWidth={10000} viewportMargin={0} />)
+      expect(document.getElementById('box')!.style.left).toBe('0px')
     })
   })
 })

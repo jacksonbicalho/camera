@@ -205,9 +205,23 @@ describe('CA2: modal arrastável e redimensionável, mantendo a proporção do v
       </MemoryRouter>,
     )
     await waitFor(() => {
-      expect(document.getElementById('recording-player-modal-resize-handle')).not.toBeNull()
+      expect(document.getElementById('recording-player-modal-resize-handle-br')).not.toBeNull()
     })
     expect(document.getElementById('recording-player-modal-header')).not.toBeNull()
+  })
+
+  it('CA4: renderiza as 4 alças de redimensionar, uma por quina', async () => {
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={1} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('recording-player-modal-resize-handle-tl')).not.toBeNull()
+    })
+    expect(document.getElementById('recording-player-modal-resize-handle-tr')).not.toBeNull()
+    expect(document.getElementById('recording-player-modal-resize-handle-bl')).not.toBeNull()
+    expect(document.getElementById('recording-player-modal-resize-handle-br')).not.toBeNull()
   })
 
   it('CA10: o cabeçalho é select-none (a data não fica selecionável durante o arraste)', async () => {
@@ -249,10 +263,10 @@ describe('CA2: modal arrastável e redimensionável, mantendo a proporção do v
       </MemoryRouter>,
     )
     await waitFor(() => {
-      expect(document.getElementById('recording-player-modal-resize-handle')).not.toBeNull()
+      expect(document.getElementById('recording-player-modal-resize-handle-br')).not.toBeNull()
     })
     const box = document.getElementById('recording-player-modal-box')!
-    const handle = document.getElementById('recording-player-modal-resize-handle')!
+    const handle = document.getElementById('recording-player-modal-resize-handle-br')!
     const widthBefore = parseFloat(box.style.width)
     const heightBefore = parseFloat(box.style.height)
     // Delta pequeno (não 100+) — a caixa nasce com MODAL_INITIAL_WIDTH=896px, e o teto

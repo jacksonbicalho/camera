@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { useDraggableResizable } from '../hooks/useDraggableResizable'
+import { useDraggableResizable, type ResizeCorner } from '../hooks/useDraggableResizable'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useRecordingSegments } from '../hooks/useRecordingSegments'
 import { formatDateTime } from '../lib/datetime'
@@ -17,6 +17,21 @@ const VIDEO_ASPECT_RATIO = 16 / 9
 const MODAL_CHROME_HEIGHT = 140
 const MODAL_INITIAL_WIDTH = 896 // mesma largura que `max-w-4xl` tinha antes (56rem = 896px)
 const MODAL_MIN_WIDTH = 360
+
+// RESIZE_HANDLE_SPECS — uma entrada por quina: posição (Tailwind), cursor (direção da
+// diagonal) e o ângulo do gradiente que desenha as 3 linhas diagonais (nwse: topo-esquerda/
+// baixo-direita; nesw: topo-direita/baixo-esquerda).
+const RESIZE_HANDLE_SPECS: {
+  corner: ResizeCorner
+  position: string
+  cursor: string
+  angle: number
+}[] = [
+  { corner: 'tl', position: 'top-0 left-0', cursor: 'cursor-nwse-resize', angle: 315 },
+  { corner: 'tr', position: 'top-0 right-0', cursor: 'cursor-nesw-resize', angle: 45 },
+  { corner: 'bl', position: 'bottom-0 left-0', cursor: 'cursor-nesw-resize', angle: 225 },
+  { corner: 'br', position: 'bottom-0 right-0', cursor: 'cursor-nwse-resize', angle: 135 },
+]
 
 interface RecordingPlayerModalProps {
   open: boolean
@@ -131,23 +146,29 @@ export default function RecordingPlayerModal({
             emptyMessage="Sem gravação cobrindo o evento."
           />
         </div>
-        {/* Alça de redimensionar — canto inferior direito, sempre por cima do conteúdo
-            (z-10) pra não ficar atrás do rodapé de controles do VideoPlayer. 3 linhas
-            diagonais decrescentes (via gradiente repetido), mesmo afordance visual
-            convencional de "canto redimensionável" — sem depender de nenhum ícone novo
-            (Icons.tsx só tem paths extraídos do lucide de verdade; inventar um path novo
-            aqui arriscaria não bater com o SVG real). */}
-        <div
-          id="recording-player-modal-resize-handle"
-          aria-hidden="true"
-          className="absolute bottom-0 right-0 z-10 h-4 w-4 cursor-nwse-resize opacity-40 hover:opacity-70"
-          style={{
-            background:
-              'repeating-linear-gradient(135deg, transparent 0, transparent 2px, currentColor 2px, currentColor 3px)',
-            color: 'var(--color-border)',
-          }}
-          {...resizeHandleProps}
-        />
+        {/* Alças de redimensionar — uma por quina (T3, história
+            fix/liveview-mobile-player-notificacoes), sempre por cima do conteúdo (z-10) pra
+            não ficarem atrás do rodapé de controles do VideoPlayer. Mesmas 3 linhas diagonais
+            decrescentes de sempre (via gradiente repetido), rotacionadas conforme a diagonal
+            de cada quina (nwse: topo-esquerda/baixo-direita; nesw: topo-direita/baixo-
+            esquerda) — mesmo afordance visual convencional de "canto redimensionável", sem
+            depender de nenhum ícone novo (Icons.tsx só tem paths extraídos do lucide de
+            verdade; inventar um path novo aqui arriscaria não bater com o SVG real).
+            `resizeHandleProps` é `null` no celular (T5) — nenhuma alça é renderizada. */}
+        {resizeHandleProps &&
+          RESIZE_HANDLE_SPECS.map(({ corner, position, cursor, angle }) => (
+            <div
+              key={corner}
+              id={`recording-player-modal-resize-handle-${corner}`}
+              aria-hidden="true"
+              className={`absolute z-10 h-4 w-4 opacity-40 hover:opacity-70 ${position} ${cursor}`}
+              style={{
+                background: `repeating-linear-gradient(${angle}deg, transparent 0, transparent 2px, currentColor 2px, currentColor 3px)`,
+                color: 'var(--color-border)',
+              }}
+              {...resizeHandleProps[corner]}
+            />
+          ))}
       </div>
     </div>,
     document.body,

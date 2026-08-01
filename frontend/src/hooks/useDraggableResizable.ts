@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
 
+export type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br'
+
 export interface UseDraggableResizableOptions {
   /** largura/altura do conteúdo que precisa manter a proporção (ex.: 16/9 pro vídeo). */
   aspectRatio: number
@@ -11,23 +13,34 @@ export interface UseDraggableResizableOptions {
    * resize, só a área do vídeo em si (por isso a proporção do VÍDEO se mantém, não a da caixa
    * inteira). */
   chromeHeight: number
+  /** false desliga as 4 alças de resize (`resizeHandleProps` vira `null`) — usado no celular,
+   * onde a caixa já ocupa a largura toda e redimensionar manualmente não faz sentido. Default
+   * `true`. */
+  resizable?: boolean
+  /** false: a altura NÃO é travada em `largura/aspectRatio+chromeHeight` — fica fora do `style`
+   * (CSS `auto`, o conteúdo real dita o tamanho, sem cortar nada por uma estimativa de chrome
+   * errada em telas estreitas) e a caixa nasce encostada no topo (`top: 0`) em vez de
+   * centralizada por uma altura que não é mais fixa. Default `true`. */
+  lockAspectRatio?: boolean
+  /** margem mínima até a borda da viewport pro teto padrão de largura (cada lado). `0` = a
+   * caixa pode ocupar a viewport inteira (full-bleed, celular). Default `32`. */
+  viewportMargin?: number
+}
+
+interface PointerHandlers {
+  onPointerDown: (e: PointerEvent) => void
+  onPointerMove: (e: PointerEvent) => void
+  onPointerUp: (e: PointerEvent) => void
 }
 
 export interface DraggableResizable {
   style: CSSProperties
-  dragHandleProps: {
-    onPointerDown: (e: PointerEvent) => void
-    onPointerMove: (e: PointerEvent) => void
-    onPointerUp: (e: PointerEvent) => void
-  }
-  resizeHandleProps: {
-    onPointerDown: (e: PointerEvent) => void
-    onPointerMove: (e: PointerEvent) => void
-    onPointerUp: (e: PointerEvent) => void
-  }
+  dragHandleProps: PointerHandlers
+  resizeHandleProps: Record<ResizeCorner, PointerHandlers> | null
 }
 
-const VIEWPORT_MARGIN = 32
+const DEFAULT_VIEWPORT_MARGIN = 32
+const RESIZE_CORNERS: readonly ResizeCorner[] = ['tl', 'tr', 'bl', 'br']
 
 function viewportWidth(): number {
   return typeof window === 'undefined' ? 1024 : window.innerWidth
@@ -36,42 +49,74 @@ function viewportHeight(): number {
   return typeof window === 'undefined' ? 768 : window.innerHeight
 }
 
-// useDraggableResizable — arrastar (pelo cabeçalho) e redimensionar (por uma alça no canto)
-// uma caixa flutuante via Pointer Events puros (mesmo padrão de usePlayerZoom — sem lib de
-// drag/resize). A altura NUNCA é estado próprio: é sempre derivada da largura (`width /
-// aspectRatio + chromeHeight`), o que garante a proporção travada por construção — não tem
-// como os dois estados divergirem porque só um existe.
+// growDirection — cada quina cresce a caixa em duas direções independentes: horizontal
+// (esquerda/direita) e vertical (cima/baixo). `tl`/`bl` crescem pra ESQUERDA (a quina
+// direita correspondente fica fixa); `tl`/`tr` crescem pra CIMA (a quina de baixo
+// correspondente fica fixa). `br` (a única quina que existia antes desta história) não cresce
+// pra nenhum dos dois lados "invertidos" — mantém o comportamento de sempre.
+function growDirection(corner: ResizeCorner): { growLeft: boolean; growUp: boolean } {
+  return {
+    growLeft: corner === 'tl' || corner === 'bl',
+    growUp: corner === 'tl' || corner === 'tr',
+  }
+}
+
+// useDraggableResizable — arrastar (pelo cabeçalho) e redimensionar (por uma alça em cada
+// quina) uma caixa flutuante via Pointer Events puros (mesmo padrão de usePlayerZoom — sem lib
+// de drag/resize). A altura, quando travada (`lockAspectRatio`), NUNCA é estado próprio: é
+// sempre derivada da largura (`width / aspectRatio + chromeHeight`), o que garante a proporção
+// travada por construção — não tem como os dois estados divergirem porque só um existe.
 export function useDraggableResizable({
   aspectRatio,
   initialWidth,
   minWidth,
   maxWidth,
   chromeHeight,
+  resizable = true,
+  lockAspectRatio = true,
+  viewportMargin = DEFAULT_VIEWPORT_MARGIN,
 }: UseDraggableResizableOptions): DraggableResizable {
-  // clampWidth recebe a posição ATUAL da caixa (leftPos/topPos — fixos durante um resize, só
-  // `width` muda) pra nunca deixar a borda direita (`leftPos + w`) nem a de baixo
-  // (`topPos + w/aspectRatio + chromeHeight`) passarem da viewport — não é só o teto
-  // explícito/default (`maxWidth`) que importa, a POSIÇÃO da caixa também limita até onde ela
-  // pode crescer sem sair da tela (achado real do navigator: "é preciso que ele tenha limites
-  // também a esquerda, direita e em baixo").
-  const clampWidth = useCallback(
-    (w: number, leftPos: number, topPos: number) => {
-      const maxByDefault = maxWidth ?? viewportWidth() - VIEWPORT_MARGIN * 2
-      const maxByRightEdge = viewportWidth() - leftPos
-      const maxByBottomEdge = (viewportHeight() - topPos - chromeHeight) * aspectRatio
-      const max = Math.min(maxByDefault, maxByRightEdge, maxByBottomEdge)
+  // clampWidthAnchored generaliza o clamp de largura pra qualquer quina: `anchorX`/`anchorY`
+  // são as coordenadas da quina OPOSTA à que está sendo arrastada (fica fixa durante o
+  // resize inteiro); `growLeft`/`growUp` dizem se a caixa cresce PRA a esquerda/cima (limitado
+  // pela distância do anchor até a borda 0 da viewport) ou pra direita/baixo (limitado pela
+  // distância do anchor até a borda LONGE da viewport — mesma fórmula de sempre, usada pela
+  // quina `br`, a única que existia antes desta história). `anchorX`/`anchorY` == posição
+  // atual (top-left) da caixa reproduz exatamente o comportamento antigo (quina `br`).
+  const clampWidthAnchored = useCallback(
+    (w: number, anchorX: number, anchorY: number, growLeft: boolean, growUp: boolean) => {
+      const maxByDefault = maxWidth ?? viewportWidth() - viewportMargin * 2
+      const maxByHorizontalEdge = growLeft ? anchorX : viewportWidth() - anchorX
+      const maxByVerticalEdge = growUp
+        ? (anchorY - chromeHeight) * aspectRatio
+        : (viewportHeight() - anchorY - chromeHeight) * aspectRatio
+      const max = Math.min(maxByDefault, maxByHorizontalEdge, maxByVerticalEdge)
       return Math.min(max, Math.max(minWidth, w))
     },
-    [minWidth, maxWidth, aspectRatio, chromeHeight],
+    [minWidth, maxWidth, aspectRatio, chromeHeight, viewportMargin],
   )
 
-  const [width, setWidth] = useState(() => clampWidth(initialWidth, 0, 0))
+  // width/top/left vivem num ÚNICO estado (`box`), não três separados — o resize das 4 quinas
+  // (`makeResizeHandlers` abaixo) precisa atualizar os três juntos a partir do valor mais
+  // recente de forma ATÔMICA via `setBox(prev => ...)`: com estados separados, dois
+  // `pointermove` nativos despachados antes do React comitar o render anterior (automatic
+  // batching do React 18 — mais provável com ponteiro/toque de alta frequência) fariam o 2º
+  // evento recalcular a partir de um `width`/`pos` ainda desatualizados (capturados por
+  // closure no render em que o handler foi criado), descartando o delta do 1º evento — a
+  // caixa "atrasa" em relação ao cursor permanentemente (achado real do code review). Um
+  // único `setBox` funcional elimina essa janela: cada atualização em fila já enxerga o
+  // resultado da anterior.
+  const [box, setBox] = useState(() => {
+    const initWidth = clampWidthAnchored(initialWidth, 0, 0, false, false)
+    const initHeight = initWidth / aspectRatio + chromeHeight
+    return {
+      width: initWidth,
+      top: lockAspectRatio ? Math.max(0, (viewportHeight() - initHeight) / 2) : 0,
+      left: Math.max(0, (viewportWidth() - initWidth) / 2),
+    }
+  })
+  const { width, top, left } = box
   const height = width / aspectRatio + chromeHeight
-
-  const [pos, setPos] = useState(() => ({
-    top: Math.max(0, (viewportHeight() - height) / 2),
-    left: Math.max(0, (viewportWidth() - width) / 2),
-  }))
 
   // dragRef guarda só a ÚLTIMA posição do ponteiro (não a posição/tamanho da caixa no
   // pointerdown) — atualizada a cada `pointermove`, pra computar o delta desde o ÚLTIMO
@@ -81,7 +126,7 @@ export function useDraggableResizable({
   // (banked) — a caixa só volta a se mover quando o mouse percorrer de volta essa distância
   // INTEIRA, criando uma zona morta perceptível (mais notável com movimento rápido, que banca
   // um overshoot maior num único evento). Com âncora incremental, cada evento aplica um delta
-  // PEQUENO sobre a posição JÁ CLAMPADA (via `setPos`/`setWidth` funcional) — assim que o mouse
+  // PEQUENO sobre a posição JÁ CLAMPADA (via `setBox` funcional) — assim que o mouse
   // muda de direção, mesmo 1px, a caixa reage de imediato, sem "descontar" nada primeiro. Mesma
   // técnica que `usePlayerZoom.ts` já usa pro pan (`onPointerMove` atualiza `d.x`/`d.y` a cada
   // evento). Bug real, reportado pelo navigator: "o ícone que representa ter agarrado o modal
@@ -117,7 +162,8 @@ export function useDraggableResizable({
       // cabe na viewport: `top`/`left` nunca negativos (não sai por cima/pela esquerda) e
       // nunca deixam `top+height`/`left+width` passarem de `vh`/`vw` (não sai por baixo/pela
       // direita).
-      setPos((prev) => ({
+      setBox((prev) => ({
+        ...prev,
         top: Math.min(Math.max(0, prev.top + dy), Math.max(0, vh - height)),
         left: Math.min(Math.max(0, prev.left + dx), Math.max(0, vw - width)),
       }))
@@ -129,43 +175,88 @@ export function useDraggableResizable({
     e.currentTarget.releasePointerCapture?.(e.pointerId)
   }, [])
 
-  // resizeRef segue o mesmo princípio (âncora incremental) — ver comentário de `dragRef`.
-  const resizeRef = useRef<{ x: number } | null>(null)
-  const onResizePointerDown = useCallback((e: PointerEvent) => {
-    // Mesmo motivo do preventDefault em onDragPointerDown — ver comentário lá.
-    e.preventDefault()
-    resizeRef.current = { x: e.clientX }
-    e.currentTarget.setPointerCapture?.(e.pointerId)
-  }, [])
-  const onResizePointerMove = useCallback(
-    (e: PointerEvent) => {
-      const r = resizeRef.current
-      if (!r) return
-      const dx = e.clientX - r.x
-      r.x = e.clientX
-      setWidth((prevWidth) => clampWidth(prevWidth + dx, pos.left, pos.top))
+  // resizeRef guarda a quina em resize + a ÚLTIMA posição horizontal do ponteiro + o anchor
+  // (quina OPOSTA, fixa durante o resize inteiro) capturado no pointerdown — um único ref
+  // compartilhado pelas 4 quinas (só uma pode estar em resize por vez, mesma suposição de
+  // ponteiro único do resto do hook).
+  const resizeRef = useRef<{
+    corner: ResizeCorner
+    x: number
+    anchorX: number
+    anchorY: number
+  } | null>(null)
+
+  // makeResizeHandlers — uma quina só difere de outra por QUAL direção cresce (`growDirection`)
+  // e por onde fica o anchor no pointerdown; o resto (clamp, atualização de width/pos) é
+  // idêntico. `anchorX`/`anchorY` == posição atual da caixa reproduz exatamente o
+  // comportamento antigo pra `br` (a única quina que existia antes desta história).
+  const makeResizeHandlers = useCallback(
+    (corner: ResizeCorner): PointerHandlers => {
+      const { growLeft, growUp } = growDirection(corner)
+      return {
+        onPointerDown: (e: PointerEvent) => {
+          // Mesmo motivo do preventDefault em onDragPointerDown — ver comentário lá.
+          e.preventDefault()
+          resizeRef.current = {
+            corner,
+            x: e.clientX,
+            anchorX: growLeft ? left + width : left,
+            anchorY: growUp ? top + height : top,
+          }
+          e.currentTarget.setPointerCapture?.(e.pointerId)
+        },
+        onPointerMove: (e: PointerEvent) => {
+          const r = resizeRef.current
+          if (!r || r.corner !== corner) return
+          const dx = e.clientX - r.x
+          r.x = e.clientX
+          const deltaWidth = growLeft ? -dx : dx
+          // setBox funcional (ver comentário no estado `box` acima) — `prev.width` nunca fica
+          // atrás de um evento anterior ainda não comitado, mesmo sob automatic batching.
+          setBox((prev) => {
+            const newWidth = clampWidthAnchored(
+              prev.width + deltaWidth,
+              r.anchorX,
+              r.anchorY,
+              growLeft,
+              growUp,
+            )
+            const newHeight = newWidth / aspectRatio + chromeHeight
+            return {
+              width: newWidth,
+              left: growLeft ? r.anchorX - newWidth : r.anchorX,
+              top: growUp ? r.anchorY - newHeight : r.anchorY,
+            }
+          })
+        },
+        onPointerUp: (e: PointerEvent) => {
+          if (resizeRef.current?.corner === corner) resizeRef.current = null
+          e.currentTarget.releasePointerCapture?.(e.pointerId)
+        },
+      }
     },
-    // `pos.left`/`pos.top` (primitivos), não o objeto `pos` inteiro — mesma convenção que o
-    // T4 desta história estabeleceu (usePlayerZoom.ts: depender de valores/métodos
-    // específicos, nunca do objeto envoltório, que troca de referência à toa).
-    [clampWidth, pos.left, pos.top],
+    [width, height, top, left, clampWidthAnchored, aspectRatio, chromeHeight],
   )
-  const onResizePointerUp = useCallback((e: PointerEvent) => {
-    resizeRef.current = null
-    e.currentTarget.releasePointerCapture?.(e.pointerId)
-  }, [])
+
+  const resizeHandleProps = resizable
+    ? (Object.fromEntries(
+        RESIZE_CORNERS.map((corner) => [corner, makeResizeHandlers(corner)]),
+      ) as Record<ResizeCorner, PointerHandlers>)
+    : null
 
   return {
-    style: { position: 'fixed', top: pos.top, left: pos.left, width, height },
+    style: {
+      position: 'fixed',
+      top,
+      left,
+      width,
+      ...(lockAspectRatio ? { height } : {}),
+    },
     dragHandleProps: {
       onPointerDown: onDragPointerDown,
       onPointerMove: onDragPointerMove,
       onPointerUp: onDragPointerUp,
     },
-    resizeHandleProps: {
-      onPointerDown: onResizePointerDown,
-      onPointerMove: onResizePointerMove,
-      onPointerUp: onResizePointerUp,
-    },
+    resizeHandleProps,
   }
 }
