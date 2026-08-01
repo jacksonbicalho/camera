@@ -123,7 +123,6 @@ export default function MotionsPage() {
     <Layout id="motions-page" footerId="motions-footer" contentClassName="p-6">
       <div id="motions-content" className="page-content space-y-4">
         <PageHeader
-          className="flex-wrap"
           title="Momentos"
           subtitle="Eventos de movimento, pessoa, IA e estados de todas as câmeras — clique para abrir na gravação."
           actions={

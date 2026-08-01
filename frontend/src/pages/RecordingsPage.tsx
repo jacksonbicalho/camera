@@ -243,7 +243,6 @@ export default function RecordingsPage() {
     <Layout id="recordings-page" footerId="recordings-footer" contentClassName="p-6">
       <div id="recordings-content" className="page-content space-y-4">
         <PageHeader
-          className="flex-wrap"
           title="Gravações"
           subtitle={
             view === 'recordings'
