@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { clockTimeToMinutes, matchesTimeRange, type ClockTime } from './timeRange'
+import {
+  applyTimeRangeChange,
+  clockTimeToMinutes,
+  matchesTimeRange,
+  type ClockTime,
+} from './timeRange'
 
 describe('clockTimeToMinutes', () => {
   it('converte hora:minuto pra minutos desde meia-noite', () => {
@@ -66,6 +71,78 @@ describe('matchesTimeRange', () => {
       const from: ClockTime = { hour: 9, minute: 0 }
       const to: ClockTime = { hour: 17, minute: 0 }
       expect(matchesTimeRange('not-a-date', from, to)).toBe(true)
+    })
+  })
+})
+
+describe('applyTimeRangeChange', () => {
+  const from: ClockTime = { hour: 9, minute: 0 }
+  const to: ClockTime = { hour: 17, minute: 0 }
+
+  describe('CA3: editar um lado sem conflito propaga direto ("ok")', () => {
+    it('editar "from" sem "to" preenchido, sempre ok', () => {
+      expect(applyTimeRangeChange({ from: null, to: null }, 'from', from)).toEqual({
+        kind: 'ok',
+        from,
+        to: null,
+      })
+    })
+    it('editar "to" sem "from" preenchido, sempre ok', () => {
+      expect(applyTimeRangeChange({ from: null, to: null }, 'to', to)).toEqual({
+        kind: 'ok',
+        from: null,
+        to,
+      })
+    })
+    it('editar "to" >= "from" (ordem válida), ok', () => {
+      expect(applyTimeRangeChange({ from, to: null }, 'to', to)).toEqual({
+        kind: 'ok',
+        from,
+        to,
+      })
+    })
+    it('editar "to" igual a "from" (limite, ainda válido), ok', () => {
+      expect(applyTimeRangeChange({ from, to: null }, 'to', from)).toEqual({
+        kind: 'ok',
+        from,
+        to: from,
+      })
+    })
+    it('editar "from" <= "to" (ordem válida), ok', () => {
+      expect(applyTimeRangeChange({ from: null, to }, 'from', from)).toEqual({
+        kind: 'ok',
+        from,
+        to,
+      })
+    })
+    it('limpar um lado (value=null) nunca gera conflito, mesmo com o outro preenchido', () => {
+      expect(applyTimeRangeChange({ from, to }, 'from', null)).toEqual({
+        kind: 'ok',
+        from: null,
+        to,
+      })
+      expect(applyTimeRangeChange({ from, to }, 'to', null)).toEqual({
+        kind: 'ok',
+        from,
+        to: null,
+      })
+    })
+  })
+
+  describe('CA4: editar um lado em conflito com o outro devolve "conflict" (não propaga)', () => {
+    it('editar "to" pra um valor menor que "from" — conflito, resetSide "from"', () => {
+      const novoTo: ClockTime = { hour: 8, minute: 0 }
+      expect(applyTimeRangeChange({ from, to: null }, 'to', novoTo)).toEqual({
+        kind: 'conflict',
+        resetSide: 'from',
+      })
+    })
+    it('editar "from" pra um valor maior que "to" — conflito, resetSide "to"', () => {
+      const novoFrom: ClockTime = { hour: 18, minute: 0 }
+      expect(applyTimeRangeChange({ from: null, to }, 'from', novoFrom)).toEqual({
+        kind: 'conflict',
+        resetSide: 'to',
+      })
     })
   })
 })

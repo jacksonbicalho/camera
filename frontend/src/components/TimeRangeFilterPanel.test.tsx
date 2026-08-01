@@ -21,6 +21,24 @@ describe('TimeRangeFilterPanel', () => {
     })
   })
 
+  describe('CA3: sem conflito de horário, nenhum modal é renderizado', () => {
+    it('sem from/to, ConfirmDialog não existe no DOM', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      expect(document.getElementById('confirm-dialog-confirm')).toBeNull()
+      expect(document.getElementById('confirm-dialog-cancel')).toBeNull()
+    })
+    it('com from e to já preenchidos em ordem válida, ConfirmDialog não existe no DOM', () => {
+      render(
+        <TimeRangeFilterPanel
+          from={{ hour: 9, minute: 0 }}
+          to={{ hour: 17, minute: 0 }}
+          onChange={vi.fn()}
+        />,
+      )
+      expect(document.getElementById('confirm-dialog-confirm')).toBeNull()
+    })
+  })
+
   describe('CA4: altura/fonte batem com as outras 2 linhas da coluna (h-8/32px, text-caption/12px)', () => {
     it('o PICKER_SX é de fato aplicado ao nó real do MUI X (getComputedStyle, não só presença de classe) — trava a regressão de usar um seletor CSS que não existe nesse DOM (o próprio bug corrigido nesta iteração: `.MuiInputBase-root`/`.MuiOutlinedInput-notchedOutline`, do TextField comum do @mui/material, não batem com a "accessible field DOM structure" que TimePicker/DatePicker usam desde o MUI X v7 — sx virava no-op silencioso, sem erro em lint/build)', () => {
       render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)

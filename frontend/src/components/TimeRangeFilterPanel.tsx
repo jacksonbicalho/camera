@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import { TimePicker } from '@mui/x-date-pickers/TimePicker'
 import { renderTimeViewClock } from '@mui/x-date-pickers/timeViewRenderers'
 import MuiThemeProvider from './MuiThemeProvider'
-import type { ClockTime } from '../lib/timeRange'
+import ConfirmDialog from './ConfirmDialog'
+import { applyTimeRangeChange, type ClockTime } from '../lib/timeRange'
 
 // clockTimeToDate/dateToClockTime convertem entre o tipo próprio do app (ClockTime, só
 // hora:minuto, sem data — ver lib/timeRange.ts) e o Date que o TimePicker do MUI espera.
@@ -69,19 +71,50 @@ const PICKER_SX = {
 // distinção pra leitor de tela mesmo sem o rótulo visual. `flex-1` em vez de largura
 // fixa — a linha é só dele agora (não divide mais espaço com o `DatePicker`, que ganhou
 // linha própria acima), então os dois picker esticam pra usar a largura toda disponível.
-// Filtra AO VIVO: sem botão "Aplicar"
-// — cada edição já chama `onChange`, que o HistoryPage aplica direto (mesmo contrato que
-// lib/timeRange.ts's matchesTimeRange usa pra "filtro incompleto = sem filtro": com só um
-// dos dois horários preenchido, o filtro ainda não entra em vigor, mas não exige clique
-// nenhum pra valer assim que o segundo for preenchido).
+// Filtra AO VIVO: sem botão "Aplicar" — cada edição sem conflito já chama `onChange`
+// direto, que o HistoryPage aplica de imediato (lib/timeRange.ts's matchesTimeRange trata
+// cada lado ausente como um filtro aberto — só "De" já filtra a partir daquele horário, só
+// "Até" já filtra até aquele horário). "Até" nunca pode ficar menor que "De" (nem "De"
+// maior que "Até"): applyTimeRangeChange (lib/timeRange.ts) decide se a edição é `ok`
+// (propaga direto) ou `conflict` — nesse caso abre um ConfirmDialog perguntando se zera o
+// lado oposto em vez de aplicar a mudança; cancelar não altera nada.
 export default function TimeRangeFilterPanel({ from, to, onChange }: TimeRangeFilterPanelProps) {
+  const [pendingConflict, setPendingConflict] = useState<{
+    field: 'from' | 'to'
+    value: ClockTime
+    resetSide: 'from' | 'to'
+  } | null>(null)
+
+  function handleFieldChange(field: 'from' | 'to', value: ClockTime | null) {
+    const result = applyTimeRangeChange({ from, to }, field, value)
+    if (result.kind === 'ok') {
+      onChange(result.from, result.to)
+      return
+    }
+    // value só é null quando o campo está sendo limpo — applyTimeRangeChange nunca devolve
+    // `conflict` nesse caso (ver lib/timeRange.ts), então `value` aqui é sempre um ClockTime.
+    setPendingConflict({ field, value: value as ClockTime, resetSide: result.resetSide })
+  }
+
+  function confirmResetConflict() {
+    if (!pendingConflict) return
+    onChange(
+      pendingConflict.field === 'from' ? pendingConflict.value : null,
+      pendingConflict.field === 'to' ? pendingConflict.value : null,
+    )
+    setPendingConflict(null)
+  }
+
+  const conflictFieldLabel = pendingConflict?.field === 'from' ? 'De' : 'Até'
+  const resetSideLabel = pendingConflict?.resetSide === 'from' ? 'De' : 'Até'
+
   return (
     <MuiThemeProvider>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <div id="history-time-range-filter" className="flex w-full items-center gap-1">
           <TimePicker
             value={clockTimeToDate(from)}
-            onChange={(d) => onChange(dateToClockTime(d), to)}
+            onChange={(d) => handleFieldChange('from', dateToClockTime(d))}
             viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
             ampm={false}
             slotProps={{
@@ -91,7 +124,7 @@ export default function TimeRangeFilterPanel({ from, to, onChange }: TimeRangeFi
           />
           <TimePicker
             value={clockTimeToDate(to)}
-            onChange={(d) => onChange(from, dateToClockTime(d))}
+            onChange={(d) => handleFieldChange('to', dateToClockTime(d))}
             viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
             ampm={false}
             slotProps={{
@@ -101,6 +134,14 @@ export default function TimeRangeFilterPanel({ from, to, onChange }: TimeRangeFi
           />
         </div>
       </LocalizationProvider>
+      <ConfirmDialog
+        open={pendingConflict != null}
+        title="Horário inválido"
+        message={`"${conflictFieldLabel}" não pode ficar nessa posição em relação a "${resetSideLabel}". Zerar "${resetSideLabel}" pra aplicar o novo horário?`}
+        confirmLabel={`Zerar "${resetSideLabel}"`}
+        onConfirm={confirmResetConflict}
+        onCancel={() => setPendingConflict(null)}
+      />
     </MuiThemeProvider>
   )
 }

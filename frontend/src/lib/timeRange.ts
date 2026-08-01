@@ -30,3 +30,30 @@ export function matchesTimeRange(
   if (to && mins >= clockTimeToMinutes(to)) return false
   return true
 }
+
+export type TimeRangeChangeResult =
+  | { kind: 'ok'; from: ClockTime | null; to: ClockTime | null }
+  | { kind: 'conflict'; resetSide: 'from' | 'to' }
+
+// applyTimeRangeChange decide o efeito de editar um dos dois lados (`field`) do filtro de
+// horário pra `value` — usado por TimeRangeFilterPanel.tsx antes de propagar `onChange`,
+// garantindo que matchesTimeRange nunca receba from > to. Limpar um campo (`value = null`)
+// nunca gera conflito (sempre `kind: 'ok'`) — só preencher um lado que ficaria "invertido"
+// em relação ao outro já preenchido é que precisa de confirmação do usuário
+// (TimeRangeFilterPanel abre um ConfirmDialog perguntando se zera `resetSide`).
+export function applyTimeRangeChange(
+  current: { from: ClockTime | null; to: ClockTime | null },
+  field: 'from' | 'to',
+  value: ClockTime | null,
+): TimeRangeChangeResult {
+  if (field === 'from') {
+    if (value && current.to && clockTimeToMinutes(value) > clockTimeToMinutes(current.to)) {
+      return { kind: 'conflict', resetSide: 'to' }
+    }
+    return { kind: 'ok', from: value, to: current.to }
+  }
+  if (value && current.from && clockTimeToMinutes(value) < clockTimeToMinutes(current.from)) {
+    return { kind: 'conflict', resetSide: 'from' }
+  }
+  return { kind: 'ok', from: current.from, to: value }
+}
