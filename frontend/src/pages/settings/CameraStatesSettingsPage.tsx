@@ -378,11 +378,11 @@ export default function CameraStatesSettingsPage() {
         <ClassifierHistory cameraId={id!} classifier={historyFor} onBack={closeHistory} />
       ) : (
         <>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <p className="text-sm text-muted-foreground">
               Classificadores de estado (recorte fixo → estado).
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 id="state-train-all"
                 variant="outline"

@@ -26,8 +26,8 @@ export default function ProfileLayout({ children }: ProfileLayoutProps) {
     <Layout id="profile-page" footerId="profile-footer" contentClassName="p-6">
       <div id="profile-content" className="page-content">
         <PageHeader id="profile-header" title="Perfil" />
-        <div className="flex gap-10">
-          <aside className="w-48 shrink-0">
+        <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
+          <aside className="w-full lg:w-48 lg:shrink-0">
             <SectionNavList items={PROFILE_NAV_LINKS} ariaLabel="Perfil" end />
           </aside>
           <div className="min-w-0 flex-1">{children}</div>

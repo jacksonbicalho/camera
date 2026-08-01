@@ -9,7 +9,6 @@ import {
   VolumeX,
   Volume2,
   Gauge,
-  MoreVertical,
 } from './Icons'
 import PlayerFooter from './PlayerFooter'
 import Zoom from './Zoom'
@@ -93,12 +92,6 @@ interface VideoPlayerProps {
   // no fluxo normal logo após o fullscreen, e o `ml-auto` de `footerTrailing` (ou do próprio
   // fullscreen, quando `footerTrailing` está ausente) já empurra o grupo inteiro pra direita.
   footerEnd?: ReactNode
-  // Posição do botão de tela cheia na linha de controles. `trailing` (default) — perto do
-  // fim da linha, mesmo lugar de sempre (uso do VideoBrowserPage, sem footerExtra/footerEnd,
-  // onde o `ml-auto` do próprio botão o empurra pro fim). `afterSpeed` — logo depois do
-  // dropdown de velocidade, antes do `footerExtra` (uso do HistoryPage: entre velocidade e
-  // o switch de reprodução contínua).
-  fullscreenPosition?: 'trailing' | 'afterSpeed'
 }
 
 // VideoPlayer — motor de reprodução de N segmentos MP4 em sequência (double-buffering,
@@ -124,7 +117,6 @@ export default function VideoPlayer({
   footerExtra,
   footerTrailing,
   footerEnd,
-  fullscreenPosition = 'trailing',
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const seekBarRef = useRef<HTMLDivElement>(null)
@@ -148,12 +140,6 @@ export default function VideoPlayer({
   const [playbackRate, setPlaybackRate] = useState(1)
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false)
   const speedMenuRef = useRef<HTMLDivElement | null>(null)
-  // moreOpen — controles secundários (repetir/zoom/snapshot/baixar/velocidade)
-  // ficam atrás de um botão "mais" em telas estreitas (<sm); o container que os
-  // agrupa alterna `hidden sm:flex` (fechado — CSS esconde só abaixo de `sm`,
-  // sempre visível em `sm`+) e `flex` (aberto, independente do breakpoint) —
-  // um único conjunto de botões, sem duplicar elementos.
-  const [moreOpen, setMoreOpen] = useState(false)
   const [pos, setPos] = useState(0) // posição global (s)
   const [total, setTotal] = useState(0) // duração total do clipe (s)
   const [fullscreen, setFullscreen] = useState(false)
@@ -592,7 +578,7 @@ export default function VideoPlayer({
       type="button"
       onClick={toggleFullscreen}
       className={`flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground${
-        fullscreenPosition === 'trailing' && !footerTrailing ? ' ml-auto' : ''
+        !footerTrailing ? ' ml-auto' : ''
       }`}
       aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
     >
@@ -693,7 +679,7 @@ export default function VideoPlayer({
                   style={{ left: `${total > 0 ? (pos / total) * 100 : 0}%` }}
                 />
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   id={`${idPrefix}-playpause`}
                   type="button"
@@ -712,101 +698,62 @@ export default function VideoPlayer({
                 >
                   {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                 </button>
-                <button
-                  id={`${idPrefix}-more`}
-                  type="button"
-                  onClick={() => setMoreOpen((v) => !v)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground sm:hidden"
-                  aria-haspopup="true"
-                  aria-expanded={moreOpen}
-                  aria-label="Mais controles"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
-                <div
-                  id={`${idPrefix}-secondary-controls`}
-                  className={
-                    moreOpen ? 'flex items-center gap-3' : 'hidden items-center gap-3 sm:flex'
-                  }
-                >
-                  {repeat && (
-                    <button
-                      id={`${idPrefix}-repeat`}
-                      type="button"
-                      onClick={toggleRepeat}
-                      className={`flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-2 ${
-                        repeatOn ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      aria-label="Repetir"
-                      aria-pressed={repeatOn}
-                    >
-                      <Repeat className="h-4 w-4" />
-                    </button>
-                  )}
-                  {zoomEnabled && <Zoom id={idPrefix} zoom={zoom} />}
+                {repeat && (
                   <button
-                    id={`${idPrefix}-snapshot`}
+                    id={`${idPrefix}-repeat`}
                     type="button"
-                    onClick={takeSnapshot}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-                    aria-label="Capturar snapshot"
+                    onClick={toggleRepeat}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full hover:bg-surface-2 ${
+                      repeatOn ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    aria-label="Repetir"
+                    aria-pressed={repeatOn}
                   >
-                    <CameraCapture className="h-4 w-4" />
+                    <Repeat className="h-4 w-4" />
                   </button>
-                  <a
-                    id={`${idPrefix}-download`}
-                    href={segments[curSeg]?.src}
-                    download
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-                    aria-label="Baixar gravação"
+                )}
+                <div ref={speedMenuRef} className="relative">
+                  <button
+                    id={`${idPrefix}-speed`}
+                    type="button"
+                    onClick={() => setSpeedMenuOpen((v) => !v)}
+                    className={`flex h-8 min-w-8 items-center justify-center gap-0.5 rounded-full px-1.5 hover:bg-surface-2 ${
+                      playbackRate !== 1
+                        ? 'text-primary'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    aria-haspopup="listbox"
+                    aria-expanded={speedMenuOpen}
+                    aria-label="Velocidade de reprodução"
                   >
-                    <Download className="h-4 w-4" />
-                  </a>
-                  <div ref={speedMenuRef} className="relative">
-                    <button
-                      id={`${idPrefix}-speed`}
-                      type="button"
-                      onClick={() => setSpeedMenuOpen((v) => !v)}
-                      className={`flex h-8 min-w-8 items-center justify-center gap-0.5 rounded-full px-1.5 hover:bg-surface-2 ${
-                        playbackRate !== 1
-                          ? 'text-primary'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      aria-haspopup="listbox"
-                      aria-expanded={speedMenuOpen}
+                    <Gauge className="h-4 w-4" />
+                    <span className="text-caption tabular-nums">{playbackRate}x</span>
+                  </button>
+                  {speedMenuOpen && (
+                    <div
+                      id={`${idPrefix}-speed-menu`}
+                      role="listbox"
                       aria-label="Velocidade de reprodução"
+                      className="absolute bottom-full left-1/2 z-30 mb-2 flex -translate-x-1/2 flex-col overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-lg"
                     >
-                      <Gauge className="h-4 w-4" />
-                      <span className="text-caption tabular-nums">{playbackRate}x</span>
-                    </button>
-                    {speedMenuOpen && (
-                      <div
-                        id={`${idPrefix}-speed-menu`}
-                        role="listbox"
-                        aria-label="Velocidade de reprodução"
-                        className="absolute bottom-full left-1/2 z-30 mb-2 flex -translate-x-1/2 flex-col overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-lg"
-                      >
-                        {SUPPORTED_PLAYBACK_RATES.map((rate) => (
-                          <button
-                            key={rate}
-                            id={`${idPrefix}-speed-${rate}`}
-                            type="button"
-                            role="option"
-                            aria-selected={rate === playbackRate}
-                            onClick={() => selectPlaybackRate(rate)}
-                            className={`px-4 py-1 text-left text-caption tabular-nums hover:bg-surface-2 ${
-                              rate === playbackRate ? 'text-primary' : 'text-foreground'
-                            }`}
-                          >
-                            {rate}x
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                      {SUPPORTED_PLAYBACK_RATES.map((rate) => (
+                        <button
+                          key={rate}
+                          id={`${idPrefix}-speed-${rate}`}
+                          type="button"
+                          role="option"
+                          aria-selected={rate === playbackRate}
+                          onClick={() => selectPlaybackRate(rate)}
+                          className={`px-4 py-1 text-left text-caption tabular-nums hover:bg-surface-2 ${
+                            rate === playbackRate ? 'text-primary' : 'text-foreground'
+                          }`}
+                        >
+                          {rate}x
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {fullscreenPosition === 'afterSpeed' && fullscreenButton}
-                {footerExtra}
                 <span className="text-caption tabular-nums text-muted-foreground">
                   {formatClock(pos)} / {formatClock(total)}
                 </span>
@@ -819,10 +766,30 @@ export default function VideoPlayer({
                     {curSeg + 1} / {segments.length}
                   </span>
                 )}
+                {footerExtra}
+                {zoomEnabled && <Zoom id={idPrefix} zoom={zoom} />}
+                <button
+                  id={`${idPrefix}-snapshot`}
+                  type="button"
+                  onClick={takeSnapshot}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  aria-label="Capturar snapshot"
+                >
+                  <CameraCapture className="h-4 w-4" />
+                </button>
+                <a
+                  id={`${idPrefix}-download`}
+                  href={segments[curSeg]?.src}
+                  download
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  aria-label="Baixar gravação"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
                 {footerTrailing && (
                   <div className="ml-auto flex items-center gap-3">{footerTrailing}</div>
                 )}
-                {fullscreenPosition === 'trailing' && fullscreenButton}
+                {fullscreenButton}
                 {footerEnd}
               </div>
             </div>

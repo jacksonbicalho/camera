@@ -214,7 +214,6 @@ export default function LiveViewPage() {
       <div id="live-view-content" className="page-content space-y-4">
         <PageHeader
           title="Ao vivo"
-          subtitle="Arraste e redimensione os cards pra customizar o layout."
           actions={
             <div id="live-view-presets" className="flex items-center gap-1.5">
               <Button

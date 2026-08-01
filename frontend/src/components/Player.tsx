@@ -4,7 +4,7 @@ import { getToken } from '../auth'
 import { negotiateWebRTC } from '../lib/webrtc'
 import { usePlayerZoom } from '../hooks/usePlayerZoom'
 import { usePlayerSnapshot } from '../hooks/usePlayerSnapshot'
-import { CameraCapture, Loader2, Maximize, MoreVertical, Play, Volume2, VolumeX } from './Icons'
+import { CameraCapture, Loader2, Maximize, Play, Volume2, VolumeX } from './Icons'
 import PlayerFooter from './PlayerFooter'
 import { retryPlan } from './playerRetry'
 import Zoom from './Zoom'
@@ -61,11 +61,6 @@ export default function Player({
   const [fatalError, setFatalError] = useState(false)
   const [noSignal, setNoSignal] = useState(false)
   const [connecting, setConnecting] = useState(true)
-  // moreOpen — Zoom/snapshot ficam atrás de um botão "mais" em telas estreitas
-  // (<sm); mesmo padrão de VideoPlayer.tsx (container único, className alterna
-  // hidden sm:flex/flex, sem duplicar elementos). Mute/fullscreen continuam
-  // fora do grupo, sempre visíveis.
-  const [moreOpen, setMoreOpen] = useState(false)
 
   const zoom = usePlayerZoom(() => videoRef.current)
   const { takeSnapshot } = usePlayerSnapshot(() => videoRef.current, title)
@@ -335,40 +330,19 @@ export default function Player({
               >
                 {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </button>
+              <Zoom id={id} zoom={zoom} />
               <button
-                id={`${id}-more`}
+                id={`${id}-snapshot`}
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  setMoreOpen((v) => !v)
+                  takeSnapshot()
                 }}
-                aria-haspopup="true"
-                aria-expanded={moreOpen}
-                aria-label="Mais controles"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground sm:hidden"
+                aria-label="Capturar snapshot"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
               >
-                <MoreVertical className="h-4 w-4" />
+                <CameraCapture className="h-4 w-4" />
               </button>
-              <div
-                id={`${id}-secondary-controls`}
-                className={
-                  moreOpen ? 'flex items-center gap-3' : 'hidden items-center gap-3 sm:flex'
-                }
-              >
-                <Zoom id={id} zoom={zoom} />
-                <button
-                  id={`${id}-snapshot`}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    takeSnapshot()
-                  }}
-                  aria-label="Capturar snapshot"
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-                >
-                  <CameraCapture className="h-4 w-4" />
-                </button>
-              </div>
               <button
                 id={`${id}-fullscreen`}
                 type="button"

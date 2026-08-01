@@ -22,8 +22,8 @@ export default function CameraSettingsTabs({ id, active }: Props) {
   const isAdmin = getRole() === 'admin'
   return (
     <div className="mb-6">
-      <div className="flex items-center justify-between border-b border-border">
-        <div className="flex gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border">
+        <div className="flex flex-wrap gap-1">
           {TABS.map((tab) => (
             <Link
               key={tab.key}
