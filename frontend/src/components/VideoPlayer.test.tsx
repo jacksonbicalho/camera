@@ -898,3 +898,40 @@ describe('VideoPlayer', () => {
     }
   })
 })
+
+describe('CA4: controles secundários (repetir/zoom/snapshot/baixar/velocidade) atrás de um botão "mais" em telas estreitas', () => {
+  it('fechado por padrão (container com classe "hidden"); botão "mais" existe', async () => {
+    render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+    await waitFor(() => {
+      expect(document.getElementById('p-more')).not.toBeNull()
+    })
+    expect(document.getElementById('p-secondary-controls')?.className).toContain('hidden')
+  })
+
+  it('clicar em "mais" revela o container (perde a classe "hidden") — os controles continuam lá dentro', async () => {
+    render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+    await waitFor(() => {
+      expect(document.getElementById('p-more')).not.toBeNull()
+    })
+    fireEvent.click(document.getElementById('p-more')!)
+    await waitFor(() => {
+      expect(document.getElementById('p-secondary-controls')?.className).not.toContain('hidden')
+    })
+    expect(document.getElementById('p-repeat')).not.toBeNull()
+    expect(document.getElementById('p-snapshot')).not.toBeNull()
+    expect(document.getElementById('p-download')).not.toBeNull()
+    expect(document.getElementById('p-speed')).not.toBeNull()
+  })
+
+  it('play/pause, mute e tempo ficam FORA do grupo — sempre presentes, independente de "mais"', async () => {
+    render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+    await waitFor(() => {
+      expect(document.getElementById('p-playpause')).not.toBeNull()
+    })
+    expect(document.getElementById('p-mute')).not.toBeNull()
+    // Nem play/pause nem mute devem estar dentro do container que "mais" controla.
+    const secondary = document.getElementById('p-secondary-controls')
+    expect(secondary?.contains(document.getElementById('p-playpause'))).toBe(false)
+    expect(secondary?.contains(document.getElementById('p-mute'))).toBe(false)
+  })
+})

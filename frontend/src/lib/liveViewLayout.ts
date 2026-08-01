@@ -78,6 +78,19 @@ export function computeRowHeight(
   return Math.max(minRowHeight, available / Math.max(1, rows))
 }
 
+// clampColsForViewport — história feat/mobile-layout-responsivo: reduz o nº de
+// colunas do grid em viewports estreitos, pra tiles não ficarem pequenos
+// demais (ex.: 4 colunas em 375px dão tiles de ~65px, controles do Player
+// transbordando). Só REDUZ, nunca aumenta o preset escolhido pelo usuário —
+// mesmos limiares de breakpoint (`sm`=640px, `md`=768px) já usados em Tailwind
+// no resto do app. Função pura, sem depender de DOM — o componente já mede
+// `window.innerWidth` pra `computeRowHeight`, reaproveita a mesma leitura.
+export function clampColsForViewport(cols: number, viewportWidth: number): number {
+  if (viewportWidth < 640) return Math.min(cols, 1)
+  if (viewportWidth < 768) return Math.min(cols, 2)
+  return cols
+}
+
 // loadSavedLayout lê o layout persistido — null quando não há nada salvo, ou quando o valor
 // salvo está corrompido/num formato inesperado (nunca lança, a página cai pro automático).
 export function loadSavedLayout(): TileLayout[] | null {
