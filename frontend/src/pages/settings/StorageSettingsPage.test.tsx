@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import StorageSettingsPage from './StorageSettingsPage'
 
@@ -62,7 +62,9 @@ const stats = {
 function stubFetch() {
   vi.stubGlobal(
     'fetch',
-    vi.fn((url: string) => {
+    vi.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/settings/storage' && init?.method === 'PUT')
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) })
       if (url.startsWith('/api/settings'))
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(settings) })
       if (url.startsWith('/api/drives'))
@@ -91,6 +93,109 @@ describe('StorageSettingsPage', () => {
     )
     await waitFor(() => {
       expect(document.body.textContent).toContain('Armazenamento')
+    })
+  })
+
+  describe('CA2: bloco de configuração inicia em modo visualização, botão "Editar" revela o formulário, salvar volta a visualizar', () => {
+    it('modo visualização: sem inputs de configuração, mostra o botão Editar', async () => {
+      stubFetch()
+      render(
+        <MemoryRouter initialEntries={['/settings/storage']}>
+          <StorageSettingsPage />
+        </MemoryRouter>,
+      )
+      await waitFor(() => {
+        expect(document.getElementById('storage-edit')).toBeTruthy()
+      })
+      expect(document.getElementById('storage-save')).toBeNull()
+      expect(document.body.textContent).toContain('/data')
+    })
+
+    it('/settings/storage/edit (deep-link direto): abre já em modo edição, sem precisar clicar', async () => {
+      stubFetch()
+      render(
+        <MemoryRouter initialEntries={['/settings/storage/edit']}>
+          <StorageSettingsPage />
+        </MemoryRouter>,
+      )
+      await waitFor(() => {
+        expect(document.getElementById('storage-save')).toBeTruthy()
+      })
+      expect(document.getElementById('storage-edit')).toBeNull()
+    })
+
+    it('clicar em Editar revela o formulário (botão Salvar aparece)', async () => {
+      stubFetch()
+      render(
+        <MemoryRouter initialEntries={['/settings/storage']}>
+          <StorageSettingsPage />
+        </MemoryRouter>,
+      )
+      await waitFor(() => {
+        expect(document.getElementById('storage-edit')).toBeTruthy()
+      })
+      fireEvent.click(document.getElementById('storage-edit')!)
+      await waitFor(() => {
+        expect(document.getElementById('storage-save')).toBeTruthy()
+      })
+    })
+
+    it('salvar com sucesso volta ao modo visualização', async () => {
+      stubFetch()
+      render(
+        <MemoryRouter initialEntries={['/settings/storage']}>
+          <StorageSettingsPage />
+        </MemoryRouter>,
+      )
+      await waitFor(() => {
+        expect(document.getElementById('storage-edit')).toBeTruthy()
+      })
+      fireEvent.click(document.getElementById('storage-edit')!)
+      await waitFor(() => {
+        expect(document.getElementById('storage-save')).toBeTruthy()
+      })
+      fireEvent.click(document.getElementById('storage-save')!)
+      await waitFor(() => {
+        expect(document.getElementById('storage-save')).toBeNull()
+        expect(document.getElementById('storage-edit')).toBeTruthy()
+      })
+    })
+
+    it('cancelar descarta a edição sem chamar a API e volta ao modo visualização', async () => {
+      stubFetch()
+      render(
+        <MemoryRouter initialEntries={['/settings/storage']}>
+          <StorageSettingsPage />
+        </MemoryRouter>,
+      )
+      await waitFor(() => {
+        expect(document.getElementById('storage-edit')).toBeTruthy()
+      })
+      fireEvent.click(document.getElementById('storage-edit')!)
+      const maxInput = await waitFor(() => {
+        const input = document.querySelectorAll('input[type="number"]')[0] as HTMLInputElement
+        expect(input).toBeTruthy()
+        return input
+      })
+      fireEvent.change(maxInput, { target: { value: '999' } })
+      expect(maxInput.value).toBe('999')
+
+      fireEvent.click(document.getElementById('storage-cancel')!)
+      await waitFor(() => {
+        expect(document.getElementById('storage-save')).toBeNull()
+        expect(document.getElementById('storage-edit')).toBeTruthy()
+      })
+      const putCalls = (fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+        ([url, init]: [string, RequestInit | undefined]) =>
+          url === '/api/settings/storage' && init?.method === 'PUT',
+      )
+      expect(putCalls.length).toBe(0)
+
+      fireEvent.click(document.getElementById('storage-edit')!)
+      await waitFor(() => {
+        const input = document.querySelectorAll('input[type="number"]')[0] as HTMLInputElement
+        expect(input.value).toBe('100')
+      })
     })
   })
 

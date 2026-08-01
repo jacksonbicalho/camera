@@ -79,6 +79,8 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
         <StorageSettingsPage />
       </MemoryRouter>,
     )
+    await waitFor(() => expect(document.getElementById('storage-edit')).toBeTruthy())
+    fireEvent.click(document.getElementById('storage-edit')!)
 
     const destSelect = await waitFor(() => {
       const s = screen
@@ -109,6 +111,8 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
         <StorageSettingsPage />
       </MemoryRouter>,
     )
+    await waitFor(() => expect(document.getElementById('storage-edit')).toBeTruthy())
+    fireEvent.click(document.getElementById('storage-edit')!)
 
     // Wait until the dropdown exists AND the drive options have loaded, otherwise
     // changing to a not-yet-rendered option yields an empty value (flaky).
@@ -153,6 +157,8 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
         <StorageSettingsPage />
       </MemoryRouter>,
     )
+    await waitFor(() => expect(document.getElementById('storage-edit')).toBeTruthy())
+    fireEvent.click(document.getElementById('storage-edit')!)
 
     const driveSelect = await waitFor(() => {
       const s = screen
@@ -193,6 +199,8 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
         <StorageSettingsPage />
       </MemoryRouter>,
     )
+    await waitFor(() => expect(document.getElementById('storage-edit')).toBeTruthy())
+    fireEvent.click(document.getElementById('storage-edit')!)
 
     await waitFor(() => {
       const s = screen
