@@ -92,12 +92,6 @@ interface VideoPlayerProps {
   // no fluxo normal logo após o fullscreen, e o `ml-auto` de `footerTrailing` (ou do próprio
   // fullscreen, quando `footerTrailing` está ausente) já empurra o grupo inteiro pra direita.
   footerEnd?: ReactNode
-  // Posição do botão de tela cheia na linha de controles. `trailing` (default) — perto do
-  // fim da linha, mesmo lugar de sempre (uso do VideoBrowserPage, sem footerExtra/footerEnd,
-  // onde o `ml-auto` do próprio botão o empurra pro fim). `afterSpeed` — logo depois do
-  // dropdown de velocidade, antes do `footerExtra` (uso do HistoryPage: entre velocidade e
-  // o switch de reprodução contínua).
-  fullscreenPosition?: 'trailing' | 'afterSpeed'
 }
 
 // VideoPlayer — motor de reprodução de N segmentos MP4 em sequência (double-buffering,
@@ -123,7 +117,6 @@ export default function VideoPlayer({
   footerExtra,
   footerTrailing,
   footerEnd,
-  fullscreenPosition = 'trailing',
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const seekBarRef = useRef<HTMLDivElement>(null)
@@ -585,7 +578,7 @@ export default function VideoPlayer({
       type="button"
       onClick={toggleFullscreen}
       className={`flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground${
-        fullscreenPosition === 'trailing' && !footerTrailing ? ' ml-auto' : ''
+        !footerTrailing ? ' ml-auto' : ''
       }`}
       aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
     >
@@ -686,7 +679,7 @@ export default function VideoPlayer({
                   style={{ left: `${total > 0 ? (pos / total) * 100 : 0}%` }}
                 />
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   id={`${idPrefix}-playpause`}
                   type="button"
@@ -695,6 +688,15 @@ export default function VideoPlayer({
                   aria-label={playing ? 'Pausar' : 'Reproduzir'}
                 >
                   {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                </button>
+                <button
+                  id={`${idPrefix}-mute`}
+                  type="button"
+                  onClick={toggleMute}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  aria-label={muted ? 'Ativar som' : 'Mudo'}
+                >
+                  {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                 </button>
                 {repeat && (
                   <button
@@ -710,34 +712,6 @@ export default function VideoPlayer({
                     <Repeat className="h-4 w-4" />
                   </button>
                 )}
-                <button
-                  id={`${idPrefix}-mute`}
-                  type="button"
-                  onClick={toggleMute}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-                  aria-label={muted ? 'Ativar som' : 'Mudo'}
-                >
-                  {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                </button>
-                {zoomEnabled && <Zoom id={idPrefix} zoom={zoom} />}
-                <button
-                  id={`${idPrefix}-snapshot`}
-                  type="button"
-                  onClick={takeSnapshot}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-                  aria-label="Capturar snapshot"
-                >
-                  <CameraCapture className="h-4 w-4" />
-                </button>
-                <a
-                  id={`${idPrefix}-download`}
-                  href={segments[curSeg]?.src}
-                  download
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-                  aria-label="Baixar gravação"
-                >
-                  <Download className="h-4 w-4" />
-                </a>
                 <div ref={speedMenuRef} className="relative">
                   <button
                     id={`${idPrefix}-speed`}
@@ -780,8 +754,6 @@ export default function VideoPlayer({
                     </div>
                   )}
                 </div>
-                {fullscreenPosition === 'afterSpeed' && fullscreenButton}
-                {footerExtra}
                 <span className="text-caption tabular-nums text-muted-foreground">
                   {formatClock(pos)} / {formatClock(total)}
                 </span>
@@ -794,10 +766,30 @@ export default function VideoPlayer({
                     {curSeg + 1} / {segments.length}
                   </span>
                 )}
+                {footerExtra}
+                {zoomEnabled && <Zoom id={idPrefix} zoom={zoom} />}
+                <button
+                  id={`${idPrefix}-snapshot`}
+                  type="button"
+                  onClick={takeSnapshot}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  aria-label="Capturar snapshot"
+                >
+                  <CameraCapture className="h-4 w-4" />
+                </button>
+                <a
+                  id={`${idPrefix}-download`}
+                  href={segments[curSeg]?.src}
+                  download
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  aria-label="Baixar gravação"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
                 {footerTrailing && (
                   <div className="ml-auto flex items-center gap-3">{footerTrailing}</div>
                 )}
-                {fullscreenPosition === 'trailing' && fullscreenButton}
+                {fullscreenButton}
                 {footerEnd}
               </div>
             </div>

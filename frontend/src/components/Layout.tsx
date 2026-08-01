@@ -32,19 +32,24 @@ export default function Layout({
 }: LayoutProps) {
   return (
     // Coluna: [TopBar] em cima, depois uma linha [Sidebar] [coluna de conteúdo].
-    // TopBar é `sticky top-0` (ver TopBar.tsx); o Sidebar gruda logo abaixo dela
-    // (`sticky top-14`, altura `calc(100vh-3.5rem)` — 3.5rem = h-14 da TopBar),
-    // mesmo padrão de sempre (rail fixo cobrindo a altura toda, mesmo em página
-    // com conteúdo mais alto que a viewport), só descontando a barra do topo. A
-    // coluna de conteúdo estica na altura (align stretch) e usa flex-col — o
-    // conteúdo (flex-1) empurra o Footer pro fundo. O padding de página vai no
-    // wrapper de conteúdo (contentClassName), não no root, pra o Footer ficar
-    // flush.
+    // TopBar é `sticky top-0` (ver TopBar.tsx); em `lg`+ o Sidebar gruda logo
+    // abaixo dela (`lg:sticky lg:top-14`, altura `calc(100vh-3.5rem)` — 3.5rem
+    // = h-14 da TopBar), mesmo padrão de sempre (rail fixo cobrindo a altura
+    // toda, mesmo em página com conteúdo mais alto que a viewport), só
+    // descontando a barra do topo. Abaixo de `lg` o Sidebar vira um drawer
+    // off-canvas (`position: fixed`, ver Sidebar.tsx) — sai do fluxo normal
+    // sozinho, então este wrapper não precisa (nem pode: um `fixed` dentro de
+    // um ancestral com `hidden`/`display:none` também ficaria escondido) usar
+    // `hidden` — só reservamos o espaço em fluxo (sticky/flex/altura) a partir
+    // de `lg`, deixando o wrapper sem efeito nenhum abaixo disso. A coluna de
+    // conteúdo estica na altura (align stretch) e usa flex-col — o conteúdo
+    // (flex-1) empurra o Footer pro fundo. O padding de página vai no wrapper
+    // de conteúdo (contentClassName), não no root, pra o Footer ficar flush.
     <div id={id} className={cn('flex min-h-screen flex-col', className)}>
       {!hideNav && <TopBar />}
       <div className="flex flex-1">
         {!hideNav && (
-          <div className="sticky top-14 flex h-[calc(100vh-3.5rem)] shrink-0 z-10">
+          <div className="lg:sticky lg:top-14 lg:flex lg:h-[calc(100vh-3.5rem)] lg:shrink-0 lg:z-10">
             <Sidebar />
           </div>
         )}

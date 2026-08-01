@@ -21,6 +21,7 @@ import {
   loadSavedCols,
   saveCols,
   computeRowHeight,
+  clampColsForViewport,
   removeCameraFromLayout,
   addCameraToLayout,
   loadHiddenCameraIds,
@@ -70,6 +71,9 @@ export default function LiveViewPage() {
   const [cols, setCols] = useState<number>(() => loadSavedCols() ?? DEFAULT_COLS)
   const [viewportHeight, setViewportHeight] = useState<number>(() =>
     typeof window === 'undefined' ? 800 : window.innerHeight,
+  )
+  const [viewportWidth, setViewportWidth] = useState<number>(() =>
+    typeof window === 'undefined' ? 1280 : window.innerWidth,
   )
   const [gridTop, setGridTop] = useState(0)
   const gridWrapRef = useRef<HTMLDivElement | null>(null)
@@ -131,6 +135,7 @@ export default function LiveViewPage() {
   // carrega — mesmo motivo de sempre (HistoryPage.tsx). Recalcula também no resize da janela.
   const recomputeViewport = useCallback(() => {
     setViewportHeight(window.innerHeight)
+    setViewportWidth(window.innerWidth)
     if (gridWrapRef.current) {
       setGridTop(gridWrapRef.current.getBoundingClientRect().top)
     }
@@ -149,7 +154,12 @@ export default function LiveViewPage() {
     return () => window.removeEventListener('resize', recomputeViewport)
   }, [recomputeViewport])
 
-  const rowHeight = computeRowHeight(viewportHeight, gridTop, cols)
+  // effectiveCols só afeta a RENDERIZAÇÃO do grid (rowHeight + cols do
+  // ResponsiveGridLayout) em viewports estreitas — `cols` em si (o preset
+  // escolhido, ex. "3×3" no dropdown) não muda, pra voltar ao normal sozinho
+  // quando a tela alargar de novo.
+  const effectiveCols = clampColsForViewport(cols, viewportWidth)
+  const rowHeight = computeRowHeight(viewportHeight, gridTop, effectiveCols)
 
   // react-grid-layout entrega um array `readonly` (Layout) pro callback — copia pra um
   // array mutável antes de guardar no estado/persistir (TileLayout tem o mesmo shape).
@@ -204,7 +214,6 @@ export default function LiveViewPage() {
       <div id="live-view-content" className="page-content space-y-4">
         <PageHeader
           title="Ao vivo"
-          subtitle="Arraste e redimensione os cards pra customizar o layout."
           actions={
             <div id="live-view-presets" className="flex items-center gap-1.5">
               <Button
@@ -361,7 +370,7 @@ export default function LiveViewPage() {
             <ResponsiveGridLayout
               className="layout"
               layout={layout}
-              cols={cols}
+              cols={effectiveCols}
               rowHeight={rowHeight}
               onLayoutChange={handleLayoutChange}
               isDraggable={editMode}

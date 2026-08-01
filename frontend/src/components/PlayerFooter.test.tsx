@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import PlayerFooter from './PlayerFooter'
 
 afterEach(cleanup)
@@ -53,6 +53,21 @@ describe('PlayerFooter', () => {
       expect(el.textContent).not.toContain('Corredor de entrada')
       expect(document.getElementById('p1-footer-actions')).not.toBeNull()
       expect(document.getElementById('p1-footer-mute')).not.toBeNull()
+    })
+  })
+
+  describe('CA4: com título, o rodapé fica em 2 linhas (nome sozinho + ações abaixo, sempre visíveis)', () => {
+    it('a área de ações não é irmã do título na mesma linha — fica numa linha própria abaixo, com flex-wrap', () => {
+      render(
+        <PlayerFooter id="p1-footer" title="Corredor de entrada">
+          <button id="p1-footer-mute">mudo</button>
+        </PlayerFooter>,
+      )
+      const titleEl = screen.getByText('Corredor de entrada')
+      const actionsEl = document.getElementById('p1-footer-actions')!
+      expect(titleEl.parentElement).not.toBe(actionsEl.parentElement)
+      expect(titleEl.parentElement?.contains(actionsEl)).toBe(false)
+      expect(actionsEl.className).toContain('flex-wrap')
     })
   })
 })

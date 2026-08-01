@@ -676,30 +676,7 @@ describe('VideoPlayer', () => {
     expect(document.getElementById('p-controls')?.contains(extra)).toBe(true)
   })
 
-  it('fullscreenPosition="afterSpeed": botão de tela cheia fica entre a velocidade e o footerExtra (uso do HistoryPage)', async () => {
-    render(
-      <VideoPlayer
-        idPrefix="p"
-        segments={[seg('a.mp4', 0, Infinity)]}
-        fullscreenPosition="afterSpeed"
-        footerExtra={<button id="p-continuous">continua</button>}
-      />,
-    )
-    await waitFor(() => {
-      expect(document.getElementById('p-fullscreen')).not.toBeNull()
-    })
-    const speed = document.getElementById('p-speed')!
-    const fullscreen = document.getElementById('p-fullscreen')!
-    const continuous = document.getElementById('p-continuous')!
-    expect(
-      speed.compareDocumentPosition(fullscreen) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-    expect(
-      fullscreen.compareDocumentPosition(continuous) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-  })
-
-  it('fullscreenPosition padrão ("trailing"): botão de tela cheia continua no fim da linha (uso do VideoBrowserPage)', async () => {
+  it('botão de tela cheia sempre no fim da linha, depois do footerExtra (velocidade/tempo/contador/footerExtra/zoom/snapshot/download vêm antes)', async () => {
     render(
       <VideoPlayer
         idPrefix="p"
@@ -896,5 +873,30 @@ describe('VideoPlayer', () => {
     } finally {
       restoreBar()
     }
+  })
+})
+
+describe('CA4: controles do rodapé (repetir/zoom/snapshot/baixar/velocidade) sempre visíveis, quebrando em 2ª linha em telas estreitas', () => {
+  it('nenhum botão "mais"/container escondido — todos os controles presentes de uma vez', async () => {
+    render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} zoom repeat />)
+    await waitFor(() => {
+      expect(document.getElementById('p-playpause')).not.toBeNull()
+    })
+    expect(document.getElementById('p-more')).toBeNull()
+    expect(document.getElementById('p-secondary-controls')).toBeNull()
+    expect(document.getElementById('p-mute')).not.toBeNull()
+    expect(document.getElementById('p-repeat')).not.toBeNull()
+    expect(document.getElementById('p-snapshot')).not.toBeNull()
+    expect(document.getElementById('p-download')).not.toBeNull()
+    expect(document.getElementById('p-speed')).not.toBeNull()
+  })
+
+  it('a linha de controles usa flex-wrap — quebra em vez de esconder', async () => {
+    render(<VideoPlayer idPrefix="p" segments={[seg('a.mp4', 0, Infinity)]} />)
+    await waitFor(() => {
+      expect(document.getElementById('p-playpause')).not.toBeNull()
+    })
+    const row = document.getElementById('p-playpause')?.parentElement
+    expect(row?.className).toContain('flex-wrap')
   })
 })

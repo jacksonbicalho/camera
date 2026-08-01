@@ -803,9 +803,6 @@ export default function HistoryPage() {
                   // contínuo), "N / M" não corresponde a nada que o usuário reconheça (não é
                   // "parte 2 de 5 de UMA gravação", é "a 2ª de 5 gravações distintas na lista").
                   segmentCounter={false}
-                  // Tela cheia entre velocidade e reprodução contínua (não no fim da linha, como
-                  // no VideoBrowserPage) — pedido do navigator, específico do Histórico.
-                  fullscreenPosition="afterSpeed"
                   emptyMessage="Sem gravações nesse dia."
                   onLoadedData={() => setVideoLoading(false)}
                   onError={() => {

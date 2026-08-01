@@ -1,6 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import ProfileChangePasswordPage from './ProfileChangePasswordPage'
+
+function renderPage() {
+  return render(
+    <MemoryRouter initialEntries={['/profile/change-password']}>
+      <Routes>
+        <Route path="/profile" element={<div>página de perfil</div>} />
+        <Route path="/profile/change-password" element={<ProfileChangePasswordPage />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
 
 afterEach(() => {
   cleanup()
@@ -29,13 +41,13 @@ describe('ProfileChangePasswordPage', () => {
   })
 
   it('associates labels and inputs via htmlFor/id', () => {
-    render(<ProfileChangePasswordPage />)
+    renderPage()
     expect(screen.getByLabelText('Nova senha')).toBeInstanceOf(HTMLInputElement)
     expect(screen.getByLabelText('Confirmar senha')).toBeInstanceOf(HTMLInputElement)
   })
 
   it('rejeita senhas que não coincidem', async () => {
-    render(<ProfileChangePasswordPage />)
+    renderPage()
     fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'password123' } })
     fireEvent.change(screen.getByLabelText('Confirmar senha'), {
       target: { value: 'different123' },
@@ -48,7 +60,7 @@ describe('ProfileChangePasswordPage', () => {
   })
 
   it('troca a senha com sucesso: chama changePassword + relogin e mostra mensagem de sucesso', async () => {
-    render(<ProfileChangePasswordPage />)
+    renderPage()
     fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'password123' } })
     fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'password123' } })
     fireEvent.click(screen.getByRole('button', { name: /definir nova senha/i }))
@@ -67,7 +79,7 @@ describe('ProfileChangePasswordPage', () => {
         resolveChange = resolve
       }),
     )
-    render(<ProfileChangePasswordPage />)
+    renderPage()
     fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'password123' } })
     fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'password123' } })
     fireEvent.click(screen.getByRole('button', { name: /definir nova senha/i }))
@@ -75,5 +87,11 @@ describe('ProfileChangePasswordPage', () => {
     expect(document.querySelector('.animate-spin')).not.toBeNull()
     resolveChange()
     await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull())
+  })
+
+  it('"Cancelar" volta pra /profile', async () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /cancelar/i }))
+    expect(await screen.findByText('página de perfil')).toBeTruthy()
   })
 })

@@ -31,8 +31,10 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 function rowClass(n: number): string {
-  if (n === 3) return 'grid grid-cols-3 divide-x divide-border'
-  if (n === 2) return 'grid grid-cols-2 divide-x divide-border'
+  if (n === 3)
+    return 'grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0'
+  if (n === 2)
+    return 'grid grid-cols-1 divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0'
   return ''
 }
 
@@ -138,7 +140,10 @@ export default function DeviceInfoPanel({
             </summary>
             <div className="max-h-80 overflow-auto divide-y divide-border border-t border-border">
               {grouped.raw.map((f) => (
-                <div key={f.key} className="grid grid-cols-2 divide-x divide-border">
+                <div
+                  key={f.key}
+                  className="grid grid-cols-1 divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0"
+                >
                   <span className="px-5 py-1.5 text-xs text-faint break-all font-mono">
                     {f.key}
                   </span>

@@ -161,7 +161,7 @@ export default function UsersSettingsPage() {
         <div className="flex flex-col gap-2">
           {users.map((user) => (
             <div key={user.id} className="bg-surface border border-border rounded-lg px-4 py-3">
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex flex-wrap items-center gap-3 min-w-0">
                 <Link
                   to={`/settings/users/${user.id}`}
                   className="text-sm font-mono text-foreground hover:text-primary transition-colors truncate min-w-0"

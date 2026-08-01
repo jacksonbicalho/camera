@@ -14,11 +14,12 @@ interface PlayerFooterProps {
 }
 
 // PlayerFooter — rodapé compartilhado por todo player. Modo linha (`freeform` ausente/false):
-// nome opcional à esquerda + ações à direita (`ml-auto` explícito no wrapper — não depende de
-// `justify-between` entre dois itens condicionais, já que o nome pode estar ausente). Modo
-// freeform (VideoPlayer): container theme-aware "burro" pro chamador montar o próprio layout.
-// Theme-aware (bg-surface/text-foreground/border-border) — nunca cor fixa tipo bg-black, mesmo
-// sendo "chrome" de vídeo.
+// com `title`, DUAS linhas fixas — nome sozinho na 1ª (nunca disputa espaço com os ícones,
+// nunca trunca por causa deles) e ações (`${id}-actions`, `flex-wrap`) na 2ª; sem `title`
+// (Ao vivo sem nome, que já aparece no cabeçalho da página), uma única linha com as ações
+// à direita (`ml-auto`). Modo freeform (VideoPlayer): container theme-aware "burro" pro
+// chamador montar o próprio layout. Theme-aware (bg-surface/text-foreground/border-border)
+// — nunca cor fixa tipo bg-black, mesmo sendo "chrome" de vídeo.
 export default function PlayerFooter({ id, title, freeform, children }: PlayerFooterProps) {
   if (freeform) {
     return (
@@ -30,11 +31,21 @@ export default function PlayerFooter({ id, title, freeform, children }: PlayerFo
   return (
     <div
       id={id}
-      className="flex items-center gap-2 border-t border-border bg-surface px-3 py-2 text-foreground"
+      className="flex flex-col gap-1 border-t border-border bg-surface px-3 py-2 text-foreground"
     >
-      {title && <span className="truncate text-body">{title}</span>}
-      {children && (
-        <div id={`${id}-actions`} className="ml-auto flex shrink-0 items-center gap-1">
+      <div className="flex items-center gap-2">
+        {title && <span className="truncate text-body">{title}</span>}
+        {children && !title && (
+          <div
+            id={`${id}-actions`}
+            className="ml-auto flex flex-wrap items-center justify-end gap-1"
+          >
+            {children}
+          </div>
+        )}
+      </div>
+      {children && title && (
+        <div id={`${id}-actions`} className="flex flex-wrap items-center justify-end gap-1">
           {children}
         </div>
       )}

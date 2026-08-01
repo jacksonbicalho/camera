@@ -342,7 +342,7 @@ export default function StorageSettingsPage() {
       {stats && (
         <div className="bg-surface border border-border rounded-xl p-5 mb-4">
           <p className="text-xs text-faint uppercase tracking-wider mb-5">Uso de disco</p>
-          <div className="grid grid-cols-3 gap-6 mb-5">
+          <div className="grid grid-cols-1 gap-6 mb-5 sm:grid-cols-3">
             <div>
               <p className="text-xs text-faint mb-1">{hasLimit ? 'Limite' : 'Total'}</p>
               <p className="text-2xl font-bold text-foreground">

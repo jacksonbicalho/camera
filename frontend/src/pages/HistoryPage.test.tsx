@@ -342,19 +342,15 @@ describe('HistoryPage', () => {
       })
     })
 
-    it('botão de tela cheia fica entre a velocidade e o switch de reprodução contínua', async () => {
+    it('botão de tela cheia fica no fim da linha, depois do switch de reprodução contínua', async () => {
       renderAt('/history/cam1')
       await waitFor(() => {
         expect(document.getElementById('history-player-fullscreen')).not.toBeNull()
       })
-      const speed = document.getElementById('history-player-speed')!
-      const fullscreen = document.getElementById('history-player-fullscreen')!
       const continuous = document.getElementById('history-continuous-toggle')!
+      const fullscreen = document.getElementById('history-player-fullscreen')!
       expect(
-        speed.compareDocumentPosition(fullscreen) & Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy()
-      expect(
-        fullscreen.compareDocumentPosition(continuous) & Node.DOCUMENT_POSITION_FOLLOWING,
+        continuous.compareDocumentPosition(fullscreen) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy()
     })
   })

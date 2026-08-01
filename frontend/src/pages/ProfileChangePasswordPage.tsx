@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import ProfileLayout from '../components/ProfileLayout'
 import { getUsername, changePassword, login, clearToken } from '../auth'
 import { Loader2 } from '../components/Icons'
@@ -13,6 +14,7 @@ import { Label } from '@/components/ui/label'
 // mais simples que forçar uma abstração compartilhada pra 2 casos que divergem no que acontece
 // depois de salvar.
 export default function ProfileChangePasswordPage() {
+  const navigate = useNavigate()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
@@ -87,15 +89,20 @@ export default function ProfileChangePasswordPage() {
             </p>
           )}
           {message && <p className="text-success text-sm">{message}</p>}
-          <Button
-            id="profile-password-submit"
-            type="submit"
-            disabled={loading}
-            className="self-start"
-          >
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {loading ? 'Salvando...' : 'Definir nova senha'}
-          </Button>
+          <div className="flex gap-2">
+            <Button id="profile-password-submit" type="submit" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loading ? 'Salvando...' : 'Definir nova senha'}
+            </Button>
+            <Button
+              id="profile-password-cancel"
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/profile')}
+            >
+              Cancelar
+            </Button>
+          </div>
         </form>
       </div>
     </ProfileLayout>

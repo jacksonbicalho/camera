@@ -12,6 +12,7 @@ import {
   addCameraToLayout,
   loadHiddenCameraIds,
   saveHiddenCameraIds,
+  clampColsForViewport,
 } from './liveViewLayout'
 
 const STORAGE_KEY = 'liveview-layout'
@@ -247,5 +248,26 @@ describe('CA7: mergeLayoutWithCameras — não traz de volta uma câmera explici
     const saved = [{ i: 'cam1', x: 0, y: 0, w: 4, h: 4 }]
     const merged = mergeLayoutWithCameras(saved, ['cam1', 'cam2'])
     expect(merged.map((t) => t.i).sort()).toEqual(['cam1', 'cam2'])
+  })
+})
+
+describe('CA5: clampColsForViewport — reduz o nº de colunas do grid em viewports estreitos', () => {
+  it('viewport larga (>=768px): não reduz, mantém o preset', () => {
+    expect(clampColsForViewport(4, 1024)).toBe(4)
+    expect(clampColsForViewport(1, 1024)).toBe(1)
+  })
+
+  it('viewport média (<768px, >=640px): no máximo 2 colunas', () => {
+    expect(clampColsForViewport(4, 700)).toBe(2)
+    expect(clampColsForViewport(1, 700)).toBe(1) // já era menor que o teto, não aumenta
+  })
+
+  it('viewport estreita (<640px): no máximo 1 coluna', () => {
+    expect(clampColsForViewport(4, 375)).toBe(1)
+    expect(clampColsForViewport(2, 375)).toBe(1)
+  })
+
+  it('nunca aumenta o nº de colunas além do preset original', () => {
+    expect(clampColsForViewport(1, 1920)).toBe(1)
   })
 })

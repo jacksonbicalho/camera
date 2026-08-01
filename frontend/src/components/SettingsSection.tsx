@@ -26,9 +26,9 @@ export default function SettingsSection({ title, fields, groups, children }: Set
               key={i}
               className={
                 group.length === 2
-                  ? 'grid grid-cols-2 divide-x divide-border'
+                  ? 'grid grid-cols-1 divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0'
                   : group.length === 3
-                    ? 'grid grid-cols-3 divide-x divide-border'
+                    ? 'grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0'
                     : ''
               }
             >
