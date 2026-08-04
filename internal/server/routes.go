@@ -127,6 +127,12 @@ func (s *Server) routeTable() []route {
 		{"GET", "/api/settings/cameras/{id}/analysis", authAdmin, s.handleGetCameraAnalysisConfig},
 		{"PUT", "/api/settings/cameras/{id}/analysis", authAdmin, s.handleUpdateCameraAnalysisConfig},
 
+		{"GET", "/api/settings/detectors", authAdmin, s.handleListDetectors},
+		{"POST", "/api/settings/detectors", authAdmin, s.handleCreateDetector},
+		{"PUT", "/api/settings/detectors/{id}", authAdmin, s.handleUpdateDetector},
+		{"DELETE", "/api/settings/detectors/{id}", authAdmin, s.handleDeleteDetector},
+		{"POST", "/api/settings/detectors/{id}/test", authAdmin, s.handleTestDetector},
+
 		{"GET", "/api/cameras/{id}/recordings", authCamera, s.handleRecordings},
 		{"GET", "/api/cameras/{id}/content-days", authCamera, s.handleContentDays},
 		{"GET", "/api/cameras/{id}/recordings/by-id/{recording_id}", authCamera, s.handleRecordingByID},
