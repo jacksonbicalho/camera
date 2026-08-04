@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
-import BboxCanvas, { type BboxRect } from '../../components/BboxCanvas'
 import ConfirmDialog from '../../components/ConfirmDialog'
+import EventAnnotationsEditor from '../../components/EventAnnotationsEditor'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { authHeaders, getToken } from '../../auth'
 import { Button } from '@/components/ui/button'
@@ -146,15 +146,6 @@ export default function LabelEventsPage() {
     }
   }
 
-  // bbox drawing state for zoom modal
-  const [annBox, setAnnBox] = useState<BboxRect | null>(null)
-  const [annLabel, setAnnLabel] = useState('')
-  const [annSaving, setAnnSaving] = useState(false)
-  const [annSaveOk, setAnnSaveOk] = useState(false)
-  const [existingAnn, setExistingAnn] = useState<BboxRect | null>(null)
-  const [existingAnnId, setExistingAnnId] = useState<number | null>(null)
-  const [existingAnnLabel, setExistingAnnLabel] = useState('')
-
   useEffect(() => {
     if (!zoomEvent) return
     function onKey(e: KeyboardEvent) {
@@ -164,143 +155,30 @@ export default function LabelEventsPage() {
     return () => document.removeEventListener('keydown', onKey)
   }, [zoomEvent])
 
-  useEffect(() => {
-    if (!zoomEvent) return
-    fetch(`/api/events/${zoomEvent.id}/annotations`, { headers: authHeaders() })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(
-        (
-          list: Array<{
-            id: number
-            label: string
-            bbox_x: number
-            bbox_y: number
-            bbox_w: number
-            bbox_h: number
-            rotation_deg?: number
-          }>,
-        ) => {
-          const a = list[0]
-          setExistingAnnId(a?.id ?? null)
-          setExistingAnnLabel(a?.label ?? '')
-          setExistingAnn(
-            a
-              ? {
-                  x: a.bbox_x - a.bbox_w / 2,
-                  y: a.bbox_y - a.bbox_h / 2,
-                  w: a.bbox_w,
-                  h: a.bbox_h,
-                  rotation_deg: a.rotation_deg ?? 0,
-                }
-              : null,
-          )
-          // annotation label takes priority over event label
-          if (a?.label) setAnnLabel(a.label)
-        },
-      )
-      .catch(() => {})
-  }, [zoomEvent])
-
-  function openZoomModal(src: string, id: number, eventLabel = '') {
-    setAnnBox(null)
-    setAnnLabel(eventLabel)
-    setAnnSaveOk(false)
-    setExistingAnn(null)
-    setExistingAnnId(null)
-    setExistingAnnLabel('')
+  function openZoomModal(src: string, id: number) {
     setZoomEvent({ src, id })
   }
 
   function closeZoomModal() {
     setZoomEvent(null)
-    setAnnBox(null)
-    setAnnLabel('')
-    setAnnSaveOk(false)
-    setExistingAnn(null)
-    setExistingAnnId(null)
-    setExistingAnnLabel('')
   }
 
-  function handleAnnBoxChange(box: BboxRect | null) {
-    if (box === null && annBox === null && existingAnn !== null) {
-      deleteAnnotation()
-      return
-    }
-    setAnnBox(box)
-    setAnnSaveOk(false)
-  }
-
-  async function deleteAnnotation() {
-    if (!zoomEvent) return
-    const r = await fetch(`/api/events/${zoomEvent.id}/annotations`, {
-      method: 'DELETE',
-      headers: authHeaders(),
+  // Sincroniza o label do evento com o label da anotação salva, quando
+  // divergem — mesmo comportamento do editor singular anterior (o label da
+  // anotação "vencia" o label do evento, virando dado de treino curável).
+  function handleAnnotationSaved(eventId: number, label: string) {
+    const currentEventLabel = labelInputs[eventId] ?? ''
+    if (label === currentEventLabel) return
+    fetch(`/api/events/${eventId}/label`, {
+      method: 'PATCH',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
     })
-    if (r.ok) {
-      setExistingAnn(null)
-      setExistingAnnId(null)
-      setExistingAnnLabel('')
-      setAnnLabel('')
-    }
-  }
-
-  async function saveAnnotation() {
-    if (!annBox || !zoomEvent || annBox.w < 0.01 || annBox.h < 0.01) return
-    setAnnSaving(true)
-    try {
-      const payload = {
-        label: annLabel,
-        bbox_x: annBox.x + annBox.w / 2,
-        bbox_y: annBox.y + annBox.h / 2,
-        bbox_w: annBox.w,
-        bbox_h: annBox.h,
-        rotation_deg: annBox.rotation_deg ?? 0,
-      }
-      let res: Response
-      if (existingAnnId !== null) {
-        res = await fetch(`/api/annotations/${existingAnnId}`, {
-          method: 'PATCH',
-          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-      } else {
-        res = await fetch(`/api/events/${zoomEvent.id}/annotations`, {
-          method: 'POST',
-          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setExistingAnnId(data.id)
-        }
-      }
-      if (res.ok) {
-        // sync event label with annotation label if they differ
-        const currentEventLabel = labelInputs[zoomEvent.id] ?? ''
-        if (annLabel !== currentEventLabel) {
-          await fetch(`/api/events/${zoomEvent.id}/label`, {
-            method: 'PATCH',
-            headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ label: annLabel }),
-          })
-          setLabelInputs((s) => ({ ...s, [zoomEvent.id]: annLabel }))
-          setLabelEvents(
-            (prev) =>
-              prev?.map((e) =>
-                e.id === zoomEvent.id ? { ...e, label: annLabel || undefined } : e,
-              ) ?? null,
-          )
-        }
-        setExistingAnn({ ...annBox })
-        setExistingAnnLabel(annLabel)
-        setAnnBox(null)
-        setAnnLabel(annLabel)
-        setAnnSaveOk(true)
-        setTimeout(() => setAnnSaveOk(false), 1500)
-      }
-    } finally {
-      setAnnSaving(false)
-    }
+    setLabelInputs((s) => ({ ...s, [eventId]: label }))
+    setLabelEvents(
+      (prev) =>
+        prev?.map((e) => (e.id === eventId ? { ...e, label: label || undefined } : e)) ?? null,
+    )
   }
 
   useEffect(() => {
@@ -564,7 +442,6 @@ export default function LabelEventsPage() {
                               openZoomModal(
                                 frameURL(labelCamID, ev.time, ev.frame!, eventsLoadedAtRef.current),
                                 ev.id,
-                                labelInputs[ev.id] ?? ev.label ?? '',
                               )
                             }
                             className="flex-shrink-0 rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring hover:opacity-80 transition-opacity"
@@ -674,87 +551,23 @@ export default function LabelEventsPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
           onClick={() => closeZoomModal()}
         >
-          <div className="flex flex-col gap-3 items-center" onClick={(e) => e.stopPropagation()}>
-            <div
-              className="relative rounded overflow-hidden shadow-2xl"
-              style={{ maxWidth: '90vw', maxHeight: '75vh' }}
+          <div
+            className="flex flex-col gap-3 w-full max-w-xl max-h-[85vh] overflow-y-auto bg-surface rounded-lg shadow-2xl p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <EventAnnotationsEditor
+              eventId={zoomEvent.id}
+              imageSrc={zoomEvent.src}
+              onAnnotationSaved={(label) => handleAnnotationSaved(zoomEvent.id, label)}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => closeZoomModal()}
+              className="ml-auto"
             >
-              <img
-                src={zoomEvent.src}
-                className="block max-w-full max-h-full"
-                alt=""
-                draggable={false}
-              />
-              <BboxCanvas
-                box={annBox ?? (annSaveOk ? null : existingAnn)}
-                onChange={handleAnnBoxChange}
-                readonly={annSaveOk}
-                className="absolute inset-0 w-full h-full select-none"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 w-full max-w-md">
-              {annSaveOk && <span className="text-xs text-emerald-400">Anotação salva</span>}
-              {!annSaveOk && annBox && annBox.w > 0.01 && annBox.h > 0.01 && (
-                <>
-                  <input
-                    type="text"
-                    placeholder="label da região…"
-                    value={annLabel}
-                    onChange={(e) => setAnnLabel(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && saveAnnotation()}
-                    autoFocus
-                    className="flex-1 bg-surface-2 text-foreground text-sm rounded px-3 py-1.5 border border-border focus:outline-none focus:border-emerald-500"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={saveAnnotation}
-                    disabled={annSaving}
-                    className="bg-emerald-700 hover:bg-emerald-600 text-white"
-                  >
-                    {annSaving ? 'Salvando...' : 'Salvar'}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setAnnBox(null)}>
-                    Cancelar
-                  </Button>
-                </>
-              )}
-              {!annSaveOk && !annBox && existingAnn && (
-                <span className="text-xs text-muted-foreground flex items-center gap-2">
-                  {existingAnnLabel ? (
-                    <>
-                      <span className="font-medium text-foreground">{existingAnnLabel}</span> ·
-                      Arraste para substituir
-                    </>
-                  ) : (
-                    'Região salva · Arraste para substituir'
-                  )}
-                  {existingAnnId && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={deleteAnnotation}
-                      className="h-auto py-0.5 text-destructive hover:text-destructive"
-                    >
-                      Excluir anotação
-                    </Button>
-                  )}
-                </span>
-              )}
-              {!annSaveOk && !annBox && !existingAnn && (
-                <span className="text-xs text-muted-foreground">
-                  Arraste para marcar · mova · redimensione · rotacione
-                </span>
-              )}
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => closeZoomModal()}
-                className="ml-auto"
-              >
-                Fechar
-              </Button>
-            </div>
+              Fechar
+            </Button>
           </div>
         </div>
       )}
