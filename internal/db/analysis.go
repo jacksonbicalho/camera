@@ -1,17 +1,20 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
 )
 
+// VideoAnalysisConfig is the shared config for the YOLO service used by
+// fine-tuning and state classification training — not per-recording
+// analysis anymore (that moved to a detector + threshold chosen per camera,
+// see CameraAnalysisConfig).
 type VideoAnalysisConfig struct {
-	Enabled             bool    `json:"enabled"`
-	ServiceURL          string  `json:"service_url"`
-	Model               string  `json:"model"`
-	ConfidenceThreshold float64 `json:"confidence_threshold"`
-	HasCustomModel      bool    `json:"has_custom_model"`
+	ServiceURL     string `json:"service_url"`
+	Model          string `json:"model"`
+	HasCustomModel bool   `json:"has_custom_model"`
 }
 
 type Detection struct {
@@ -25,29 +28,24 @@ type Detection struct {
 
 func GetVideoAnalysisConfig(d *DB) (VideoAnalysisConfig, error) {
 	var cfg VideoAnalysisConfig
-	var enabled, hasCustomModel int
+	var hasCustomModel int
 	err := d.QueryRow(`
-		SELECT enabled, service_url, model, confidence_threshold, has_custom_model
+		SELECT service_url, model, has_custom_model
 		FROM video_analysis_config WHERE id=1`).
-		Scan(&enabled, &cfg.ServiceURL, &cfg.Model, &cfg.ConfidenceThreshold, &hasCustomModel)
+		Scan(&cfg.ServiceURL, &cfg.Model, &hasCustomModel)
 	if err != nil {
 		return VideoAnalysisConfig{}, err
 	}
-	cfg.Enabled = enabled != 0
 	cfg.HasCustomModel = hasCustomModel != 0
 	return cfg, nil
 }
 
 func UpdateVideoAnalysisConfig(d *DB, cfg VideoAnalysisConfig) error {
-	enabled := 0
-	if cfg.Enabled {
-		enabled = 1
-	}
 	_, err := d.Exec(`
 		UPDATE video_analysis_config
-		SET enabled=?, service_url=?, model=?, confidence_threshold=?
+		SET service_url=?, model=?
 		WHERE id=1`,
-		enabled, cfg.ServiceURL, cfg.Model, cfg.ConfidenceThreshold)
+		cfg.ServiceURL, cfg.Model)
 	return err
 }
 
@@ -60,25 +58,51 @@ func SetHasCustomModel(d *DB, v bool) error {
 	return err
 }
 
-func GetCameraAnalysisEnabled(d *DB, cameraID string) (bool, error) {
-	var enabled int
-	err := d.QueryRow(`SELECT enabled FROM camera_analysis_config WHERE camera_id=?`, cameraID).Scan(&enabled)
-	if err != nil {
-		// no row means default: enabled
-		return true, nil
-	}
-	return enabled != 0, nil
+// CameraAnalysisConfig is a camera's own analysis setup: whether it's on,
+// which registered object_detectors row it uses (nil = none chosen, the
+// camera is never analyzed regardless of Enabled) and its own confidence
+// threshold (nil = fall back to the analyzer's default).
+type CameraAnalysisConfig struct {
+	Enabled             bool
+	DetectorID          *int64
+	ConfidenceThreshold *float64
 }
 
-func SetCameraAnalysisEnabled(d *DB, cameraID string, enabled bool) error {
+func GetCameraAnalysisConfig(d *DB, cameraID string) (CameraAnalysisConfig, error) {
+	var enabled int
+	var detectorID sql.NullInt64
+	var threshold sql.NullFloat64
+	err := d.QueryRow(`
+		SELECT enabled, detector_id, confidence_threshold
+		FROM camera_analysis_config WHERE camera_id=?`, cameraID).
+		Scan(&enabled, &detectorID, &threshold)
+	if err != nil {
+		// no row means default: enabled, no detector chosen yet.
+		return CameraAnalysisConfig{Enabled: true}, nil
+	}
+	cfg := CameraAnalysisConfig{Enabled: enabled != 0}
+	if detectorID.Valid {
+		cfg.DetectorID = &detectorID.Int64
+	}
+	if threshold.Valid {
+		cfg.ConfidenceThreshold = &threshold.Float64
+	}
+	return cfg, nil
+}
+
+func SetCameraAnalysisConfig(d *DB, cameraID string, cfg CameraAnalysisConfig) error {
 	v := 0
-	if enabled {
+	if cfg.Enabled {
 		v = 1
 	}
 	_, err := d.Exec(`
-		INSERT INTO camera_analysis_config (camera_id, enabled) VALUES (?, ?)
-		ON CONFLICT(camera_id) DO UPDATE SET enabled=excluded.enabled`,
-		cameraID, v)
+		INSERT INTO camera_analysis_config (camera_id, enabled, detector_id, confidence_threshold)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(camera_id) DO UPDATE SET
+			enabled=excluded.enabled,
+			detector_id=excluded.detector_id,
+			confidence_threshold=excluded.confidence_threshold`,
+		cameraID, v, cfg.DetectorID, cfg.ConfidenceThreshold)
 	return err
 }
 

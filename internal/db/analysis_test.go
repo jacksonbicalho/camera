@@ -14,20 +14,12 @@ func TestVideoAnalysisConfig_DefaultAndUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetVideoAnalysisConfig: %v", err)
 	}
-	if cfg.Enabled {
-		t.Error("default enabled should be false")
-	}
 	if cfg.Model != "yolov8n" {
 		t.Errorf("default model = %q, want yolov8n", cfg.Model)
 	}
-	if cfg.ConfidenceThreshold != 0.4 {
-		t.Errorf("default confidence = %v, want 0.4", cfg.ConfidenceThreshold)
-	}
 
-	cfg.Enabled = true
 	cfg.ServiceURL = "http://yolo:8000"
 	cfg.Model = "yolov8s"
-	cfg.ConfidenceThreshold = 0.5
 	if err := db.UpdateVideoAnalysisConfig(database, cfg); err != nil {
 		t.Fatalf("UpdateVideoAnalysisConfig: %v", err)
 	}
@@ -36,17 +28,11 @@ func TestVideoAnalysisConfig_DefaultAndUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetVideoAnalysisConfig after update: %v", err)
 	}
-	if !got.Enabled {
-		t.Error("enabled should be true after update")
-	}
 	if got.ServiceURL != "http://yolo:8000" {
 		t.Errorf("ServiceURL = %q, want http://yolo:8000", got.ServiceURL)
 	}
 	if got.Model != "yolov8s" {
 		t.Errorf("Model = %q, want yolov8s", got.Model)
-	}
-	if got.ConfidenceThreshold != 0.5 {
-		t.Errorf("ConfidenceThreshold = %v, want 0.5", got.ConfidenceThreshold)
 	}
 }
 
@@ -54,31 +40,52 @@ func TestCameraAnalysisConfig_DefaultAndSet(t *testing.T) {
 	database := openTestDB(t)
 	ensureCamera(t, database, "cam1")
 
-	enabled, err := db.GetCameraAnalysisEnabled(database, "cam1")
+	cfg, err := db.GetCameraAnalysisConfig(database, "cam1")
 	if err != nil {
-		t.Fatalf("GetCameraAnalysisEnabled: %v", err)
+		t.Fatalf("GetCameraAnalysisConfig: %v", err)
 	}
-	if !enabled {
+	if !cfg.Enabled {
 		t.Error("default per-camera enabled should be true")
 	}
+	if cfg.DetectorID != nil {
+		t.Errorf("default DetectorID should be nil, got %v", *cfg.DetectorID)
+	}
+	if cfg.ConfidenceThreshold != nil {
+		t.Errorf("default ConfidenceThreshold should be nil, got %v", *cfg.ConfidenceThreshold)
+	}
 
-	if err := db.SetCameraAnalysisEnabled(database, "cam1", false); err != nil {
-		t.Fatalf("SetCameraAnalysisEnabled: %v", err)
+	if err := db.SetCameraAnalysisConfig(database, "cam1", db.CameraAnalysisConfig{Enabled: false}); err != nil {
+		t.Fatalf("SetCameraAnalysisConfig: %v", err)
 	}
-	enabled, err = db.GetCameraAnalysisEnabled(database, "cam1")
+	cfg, err = db.GetCameraAnalysisConfig(database, "cam1")
 	if err != nil {
-		t.Fatalf("GetCameraAnalysisEnabled after set: %v", err)
+		t.Fatalf("GetCameraAnalysisConfig after set: %v", err)
 	}
-	if enabled {
+	if cfg.Enabled {
 		t.Error("expected enabled=false after set")
 	}
 
-	if err := db.SetCameraAnalysisEnabled(database, "cam1", true); err != nil {
-		t.Fatalf("SetCameraAnalysisEnabled true: %v", err)
+	detID, err := db.InsertObjectDetector(database, "yolo-principal", map[string]string{"service_url": "http://yolo:8000"})
+	if err != nil {
+		t.Fatalf("InsertObjectDetector: %v", err)
 	}
-	enabled, _ = db.GetCameraAnalysisEnabled(database, "cam1")
-	if !enabled {
+	threshold := 0.6
+	if err := db.SetCameraAnalysisConfig(database, "cam1", db.CameraAnalysisConfig{
+		Enabled:             true,
+		DetectorID:          &detID,
+		ConfidenceThreshold: &threshold,
+	}); err != nil {
+		t.Fatalf("SetCameraAnalysisConfig with detector: %v", err)
+	}
+	cfg, _ = db.GetCameraAnalysisConfig(database, "cam1")
+	if !cfg.Enabled {
 		t.Error("expected enabled=true after re-enable")
+	}
+	if cfg.DetectorID == nil || *cfg.DetectorID != detID {
+		t.Errorf("DetectorID = %v, want %d", cfg.DetectorID, detID)
+	}
+	if cfg.ConfidenceThreshold == nil || *cfg.ConfidenceThreshold != 0.6 {
+		t.Errorf("ConfidenceThreshold = %v, want 0.6", cfg.ConfidenceThreshold)
 	}
 }
 

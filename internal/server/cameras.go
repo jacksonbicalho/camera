@@ -166,7 +166,9 @@ func (s *Server) handleListSettingsCameras(w http.ResponseWriter, r *http.Reques
 	list := make([]cameraConfigDTO, len(cams))
 	for i, c := range cams {
 		dto := cameraToDTO(c)
-		dto.AnalysisEnabled, _ = db.GetCameraAnalysisEnabled(s.db, c.ID)
+		if cfg, err := db.GetCameraAnalysisConfig(s.db, c.ID); err == nil {
+			dto.AnalysisEnabled = cfg.Enabled
+		}
 		list[i] = dto
 	}
 	w.Header().Set("Content-Type", "application/json")
