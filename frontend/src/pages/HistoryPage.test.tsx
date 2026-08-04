@@ -78,11 +78,11 @@ vi.mock('../components/DatePicker', () => ({
   ),
 }))
 
-// TimeRangeFilterPanel de verdade usa MUI (dial de relógio) — irrelevante pro teste de
-// integração do filtro em si (já coberto isoladamente em TimeRangeFilterPanel.test.tsx).
-// Mock simples com botões que chamam onChange com ranges fixos direto (sem botão
-// "Aplicar" — o filtro é ao vivo), suficiente pra exercitar a integração (HistoryPage
-// aplica matchesTimeRange sobre recordingItems a cada onChange).
+// TimeRangeFilterPanel de verdade tem inputs próprios de hora/minuto — irrelevante pro
+// teste de integração do filtro em si (já coberto isoladamente em
+// TimeRangeFilterPanel.test.tsx). Mock simples com botões que chamam onChange com ranges
+// fixos direto (sem botão "Aplicar" — o filtro é ao vivo), suficiente pra exercitar a
+// integração (HistoryPage aplica matchesTimeRange sobre recordingItems a cada onChange).
 vi.mock('../components/TimeRangeFilterPanel', () => ({
   default: ({
     onChange,
