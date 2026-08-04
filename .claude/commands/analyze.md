@@ -7,6 +7,7 @@ Demanda do navigator: $ARGUMENTS
 
 Execute a **fase de Análise** (passo 1 do fluxo, `docs/workflow.md`):
 
+0. **Leia `docs/workflow.md` por completo com a ferramenta Read, agora, antes de qualquer outra ação** — mesmo que já tenha lido em sessão anterior ou ache que lembra o conteúdo. Não pule este passo silenciosamente: só depois de ler é que a fase de Análise começa.
 1. **Investigue antes de escrever.** Explore o código (Grep/Glob/Read) para
    entender o comportamento atual, os módulos envolvidos e a causa raiz (se for
    bug). Não faça perguntas que o código responde.

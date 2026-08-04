@@ -8,6 +8,11 @@ Entrada: $ARGUMENTS
 Execute o **passo 2-3 do fluxo** (`docs/workflow.md`): criação de história e
 decomposição em tickets.
 
+**Passo 0 — antes de qualquer pré-condição ou investigação:** leia
+`docs/workflow.md` por completo com a ferramenta Read, agora, mesmo que já
+tenha lido em sessão anterior ou ache que lembra o conteúdo (a seção
+"Artefatos" é o template exato usado no passo 2 abaixo).
+
 Pré-condições (valide antes de qualquer coisa):
 - Se a entrada for um arquivo em `work_progress/analysis/`, ele DEVE conter
   `[x] Análise aprovada`. Sem isso, pare e peça o G1.
