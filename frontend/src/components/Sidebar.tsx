@@ -300,6 +300,15 @@ export default function Sidebar() {
                 }}
                 showLabel={showLabel}
               />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-object-detectors',
+                  to: '/settings/detectors',
+                  label: 'Detectores de objetos',
+                  icon: <Eye className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
             </SidebarSection>
           )}
         </div>

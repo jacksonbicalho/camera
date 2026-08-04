@@ -25,6 +25,11 @@ const CameraAnalysisSettingsPage = lazy(() => import('./pages/settings/CameraAna
 const CameraStatesSettingsPage = lazy(() => import('./pages/settings/CameraStatesSettingsPage'))
 const DiscoverPage = lazy(() => import('./pages/settings/DiscoverPage'))
 const AnalysisSettingsPage = lazy(() => import('./pages/settings/AnalysisSettingsPage'))
+const ObjectDetectorsSettingsPage = lazy(
+  () => import('./pages/settings/ObjectDetectorsSettingsPage'),
+)
+const ObjectDetectorFormPage = lazy(() => import('./pages/settings/ObjectDetectorFormPage'))
+const ObjectDetectorTestPage = lazy(() => import('./pages/settings/ObjectDetectorTestPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -235,6 +240,38 @@ export const routes = (
       element={
         <Lazy>
           <UserDetailSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/detectors"
+      element={
+        <Lazy>
+          <ObjectDetectorsSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/detectors/new"
+      element={
+        <Lazy>
+          <ObjectDetectorsSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/detectors/edit/:id"
+      element={
+        <Lazy>
+          <ObjectDetectorFormPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/detectors/test/:id"
+      element={
+        <Lazy>
+          <ObjectDetectorTestPage />
         </Lazy>
       }
     />
