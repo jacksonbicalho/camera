@@ -196,3 +196,18 @@ describe('CA6: "Re-analisar tudo" desabilitado durante fine-tuning ativo', () =>
     expect((btn as HTMLButtonElement).disabled).toBe(false)
   })
 })
+
+// CA6 (história feat/detector-por-camera): a análise por gravação passou a
+// ser ativada por câmera (CameraAnalysisSettingsPage), não mais por um
+// toggle global aqui — e o limiar de confiança também virou por câmera. O
+// form global continua existindo só pra service_url/model (fine-tuning).
+describe('CA6: tela de análise global não mostra mais toggle de ativação nem limiar de confiança', () => {
+  it('não renderiza "Ativar análise" nem o slider de limiar de confiança', async () => {
+    mockFetch({ device: 'cuda', vram_gb: 4, models: [] })
+    renderPage()
+
+    await screen.findByText(/análise de vídeo/i)
+    expect(screen.queryByText(/ativar análise/i)).toBeNull()
+    expect(screen.queryByText(/limiar de confiança/i)).toBeNull()
+  })
+})
