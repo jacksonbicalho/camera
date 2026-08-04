@@ -8,6 +8,15 @@ interface PageHeaderProps {
   subtitle?: ReactNode
   /** Bloco de ações alinhado à direita. */
   actions?: ReactNode
+  /**
+   * Quando `false`, as ações não ganham `w-full` no mobile — ficam sempre ao
+   * lado do título, sem forçar quebra de linha. Default `true` (comportamento
+   * padrão de toda página: ações quebram pra baixo do título quando não cabem
+   * lado a lado — ver comentário abaixo). Opt-in por página; hoje só
+   * `LiveViewPage` usa `false`, pra manter título + botões do header numa
+   * linha só mesmo no mobile.
+   */
+  actionsWrap?: boolean
   id?: string
   className?: string
 }
@@ -18,7 +27,14 @@ interface PageHeaderProps {
 // cabeçalhos ad-hoc repetidos em cada página. Um único tamanho de título — em
 // todas as páginas de settings, inclusive sub-páginas por entidade (câmera/
 // usuário), pra manter um padrão consistente de peso visual.
-export default function PageHeader({ title, subtitle, actions, id, className }: PageHeaderProps) {
+export default function PageHeader({
+  title,
+  subtitle,
+  actions,
+  actionsWrap = true,
+  id,
+  className,
+}: PageHeaderProps) {
   return (
     <div id={id} className={cn('flex flex-wrap items-start justify-between gap-4 mb-6', className)}>
       <div className="min-w-0">
@@ -40,7 +56,13 @@ export default function PageHeader({ title, subtitle, actions, id, className }: 
         // (pedido do navigator: os itens quebrados devem alinhar à ESQUERDA, acompanhando o
         // campo de busca — não à direita) e `sm:justify-end` volta ao alinhamento à direita
         // (junto do título, mesma linha) quando não há quebra.
-        <div className="flex w-full flex-wrap items-center justify-start gap-2 shrink-0 sm:w-auto sm:justify-end">
+        <div
+          className={
+            actionsWrap
+              ? 'flex w-full flex-wrap items-center justify-start gap-2 shrink-0 sm:w-auto sm:justify-end'
+              : 'flex items-center gap-2 shrink-0'
+          }
+        >
           {actions}
         </div>
       )}
