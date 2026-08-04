@@ -219,17 +219,15 @@ export default function Sidebar() {
                   to: '/settings/analysis',
                   label: 'Análise de vídeo',
                   icon: <Zap className="h-5 w-5 shrink-0" />,
-                  matchHash: '',
                 }}
                 showLabel={showLabel}
               />
               <SidebarNavLink
                 item={{
                   id: 'sidebar-label-events',
-                  to: '/settings/analysis#label-events',
+                  to: '/settings/label-events',
                   label: 'Rotular eventos',
                   icon: <Pencil className="h-5 w-5 shrink-0" />,
-                  matchHash: '#label-events',
                 }}
                 showLabel={showLabel}
               />
