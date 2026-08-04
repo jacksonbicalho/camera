@@ -8,6 +8,8 @@ import { type Camera, type CameraFormData, formToPayload } from '../../component
 import { authHeaders, onUnauthorized, getRole, getToken } from '../../auth'
 import { Plus, GripVertical, ChevronRight, Pencil, Trash2 } from '../../components/Icons'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 
 export default function CamerasSettingsPage() {
   const navigate = useNavigate()
@@ -145,22 +147,27 @@ export default function CamerasSettingsPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {cameras.map((cam) => (
-              <Link
+              <Card
                 key={cam.id}
-                to={`/settings/cameras/${cam.id}`}
-                className="flex items-center gap-4 bg-surface border border-border rounded-lg px-4 py-3 hover:border-primary transition-colors"
+                id={`camera-row-${cam.id}`}
+                className="hover:border-primary transition-colors"
               >
-                <Thumbnail cameraId={cam.id} name={cam.name} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {cam.name || cam.id}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-1">
+                <Link
+                  to={`/settings/cameras/${cam.id}`}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Thumbnail cameraId={cam.id} name={cam.name} />
+                    <span className="text-sm font-medium text-foreground truncate">
+                      {cam.name || cam.id}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <StatusBadges cam={cam} />
                   </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-              </Link>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 ml-auto" />
+                </Link>
+              </Card>
             ))}
           </div>
         )}
@@ -228,8 +235,9 @@ export default function CamerasSettingsPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {cameras.map((cam) => (
-            <div
+            <Card
               key={cam.id}
+              id={`camera-row-${cam.id}`}
               draggable
               onDragStart={() => {
                 dragIdRef.current = cam.id
@@ -244,53 +252,47 @@ export default function CamerasSettingsPage() {
                 dragIdRef.current = null
                 setDragOverId(null)
               }}
-              className={`group bg-surface border rounded-lg flex items-stretch transition-colors ${dragOverId === cam.id ? 'border-primary' : 'border-border hover:border-primary'}`}
+              className={dragOverId === cam.id ? 'border-primary' : 'hover:border-primary'}
             >
-              {/* drag handle */}
-              <div className="flex items-center pl-3 shrink-0">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                {/* drag handle */}
                 <GripVertical className="w-4 h-4 text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing" />
-              </div>
 
-              {/* card clicável: thumbnail + info (link cobre tudo, exceto a coluna de ações) */}
-              <Link
-                to={`/settings/cameras/${cam.id}`}
-                className="flex items-center gap-4 flex-1 min-w-0 pl-2 pr-3 py-4"
-              >
-                <Thumbnail cameraId={cam.id} name={cam.name} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
+                {/* card clicável: thumbnail + nome (só esse trecho é link) */}
+                <Link
+                  to={`/settings/cameras/${cam.id}`}
+                  className="flex items-center gap-3 min-w-0"
+                >
+                  <Thumbnail cameraId={cam.id} name={cam.name} />
+                  <span className="text-sm font-medium text-foreground truncate">
                     {cam.name || cam.id}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <StatusBadges cam={cam} />
-                  </div>
-                </div>
-              </Link>
+                  </span>
+                </Link>
 
-              {/* coluna de ações: sempre visível, separada do link do card */}
-              <div className="flex items-center gap-1 shrink-0 border-l border-border px-2">
-                <Button
-                  asChild
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                  title="Editar"
-                >
-                  <Link to={`/settings/cameras/edit/${cam.id}`}>
-                    <Pencil className="w-4 h-4" />
-                  </Link>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                  onClick={() => setDeleteId(cam.id)}
-                  title="Remover"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <StatusBadges cam={cam} />
+                </div>
+
+                {/* ações: sempre visíveis, fora do link */}
+                <div className="flex items-center gap-2 shrink-0 ml-auto">
+                  <Button asChild variant="outline" size="sm">
+                    <Link to={`/settings/cameras/edit/${cam.id}`}>
+                      <Pencil className="w-3.5 h-3.5" />
+                      Editar
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setDeleteId(cam.id)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Excluir
+                  </Button>
+                </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -339,16 +341,9 @@ function Thumbnail({ cameraId, name }: { cameraId: string; name?: string }) {
 function StatusBadges({ cam }: { cam: Camera }) {
   return (
     <>
-      {cam.motion?.enabled && (
-        <span className="px-1.5 py-0.5 text-xs rounded bg-green-900/40 text-green-400 border border-green-800/50">
-          motion
-        </span>
-      )}
-      {!cam.recording_enabled && (
-        <span className="px-1.5 py-0.5 text-xs rounded bg-surface-2 text-muted-foreground border border-border">
-          rec off
-        </span>
-      )}
+      {cam.motion?.enabled && <Badge variant="success">Detecção</Badge>}
+      {cam.recording_enabled && <Badge variant="danger">Gravando</Badge>}
+      {cam.analysis_enabled && <Badge variant="info">Análise de objetos</Badge>}
     </>
   )
 }

@@ -21,4 +21,9 @@ describe('CA2: Badge (shadcn/ui)', () => {
     render(<Badge variant="info">ONVIF</Badge>)
     expect(screen.getByText('ONVIF').className).toContain('blue')
   })
+
+  it('aplica a variante danger (vermelho)', () => {
+    render(<Badge variant="danger">Gravando</Badge>)
+    expect(screen.getByText('Gravando').className).toContain('red')
+  })
 })
