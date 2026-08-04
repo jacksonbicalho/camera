@@ -84,7 +84,14 @@ while IFS= read -r cmd; do
   # suíte inteira de novo via eval (não quebra nada, só redundante).
   [ "$cmd" = "scripts/check.sh" ] && continue
   printf '── comando: %s ──\n' "$cmd"
-  if (eval "$cmd"); then
+  # </dev/null: sem isso, um comando que repassa/lê stdin (ex.: docker compose
+  # exec sem -T em algum passo interno) consome os bytes do PRÓPRIO
+  # commands_file que este `while read` está lendo (fd 0 compartilhado entre
+  # o loop e o subshell do eval) — o loop então perde as linhas seguintes e
+  # sai silenciosamente sem erro, deixando comandos (e os CAs que dependem
+  # deles) sem rodar. Achado real: com 2 comandos `e2e-spec-check.sh`
+  # distintos na mesma story, só o primeiro rodava.
+  if (eval "$cmd" </dev/null); then
     mark_command_criteria "$story" "$cmd"
   else
     echo "FALHOU: $cmd" >&2
