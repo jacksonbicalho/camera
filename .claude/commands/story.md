@@ -21,8 +21,15 @@ Passos (ainda em `develop` — **a branch só nasce depois do G2**, ver abaixo;
 suja `develop` nem exige commit nenhum):
 
 1. Decida `tipo` (feat/fix/refactor/chore/...), `escopo` e `slug`.
-2. Crie `work_progress/stories/YYYYMMDDHHmm_<slug>.md` seguindo a estrutura do
-   `docs/workflow.md`, COMPLETA antes da revisão:
+2. Crie `work_progress/stories/YYYYMMDDHHmm_<slug>.md` copiando o template
+   `work_progress/stories/YYYYMMDDHHmm_<slug>.md` de `docs/workflow.md`
+   (seção "Artefatos") **literalmente**, campo por campo —
+   inclusive a linha `> Análise: work_progress/analysis/....md` quando a
+   entrada veio de uma análise (é lida por script depois, char-a-char; um
+   formato "equivalente" mas diferente, ex. prosa livre citando o caminho,
+   já quebrou a limpeza automática). Se não tiver 100% de certeza do
+   template exato, releia `docs/workflow.md` agora antes de escrever — não
+   reproduza de memória. COMPLETA antes da revisão:
    - `## Contexto` e `## Solução` nunca em branco (importe da análise).
    - `## Tickets`: decomponha em unidades pequenas (alvo ≤ ~200 linhas de diff
      cada), com tabela (`#`, Descrição, Depende de, Status `[]`) e uma seção
