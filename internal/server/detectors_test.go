@@ -126,3 +126,104 @@ func TestObjectDetectors(t *testing.T) {
 		}
 	})
 }
+
+// TestDetectorAdapterPattern covers the story feat(analysis): object detector
+// adapter pattern (yolo/hugging face).
+func TestDetectorAdapterPattern(t *testing.T) {
+	t.Run("CA4: criar detector yolo sem service_url é rejeitado", func(t *testing.T) {
+		srv, token := setupDrivesServer(t)
+
+		body := `{"name":"Sem URL","type":"yolo","config":{"model":"yolov8n"}}`
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/detectors", bytes.NewBufferString(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for yolo detector missing service_url, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("CA4: criar detector huggingface sem model_id/api_token é rejeitado", func(t *testing.T) {
+		srv, token := setupDrivesServer(t)
+
+		body := `{"name":"Sem token","type":"huggingface","config":{}}`
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/detectors", bytes.NewBufferString(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for huggingface detector missing model_id/api_token, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("CA5: api_token nunca volta em claro numa resposta HTTP do cadastro", func(t *testing.T) {
+		srv, token := setupDrivesServer(t)
+
+		createBody := `{"name":"HF Detector","type":"huggingface","config":{"model_id":"facebook/detr-resnet-50","api_token":"hf_supersecret"}}`
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/detectors", bytes.NewBufferString(createBody))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK && w.Code != http.StatusCreated {
+			t.Fatalf("create: expected 200/201, got %d: %s", w.Code, w.Body.String())
+		}
+		var created map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+			t.Fatalf("unmarshal create response: %v", err)
+		}
+		if cfg, ok := created["config"].(map[string]any); ok {
+			if _, leaked := cfg["api_token"]; leaked {
+				t.Fatalf("create response leaked api_token: %+v", cfg)
+			}
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/settings/detectors", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w = httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var list []map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil {
+			t.Fatalf("unmarshal list: %v", err)
+		}
+		if len(list) != 1 {
+			t.Fatalf("expected 1 detector listed, got %d", len(list))
+		}
+		if cfg, ok := list[0]["config"].(map[string]any); ok {
+			if _, leaked := cfg["api_token"]; leaked {
+				t.Fatalf("list response leaked api_token: %+v", cfg)
+			}
+		}
+	})
+
+	t.Run("CA5: atualizar sem enviar api_token preserva o token já salvo", func(t *testing.T) {
+		srv, token := setupDrivesServer(t)
+
+		createBody := `{"name":"HF Detector","type":"huggingface","config":{"model_id":"facebook/detr-resnet-50","api_token":"hf_supersecret"}}`
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/detectors", bytes.NewBufferString(createBody))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var created map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+			t.Fatalf("unmarshal create response: %v", err)
+		}
+		id := created["id"]
+
+		// No api_token in the update payload at all — validateDetectorConfig
+		// would reject this as an incomplete huggingface config (400) unless
+		// the handler merged in the token already stored for this detector.
+		updateBody := `{"name":"HF Detector v2","type":"huggingface","config":{"model_id":"facebook/detr-resnet-50"}}`
+		req = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/settings/detectors/%v", id), bytes.NewBufferString(updateBody))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		w = httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("update without api_token should preserve the stored one and succeed, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
