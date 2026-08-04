@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -85,6 +86,46 @@ func TestDetectorAdapterPattern(t *testing.T) {
 
 		if _, err := h.Detect(context.Background(), img, 0.4); err == nil {
 			t.Fatal("expected error when the Inference API returns a non-200 status")
+		}
+	})
+
+	t.Run("CA10: Detect extrai um frame via ffmpeg quando o path não é uma imagem (ex.: gravação .mp4)", func(t *testing.T) {
+		orig := extractVideoFrame
+		defer func() { extractVideoFrame = orig }()
+
+		var gotFramePath string
+		extractVideoFrame = func(_ context.Context, path string) ([]byte, error) {
+			gotFramePath = path
+			return []byte("fake-jpeg-frame-bytes"), nil
+		}
+
+		var gotContentType string
+		var gotBody []byte
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotContentType = r.Header.Get("Content-Type")
+			gotBody, _ = io.ReadAll(r.Body)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+		}))
+		defer srv.Close()
+
+		video := filepath.Join(t.TempDir(), "recording.mp4")
+		if err := os.WriteFile(video, []byte("fake-mp4-bytes"), 0o644); err != nil {
+			t.Fatalf("write test video: %v", err)
+		}
+
+		h := NewHuggingFace("facebook/detr-resnet-50", "hf_testtoken", srv.URL+"/models/")
+		if _, err := h.Detect(context.Background(), video, 0.4); err != nil {
+			t.Fatalf("Detect: %v", err)
+		}
+		if gotFramePath != video {
+			t.Fatalf("expected extractVideoFrame called with the recording path, got %q", gotFramePath)
+		}
+		if gotContentType != "image/jpeg" {
+			t.Fatalf("expected image/jpeg content type for the extracted frame, got %q", gotContentType)
+		}
+		if string(gotBody) != "fake-jpeg-frame-bytes" {
+			t.Fatalf("expected the extracted frame bytes to be sent as the request body, got %q", gotBody)
 		}
 	})
 }
