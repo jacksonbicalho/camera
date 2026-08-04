@@ -681,17 +681,6 @@ func (c *Cleaner) cleanFromFS() {
 	}
 }
 
-func (c *Cleaner) analysisEnabled() bool {
-	if c.db == nil {
-		return false
-	}
-	cfg, err := db.GetVideoAnalysisConfig(c.db)
-	if err != nil {
-		return false
-	}
-	return cfg.Enabled && cfg.ServiceURL != ""
-}
-
 func (c *Cleaner) Clean() {
 	if c.db != nil {
 		c.syncRecordings()
@@ -922,55 +911,50 @@ func (c *Cleaner) sweepMotionDayDir(dir string) {
 // let overdue recordings pile up far beyond their configured window. Run() drives
 // this off the critical path (async, guarded by a mutex).
 func (c *Cleaner) AnalyzeNew() {
-	if c.analysisEnabled() {
-		c.analyzeNewRecordings()
+	if c.db == nil {
+		return
 	}
+	c.analyzeNewRecordings()
 }
+
+// defaultAnalysisConfidenceThreshold is used when a camera has a detector
+// chosen but no confidence_threshold of its own set yet.
+const defaultAnalysisConfidenceThreshold = 0.4
 
 func (c *Cleaner) analyzeNewRecordings() {
 	if c.db == nil {
 		return
 	}
-	cfg, err := db.GetVideoAnalysisConfig(c.db)
-	if err != nil {
-		c.log.Warn("analyzeNewRecordings: failed to read config", "err", err)
-		return
-	}
-	if !cfg.Enabled {
-		return
-	}
-	if cfg.ServiceURL == "" {
-		c.log.Warn("analyzeNewRecordings: skipped (service_url not configured)")
-		return
-	}
-	analyzer := c.analyzer
-	if analyzer == nil {
-		analyzer = analysis.NewClient(cfg.ServiceURL)
-	}
 
 	rows, err := c.db.Query(`
-		SELECT r.id, r.camera_id, r.path, r.started_at, r.ended_at
+		SELECT r.id, r.camera_id, r.path, r.started_at, r.ended_at,
+			cac.detector_id, cac.confidence_threshold
 		FROM recordings r
+		JOIN camera_analysis_config cac ON cac.camera_id = r.camera_id
 		WHERE r.ended_at IS NOT NULL
 		AND r.has_motion = 1
 		AND r.analysis_skipped = 0
+		AND cac.enabled = 1
+		AND cac.detector_id IS NOT NULL
 		AND NOT EXISTS (SELECT 1 FROM detections d WHERE d.recording_id = r.id)`)
 	if err != nil {
 		c.log.Warn("analyzeNewRecordings: query failed", "err", err)
 		return
 	}
 	type pending struct {
-		id        int64
-		cameraID  string
-		path      string
-		startedAt time.Time
-		endedAt   time.Time
+		id                  int64
+		cameraID            string
+		path                string
+		startedAt           time.Time
+		endedAt             time.Time
+		detectorID          int64
+		confidenceThreshold sql.NullFloat64
 	}
 	var candidates []pending
 	for rows.Next() {
 		var p pending
 		var startedAt, endedAt string
-		if err := rows.Scan(&p.id, &p.cameraID, &p.path, &startedAt, &endedAt); err != nil {
+		if err := rows.Scan(&p.id, &p.cameraID, &p.path, &startedAt, &endedAt, &p.detectorID, &p.confidenceThreshold); err != nil {
 			continue
 		}
 		p.startedAt, _ = time.Parse(time.RFC3339, startedAt)
@@ -983,7 +967,9 @@ func (c *Cleaner) analyzeNewRecordings() {
 		c.log.Debug("analyzeNewRecordings: no pending recordings")
 		return
 	}
-	c.log.Info("analyzeNewRecordings: processing", "count", len(candidates), "model", cfg.Model)
+	c.log.Info("analyzeNewRecordings: processing", "count", len(candidates))
+
+	detectors := map[int64]db.ObjectDetector{}
 
 	total := len(candidates)
 	var analyzed int
@@ -995,15 +981,36 @@ func (c *Cleaner) analyzeNewRecordings() {
 			c.log.Warn("analyzeNewRecordings: file not found, skipping", "path", p.path)
 			continue
 		}
-		enabled, err := db.GetCameraAnalysisEnabled(c.db, p.cameraID)
-		if err != nil || !enabled {
+		det, ok := detectors[p.detectorID]
+		if !ok {
+			var err error
+			det, err = db.GetObjectDetector(c.db, p.detectorID)
+			if err != nil {
+				c.log.Warn("analyzeNewRecordings: detector not found, skipping", "detector_id", p.detectorID, "err", err)
+				continue
+			}
+			detectors[p.detectorID] = det
+		}
+		serviceURL := det.Config["service_url"]
+		if serviceURL == "" {
+			c.log.Warn("analyzeNewRecordings: skipped (detector has no service_url)", "detector_id", p.detectorID)
 			continue
 		}
+		analyzer := c.analyzer
+		if analyzer == nil {
+			analyzer = analysis.NewClient(serviceURL)
+		}
+		threshold := defaultAnalysisConfidenceThreshold
+		if p.confidenceThreshold.Valid {
+			threshold = p.confidenceThreshold.Float64
+		}
+		model := det.Config["model"]
+
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		dets, err := analyzer.Analyze(ctx, analysis.AnalyzeRequest{
 			Path:                p.path,
-			Model:               cfg.Model,
-			ConfidenceThreshold: cfg.ConfidenceThreshold,
+			Model:               model,
+			ConfidenceThreshold: threshold,
 		})
 		cancel()
 		if errors.Is(err, analysis.ErrServiceBusy) {
@@ -1020,7 +1027,7 @@ func (c *Cleaner) analyzeNewRecordings() {
 			_ = db.MarkAnalysisSkipped(c.db, p.id)
 			continue
 		}
-		customModel := cfg.Model == "custom"
+		customModel := model == "custom"
 		if len(dets) == 0 {
 			c.log.Debug("analyzeNewRecordings: result", "path", p.path, "labels", "none")
 			// Insert a sentinel (label="") so this recording is not retried.
@@ -1186,7 +1193,7 @@ func (c *Cleaner) Run(ctx context.Context, defaultInterval time.Duration) {
 		case <-ticker.C:
 			if c.db != nil {
 				c.syncRecordings()
-				if c.analysisEnabled() && c.analyzeMu.TryLock() {
+				if c.analyzeMu.TryLock() {
 					go func() {
 						defer c.analyzeMu.Unlock()
 						c.analyzeNewRecordings()
