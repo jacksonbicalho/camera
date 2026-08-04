@@ -6,15 +6,24 @@ import CameraSettingsTabs from '../../components/CameraSettingsTabs'
 import EntitySubtitle from '../../components/EntitySubtitle'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { authHeaders } from '../../auth'
+import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+
+interface ObjectDetectorItem {
+  id: number
+  name: string
+}
+
+const DEFAULT_THRESHOLD = 0.4
 
 export default function CameraAnalysisSettingsPage() {
   const { id } = useParams<{ id: string }>()
   const { settings } = useSettings()
   const cam = settings?.cameras?.find((c: CameraSettings) => c.id === id)
 
-  const [enabled, setEnabled] = useState(true)
-  const [globalEnabled, setGlobalEnabled] = useState(true)
+  const [detectors, setDetectors] = useState<ObjectDetectorItem[]>([])
+  const [detectorId, setDetectorId] = useState('')
+  const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -25,11 +34,12 @@ export default function CameraAnalysisSettingsPage() {
       fetch(`/api/settings/cameras/${id}/analysis`, { headers: authHeaders() }).then((r) =>
         r.json(),
       ),
-      fetch('/api/settings/analysis', { headers: authHeaders() }).then((r) => r.json()),
+      fetch('/api/settings/detectors', { headers: authHeaders() }).then((r) => r.json()),
     ])
-      .then(([cam, global]) => {
-        setEnabled(cam.enabled ?? true)
-        setGlobalEnabled(global.enabled ?? true)
+      .then(([cfg, detectorList]) => {
+        setDetectorId(cfg.detector_id != null ? String(cfg.detector_id) : '')
+        setThreshold(cfg.confidence_threshold ?? DEFAULT_THRESHOLD)
+        setDetectors(detectorList ?? [])
       })
       .catch(() => setError('Falha ao carregar configuração'))
   }, [id])
@@ -41,7 +51,11 @@ export default function CameraAnalysisSettingsPage() {
       const res = await fetch(`/api/settings/cameras/${id}/analysis`, {
         method: 'PUT',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled }),
+        body: JSON.stringify({
+          enabled: detectorId !== '',
+          detector_id: detectorId === '' ? null : Number(detectorId),
+          confidence_threshold: detectorId === '' ? null : threshold,
+        }),
       })
       if (res.ok) {
         setSaved(true)
@@ -69,37 +83,53 @@ export default function CameraAnalysisSettingsPage() {
 
       <div className="space-y-6">
         <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
-          {!globalEnabled && (
-            <div className="px-4 py-3 bg-yellow-900/20 border-b border-yellow-700/30 flex items-start gap-2">
-              <span className="text-yellow-400 text-xs mt-0.5">⚠</span>
-              <p className="text-xs text-yellow-400">
-                A análise global está desativada.{' '}
-                <a href="/settings/analysis" className="underline hover:text-yellow-300">
-                  Ativar em Configurações → Análise de vídeo
-                </a>{' '}
-                para que esta câmera seja processada.
-              </p>
-            </div>
-          )}
-          <div className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-foreground">Análise de objetos</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Ativar detecção YOLO nas gravações desta câmera.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (globalEnabled) setEnabled((v) => !v)
-              }}
-              disabled={!globalEnabled}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled && globalEnabled ? 'bg-primary' : 'bg-surface-2'} ${!globalEnabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+          <div className="p-4">
+            <Label
+              htmlFor="camera-analysis-detector"
+              className="block text-xs text-muted-foreground mb-1"
             >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`}
-              />
-            </button>
+              Detector
+            </Label>
+            <select
+              id="camera-analysis-detector"
+              value={detectorId}
+              onChange={(e) => setDetectorId(e.target.value)}
+              className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring"
+            >
+              <option value="">Nenhum (câmera não é analisada)</option>
+              {detectors.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Detector cadastrado usado nas gravações desta câmera.
+            </p>
+          </div>
+
+          <div className="p-4">
+            <Label
+              htmlFor="camera-analysis-threshold"
+              className="block text-xs text-muted-foreground mb-1"
+            >
+              Limiar de confiança ({(threshold * 100).toFixed(0)}%)
+            </Label>
+            <input
+              id="camera-analysis-threshold"
+              type="range"
+              min={0.1}
+              max={0.9}
+              step={0.05}
+              disabled={detectorId === ''}
+              value={threshold}
+              onChange={(e) => setThreshold(Number(e.target.value))}
+              className="w-full accent-primary disabled:opacity-40"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground mt-0.5">
+              <span>10%</span>
+              <span>90%</span>
+            </div>
           </div>
 
           <div className="p-4 flex items-center justify-between">

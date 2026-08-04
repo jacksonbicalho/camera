@@ -14,8 +14,11 @@ interface Detection {
 // ObjectDetectorTestPage — teste isolado de um detector (upload avulso, sem
 // tocar em nada já gravado no sistema). O backend grava o arquivo num scratch
 // dir temporário e o remove logo depois de rodar a inferência (T3).
+const DEFAULT_THRESHOLD = 0.4
+
 export default function ObjectDetectorTestPage() {
   const { id } = useParams<{ id: string }>()
+  const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD)
   const [detections, setDetections] = useState<Detection[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [testing, setTesting] = useState(false)
@@ -29,6 +32,7 @@ export default function ObjectDetectorTestPage() {
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('confidence_threshold', String(threshold))
       const res = await fetch(`/api/settings/detectors/${id}/test`, {
         method: 'POST',
         headers: authHeaders(),
@@ -55,6 +59,28 @@ export default function ObjectDetectorTestPage() {
       />
 
       <div className="bg-surface border border-border rounded-lg p-4 space-y-4">
+        <div>
+          <Label
+            htmlFor="object-detector-test-threshold"
+            className="block text-xs text-muted-foreground mb-1"
+          >
+            Limiar de confiança ({(threshold * 100).toFixed(0)}%)
+          </Label>
+          <input
+            id="object-detector-test-threshold"
+            type="range"
+            min={0.1}
+            max={0.9}
+            step={0.05}
+            value={threshold}
+            onChange={(e) => setThreshold(Number(e.target.value))}
+            className="w-full accent-primary"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Vale só para este teste — nunca é salvo no detector.
+          </p>
+        </div>
+
         <div>
           <Label
             htmlFor="object-detector-test-file"

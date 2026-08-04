@@ -23,7 +23,6 @@ func setupFinetuneServer(t *testing.T, yoloHandler http.HandlerFunc) (http.Handl
 		t.Fatalf("create admin: %v", err)
 	}
 	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-		Enabled:    true,
 		ServiceURL: yoloSrv.URL,
 		Model:      "yolov8n",
 	}); err != nil {
@@ -68,7 +67,6 @@ func TestFinetuneStatus_ServiceDown_Returns502(t *testing.T) {
 		t.Fatalf("create admin: %v", err)
 	}
 	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-		Enabled:    true,
 		ServiceURL: "http://127.0.0.1:19999", // nothing listening here
 		Model:      "yolov8n",
 	}); err != nil {
@@ -101,7 +99,6 @@ func TestFinetuneStatus_DoneResetsBaseModelDetections(t *testing.T) {
 		t.Fatalf("create admin: %v", err)
 	}
 	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-		Enabled:    true,
 		ServiceURL: yoloSrv.URL,
 		Model:      "yolov8n",
 	}); err != nil {

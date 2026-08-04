@@ -39,7 +39,15 @@ test.describe('CA3: navegação mobile — drawer abaixo de lg, rail persistente
       await expect(sidebar.backdrop).toBeVisible()
       await expect(sidebar.rail).toBeInViewport()
 
-      await sidebar.backdrop.click()
+      // O backdrop cobre a viewport inteira (inset-0), mas o rail aberto (w-48
+      // = 192px, z-30) fica por CIMA dele (z-20) nos primeiros 192px de
+      // largura. Num viewport de 375px, o centro geométrico do backdrop
+      // (~187px) cai bem em cima dessa borda — clique no centro (default do
+      // Playwright) é uma corrida de sub-pixel entre cair dentro ou fora do
+      // rail, foi isso que causou o timeout intermitente reportado no CI.
+      // Clicar num ponto claramente à direita do rail (fora dos 192px) evita
+      // a ambiguidade.
+      await sidebar.backdrop.click({ position: { x: 350, y: 400 } })
       await expect(sidebar.backdrop).toHaveCount(0)
       await expect(sidebar.rail).not.toBeInViewport()
     })

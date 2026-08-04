@@ -334,7 +334,7 @@ func TestClassifierTrain(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]string{"job_id": "j1"})
 	}))
 	defer yolo.Close()
-	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{Enabled: true, ServiceURL: yolo.URL, Model: "yolov8n", ConfidenceThreshold: 0.4}); err != nil {
+	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{ServiceURL: yolo.URL, Model: "yolov8n"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -426,7 +426,7 @@ func TestClassifierTrainFromStoredSamples(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]string{"job_id": "j2"})
 	}))
 	defer yolo.Close()
-	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{Enabled: true, ServiceURL: yolo.URL, Model: "yolov8n", ConfidenceThreshold: 0.4}); err != nil {
+	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{ServiceURL: yolo.URL, Model: "yolov8n"}); err != nil {
 		t.Fatal(err)
 	}
 

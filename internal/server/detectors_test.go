@@ -125,4 +125,61 @@ func TestObjectDetectors(t *testing.T) {
 			t.Fatalf("expected 1 detection labeled person, got %+v", result.Detections)
 		}
 	})
+
+	// CA9 (história feat/detector-por-camera): a tela de teste manda um limiar
+	// avulso no multipart — precisa vencer o valor salvo no detector, nunca o
+	// contrário.
+	t.Run("CA9: limiar recebido no multipart do teste sobrepõe o salvo no detector", func(t *testing.T) {
+		var gotThreshold float64
+		yolo := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var body struct {
+				ConfidenceThreshold float64 `json:"confidence_threshold"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			gotThreshold = body.ConfidenceThreshold
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"detections":[]}`))
+		}))
+		defer yolo.Close()
+
+		srv, token := setupDrivesServer(t)
+
+		createBody := fmt.Sprintf(`{"name":"YOLOv8-nano","config":{"service_url":%q,"model":"yolov8n","confidence_threshold":"0.4"}}`, yolo.URL)
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/detectors", bytes.NewBufferString(createBody))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var created map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &created)
+		id := created["id"]
+
+		var buf bytes.Buffer
+		mw := multipart.NewWriter(&buf)
+		if err := mw.WriteField("confidence_threshold", "0.7"); err != nil {
+			t.Fatalf("WriteField: %v", err)
+		}
+		fw, err := mw.CreateFormFile("file", "test.jpg")
+		if err != nil {
+			t.Fatalf("CreateFormFile: %v", err)
+		}
+		if _, err := fw.Write([]byte("fake-image-bytes")); err != nil {
+			t.Fatalf("write form file: %v", err)
+		}
+		if err := mw.Close(); err != nil {
+			t.Fatalf("close multipart writer: %v", err)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/settings/detectors/%v/test", id), &buf)
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", mw.FormDataContentType())
+		w = httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("test: expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		if gotThreshold != 0.7 {
+			t.Fatalf("expected yolo service to receive confidence_threshold 0.7 (from request), got %v", gotThreshold)
+		}
+	})
 }
