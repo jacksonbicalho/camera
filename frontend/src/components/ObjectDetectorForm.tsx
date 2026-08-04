@@ -48,7 +48,7 @@ export default function ObjectDetectorForm({
     e.preventDefault()
     const config: Record<string, string> =
       type === 'huggingface'
-        ? { model_id: modelId, api_token: apiToken }
+        ? { model_id: modelId, api_token: apiToken, service_url: serviceUrl }
         : { service_url: serviceUrl, model }
     onSave({ name, type, config })
   }
@@ -137,6 +137,21 @@ export default function ObjectDetectorForm({
                 value={modelId}
                 onChange={(e) => setModelId(e.target.value)}
                 required
+              />
+            </div>
+            <div>
+              <Label
+                htmlFor="object-detector-form-hf-url"
+                className="block text-xs text-muted-foreground mb-1"
+              >
+                URL (opcional)
+              </Label>
+              <Input
+                id="object-detector-form-hf-url"
+                type="url"
+                placeholder="https://router.huggingface.co/hf-inference/models/"
+                value={serviceUrl}
+                onChange={(e) => setServiceUrl(e.target.value)}
               />
             </div>
             <div>

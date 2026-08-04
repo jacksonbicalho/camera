@@ -49,3 +49,37 @@ describe('CA7: ObjectDetectorForm exibe seletor de tipo e alterna entre os campo
     expect(saved.config.api_token).toBe('hf_secret')
   })
 })
+
+// CA8 (história feat/detector-adapter-pattern, ticket T7): a URL da Inference
+// API da Hugging Face é editável — nunca só hardcoded — porque o host padrão
+// (api-inference.huggingface.co) parou de responder; descoberto testando
+// contra a API real (curl), não pela documentação.
+describe('CA8: campo de URL opcional pro tipo hugging face', () => {
+  it('exibe um campo de URL opcional (sem required) quando o tipo é hugging face', () => {
+    render(<ObjectDetectorForm onSave={vi.fn()} onCancel={vi.fn()} saving={false} />)
+
+    fireEvent.change(screen.getByLabelText(/tipo/i), { target: { value: 'huggingface' } })
+
+    const urlInput = screen.getByLabelText(/url \(opcional\)/i) as HTMLInputElement
+    expect(urlInput.required).toBe(false)
+  })
+
+  it('inclui a URL preenchida no config enviado a onSave', () => {
+    const onSave = vi.fn()
+    render(<ObjectDetectorForm onSave={onSave} onCancel={vi.fn()} saving={false} />)
+
+    fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: 'HF Detector' } })
+    fireEvent.change(screen.getByLabelText(/tipo/i), { target: { value: 'huggingface' } })
+    fireEvent.change(screen.getByLabelText(/model id/i), {
+      target: { value: 'facebook/detr-resnet-50' },
+    })
+    fireEvent.change(screen.getByLabelText(/api token/i), { target: { value: 'hf_secret' } })
+    fireEvent.change(screen.getByLabelText(/url \(opcional\)/i), {
+      target: { value: 'https://router.huggingface.co/hf-inference/models/' },
+    })
+    fireEvent.click(screen.getByText(/salvar/i))
+
+    const saved = onSave.mock.calls[0][0]
+    expect(saved.config.service_url).toBe('https://router.huggingface.co/hf-inference/models/')
+  })
+})

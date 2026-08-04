@@ -39,7 +39,7 @@ func New(detectorType string, config map[string]string) (Detector, error) {
 		if modelID == "" || token == "" {
 			return nil, fmt.Errorf("huggingface detector requires model_id and api_token")
 		}
-		return adapters.NewHuggingFace(modelID, token), nil
+		return adapters.NewHuggingFace(modelID, token, config["service_url"]), nil
 	default:
 		return nil, fmt.Errorf("unknown detector type %q", detectorType)
 	}
