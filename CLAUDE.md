@@ -8,15 +8,12 @@ Sistema de monitoramento residencial via RTSP. Cada câmera configurada tem trê
 
 ## Fluxo de trabalho
 
-O fluxo completo de **desenvolvimento e publicação** — XP/TDD, análise (`/analyze`), story decomposta em tickets, code review automatizado por subagent, testes funcionais, estratégia de branches, CI/branch protection, slash commands, hooks, scripts de workflow e planejamento/corte de release — vive em **[`docs/workflow.md`](docs/workflow.md)**. **Leia esse arquivo antes de trabalhar** (o hook `session-start` lembra a cada sessão).
+O fluxo completo — XP/TDD, análise, story decomposta em tickets, code review automatizado por subagent, testes funcionais, estratégia de branches, CI/branch protection, slash commands, hooks, scripts de workflow e planejamento/corte de release — vive **inteiramente** em **[`docs/workflow.md`](docs/workflow.md)**, única fonte de detalhe procedural do projeto: nada aqui duplica o que está lá, então se este resumo e `docs/workflow.md` alguma vez divergirem, `docs/workflow.md` vale. **Leia esse arquivo por completo antes de qualquer trabalho de fluxo** (o hook `session-start` lembra a cada sessão) — releia se não tiver certeza de já conhecê-lo nesta sessão (sessão nova, contexto resumido, etc.).
 
-**Regras-gate inegociáveis (resumo — detalhe em `docs/workflow.md`):** só **3 gates humanos** — entre eles, o ciclo roda sozinho, sem prompts.
+O que precisa sobreviver mesmo sem reler o arquivo:
+- Só **3 gates humanos** — G1 (Análise aprovada), G2 (História revisada), G3 (release). Entre eles, o ciclo roda sozinho, sem prompts ao navigator (exceções documentadas em `docs/workflow.md`).
 - `master` e `develop` são protegidos — nunca commit/push direto; tudo via PR.
-- **G1 — Análise aprovada:** demanda com trade-offs reais começa por `/analyze` (`work_progress/analysis/*.md`, investigado, nunca em branco); nada de story/código antes de `[x] Análise aprovada`.
-- **G2 — História revisada:** `/story` escreve a story **já decomposta em tickets** (T1..Tn) + todo critério de aceite verificado por um teste **nomeado** dentro da suíte permanente correspondente — frontend `describe('CAn: ...')`, Go subtestes `t.Run("CAn: ...")`, Python/`services/yolo` `def test_caN_...()`, e2e Playwright/scripts orquestradores `(auto: <comando>)` genérico (ver "Testes funcionais" em `docs/workflow.md`) — **nunca um script `.sh` avulso dedicado a um único CA**; CA1 é sempre `auto: scripts/check.sh` —, tudo preenchido antes da revisão — ainda em `develop`, **sem criar branch**. Só depois de `[x] História revisada` a branch nasce (`git checkout -b <tipo>/<slug> develop`); evita abandonar uma branch se a revisão pedir mudanças grandes. Não implemente (nem red phase) antes do gate.
-- **Entre G2 e G3, zero prompts ao navigator** (exceções: circuit breaker do code review após 3 iterações sem `APPROVED`; e a pausa antes de `push-pr.sh`, ver abaixo). Por ticket: TDD red → green → refactor → `scripts/check.sh` → subagent `code-reviewer` (`CHANGES_REQUESTED` corrige e re-invoca; `APPROVED` → `scripts/record-review.sh` → commit do ticket).
-- **Checkboxes automáticos, nunca marcados à mão pelo driver:** CA1 = `scripts/check.sh`; demais CAs = `scripts/functional-check.sh`; `Review: APPROVED` = `scripts/record-review.sh`; `[x] Aprovado` = `scripts/finalize-story.sh` (só quando História revisada + Review APPROVED + todos os CAs estão verdes).
-- Ao final: `scripts/commit.sh` (se pendente) → preenche `## Revisão` na story e roda `scripts/await-gate.sh prepush` em background → **pausa até o navigator marcar `[x] Pré-push: revisado e aprovado`** (checkbox na própria seção `## Revisão` — gate de verdade, monitorado como G1/G2; regra permanente, não específica de uma história) → **só então `scripts/push-pr.sh` — nunca antes desse checkbox, sem exceção.** Se o navigator não aprovar, ele escreve os problemas encontrados na própria seção `## Revisão` (checkbox continua desmarcado); o driver corrige (ciclo normal de ticket se mexer em lógica de produção) e volta a aguardar o mesmo checkbox. Story file, a análise que a originou (se houve G1) e branch só são removidos quando a história fica `[✓]` no release file. **G3 — Release:** `scripts/release-pr.sh` (via `/release-pr`) abre o PR `develop → master` (só com ok explícito do navigator).
+- G3 (PR `develop → master`) só com ok explícito do navigator.
 
 ## Comandos principais
 
@@ -256,7 +253,7 @@ Diretório único (gitignored: `work_progress/`) que agrupa todo o estado de tra
 
 ## Manutenção contínua
 
-- **Decisões de fluxo se registram neste `CLAUDE.md`** — ele é a fonte canônica. A memória do Claude é só atalho/ponteiro: nunca deixe uma regra de workflow apenas na memória.
+- **Decisões de fluxo se registram em `docs/workflow.md`** — única fonte canônica do processo (ver "Fluxo de trabalho" acima). A memória do Claude é só atalho/ponteiro: nunca deixe uma regra de workflow apenas na memória.
 - **Ao adicionar ou alterar qualquer funcionalidade**, revise este `CLAUDE.md` e atualize as seções afetadas.
 - **Ao adicionar, remover ou mudar o acesso de uma rota**, atualize `internal/server/routes.go` (a tabela).
 - **Ao adicionar ou alterar qualquer campo de configuração**, atualize `camera.yaml.example` com o novo campo, valor de exemplo e comentário com a variável de ambiente correspondente (se houver).
