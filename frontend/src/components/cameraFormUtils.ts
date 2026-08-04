@@ -28,6 +28,7 @@ export interface Camera {
   hls_dvr_seconds: number | null
   recording_enabled: boolean
   motion: MotionConfig | null
+  analysis_enabled?: boolean
 }
 
 export interface CameraFormData {

@@ -85,6 +85,7 @@ type cameraConfigDTO struct {
 	HLSDVRSeconds     *int             `json:"hls_dvr_seconds"`
 	RecordingEnabled  bool             `json:"recording_enabled"`
 	Motion            *motionConfigDTO `json:"motion"`
+	AnalysisEnabled   bool             `json:"analysis_enabled"`
 }
 
 func cameraToDTO(cam config.CameraConfig) cameraConfigDTO {
@@ -164,7 +165,9 @@ func (s *Server) handleListSettingsCameras(w http.ResponseWriter, r *http.Reques
 	}
 	list := make([]cameraConfigDTO, len(cams))
 	for i, c := range cams {
-		list[i] = cameraToDTO(c)
+		dto := cameraToDTO(c)
+		dto.AnalysisEnabled, _ = db.GetCameraAnalysisEnabled(s.db, c.ID)
+		list[i] = dto
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(list)

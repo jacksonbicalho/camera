@@ -875,6 +875,7 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		MotionThreshold      float64     `json:"motion_threshold"`
 		PlaybackLeadSeconds  int         `json:"playback_lead_seconds"`
 		PlaybackTrailSeconds int         `json:"playback_trail_seconds"`
+		AnalysisEnabled      bool        `json:"analysis_enabled"`
 	}
 
 	cameras := s.cameras
@@ -924,6 +925,10 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 				CaptureHeight:   mc.CaptureHeight,
 			}
 		}
+		var analysisEnabled bool
+		if s.db != nil {
+			analysisEnabled, _ = db.GetCameraAnalysisEnabled(s.db, c.ID)
+		}
 		list[i] = cameraInfo{
 			ID:                   c.ID,
 			Name:                 c.Name,
@@ -937,6 +942,7 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 			MotionThreshold:      mc.Threshold,
 			PlaybackLeadSeconds:  lead,
 			PlaybackTrailSeconds: trail,
+			AnalysisEnabled:      analysisEnabled,
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
