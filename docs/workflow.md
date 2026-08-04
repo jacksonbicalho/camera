@@ -151,7 +151,7 @@ scripts/push-pr.sh   (push+PR+CI+merge)
 3. **Gate G2.** Nenhuma branch nova, linha de código de produção ou teste antes de `[x] História revisada` — evita o custo de abandonar uma branch se a revisão pedir mudanças grandes na story.
 4. **Só então:** `git checkout -b <tipo>/<slug> develop` (sincronizado de novo, caso a revisão tenha demorado).
 5. **Ciclo por ticket (sem nenhum prompt ao navigator):** TDD red → green → refactor → `bash scripts/check.sh` → invoca o subagent `code-reviewer` → `CHANGES_REQUESTED` (corrige blocker/major, re-invoca, máx. 3 iterações, senão escala) ou `APPROVED` (`scripts/record-review.sh <Tn> <iterações>`, então commit do ticket).
-6. **Fim dos tickets:** `bash scripts/functional-check.sh` (roda os cenários, marca os CAs) → `bash scripts/finalize-story.sh` (marca `[x] Aprovado` quando História revisada + Review APPROVED + todos os CAs estão verdes) → `scripts/commit.sh` (se houver algo pendente) → preenche o resumo em `## Revisão` da story → `bash scripts/await-gate.sh prepush` em background (mesmo padrão de G1/G2) → **PARA e aguarda o navigator marcar `[x] Pré-push: revisado e aprovado`** (checkbox na seção `## Revisão` da story — regra permanente, gate de verdade, nunca rodar `push-pr.sh` sem ele marcado, mesmo com a story `[x] Aprovado`) → só então `scripts/push-pr.sh` (push + PR **sempre `--base develop`** + aguarda CI + merge quando verde). Se o navigator encontrar problemas em vez de aprovar, ele escreve o que encontrou na própria seção `## Revisão` e **deixa o checkbox desmarcado** — o driver lê o feedback (aparece no diff do arquivo), corrige (voltando ao ciclo normal de ticket — TDD → `check.sh` → subagent `code-reviewer` → commit — se a correção mexer em lógica de produção), atualiza o resumo e volta a aguardar o MESMO checkbox. **CI vermelho:** o `push-pr.sh` propaga o erro sem mergear (PR fica aberto) — **Política A**: um fix trivial pós-`Aprovado` (deixar o CI verde) não exige nova aprovação; se o fix mexer em lógica de produção, volta pro ciclo de ticket (novo review do subagent).
+6. **Fim dos tickets:** `bash scripts/functional-check.sh` (roda os cenários, marca os CAs) → `bash scripts/finalize-story.sh` (marca `[x] Aprovado` quando História revisada + Review APPROVED + todos os CAs estão verdes) → `scripts/commit.sh` (se houver algo pendente) → preenche o resumo em `## Revisão` da story → `bash scripts/await-gate.sh prepush` em background (mesmo padrão de G1/G2) → **PARA e aguarda o navigator marcar `[x] Pré-push: revisado e aprovado`** (ver "Pré-push" em Gates humanos e em Artefatos acima) → só então `scripts/push-pr.sh` (push + PR **sempre `--base develop`** + aguarda CI + merge quando verde). Se o navigator encontrar problemas em vez de aprovar, ele escreve o que encontrou na própria seção `## Revisão` e **deixa o checkbox desmarcado** — o driver lê o feedback (aparece no diff do arquivo), corrige (voltando ao ciclo normal de ticket — TDD → `check.sh` → subagent `code-reviewer` → commit — se a correção mexer em lógica de produção), atualiza o resumo e volta a aguardar o MESMO checkbox. **CI vermelho:** o `push-pr.sh` propaga o erro sem mergear (PR fica aberto) — **Política A**: um fix trivial pós-`Aprovado` (deixar o CI verde) não exige nova aprovação; se o fix mexer em lógica de produção, volta pro ciclo de ticket (novo review do subagent).
 7. Atualizar o arquivo de release correspondente em `work_progress/releases/`: preencher a branch e o número do PR na tabela, marcar `[~]`; o `merge-when-green.sh` marca `[~]→[✓]` ao mergear em `develop`. **Apenas o corte de release** (`develop → master`, G3) depende de autorização explícita do navigator.
 
 ### Artefatos
@@ -226,10 +226,10 @@ mesmo checkbox. **`push-pr.sh` nunca roda sem esse checkbox marcado** —
 regra permanente, sem exceção.
 
 Regras:
-- **Todo critério de aceite é verificado por um teste nomeado dentro da suíte permanente correspondente** — nunca um script `.sh` avulso dedicado a um único CA (ver "Testes funcionais" abaixo para a convenção por linguagem/suíte). Escrito pelo driver **antes** do G2 — o navigator revisa os testes junto com a story. CA1 é sempre `(auto: scripts/check.sh)`; os demais anotam `(auto: <comando>)` com o comando que roda a suíte/script onde o teste nomeado vive — o code review confirma que o teste existe e corresponde ao critério.
+- **Todo critério de aceite é verificado por um teste nomeado dentro da suíte permanente correspondente** (convenção completa por linguagem/suíte em "Testes funcionais" abaixo). Escrito pelo driver **antes** do G2 — o navigator revisa os testes junto com a story. CA1 é sempre `(auto: scripts/check.sh)`; os demais anotam `(auto: <comando>)` com o comando que roda a suíte/script onde o teste nomeado vive — o code review confirma que o teste existe e corresponde ao critério.
 - `[x] Review: APPROVED` só é escrito por `record-review.sh` (todos os tickets aprovados pelo subagent).
 - `[x] Aprovado` só é escrito por `finalize-story.sh` (nunca pelo driver à mão) quando: História revisada ✓ + Review APPROVED ✓ + todos os CAs ✓. Isso mantém `commit.sh`/`push-pr.sh`/hooks funcionando sem alteração de contrato.
-- `[x] Pré-push: revisado e aprovado` (seção `## Revisão`) só é marcado pelo NAVIGATOR, nunca pelo driver — é o único gate cujo checkbox não é preenchido por nenhum script. `scripts/push-pr.sh` nunca roda sem ele marcado, mesmo com a story já `[x] Aprovado`.
+- `[x] Pré-push: revisado e aprovado` — único gate cujo checkbox não é preenchido por nenhum script (ver acima).
 
 Histórias e análises ficam em `work_progress/stories/`/`work_progress/analysis/` (subdiretórios do diretório único `work_progress/`, gitignored — ver `CLAUDE.md`). O nome do arquivo usa timestamp no formato `YYYYMMDDHHmm_<descricao>.md` — igual às migrations de banco — garantindo ordenação cronológica natural ao listar o diretório.
 
@@ -255,6 +255,19 @@ Loop por ticket:
 4. Veredito `APPROVED` → `scripts/record-review.sh <Tn> <iterações>`.
 5. **Circuit breaker:** 3 iterações sem `APPROVED` → driver para, resume o impasse na seção Code Review e escala ao navigator (única exceção de interação entre G2 e G3).
 
+### Commits semânticos
+
+Formato: `<tipo>(<escopo opcional>): <descrição curta em inglês>` — para tickets, `<tipo>(<escopo>): Tn — <descrição>`.
+
+| Tipo | Quando usar |
+|---|---|
+| `feat` | nova funcionalidade |
+| `fix` | correção de bug |
+| `refactor` | refatoração sem mudança de comportamento |
+| `test` | adição ou correção de testes |
+| `docs` | documentação |
+| `chore` | configuração, build, dependências |
+
 ### Testes funcionais
 
 - **Regra única, sem exceção: todo CA é verificado por um teste nomeado dentro da suíte permanente correspondente — nunca um script `.sh` avulso dedicado a um único CA.** Não existe mais `tests/functional/caNN_<slug>.sh` (mecanismo eliminado na história `refactor/eliminar-scripts-sh-ca` — os últimos usos genuinamente não-unitários, retenção/e2e/PDF report, viraram testes nomeados ou scripts permanentes reusáveis, ver abaixo). A garantia real do critério é o teste existir com o nome/estrutura certa E a suíte estar verde — verificável por code review, não por script dedicado. Convenção por suíte:
@@ -271,19 +284,6 @@ Loop por ticket:
   Existe porque um script `.sh` dedicado por CA só reproduzia o mesmo `<runner> -k/-t/-run '<padrão>'` + verificação de "achou e passou" (workaround pro test runner não falhar quando o padrão não casa nada) repetido a cada CA — trabalho e arquivo redundantes quando o próprio nome do teste já é o cenário funcional, e pior: um script write-once nunca mais roda depois que a história que o criou fecha (`functional-check.sh` só o invocava durante o próprio ciclo da história), enquanto um teste na suíte nativa roda em TODO PR futuro. Convenção adotada nas histórias `refactor/frontend-testes-ca-describe` (origem — só frontend), generalizada pra Go/Python em `fix/fine-tuning-yolo-gpu`, e estendida a e2e/infra (eliminando o mecanismo de script dedicado por completo) em `refactor/eliminar-scripts-sh-ca`.
 - `scripts/functional-check.sh`: roda `check.sh` (marca CA1) e depois, pra cada comando **único** anotado `(auto: <comando>)` na story (exceto `scripts/check.sh`, já coberto acima), roda esse comando uma vez e marca `[x]` todo CA que o referencia exatamente. Falhou → esses CAs ficam `[]` e o script sai com erro (driver corrige e re-roda; se a correção mexer em lógica, o ticket volta ao loop de review).
 - Substitui o antigo `story-approval.sh` interativo: critério verificável por máquina é marcado pela máquina. Critério genuinamente não-automatizável deve ser questionado no G1/G2 — ou vira automatizável, ou não é critério.
-
-### Commits semânticos
-
-Formato: `<tipo>(<escopo opcional>): <descrição curta em inglês>` — para tickets, `<tipo>(<escopo>): Tn — <descrição>`.
-
-| Tipo | Quando usar |
-|---|---|
-| `feat` | nova funcionalidade |
-| `fix` | correção de bug |
-| `refactor` | refatoração sem mudança de comportamento |
-| `test` | adição ou correção de testes |
-| `docs` | documentação |
-| `chore` | configuração, build, dependências |
 
 ### Slash commands
 
