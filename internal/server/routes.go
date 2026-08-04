@@ -131,6 +131,7 @@ func (s *Server) routeTable() []route {
 		{"POST", "/api/settings/detectors", authAdmin, s.handleCreateDetector},
 		{"PUT", "/api/settings/detectors/{id}", authAdmin, s.handleUpdateDetector},
 		{"DELETE", "/api/settings/detectors/{id}", authAdmin, s.handleDeleteDetector},
+		{"POST", "/api/settings/detectors/{id}/test", authAdmin, s.handleTestDetector},
 
 		{"GET", "/api/cameras/{id}/recordings", authCamera, s.handleRecordings},
 		{"GET", "/api/cameras/{id}/content-days", authCamera, s.handleContentDays},
