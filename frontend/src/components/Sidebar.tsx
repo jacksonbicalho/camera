@@ -215,6 +215,15 @@ export default function Sidebar() {
             <SidebarSection label="Movimentos" showLabel={showLabel}>
               <SidebarNavLink
                 item={{
+                  id: 'sidebar-object-detectors',
+                  to: '/settings/detectors',
+                  label: 'Detectores de objetos',
+                  icon: <Camera className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
                   id: 'sidebar-analysis',
                   to: '/settings/analysis',
                   label: 'Análise de vídeo',
@@ -296,15 +305,6 @@ export default function Sidebar() {
                   to: '/settings/appearance',
                   label: 'Aparência',
                   icon: <Palette className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-object-detectors',
-                  to: '/settings/detectors',
-                  label: 'Detectores de objetos',
-                  icon: <Camera className="h-5 w-5 shrink-0" />,
                 }}
                 showLabel={showLabel}
               />

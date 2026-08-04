@@ -296,3 +296,19 @@ describe('CA4: "Sobre" saiu do Sidebar (agora é o sub-link about-application do
     expect(document.getElementById('sidebar-about')).toBeNull()
   })
 })
+
+describe('CA6: "Detectores de objetos" está na seção Movimentos (1º item), não mais em Administração', () => {
+  it('aparece antes de "Análise de vídeo" (1º item original de Movimentos) e antes de "Servidor" (1º item de Administração)', () => {
+    renderAt('/')
+    const detectors = document.getElementById('sidebar-object-detectors')!
+    const analysis = document.getElementById('sidebar-analysis')!
+    const server = document.getElementById('sidebar-server')!
+
+    expect(
+      detectors.compareDocumentPosition(analysis) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      detectors.compareDocumentPosition(server) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+})
