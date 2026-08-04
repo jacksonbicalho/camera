@@ -226,6 +226,7 @@ export default function LiveViewPage() {
       <div id="live-view-content" className="page-content space-y-4">
         <PageHeader
           title="Ao vivo"
+          actionsWrap={false}
           actions={
             <div id="live-view-presets" className="flex items-center gap-1.5">
               <Button
@@ -235,10 +236,13 @@ export default function LiveViewPage() {
                 variant="outline"
                 size="sm"
                 onClick={togglePreset}
+                title={`Layout ${cols}×${cols}`}
                 className="bg-surface-2 text-muted hover:text-foreground"
               >
                 <LayoutGrid className="h-3.5 w-3.5" />
-                {cols}×{cols}
+                <span className="hidden sm:inline">
+                  {cols}×{cols}
+                </span>
               </Button>
               {presetOpen &&
                 createPortal(
@@ -293,6 +297,7 @@ export default function LiveViewPage() {
                   setEditMode((v) => !v)
                   setInsertOpen(false)
                 }}
+                title={editMode ? 'Aplicar alterações' : 'Editar grid'}
                 className={
                   editMode
                     ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
@@ -302,12 +307,12 @@ export default function LiveViewPage() {
                 {editMode ? (
                   <>
                     <Check className="h-3.5 w-3.5" />
-                    Aplicar alterações
+                    <span className="hidden sm:inline">Aplicar alterações</span>
                   </>
                 ) : (
                   <>
                     <Pencil className="h-3.5 w-3.5" />
-                    Editar grid
+                    <span className="hidden sm:inline">Editar grid</span>
                   </>
                 )}
               </Button>
