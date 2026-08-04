@@ -19,6 +19,7 @@ import (
 	"camera/internal/analysis"
 	"camera/internal/config"
 	"camera/internal/db"
+	"camera/internal/detector"
 	"camera/internal/stateclass"
 	"camera/internal/storage"
 )
@@ -589,6 +590,28 @@ func queryEndedAt(t *testing.T, database *db.DB, path string) sql.NullString {
 	return endedAt
 }
 
+// configureCameraDetector registers an object detector and points a
+// camera's analysis config at it (enabled), the per-camera equivalent of
+// what tests used to do via the now-retired global video_analysis_config
+// enable/threshold gate.
+func configureCameraDetector(t *testing.T, database *db.DB, cameraID, serviceURL, model string, threshold float64) {
+	t.Helper()
+	detID, err := db.InsertObjectDetector(database, cameraID+"-detector", map[string]string{
+		"service_url": serviceURL,
+		"model":       model,
+	})
+	if err != nil {
+		t.Fatalf("InsertObjectDetector: %v", err)
+	}
+	if err := db.SetCameraAnalysisConfig(database, cameraID, db.CameraAnalysisConfig{
+		Enabled:             true,
+		DetectorID:          &detID,
+		ConfidenceThreshold: &threshold,
+	}); err != nil {
+		t.Fatalf("SetCameraAnalysisConfig: %v", err)
+	}
+}
+
 func createTestCamera(t *testing.T, database *db.DB, id string) {
 	t.Helper()
 	dur5m := config.Duration(5 * time.Minute)
@@ -1005,15 +1028,7 @@ func TestAnalyzeNewRecordings_AnalyzesCompletedChunks(t *testing.T) {
 	dir := t.TempDir()
 	database := openTestDB(t)
 	createTestCameraWithMotion(t, database, "cam1", 10, 10)
-
-	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-		Enabled:             true,
-		ServiceURL:          "http://yolo:8000",
-		Model:               "yolov8n",
-		ConfidenceThreshold: 0.4,
-	}); err != nil {
-		t.Fatalf("UpdateVideoAnalysisConfig: %v", err)
-	}
+	configureCameraDetector(t, database, "cam1", "http://yolo:8000", "yolov8n", 0.4)
 
 	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 	pathA := mp4WithTimestamp(dir, "cam1", base)
@@ -1075,12 +1090,91 @@ func TestAnalyzeNewRecordings_AnalyzesCompletedChunks(t *testing.T) {
 	}
 }
 
+// TestDetectorPorCamera covers CA3 of the "object detector selection per
+// camera" story: analysis must be gated per camera by its own chosen
+// detector, never by the (post-T3, soon retired) global
+// video_analysis_config toggle. The global config is deliberately left at
+// its zero value here — disabled, no service_url — to prove the gate no
+// longer comes from there.
+//
+// detector_id/confidence_threshold don't have Go accessors yet (T1
+// pending), so the per-camera config is written via raw SQL against the
+// columns T1's migration will add. Today those columns don't exist, so this
+// INSERT fails at runtime with a clear "no such column" error — not a
+// compile error, since no new Go symbol is referenced.
+func TestDetectorPorCamera(t *testing.T) {
+	t.Run("CA3: análise de gravações usa o detector configurado por câmera, sem depender do serviço global", func(t *testing.T) {
+		dir := t.TempDir()
+		database := openTestDB(t)
+		createTestCameraWithMotion(t, database, "cam1", 10, 10)
+		createTestCameraWithMotion(t, database, "cam2", 10, 10)
+
+		detID, err := db.InsertObjectDetector(database, "yolo-principal", map[string]string{
+			"service_url": "http://yolo:8000",
+			"model":       "yolov8n",
+		})
+		if err != nil {
+			t.Fatalf("InsertObjectDetector: %v", err)
+		}
+
+		// cam1: detector chosen and enabled — should be analyzed.
+		if _, err := database.Exec(`
+			INSERT INTO camera_analysis_config (camera_id, enabled, detector_id, confidence_threshold)
+			VALUES ('cam1', 1, ?, 0.5)
+			ON CONFLICT(camera_id) DO UPDATE SET
+				enabled=1, detector_id=excluded.detector_id, confidence_threshold=excluded.confidence_threshold`,
+			detID); err != nil {
+			t.Fatalf("configure cam1 detector: %v", err)
+		}
+		// cam2: no detector chosen (default state) — must stay unanalyzed,
+		// even though nothing about the (disabled, empty) global config changed.
+
+		base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+		pathA1 := mp4WithTimestamp(dir, "cam1", base)
+		pathA2 := mp4WithTimestamp(dir, "cam1", base.Add(5*time.Minute))
+		writeFile(t, pathA1, base)
+		writeFile(t, pathA2, base.Add(5*time.Minute))
+
+		pathB1 := mp4WithTimestamp(dir, "cam2", base)
+		pathB2 := mp4WithTimestamp(dir, "cam2", base.Add(5*time.Minute))
+		writeFile(t, pathB1, base)
+		writeFile(t, pathB2, base.Add(5*time.Minute))
+
+		for _, cam := range []string{"cam1", "cam2"} {
+			if err := db.InsertMotionEvent(database, db.MotionEvent{
+				CameraID:   cam,
+				OccurredAt: base.Add(time.Minute),
+				Score:      0.5,
+			}); err != nil {
+				t.Fatalf("InsertMotionEvent(%s): %v", cam, err)
+			}
+		}
+
+		fake := &analysis.FakeAnalyzer{
+			Results: []analysis.Detection{{Label: "person", Confidence: 0.9, FrameCount: 3}},
+		}
+		cleaner := storage.New(dir, 0, 0, 5*time.Minute, 0, 0, database, discardLogger()).
+			WithAnalyzer(fake)
+		cleaner.Clean()
+		cleaner.AnalyzeNew()
+
+		detsA, _ := db.ListDetectionsByPath(database, pathA1)
+		if len(detsA) != 1 {
+			t.Errorf("cam1 (com detector configurado) deveria ter sido analisada, got %d detections", len(detsA))
+		}
+		detsB, _ := db.ListDetectionsByPath(database, pathB1)
+		if len(detsB) != 0 {
+			t.Errorf("cam2 (sem detector escolhido) não deveria ser analisada, got %d detections", len(detsB))
+		}
+	})
+}
+
 func TestAnalyzeNewRecordings_SkipsWhenDisabled(t *testing.T) {
 	dir := t.TempDir()
 	database := openTestDB(t)
 	createTestCamera(t, database, "cam1")
 
-	// global config: disabled (default)
+	// no camera_analysis_config row for cam1 (default state: no detector chosen)
 	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 	pathA := mp4WithTimestamp(dir, "cam1", base)
 	pathB := mp4WithTimestamp(dir, "cam1", base.Add(5*time.Minute))
@@ -1093,7 +1187,7 @@ func TestAnalyzeNewRecordings_SkipsWhenDisabled(t *testing.T) {
 		AnalyzeNew()
 
 	if fake.Called != 0 {
-		t.Errorf("analyzer should not be called when global config is disabled, called %d times", fake.Called)
+		t.Errorf("analyzer should not be called when no detector is chosen for the camera, called %d times", fake.Called)
 	}
 }
 
@@ -1101,14 +1195,7 @@ func TestAnalyzeNewRecordings_SkipsAfterAnalyzeError(t *testing.T) {
 	dir := t.TempDir()
 	database := openTestDB(t)
 	createTestCameraWithMotion(t, database, "cam1", 10, 10)
-
-	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-		Enabled:    true,
-		ServiceURL: "http://yolo:8000",
-		Model:      "yolov8n",
-	}); err != nil {
-		t.Fatalf("UpdateVideoAnalysisConfig: %v", err)
-	}
+	configureCameraDetector(t, database, "cam1", "http://yolo:8000", "yolov8n", 0.4)
 
 	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 	pathA := mp4WithTimestamp(dir, "cam1", base)
@@ -1149,14 +1236,7 @@ func TestFineTuningYOLOGPU(t *testing.T) {
 			dir := t.TempDir()
 			database := openTestDB(t)
 			createTestCameraWithMotion(t, database, "cam1", 10, 10)
-
-			if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-				Enabled:    true,
-				ServiceURL: "http://yolo:8000",
-				Model:      "yolov8n",
-			}); err != nil {
-				t.Fatalf("UpdateVideoAnalysisConfig: %v", err)
-			}
+			configureCameraDetector(t, database, "cam1", "http://yolo:8000", "yolov8n", 0.4)
 
 			base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 			pathA := mp4WithTimestamp(dir, "cam1", base)
@@ -1213,14 +1293,7 @@ func TestAnalyzeNewRecordings_SkipsWhenFileNotOnDisk(t *testing.T) {
 	dir := t.TempDir()
 	database := openTestDB(t)
 	createTestCameraWithMotion(t, database, "cam1", 10, 10)
-
-	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-		Enabled:    true,
-		ServiceURL: "http://yolo:8000",
-		Model:      "yolov8n",
-	}); err != nil {
-		t.Fatalf("UpdateVideoAnalysisConfig: %v", err)
-	}
+	configureCameraDetector(t, database, "cam1", "http://yolo:8000", "yolov8n", 0.4)
 
 	// Insert a recording that exists in the DB but NOT on disk.
 	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
@@ -1932,14 +2005,7 @@ func TestClean_RetentionNotBlockedByAnalysis(t *testing.T) {
 	dir := t.TempDir()
 	database := openTestDB(t)
 	createTestCameraWithMotion(t, database, "cam1", 10, 10)
-
-	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-		Enabled:    true,
-		ServiceURL: "http://yolo:8000",
-		Model:      "yolov8n",
-	}); err != nil {
-		t.Fatalf("UpdateVideoAnalysisConfig: %v", err)
-	}
+	configureCameraDetector(t, database, "cam1", "http://yolo:8000", "yolov8n", 0.4)
 
 	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 	pathA := mp4WithTimestamp(dir, "cam1", base)
@@ -1982,4 +2048,92 @@ func TestClean_RetentionNotBlockedByAnalysis(t *testing.T) {
 	}
 	close(blocker.release)
 	<-done
+}
+
+// fakeDetector implements detector.Detector for TestDetectorAdapterPattern
+// below — avoids ever hitting the real Hugging Face Inference API from a
+// test (internal/detector/adapters.HuggingFace hardcodes that host, with no
+// config-driven override).
+type fakeDetector struct {
+	results      []analysis.Detection
+	err          error
+	called       int
+	gotPath      string
+	gotThreshold float64
+}
+
+func (f *fakeDetector) Detect(_ context.Context, path string, threshold float64) ([]analysis.Detection, error) {
+	f.called++
+	f.gotPath = path
+	f.gotThreshold = threshold
+	return f.results, f.err
+}
+
+// TestDetectorAdapterPattern covers the story feat(analysis): object
+// detector adapter pattern (yolo/hugging face) — CA6: analyzeNewRecordings
+// resolves a huggingface-type detector via internal/detector (not the
+// yolo-only analysis.Analyzer/WithAnalyzer path every other test here uses).
+func TestDetectorAdapterPattern(t *testing.T) {
+	t.Run("CA6: análise automática por câmera despacha um detector huggingface via internal/detector", func(t *testing.T) {
+		dir := t.TempDir()
+		database := openTestDB(t)
+		createTestCameraWithMotion(t, database, "cam1", 10, 10)
+
+		detID, err := db.InsertObjectDetector(database, "hf-detector", map[string]string{
+			"model_id":  "facebook/detr-resnet-50",
+			"api_token": "hf_secret",
+		})
+		if err != nil {
+			t.Fatalf("InsertObjectDetector: %v", err)
+		}
+		if err := db.SetObjectDetectorType(database, detID, "huggingface"); err != nil {
+			t.Fatalf("SetObjectDetectorType: %v", err)
+		}
+		threshold := 0.6
+		if err := db.SetCameraAnalysisConfig(database, "cam1", db.CameraAnalysisConfig{
+			Enabled:             true,
+			DetectorID:          &detID,
+			ConfidenceThreshold: &threshold,
+		}); err != nil {
+			t.Fatalf("SetCameraAnalysisConfig: %v", err)
+		}
+
+		base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+		pathA1 := mp4WithTimestamp(dir, "cam1", base)
+		pathA2 := mp4WithTimestamp(dir, "cam1", base.Add(5*time.Minute))
+		writeFile(t, pathA1, base)
+		writeFile(t, pathA2, base.Add(5*time.Minute))
+		if err := db.InsertMotionEvent(database, db.MotionEvent{
+			CameraID:   "cam1",
+			OccurredAt: base.Add(time.Minute),
+			Score:      0.5,
+		}); err != nil {
+			t.Fatalf("InsertMotionEvent: %v", err)
+		}
+
+		fake := &fakeDetector{results: []analysis.Detection{{Label: "person", Confidence: 0.95, FrameCount: 1}}}
+		cleaner := storage.New(dir, 0, 0, 5*time.Minute, 0, 0, database, discardLogger()).
+			WithDetectorFactory(func(detectorType string, config map[string]string) (detector.Detector, error) {
+				if detectorType != "huggingface" {
+					t.Fatalf("expected huggingface dispatch, got type %q", detectorType)
+				}
+				if config["model_id"] != "facebook/detr-resnet-50" || config["api_token"] != "hf_secret" {
+					t.Fatalf("unexpected config passed to factory: %+v", config)
+				}
+				return fake, nil
+			})
+		cleaner.Clean()
+		cleaner.AnalyzeNew()
+
+		if fake.called != 1 {
+			t.Fatalf("expected the huggingface detector to be invoked once, got %d", fake.called)
+		}
+		if fake.gotThreshold != 0.6 {
+			t.Fatalf("expected the camera's own confidence_threshold (0.6) to be forwarded, got %v", fake.gotThreshold)
+		}
+		dets, _ := db.ListDetectionsByPath(database, pathA1)
+		if len(dets) != 1 || dets[0].Label != "person" {
+			t.Fatalf("expected 1 detection labeled person persisted, got %+v", dets)
+		}
+	})
 }

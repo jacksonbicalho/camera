@@ -5,10 +5,8 @@ import { authHeaders } from '../../auth'
 import { Button } from '@/components/ui/button'
 
 interface AnalysisConfig {
-  enabled: boolean
   service_url: string
   model: string
-  confidence_threshold: number
   has_custom_model?: boolean
 }
 
@@ -80,10 +78,8 @@ function ReanalyzePanel({ ftActive }: { ftActive: boolean }) {
 
 export default function AnalysisSettingsPage() {
   const [cfg, setCfg] = useState<AnalysisConfig>({
-    enabled: false,
     service_url: '',
     model: 'yolov8n',
-    confidence_threshold: 0.4,
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -262,31 +258,13 @@ export default function AnalysisSettingsPage() {
       <div className="space-y-6">
         <PageHeader
           title="Análise de vídeo"
-          subtitle="Serviço YOLO para detecção de objetos em gravações. Cada chunk MP4 é analisado após ser fechado."
+          subtitle="Serviço YOLO usado por detectores de objetos, fine-tuning e treino de state classification."
         />
 
         <form
           onSubmit={handleSave}
           className="bg-surface-2 rounded-lg border border-border divide-y divide-border"
         >
-          <div className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-foreground">Ativar análise</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Habilita o envio de gravações para o serviço YOLO
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setCfg((c) => ({ ...c, enabled: !c.enabled }))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${cfg.enabled ? 'bg-primary' : 'bg-surface-2'}`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cfg.enabled ? 'translate-x-6' : 'translate-x-1'}`}
-              />
-            </button>
-          </div>
-
           <div className="p-4 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -364,27 +342,6 @@ export default function AnalysisSettingsPage() {
                 )}
               </div>
             </div>
-
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Limiar de confiança ({(cfg.confidence_threshold * 100).toFixed(0)}%)
-              </label>
-              <input
-                type="range"
-                min={0.1}
-                max={0.9}
-                step={0.05}
-                className="w-full accent-primary"
-                value={cfg.confidence_threshold}
-                onChange={(e) =>
-                  setCfg((c) => ({ ...c, confidence_threshold: Number(e.target.value) }))
-                }
-              />
-              <div className="flex justify-between text-xs text-muted-foreground mt-0.5">
-                <span>10%</span>
-                <span>90%</span>
-              </div>
-            </div>
           </div>
 
           <div className="p-4 flex items-center justify-between">
@@ -406,15 +363,15 @@ export default function AnalysisSettingsPage() {
             </li>
             <li>
               Configure a URL acima (padrão:{' '}
-              <code className="bg-surface-2 px-1 rounded">http://yolo:8001</code>)
+              <code className="bg-surface-2 px-1 rounded">http://yolo:8001</code>) — usada por
+              fine-tuning e treino de state classification
             </li>
             <li>
-              Ative a análise global e, se necessário, por câmera em Configurações → Câmeras →
-              Análise
+              Cadastre um detector em Configurações → Detectores de objetos apontando pro serviço
             </li>
             <li>
-              Na próxima limpeza do storage, as gravações concluídas serão analisadas
-              automaticamente
+              Escolha esse detector por câmera em Configurações → Câmeras → Análise — só a partir
+              daí as gravações concluídas passam a ser analisadas automaticamente
             </li>
           </ol>
         </div>

@@ -17,7 +17,7 @@ import (
 // "Análise de objetos" no card de cada câmera (frontend) depende desse campo
 // vir já pronto na listagem, sem N+1 request por câmera. Não reusa
 // setupCamerasServer (cameras_test.go) porque precisa manter uma referência
-// direta ao *db.DB para chamar SetCameraAnalysisEnabled.
+// direta ao *db.DB para chamar SetCameraAnalysisConfig.
 func TestCameraListEndpoints_ExposeAnalysisEnabled(t *testing.T) {
 	database := openServerTestDB(t)
 
@@ -43,8 +43,8 @@ func TestCameraListEndpoints_ExposeAnalysisEnabled(t *testing.T) {
 		t.Fatalf("set cameras: %v", err)
 	}
 
-	if err := db.SetCameraAnalysisEnabled(database, cam2ID, false); err != nil {
-		t.Fatalf("SetCameraAnalysisEnabled: %v", err)
+	if err := db.SetCameraAnalysisConfig(database, cam2ID, db.CameraAnalysisConfig{Enabled: false}); err != nil {
+		t.Fatalf("SetCameraAnalysisConfig: %v", err)
 	}
 
 	cameras := []config.CameraConfig{cam1, cam2}

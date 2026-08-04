@@ -276,7 +276,11 @@ func (s *Server) handleTestDetector(w http.ResponseWriter, r *http.Request) {
 	}
 
 	confidence := 0.4
-	if v, err := strconv.ParseFloat(det.Config["confidence_threshold"], 64); err == nil {
+	if v := r.FormValue("confidence_threshold"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			confidence = f
+		}
+	} else if v, err := strconv.ParseFloat(det.Config["confidence_threshold"], 64); err == nil {
 		confidence = v
 	}
 
