@@ -2136,4 +2136,77 @@ func TestDetectorAdapterPattern(t *testing.T) {
 			t.Fatalf("expected 1 detection labeled person persisted, got %+v", dets)
 		}
 	})
+
+	t.Run("CA11: análise huggingface usa o snapshot do evento de movimento (mesma imagem da tela Testar), não um frame às cegas do vídeo", func(t *testing.T) {
+		dir := t.TempDir()
+		database := openTestDB(t)
+		createTestCameraWithMotion(t, database, "cam1", 10, 10)
+
+		detID, err := db.InsertObjectDetector(database, "hf-detector", map[string]string{
+			"model_id":  "facebook/detr-resnet-50",
+			"api_token": "hf_secret",
+		})
+		if err != nil {
+			t.Fatalf("InsertObjectDetector: %v", err)
+		}
+		if err := db.SetObjectDetectorType(database, detID, "huggingface"); err != nil {
+			t.Fatalf("SetObjectDetectorType: %v", err)
+		}
+		threshold := 0.6
+		if err := db.SetCameraAnalysisConfig(database, "cam1", db.CameraAnalysisConfig{
+			Enabled:             true,
+			DetectorID:          &detID,
+			ConfidenceThreshold: &threshold,
+		}); err != nil {
+			t.Fatalf("SetCameraAnalysisConfig: %v", err)
+		}
+
+		base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+		pathA1 := mp4WithTimestamp(dir, "cam1", base)
+		pathA2 := mp4WithTimestamp(dir, "cam1", base.Add(5*time.Minute))
+		writeFile(t, pathA1, base)
+		writeFile(t, pathA2, base.Add(5*time.Minute))
+
+		// frame_path no banco é só o NOME do arquivo (internal/motion salva
+		// assim) — o caminho real em disco se reconstrói via
+		// câmera/dia/nome, mesma convenção de RemoveMotionEventJPEGs
+		// (cleaner.go) e do teste TestClean_PurgesOldOrphanMotionEvents já
+		// existente neste arquivo. Testar com um path absoluto cru aqui
+		// mascararia justamente esse bug.
+		eventTime := base.Add(time.Minute)
+		frameName := eventTime.Format("20060102150405") + "_motion.jpg"
+		dayDir := eventTime.Format("2006/01/02")
+		framePath := filepath.Join(dir, "cam1", filepath.FromSlash(dayDir), frameName)
+		writeFile(t, framePath, eventTime)
+
+		// A weaker event with no frame_path (e.g. purged) must be ignored in
+		// favor of the strongest one that actually has a snapshot on disk.
+		if err := db.InsertMotionEvent(database, db.MotionEvent{
+			CameraID:   "cam1",
+			OccurredAt: base.Add(30 * time.Second),
+			Score:      0.9,
+		}); err != nil {
+			t.Fatalf("InsertMotionEvent (no frame_path): %v", err)
+		}
+		if err := db.InsertMotionEvent(database, db.MotionEvent{
+			CameraID:   "cam1",
+			OccurredAt: eventTime,
+			Score:      0.5,
+			FramePath:  frameName,
+		}); err != nil {
+			t.Fatalf("InsertMotionEvent (with frame_path): %v", err)
+		}
+
+		fake := &fakeDetector{results: []analysis.Detection{{Label: "person", Confidence: 0.95, FrameCount: 1}}}
+		cleaner := storage.New(dir, 0, 0, 5*time.Minute, 0, 0, database, discardLogger()).
+			WithDetectorFactory(func(string, map[string]string) (detector.Detector, error) {
+				return fake, nil
+			})
+		cleaner.Clean()
+		cleaner.AnalyzeNew()
+
+		if fake.gotPath != framePath {
+			t.Fatalf("expected the motion event snapshot (%q) to be sent, got %q", framePath, fake.gotPath)
+		}
+	})
 }

@@ -936,6 +936,42 @@ func (c *Cleaner) AnalyzeNew() {
 // chosen but no confidence_threshold of its own set yet.
 const defaultAnalysisConfidenceThreshold = 0.4
 
+// huggingFaceImagePath picks what to send to the Hugging Face Inference API
+// for a recording: the motion snapshot (_motion.jpg) of the strongest motion
+// event within the recording's time window, when one exists. That snapshot
+// is the same kind of still image a human would manually upload via the
+// detector "test" page (/settings/detectors/test/:id) — a blind frame grab
+// from an arbitrary offset in the recording (the fallback, same as before
+// this method existed) has no guarantee the subject that triggered the
+// recording is even in frame.
+func (c *Cleaner) huggingFaceImagePath(cameraID, recordingPath string, startedAt, endedAt time.Time) string {
+	events, err := db.ListMotionEvents(c.db, cameraID, startedAt, endedAt)
+	if err != nil {
+		return recordingPath
+	}
+	best, bestScore := "", -1.0
+	for _, e := range events {
+		if e.FramePath == "" || e.Score <= bestScore {
+			continue
+		}
+		// e.FramePath is a bare filename (internal/motion/detector.go saves
+		// it that way) — reconstruct the real on-disk path the same way
+		// RemoveMotionEventJPEGs above already does, or os.Stat resolves it
+		// relative to the process CWD (never the recordings tree) and
+		// always misses.
+		dayDir := e.OccurredAt.UTC().Format("2006/01/02")
+		jpegPath := filepath.Join(c.storagePath, cameraID, filepath.FromSlash(dayDir), e.FramePath)
+		if _, err := os.Stat(jpegPath); err != nil {
+			continue
+		}
+		best, bestScore = jpegPath, e.Score
+	}
+	if best == "" {
+		return recordingPath
+	}
+	return best
+}
+
 func (c *Cleaner) analyzeNewRecordings() {
 	if c.db == nil {
 		return
@@ -1028,7 +1064,7 @@ func (c *Cleaner) analyzeNewRecordings() {
 				c.log.Warn("analyzeNewRecordings: skipped (invalid detector config)", "detector_id", p.detectorID, "err", err)
 				continue
 			}
-			dets, err = dt.Detect(ctx, p.path, threshold)
+			dets, err = dt.Detect(ctx, c.huggingFaceImagePath(p.cameraID, p.path, p.startedAt, p.endedAt), threshold)
 		default: // "yolo", and "" for detectors registered before the type column existed
 			serviceURL := det.Config["service_url"]
 			if serviceURL == "" {
