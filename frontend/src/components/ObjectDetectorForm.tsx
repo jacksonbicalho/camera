@@ -8,7 +8,6 @@ export interface ObjectDetectorFormData {
   config: {
     service_url: string
     model: string
-    confidence_threshold: string
   }
 }
 
@@ -25,9 +24,11 @@ interface ObjectDetectorFormProps {
   saving: boolean
 }
 
-// ObjectDetectorForm — campos hoje conhecidos (service_url/model/confidence_threshold);
-// o cadastro em si é chave/valor no backend (object_detector_config), então um campo
-// novo no futuro não exige migration — só um novo input aqui.
+// ObjectDetectorForm — campos hoje conhecidos (service_url/model); o limiar de
+// confiança não é mais cadastrado aqui — é definido por câmera
+// (CameraAnalysisSettingsPage) ou avulso na tela de teste (ObjectDetectorTestPage).
+// O cadastro em si é chave/valor no backend (object_detector_config), então um
+// campo novo no futuro não exige migration — só um novo input aqui.
 export default function ObjectDetectorForm({
   initial,
   onSave,
@@ -37,15 +38,12 @@ export default function ObjectDetectorForm({
   const [name, setName] = useState(initial?.name ?? '')
   const [serviceUrl, setServiceUrl] = useState(initial?.config.service_url ?? '')
   const [model, setModel] = useState(initial?.config.model ?? 'yolov8n')
-  const [confidenceThreshold, setConfidenceThreshold] = useState(
-    initial?.config.confidence_threshold ?? '0.4',
-  )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSave({
       name,
-      config: { service_url: serviceUrl, model, confidence_threshold: confidenceThreshold },
+      config: { service_url: serviceUrl, model },
     })
   }
 
@@ -95,23 +93,6 @@ export default function ObjectDetectorForm({
             value={model}
             onChange={(e) => setModel(e.target.value)}
             required
-          />
-        </div>
-        <div>
-          <Label
-            htmlFor="object-detector-form-confidence"
-            className="block text-xs text-muted-foreground mb-1"
-          >
-            Limiar de confiança
-          </Label>
-          <Input
-            id="object-detector-form-confidence"
-            type="number"
-            min={0.1}
-            max={0.9}
-            step={0.05}
-            value={confidenceThreshold}
-            onChange={(e) => setConfidenceThreshold(e.target.value)}
           />
         </div>
       </div>
