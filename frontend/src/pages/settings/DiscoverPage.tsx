@@ -5,6 +5,7 @@ import PageHeader from '../../components/PageHeader'
 import { authHeaders } from '../../auth'
 import { Loader2, Search } from '../../components/Icons'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { findRegisteredCamera, identityLines, discoveredDisplayName } from './discoverDedupe'
 
 interface RegisteredCamera {
@@ -229,13 +230,13 @@ export default function DiscoverPage() {
                         <td className="px-4 py-2.5 font-mono text-muted-foreground">{r.port}</td>
                         <td className="px-4 py-2.5">
                           {r.onvif ? (
-                            <span className="px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 text-xs font-mono">
+                            <Badge variant="info" className="font-mono">
                               ONVIF
-                            </span>
+                            </Badge>
                           ) : (
-                            <span className="px-1.5 py-0.5 rounded bg-surface-2 text-muted-foreground text-xs font-mono">
+                            <Badge variant="neutral" className="font-mono">
                               Scan
-                            </span>
+                            </Badge>
                           )}
                         </td>
                         <td className="px-4 py-2.5 font-mono text-foreground">
