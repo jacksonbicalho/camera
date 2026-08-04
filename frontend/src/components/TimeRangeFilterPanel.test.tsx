@@ -6,34 +6,38 @@ afterEach(() => {
   cleanup()
 })
 
-function hourInput(side: 'from' | 'to') {
-  return document.getElementById(`history-time-range-${side}-hour`) as HTMLInputElement
-}
-function minuteInput(side: 'from' | 'to') {
-  return document.getElementById(`history-time-range-${side}-minute`) as HTMLInputElement
+function trigger(side: 'from' | 'to', field: 'hour' | 'minute') {
+  return document.getElementById(`history-time-range-${side}-${field}`) as HTMLButtonElement
 }
 
-// fillAndBlur — digita hora/minuto no lado indicado e sai do campo de minuto (dispara o
-// commit, mesmo espírito do onAccept que o MUI TimePicker antigo só disparava no fim da
-// seleção completa).
-function fillAndBlur(side: 'from' | 'to', hour: string, minute: string) {
-  fireEvent.change(hourInput(side), { target: { value: hour } })
-  fireEvent.blur(hourInput(side))
-  fireEvent.change(minuteInput(side), { target: { value: minute } })
-  fireEvent.blur(minuteInput(side))
+function panel(side: 'from' | 'to', field: 'hour' | 'minute') {
+  return document.getElementById(`history-time-range-${side}-${field}-list`)
 }
 
-describe('CA2: TimeRangeFilterPanel — input próprio de hora/minuto (sem MUI)', () => {
+function openDropdown(side: 'from' | 'to', field: 'hour' | 'minute') {
+  fireEvent.click(trigger(side, field))
+}
+
+// selectOption — abre o dropdown (hora ou minuto) do lado indicado e clica na opção. `value
+// = null` clica na opção "--" (limpar).
+function selectOption(side: 'from' | 'to', field: 'hour' | 'minute', value: number | null) {
+  openDropdown(side, field)
+  const list = panel(side, field)!
+  const selector = value === null ? '[data-value="clear"]' : `[data-value="${value}"]`
+  fireEvent.click(list.querySelector(selector)!)
+}
+
+describe('CA2: TimeRangeFilterPanel — hora/minuto próprios (sem MUI)', () => {
   describe('ids estáveis por elemento (De/Até) e container', () => {
-    it('renderiza o container e os 4 inputs (hora/minuto de cada lado)', () => {
+    it('renderiza o container e os 4 gatilhos (hora/minuto de cada lado)', () => {
       render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
       expect(document.getElementById('history-time-range-filter')).not.toBeNull()
       expect(document.getElementById('history-time-range-from')).not.toBeNull()
       expect(document.getElementById('history-time-range-to')).not.toBeNull()
-      expect(hourInput('from')).not.toBeNull()
-      expect(minuteInput('from')).not.toBeNull()
-      expect(hourInput('to')).not.toBeNull()
-      expect(minuteInput('to')).not.toBeNull()
+      expect(trigger('from', 'hour')).not.toBeNull()
+      expect(trigger('from', 'minute')).not.toBeNull()
+      expect(trigger('to', 'hour')).not.toBeNull()
+      expect(trigger('to', 'minute')).not.toBeNull()
     })
 
     it('não existe botão "Aplicar" — o filtro é ao vivo, sem confirmação', () => {
@@ -41,99 +45,50 @@ describe('CA2: TimeRangeFilterPanel — input próprio de hora/minuto (sem MUI)'
       expect(document.getElementById('history-time-range-apply')).toBeNull()
     })
 
-    it('inputs têm aria-label distinguindo De/Até (acessibilidade sem depender de label visível)', () => {
+    it('gatilhos têm aria-label distinguindo De/Até (acessibilidade sem depender de label visível)', () => {
       render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
-      expect(hourInput('from').getAttribute('aria-label')).toContain('De')
-      expect(hourInput('to').getAttribute('aria-label')).toContain('Até')
+      expect(trigger('from', 'hour').getAttribute('aria-label')).toContain('De')
+      expect(trigger('to', 'hour').getAttribute('aria-label')).toContain('Até')
     })
   })
 
   describe('exibição do valor atual', () => {
     it('valor preenchido via prop aparece formatado com zero à esquerda (09, não 9)', () => {
       render(<TimeRangeFilterPanel from={{ hour: 9, minute: 5 }} to={null} onChange={vi.fn()} />)
-      expect(hourInput('from').value).toBe('09')
-      expect(minuteInput('from').value).toBe('05')
+      expect(trigger('from', 'hour').textContent).toBe('09')
+      expect(trigger('from', 'minute').textContent).toBe('05')
     })
 
-    it('sem valor (null), os inputs começam vazios', () => {
+    it('sem valor (null), os gatilhos mostram "--"', () => {
       render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
-      expect(hourInput('from').value).toBe('')
-      expect(minuteInput('from').value).toBe('')
+      expect(trigger('from', 'hour').textContent).toBe('--')
+      expect(trigger('from', 'minute').textContent).toBe('--')
     })
   })
 
   describe('confirmar (commit) só quando o lado está completo', () => {
-    it('preencher só a hora (minuto ainda vazio) e sair do campo NÃO dispara onChange', () => {
+    it('selecionar só a hora (minuto ainda vazio) NÃO dispara onChange', () => {
       const onChange = vi.fn()
       render(<TimeRangeFilterPanel from={null} to={null} onChange={onChange} />)
-      fireEvent.change(hourInput('from'), { target: { value: '9' } })
-      fireEvent.blur(hourInput('from'))
+      selectOption('from', 'hour', 9)
       expect(onChange).not.toHaveBeenCalled()
     })
 
-    it('preencher hora e minuto (sair do campo de minuto) dispara onChange com o ClockTime completo', () => {
+    it('selecionar hora e minuto dispara onChange com o ClockTime completo', () => {
       const onChange = vi.fn()
       render(<TimeRangeFilterPanel from={null} to={null} onChange={onChange} />)
-      fillAndBlur('from', '9', '30')
+      selectOption('from', 'hour', 9)
+      selectOption('from', 'minute', 30)
       expect(onChange).toHaveBeenCalledWith({ hour: 9, minute: 30 }, null)
     })
 
     it('limpar os dois campos de um lado já preenchido dispara onChange com null (lado aberto)', () => {
       const onChange = vi.fn()
       render(<TimeRangeFilterPanel from={{ hour: 9, minute: 0 }} to={null} onChange={onChange} />)
-      fireEvent.change(hourInput('from'), { target: { value: '' } })
-      fireEvent.blur(hourInput('from'))
-      fireEvent.change(minuteInput('from'), { target: { value: '' } })
-      fireEvent.blur(minuteInput('from'))
+      selectOption('from', 'hour', null)
+      expect(onChange).not.toHaveBeenCalled() // só a hora limpa, minuto ainda em 0 — incompleto
+      selectOption('from', 'minute', null)
       expect(onChange).toHaveBeenCalledWith(null, null)
-    })
-  })
-
-  describe('clamp de valores fora do intervalo ao perder foco', () => {
-    it('hora acima de 23 é limitada a 23', () => {
-      const onChange = vi.fn()
-      render(<TimeRangeFilterPanel from={null} to={null} onChange={onChange} />)
-      fillAndBlur('from', '99', '0')
-      expect(hourInput('from').value).toBe('23')
-      expect(onChange).toHaveBeenCalledWith({ hour: 23, minute: 0 }, null)
-    })
-
-    it('minuto acima de 59 é limitado a 59', () => {
-      const onChange = vi.fn()
-      render(<TimeRangeFilterPanel from={null} to={null} onChange={onChange} />)
-      fillAndBlur('from', '10', '99')
-      expect(minuteInput('from').value).toBe('59')
-      expect(onChange).toHaveBeenCalledWith({ hour: 10, minute: 59 }, null)
-    })
-
-    it('valor fora do intervalo digitado no campo IRMÃO (sem sair dele) ainda é clampado ao confirmar pelo outro campo', () => {
-      // Digita "99" no minuto sem sair do campo (sem blur nele), depois preenche e sai da
-      // hora — o commit é disparado pelo blur da hora, mas precisa clampar o minuto também
-      // (ele nunca passou pelo próprio onBlur).
-      const onChange = vi.fn()
-      render(<TimeRangeFilterPanel from={null} to={null} onChange={onChange} />)
-      fireEvent.change(minuteInput('from'), { target: { value: '99' } })
-      fireEvent.change(hourInput('from'), { target: { value: '10' } })
-      fireEvent.blur(hourInput('from'))
-      expect(onChange).toHaveBeenCalledWith({ hour: 10, minute: 59 }, null)
-    })
-  })
-
-  describe('digita só dígitos — letras/símbolos são descartados', () => {
-    it('digitar caracteres não-numéricos não aparece no campo', () => {
-      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
-      fireEvent.change(hourInput('from'), { target: { value: 'ab1c2d' } })
-      expect(hourInput('from').value).toBe('12')
-    })
-  })
-
-  describe('não dispara onChange quando o valor confirmado é igual ao já commitado (ex.: Tab sem editar)', () => {
-    it('sair do campo sem alterar o valor não chama onChange de novo', () => {
-      const onChange = vi.fn()
-      render(<TimeRangeFilterPanel from={{ hour: 9, minute: 30 }} to={null} onChange={onChange} />)
-      fireEvent.blur(hourInput('from'))
-      fireEvent.blur(minuteInput('from'))
-      expect(onChange).not.toHaveBeenCalled()
     })
   })
 
@@ -157,10 +112,11 @@ describe('CA2: TimeRangeFilterPanel — input próprio de hora/minuto (sem MUI)'
   })
 
   describe('conflito de horário (De > Até) abre o ConfirmDialog, mesmo comportamento de sempre', () => {
-    it('preencher "De" com um horário depois de "Até" já preenchido abre o modal de conflito', () => {
+    it('selecionar "De" com um horário depois de "Até" já preenchido abre o modal de conflito', () => {
       const onChange = vi.fn()
       render(<TimeRangeFilterPanel from={null} to={{ hour: 10, minute: 0 }} onChange={onChange} />)
-      fillAndBlur('from', '12', '0')
+      selectOption('from', 'hour', 12)
+      selectOption('from', 'minute', 0)
       expect(document.getElementById('confirm-dialog-confirm')).not.toBeNull()
       expect(onChange).not.toHaveBeenCalled()
     })
@@ -168,7 +124,8 @@ describe('CA2: TimeRangeFilterPanel — input próprio de hora/minuto (sem MUI)'
     it('confirmar o conflito zera o lado oposto e aplica o novo valor', () => {
       const onChange = vi.fn()
       render(<TimeRangeFilterPanel from={null} to={{ hour: 10, minute: 0 }} onChange={onChange} />)
-      fillAndBlur('from', '12', '0')
+      selectOption('from', 'hour', 12)
+      selectOption('from', 'minute', 0)
       fireEvent.click(document.getElementById('confirm-dialog-confirm')!)
       expect(onChange).toHaveBeenCalledWith({ hour: 12, minute: 0 }, null)
     })
@@ -176,11 +133,144 @@ describe('CA2: TimeRangeFilterPanel — input próprio de hora/minuto (sem MUI)'
     it('cancelar o conflito não altera nada — o campo volta a refletir o valor anterior (prop)', () => {
       const onChange = vi.fn()
       render(<TimeRangeFilterPanel from={null} to={{ hour: 10, minute: 0 }} onChange={onChange} />)
-      fillAndBlur('from', '12', '0')
+      selectOption('from', 'hour', 12)
+      selectOption('from', 'minute', 0)
       fireEvent.click(document.getElementById('confirm-dialog-cancel')!)
       expect(onChange).not.toHaveBeenCalled()
       expect(document.getElementById('confirm-dialog-confirm')).toBeNull()
-      expect(hourInput('from').value).toBe('')
+      expect(trigger('from', 'hour').textContent).toBe('--')
+    })
+  })
+})
+
+describe('CA4: campos de hora/minuto viram dropdown (clique abre lista, sem seta)', () => {
+  describe('gatilho é um botão simples, sem seta/ícone de select', () => {
+    it('gatilho é um <button>, não um <select> nativo', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      expect(trigger('from', 'hour').tagName).toBe('BUTTON')
+    })
+
+    it('gatilho não tem nenhum ícone/seta (sem <svg>)', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      expect(trigger('from', 'hour').querySelector('svg')).toBeNull()
+    })
+  })
+
+  describe('clique abre a lista de opções; lista não existe antes/depois', () => {
+    it('lista não existe antes do clique', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      expect(panel('from', 'hour')).toBeNull()
+    })
+
+    it('clicar no gatilho abre a lista com as opções (0–23 pra hora)', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      const list = panel('from', 'hour')!
+      expect(list).not.toBeNull()
+      expect(list.querySelector('[data-value="0"]')).not.toBeNull()
+      expect(list.querySelector('[data-value="23"]')).not.toBeNull()
+      expect(list.querySelector('[data-value="24"]')).toBeNull()
+    })
+
+    it('a lista de minuto vai até 59', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'minute')
+      const list = panel('from', 'minute')!
+      expect(list.querySelector('[data-value="59"]')).not.toBeNull()
+      expect(list.querySelector('[data-value="60"]')).toBeNull()
+    })
+
+    it('selecionar uma opção fecha a lista', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      selectOption('from', 'hour', 9)
+      expect(panel('from', 'hour')).toBeNull()
+    })
+
+    it('clicar fora da lista aberta a fecha, sem selecionar nada', () => {
+      const onChange = vi.fn()
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={onChange} />)
+      openDropdown('from', 'hour')
+      expect(panel('from', 'hour')).not.toBeNull()
+      fireEvent.mouseDown(document.body)
+      expect(panel('from', 'hour')).toBeNull()
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('Escape fecha a lista aberta', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      expect(panel('from', 'hour')).not.toBeNull()
+      fireEvent.keyDown(window, { key: 'Escape' })
+      expect(panel('from', 'hour')).toBeNull()
+    })
+  })
+
+  describe('painel de opções nunca vaza da viewport (clamp de posição)', () => {
+    const originalInnerWidth = window.innerWidth
+    const originalInnerHeight = window.innerHeight
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+      Object.defineProperty(window, 'innerWidth', {
+        value: originalInnerWidth,
+        configurable: true,
+      })
+      Object.defineProperty(window, 'innerHeight', {
+        value: originalInnerHeight,
+        configurable: true,
+      })
+    })
+
+    it('gatilho perto da borda inferior-direita da viewport: o painel fica inteiramente dentro dela', () => {
+      Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true })
+      Object.defineProperty(window, 'innerHeight', { value: 300, configurable: true })
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+        top: 280,
+        left: 380,
+        right: 420,
+        bottom: 300,
+        width: 40,
+        height: 20,
+        x: 380,
+        y: 280,
+        toJSON: () => ({}),
+      })
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(56)
+      vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(192)
+
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      const list = panel('from', 'hour')!
+      const left = parseFloat(list.style.left)
+      const top = parseFloat(list.style.top)
+      expect(left).toBeGreaterThanOrEqual(0)
+      expect(left + 56).toBeLessThanOrEqual(400)
+      expect(top).toBeGreaterThanOrEqual(0)
+      expect(top + 192).toBeLessThanOrEqual(300)
+    })
+
+    it('gatilho perto da borda superior-esquerda (0,0): o painel nunca fica com posição negativa', () => {
+      Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true })
+      Object.defineProperty(window, 'innerHeight', { value: 300, configurable: true })
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+        top: 0,
+        left: 0,
+        right: 30,
+        bottom: 10,
+        width: 30,
+        height: 10,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      })
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(56)
+      vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(192)
+
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      const list = panel('from', 'hour')!
+      expect(parseFloat(list.style.left)).toBeGreaterThanOrEqual(0)
+      expect(parseFloat(list.style.top)).toBeGreaterThanOrEqual(0)
     })
   })
 })

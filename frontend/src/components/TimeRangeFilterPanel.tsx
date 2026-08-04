@@ -1,13 +1,134 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import ConfirmDialog from './ConfirmDialog'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { applyTimeRangeChange, type ClockTime } from '../lib/timeRange'
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-function clampInt(raw: string, max: number): number {
-  return Math.min(max, Math.max(0, Number(raw)))
+const HOURS = Array.from({ length: 24 }, (_, i) => i)
+const MINUTES = Array.from({ length: 60 }, (_, i) => i)
+const POPOVER_MARGIN = 8
+
+// clampCoord — mantém [start, start+size] inteiramente dentro de [0, viewportSize] (com uma
+// margem mínima até a borda). Causa raiz dos 2 bugs de popover vazando a viewport já vistos
+// nesta mesma sessão (calendário do DatePicker, cabeçalho do RecordingsPage): posicionar só
+// a PARTIR do gatilho, sem checar se o painel CABE dali até a borda oposta. Aqui as duas
+// bordas são checadas desde o início — `useFlyout` (sidebarFlyout.ts) tem essa mesma lacuna
+// hoje, mas corrigi-lo é fora do escopo desta história (só este componente novo).
+function clampCoord(start: number, size: number, viewportSize: number): number {
+  const max = Math.max(POPOVER_MARGIN, viewportSize - size - POPOVER_MARGIN)
+  return Math.min(Math.max(POPOVER_MARGIN, start), max)
+}
+
+interface ClockDropdownFieldProps {
+  id: string
+  ariaLabel: string
+  values: readonly number[]
+  value: number | null
+  onSelect: (v: number | null) => void
+}
+
+// ClockDropdownField — um campo (hora OU minuto) do TimeRangeFilterPanel: botão-gatilho +
+// painel de opções portalado (document.body, position: fixed). Nunca usa `<select>` nativo
+// (pedido do navigator: "sem seta" — o `<select>` sempre desenha uma seta do jeito do
+// browser, sem controle visual). Posição do painel calculada a partir do
+// `getBoundingClientRect()` do gatilho E do tamanho REAL do painel (medido via ref, só
+// depois de montado — `useLayoutEffect`, antes do navegador pintar), clampada em
+// `[margem, viewport-tamanho-margem]` nos dois eixos via `clampCoord`.
+function ClockDropdownField({ id, ariaLabel, values, value, onSelect }: ClockDropdownFieldProps) {
+  const [open, setOpen] = useState(false)
+  const [style, setStyle] = useState<CSSProperties>({})
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    if (!open) return
+    const btn = triggerRef.current
+    if (!btn) return
+    const rect = btn.getBoundingClientRect()
+    const panelWidth = panelRef.current?.offsetWidth ?? rect.width
+    const panelHeight = panelRef.current?.offsetHeight ?? 0
+    setStyle({
+      position: 'fixed',
+      zIndex: 9999,
+      top: clampCoord(rect.bottom + 4, panelHeight, window.innerHeight),
+      left: clampCoord(rect.left, panelWidth, window.innerWidth),
+    })
+    // Traz a opção selecionada pra dentro da área visível assim que a lista abre — sem isso,
+    // escolher minuto=45 sempre abriria a lista rolada do topo (00), exigindo rolar bastante
+    // numa lista de 60 itens.
+    panelRef.current
+      ?.querySelector<HTMLElement>('[aria-current="true"]')
+      ?.scrollIntoView({ block: 'center' })
+
+    function onDown(e: MouseEvent) {
+      const target = e.target as Node
+      if (triggerRef.current?.contains(target)) return
+      if (panelRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  useEscapeKey(() => setOpen(false), open)
+
+  return (
+    <>
+      <button
+        id={id}
+        ref={triggerRef}
+        type="button"
+        aria-label={ariaLabel}
+        onClick={() => setOpen((o) => !o)}
+        className="h-8 w-9 rounded-md border border-border bg-surface-2 text-center text-caption text-foreground hover:border-primary/50 focus:outline-none focus:border-primary/50"
+      >
+        {value === null ? '--' : pad2(value)}
+      </button>
+      {open &&
+        createPortal(
+          <div
+            id={`${id}-list`}
+            ref={panelRef}
+            style={style}
+            className="max-h-48 w-14 overflow-y-auto rounded-md border border-border bg-surface shadow-xl"
+          >
+            <button
+              type="button"
+              data-value="clear"
+              onClick={() => {
+                onSelect(null)
+                setOpen(false)
+              }}
+              className="block w-full px-2 py-1 text-center text-caption text-muted-foreground hover:bg-surface-2"
+            >
+              --
+            </button>
+            {values.map((v) => (
+              <button
+                key={v}
+                type="button"
+                data-value={v}
+                aria-current={v === value ? 'true' : undefined}
+                onClick={() => {
+                  onSelect(v)
+                  setOpen(false)
+                }}
+                className={`block w-full px-2 py-1 text-center text-caption hover:bg-surface-2 ${
+                  v === value ? 'bg-primary/10 font-medium text-primary' : 'text-foreground'
+                }`}
+              >
+                {pad2(v)}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </>
+  )
 }
 
 export interface TimeRangeFilterPanelProps {
@@ -23,98 +144,71 @@ interface ClockSideFieldProps {
   onCommit: (v: ClockTime | null) => void
 }
 
-// ClockSideField — os 2 campos (hora/minuto) de um lado (De ou Até) do filtro.
-// `inputMode="numeric"` (não `type="number"`) — evita dois efeitos colaterais do input
-// numérico nativo que atrapalham um campo de 2 dígitos: remover o zero à esquerda enquanto
-// digita ("05" vira "5") e as setas de incremento/decremento (ruído visual num campo tão
-// estreito) — mesmo teclado numérico no celular, sem os dois problemas.
-//
-// Estado local (rascunho) espelha a prop `value` via "ajuste durante o render" (mesmo padrão
-// já usado em CameraViewTabs.tsx) — reseta quando `value` muda de referência (ex.: o filtro
-// foi limpo em outro lugar). Confirma (chama `onCommit`) no `onBlur` de qualquer um dos dois
-// campos: os dois vazios → `null` (lado aberto); os dois preenchidos → `ClockTime`, com
-// clamp (hora até 23, minuto até 59) e zero-padding; só um preenchido → não confirma ainda
-// (estado intermediário — mesmo espírito do antigo `onAccept` do MUI, que só disparava no
-// fim da seleção completa, evitando abrir o modal de conflito com um valor pela metade).
+// ClockSideField — os 2 campos (hora/minuto) de um lado (De ou Até) do filtro. Estado local
+// (rascunho) espelha a prop `value` via "ajuste durante o render" (mesmo padrão já usado em
+// CameraViewTabs.tsx) — reseta quando `value` muda de referência (ex.: o filtro foi limpo em
+// outro lugar). Confirma (`onCommit`) quando os dois lados ficam definidos (`number`) ou os
+// dois ficam `null` (lado aberto) — só um definido é um estado intermediário, não confirma
+// ainda (mesmo espírito do antigo `onAccept`/`onBlur`, evita abrir o modal de conflito com um
+// valor pela metade).
 function ClockSideField({ idPrefix, ariaLabel, value, onCommit }: ClockSideFieldProps) {
   const [prevValue, setPrevValue] = useState(value)
-  const [hourText, setHourText] = useState(value ? pad2(value.hour) : '')
-  const [minuteText, setMinuteText] = useState(value ? pad2(value.minute) : '')
+  const [hour, setHour] = useState<number | null>(value?.hour ?? null)
+  const [minute, setMinute] = useState<number | null>(value?.minute ?? null)
   if (value !== prevValue) {
     setPrevValue(value)
-    setHourText(value ? pad2(value.hour) : '')
-    setMinuteText(value ? pad2(value.minute) : '')
+    setHour(value?.hour ?? null)
+    setMinute(value?.minute ?? null)
   }
 
-  // commitIfComplete clampa os DOIS lados de novo (mesmo se quem chamou já tiver clampado
-  // o campo que acabou de perder foco) porque o campo IRMÃO pode ainda não ter passado pelo
-  // próprio onBlur (ex.: digitar "99" no minuto e sair direto pelo campo de hora, sem nunca
-  // ter saído do minuto) — sem esse segundo clamp aqui, um valor fora do intervalo digitado
-  // no campo que NÃO disparou o blur escaparia sem correção.
-  function commitIfComplete(nextHour: string, nextMinute: string) {
-    if (nextHour === '' && nextMinute === '') {
+  function commitIfComplete(nextHour: number | null, nextMinute: number | null) {
+    if (nextHour === null && nextMinute === null) {
       if (value !== null) onCommit(null)
       return
     }
-    if (nextHour === '' || nextMinute === '') return
-    const hour = clampInt(nextHour, 23)
-    const minute = clampInt(nextMinute, 59)
-    // Evita disparar onChange (e um refiltro em HistoryPage) quando nada mudou de verdade —
-    // ex. usuário só passou o Tab por cima do campo sem editar.
-    if (value && value.hour === hour && value.minute === minute) return
-    onCommit({ hour, minute })
-  }
-
-  function digitsOnly(raw: string): string {
-    return raw.replace(/\D/g, '').slice(0, 2)
+    if (nextHour === null || nextMinute === null) return
+    if (value && value.hour === nextHour && value.minute === nextMinute) return
+    onCommit({ hour: nextHour, minute: nextMinute })
   }
 
   return (
     <div id={idPrefix} className="flex items-center gap-1">
-      <input
+      <ClockDropdownField
         id={`${idPrefix}-hour`}
-        aria-label={`${ariaLabel} — hora`}
-        type="text"
-        inputMode="numeric"
-        placeholder="--"
-        value={hourText}
-        onChange={(e) => setHourText(digitsOnly(e.target.value))}
-        onBlur={(e) => {
-          const next = e.target.value === '' ? '' : pad2(clampInt(e.target.value, 23))
-          setHourText(next)
-          commitIfComplete(next, minuteText)
+        ariaLabel={`${ariaLabel} — hora`}
+        values={HOURS}
+        value={hour}
+        onSelect={(v) => {
+          setHour(v)
+          commitIfComplete(v, minute)
         }}
-        className="h-8 w-9 rounded-md border border-border bg-surface-2 px-1 text-center text-caption text-foreground focus:outline-none focus:border-primary/50"
       />
       <span aria-hidden="true" className="text-muted-foreground text-caption">
         :
       </span>
-      <input
+      <ClockDropdownField
         id={`${idPrefix}-minute`}
-        aria-label={`${ariaLabel} — minuto`}
-        type="text"
-        inputMode="numeric"
-        placeholder="--"
-        value={minuteText}
-        onChange={(e) => setMinuteText(digitsOnly(e.target.value))}
-        onBlur={(e) => {
-          const next = e.target.value === '' ? '' : pad2(clampInt(e.target.value, 59))
-          setMinuteText(next)
-          commitIfComplete(hourText, next)
+        ariaLabel={`${ariaLabel} — minuto`}
+        values={MINUTES}
+        value={minute}
+        onSelect={(v) => {
+          setMinute(v)
+          commitIfComplete(hour, v)
         }}
-        className="h-8 w-9 rounded-md border border-border bg-surface-2 px-1 text-center text-caption text-foreground focus:outline-none focus:border-primary/50"
       />
     </div>
   )
 }
 
 // TimeRangeFilterPanel — painel de filtro de horário do Histórico (linha própria, cheia, na
-// coluna lateral — ver HistoryPage.tsx): dois `ClockSideField` (De/Até), substituindo o
-// antigo par de `TimePicker` do MUI X (dial de relógio) — história
-// refactor/remover-mui-time-range-filter, motivada pelo navigator: reduzir a exceção MUI (o
-// resto do app é 100% Tailwind) e simplificar a UI. Filtra AO VIVO: sem botão "Aplicar" —
-// cada lado completo já chama `onChange` direto, que o HistoryPage aplica de imediato
-// (lib/timeRange.ts's matchesTimeRange trata cada lado ausente como um filtro aberto).
+// coluna lateral — ver HistoryPage.tsx): dois `ClockSideField` (De/Até), cada um com 2
+// dropdowns (hora/minuto) — substitui o antigo par de `TimePicker` do MUI X (história
+// refactor/remover-mui-time-range-filter, motivada pelo navigator: reduzir a exceção MUI e
+// simplificar a UI; os dropdowns em si vieram de um pedido seguinte, trocando a digitação
+// livre por seleção de uma lista fechada de valores válidos). Filtra AO VIVO: sem botão
+// "Aplicar" — cada lado completo já chama `onChange` direto, que o HistoryPage aplica de
+// imediato (lib/timeRange.ts's matchesTimeRange trata cada lado ausente como um filtro
+// aberto).
 //
 // "Até" nunca pode ficar menor que "De" (nem "De" maior que "Até"): applyTimeRangeChange
 // (lib/timeRange.ts, inalterado por esta história) decide se a edição é `ok` (propaga
