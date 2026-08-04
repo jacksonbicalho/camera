@@ -11,6 +11,9 @@ function pad2(n: number): string {
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const MINUTES = Array.from({ length: 60 }, (_, i) => i)
 const POPOVER_MARGIN = 8
+// Janela de inatividade que reseta o buffer de type-ahead (mesmo espírito do <select>
+// nativo: dígitos digitados em sequência rápida se combinam, uma pausa recomeça a busca).
+const TYPEAHEAD_RESET_MS = 600
 
 // clampCoord — mantém [start, start+size] inteiramente dentro de [0, viewportSize] (com uma
 // margem mínima até a borda). Causa raiz dos 2 bugs de popover vazando a viewport já vistos
@@ -43,6 +46,10 @@ function ClockDropdownField({ id, ariaLabel, values, value, onSelect }: ClockDro
   const [style, setStyle] = useState<CSSProperties>({})
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  // Buffer de type-ahead (achado do navigator testando a página real: perdemos o "digitar
+  // pra adiantar" do <select> nativo ao trocar por um painel próprio, T4) — ref, não state:
+  // não precisa re-renderizar a cada tecla, só lido/escrito dentro do handler de teclado.
+  const typeaheadRef = useRef<{ buffer: string; lastTime: number }>({ buffer: '', lastTime: 0 })
 
   useLayoutEffect(() => {
     if (!open) return
@@ -57,12 +64,6 @@ function ClockDropdownField({ id, ariaLabel, values, value, onSelect }: ClockDro
       top: clampCoord(rect.bottom + 4, panelHeight, window.innerHeight),
       left: clampCoord(rect.left, panelWidth, window.innerWidth),
     })
-    // Traz a opção selecionada pra dentro da área visível assim que a lista abre — sem isso,
-    // escolher minuto=45 sempre abriria a lista rolada do topo (00), exigindo rolar bastante
-    // numa lista de 60 itens.
-    panelRef.current
-      ?.querySelector<HTMLElement>('[aria-current="true"]')
-      ?.scrollIntoView({ block: 'center' })
 
     function onDown(e: MouseEvent) {
       const target = e.target as Node
@@ -71,10 +72,84 @@ function ClockDropdownField({ id, ariaLabel, values, value, onSelect }: ClockDro
       setOpen(false)
     }
     document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
+    // Fecha ao rolar a PÁGINA em vez de reposicionar continuamente — mesmo padrão já usado
+    // por DatePicker.tsx. Sem isso, rolar a página deixa o painel "solto" do campo (ele fica
+    // parado na posição antiga, já que só recalcula quando `open` muda) — achado real do
+    // navigator testando a página no celular. `scroll` não faz bubbling, mas ATRAVESSA a
+    // fase de captura de qualquer ancestral (inclusive `window`) — sem o guard de
+    // `contains`, rolar a LISTA em si (ela é `overflow-y-auto`, tem 60 itens no caso do
+    // minuto) também dispararia isso e fecharia o painel no meio da rolagem/type-ahead
+    // (achado do code review, confirmado rodando o componente de verdade).
+    function onScroll(e: Event) {
+      // `e.target` é `window` quando a página inteira rola (não um Node — `.contains()`
+      // lançaria TypeError se chamado com ele direto) — só o guard de "dentro do painel"
+      // precisa do caso Node de verdade (scroll de um elemento, ex. a própria lista).
+      if (e.target instanceof Node && panelRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    window.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('scroll', onScroll, { capture: true })
+    }
   }, [open])
 
+  // Efeito SEPARADO do de posicionamento acima, de propósito — depende de `style` (não só
+  // `open`), então só roda de verdade DEPOIS que a posição real (position:fixed + top/left
+  // clampados) já foi commitada no DOM pelo efeito anterior. Bug real reportado pelo
+  // navigator: no PRIMEIro clique em qualquer um dos 4 campos, a página inteira rolava pra
+  // baixo — porque antes desta separação, `.focus()`/`scrollIntoView()` rodavam na MESMA
+  // passada de efeito que `setStyle(...)`, e uma atualização de estado não reflete no DOM
+  // sincronamente dentro do mesmo efeito — na 1ª abertura de cada campo (`style` ainda era o
+  // valor inicial `{}`, sem `position:fixed`), o painel portalado ainda estava em fluxo
+  // normal (provavelmente no fim do `<body>`), e focar um botão lá dentro fazia o browser
+  // rolar a página inteira até ele.
+  useLayoutEffect(() => {
+    if (!open || style.position !== 'fixed') return
+    // Move o foco pra DENTRO do painel (opção selecionada, ou a primeira opção numérica se
+    // nada estiver selecionado) assim que a lista abre, e traz ela pra área visível. Achado
+    // do code review: sem isso, o foco fica no botão-gatilho (comportamento padrão do
+    // browser ao clicar num <button>) — e como o gatilho é IRMÃO do painel portalado (não
+    // ancestral, nem na árvore DOM nem na React), uma tecla digitada nunca alcançaria o
+    // onKeyDown do painel (o "digitar pra adiantar" simplesmente não disparava na interação
+    // real, só nos testes que despacham o evento direto no painel). `preventScroll: true`
+    // (defesa extra, além da ordem correta acima) — focar nunca deve, por si só, mover a
+    // página; só o `scrollIntoView` explícito abaixo deve, e mesmo assim só dentro do
+    // próprio painel `overflow-y-auto` (o painel inteiro já cabe na viewport por construção,
+    // graças ao `clampCoord`).
+    const focusTarget =
+      panelRef.current?.querySelector<HTMLElement>('[aria-current="true"]') ??
+      panelRef.current?.querySelector<HTMLElement>('button[data-value]:not([data-value="clear"])')
+    focusTarget?.focus({ preventScroll: true })
+    focusTarget?.scrollIntoView({ block: 'center' })
+  }, [open, style])
+
   useEscapeKey(() => setOpen(false), open)
+
+  // handleTypeahead — dígitos digitados enquanto a lista está aberta pulam direto pra opção
+  // correspondente (foco + scrollIntoView; confirmar com Enter/Espaço já funciona nativo,
+  // são <button> de verdade). Interpreta o buffer acumulado como NÚMERO (não prefixo de
+  // texto): "1"→valor 1, "1"+"4" em seguida→valor 14. Se o buffer combinado não bate com
+  // nenhuma opção (ex. "9"+"9"=99, hora só vai até 23), cai de volta pro último dígito
+  // sozinho — equivalente a começar uma busca nova a partir dele.
+  function handleTypeahead(e: { key: string }) {
+    if (!/^[0-9]$/.test(e.key)) return
+    const now = Date.now()
+    const state = typeaheadRef.current
+    if (now - state.lastTime > TYPEAHEAD_RESET_MS) state.buffer = ''
+    state.buffer += e.key
+    state.lastTime = now
+    let match = values.find((v) => v === Number(state.buffer))
+    if (match === undefined) {
+      state.buffer = e.key
+      match = values.find((v) => v === Number(state.buffer))
+    }
+    if (match !== undefined) {
+      const btn = panelRef.current?.querySelector<HTMLElement>(`[data-value="${match}"]`)
+      btn?.focus()
+      btn?.scrollIntoView({ block: 'center' })
+    }
+  }
 
   return (
     <>
@@ -94,7 +169,8 @@ function ClockDropdownField({ id, ariaLabel, values, value, onSelect }: ClockDro
             id={`${id}-list`}
             ref={panelRef}
             style={style}
-            className="max-h-48 w-14 overflow-y-auto rounded-md border border-border bg-surface shadow-xl"
+            onKeyDown={handleTypeahead}
+            className="max-h-48 w-14 overflow-y-auto rounded-md border border-border bg-surface shadow-xl scrollbar-thin"
           >
             <button
               type="button"

@@ -274,3 +274,121 @@ describe('CA4: campos de hora/minuto viram dropdown (clique abre lista, sem seta
     })
   })
 })
+
+describe('CA5: scrollbar estilizada, fecha ao rolar a página, digitação pula pro valor', () => {
+  describe('scrollbar', () => {
+    it('a lista tem a classe scrollbar-thin (mesmo padrão já usado em #history-recordings-groups)', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      expect(panel('from', 'hour')!.className).toContain('scrollbar-thin')
+    })
+  })
+
+  describe('fecha ao rolar a página — não fica "solto" do campo', () => {
+    it('rolar a janela com o painel aberto fecha o painel', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      expect(panel('from', 'hour')).not.toBeNull()
+      fireEvent.scroll(window)
+      expect(panel('from', 'hour')).toBeNull()
+    })
+
+    it('REGRESSÃO: rolar a lista de opções em si (ela é overflow-y-auto, 60 itens no minuto) NÃO fecha o painel — só a página fechá-lo faz sentido', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'minute')
+      const list = panel('from', 'minute')!
+      fireEvent.scroll(list)
+      expect(panel('from', 'minute')).not.toBeNull()
+    })
+  })
+
+  describe('REGRESSÃO: abrir o painel move o foco pra dentro dele', () => {
+    it('sem isso, o gatilho (irmão do painel portalado, não ancestral) fica com o foco e nenhuma tecla alcança o type-ahead', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      const list = panel('from', 'hour')!
+      expect(list.contains(document.activeElement)).toBe(true)
+    })
+
+    it('com um valor já selecionado, o foco vai pra essa opção (não pra primeira da lista)', () => {
+      render(<TimeRangeFilterPanel from={{ hour: 9, minute: 0 }} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      const list = panel('from', 'hour')!
+      expect(document.activeElement).toBe(list.querySelector('[data-value="9"]'))
+    })
+
+    it('REGRESSÃO: o foco usa preventScroll — focar a opção nunca deve, por si só, mover a página', () => {
+      const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus')
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true })
+      focusSpy.mockRestore()
+    })
+
+    it('REGRESSÃO: o painel já está posicionado (position:fixed) no momento em que a opção recebe foco — no 1º clique de cada campo, focar um elemento AINDA em fluxo normal (sem position:fixed ainda aplicado) fazia a página inteira rolar até ele', () => {
+      let positionAtFocusTime: string | undefined
+      const realFocus = HTMLElement.prototype.focus
+      const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (
+        this: HTMLElement,
+        options?: FocusOptions,
+      ) {
+        if (positionAtFocusTime === undefined) {
+          positionAtFocusTime = panel('from', 'hour')?.style.position
+        }
+        realFocus.call(this, options)
+      })
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      // Primeiro clique deste campo específico — exatamente o cenário relatado (style ainda
+      // no valor inicial `{}` antes deste ciclo de abertura).
+      openDropdown('from', 'hour')
+      expect(positionAtFocusTime).toBe('fixed')
+      focusSpy.mockRestore()
+    })
+  })
+
+  describe('digitação pula pra opção correspondente (type-ahead)', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('digitar um único dígito leva o foco pra opção correspondente', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      const list = panel('from', 'hour')!
+      fireEvent.keyDown(list, { key: '5' })
+      expect(document.activeElement).toBe(list.querySelector('[data-value="5"]'))
+    })
+
+    it('digitar dois dígitos em sequência rápida pula pro valor combinado (ex.: "1" + "4" → 14)', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      const list = panel('from', 'hour')!
+      fireEvent.keyDown(list, { key: '1' })
+      fireEvent.keyDown(list, { key: '4' })
+      expect(document.activeElement).toBe(list.querySelector('[data-value="14"]'))
+    })
+
+    it('depois de uma pausa, o buffer reseta — dígito seguinte busca a partir do zero', () => {
+      vi.useFakeTimers()
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'minute')
+      const list = panel('from', 'minute')!
+      fireEvent.keyDown(list, { key: '1' })
+      vi.advanceTimersByTime(700)
+      fireEvent.keyDown(list, { key: '4' })
+      expect(document.activeElement).toBe(list.querySelector('[data-value="4"]'))
+    })
+
+    it('combinação de dois dígitos sem opção correspondente (ex. "9"+"9"=99, hora só vai até 23) cai de volta pro último dígito digitado', () => {
+      render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+      openDropdown('from', 'hour')
+      const list = panel('from', 'hour')!
+      fireEvent.keyDown(list, { key: '9' })
+      expect(() => fireEvent.keyDown(list, { key: '9' })).not.toThrow()
+      // "99" não existe (hora vai só até 23) — cai de volta pro último dígito sozinho ("9",
+      // que existe: valor 9) em vez de não fazer nada.
+      expect(document.activeElement).toBe(list.querySelector('[data-value="9"]'))
+      expect(panel('from', 'hour')).not.toBeNull()
+    })
+  })
+})
