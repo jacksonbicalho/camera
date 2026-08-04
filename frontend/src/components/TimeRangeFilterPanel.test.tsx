@@ -392,3 +392,52 @@ describe('CA5: scrollbar estilizada, fecha ao rolar a página, digitação pula 
     })
   })
 })
+
+describe('CA6: Tab/Shift+Tab navegam entre os 4 campos, mesmo com um painel aberto', () => {
+  it('Tab a partir do painel de "De — hora" fecha o painel e foca o gatilho de "De — minuto"', () => {
+    render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+    openDropdown('from', 'hour')
+    const list = panel('from', 'hour')!
+    const result = fireEvent.keyDown(list, { key: 'Tab' })
+    expect(result).toBe(false) // preventDefault chamado — navegação manual, não a nativa
+    expect(panel('from', 'hour')).toBeNull()
+    expect(document.activeElement).toBe(trigger('from', 'minute'))
+  })
+
+  it('Tab a partir do painel de "De — minuto" cruza pro gatilho de "Até — hora" (próximo lado)', () => {
+    render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+    openDropdown('from', 'minute')
+    const list = panel('from', 'minute')!
+    fireEvent.keyDown(list, { key: 'Tab' })
+    expect(panel('from', 'minute')).toBeNull()
+    expect(document.activeElement).toBe(trigger('to', 'hour'))
+  })
+
+  it('Shift+Tab a partir do painel de "Até — minuto" volta pro gatilho de "Até — hora"', () => {
+    render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+    openDropdown('to', 'minute')
+    const list = panel('to', 'minute')!
+    const result = fireEvent.keyDown(list, { key: 'Tab', shiftKey: true })
+    expect(result).toBe(false)
+    expect(panel('to', 'minute')).toBeNull()
+    expect(document.activeElement).toBe(trigger('to', 'hour'))
+  })
+
+  it('Shift+Tab a partir do painel de "De — hora" (1º campo) NÃO trava a lógica manual — só fecha o painel e deixa o Tab nativo seguir', () => {
+    render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+    openDropdown('from', 'hour')
+    const list = panel('from', 'hour')!
+    const result = fireEvent.keyDown(list, { key: 'Tab', shiftKey: true })
+    expect(result).toBe(true) // preventDefault NÃO chamado — sem gatilho anterior, é a borda
+    expect(panel('from', 'hour')).toBeNull()
+  })
+
+  it('Tab a partir do painel de "Até — minuto" (último campo) NÃO trava a lógica manual — só fecha o painel e deixa o Tab nativo seguir', () => {
+    render(<TimeRangeFilterPanel from={null} to={null} onChange={vi.fn()} />)
+    openDropdown('to', 'minute')
+    const list = panel('to', 'minute')!
+    const result = fireEvent.keyDown(list, { key: 'Tab' })
+    expect(result).toBe(true)
+    expect(panel('to', 'minute')).toBeNull()
+  })
+})

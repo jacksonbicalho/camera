@@ -1,4 +1,11 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
+} from 'react'
 import { createPortal } from 'react-dom'
 import ConfirmDialog from './ConfirmDialog'
 import { useEscapeKey } from '../hooks/useEscapeKey'
@@ -32,6 +39,7 @@ interface ClockDropdownFieldProps {
   values: readonly number[]
   value: number | null
   onSelect: (v: number | null) => void
+  containerRef: RefObject<HTMLDivElement | null>
 }
 
 // ClockDropdownField — um campo (hora OU minuto) do TimeRangeFilterPanel: botão-gatilho +
@@ -41,7 +49,14 @@ interface ClockDropdownFieldProps {
 // `getBoundingClientRect()` do gatilho E do tamanho REAL do painel (medido via ref, só
 // depois de montado — `useLayoutEffect`, antes do navegador pintar), clampada em
 // `[margem, viewport-tamanho-margem]` nos dois eixos via `clampCoord`.
-function ClockDropdownField({ id, ariaLabel, values, value, onSelect }: ClockDropdownFieldProps) {
+function ClockDropdownField({
+  id,
+  ariaLabel,
+  values,
+  value,
+  onSelect,
+  containerRef,
+}: ClockDropdownFieldProps) {
   const [open, setOpen] = useState(false)
   const [style, setStyle] = useState<CSSProperties>({})
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -151,6 +166,33 @@ function ClockDropdownField({ id, ariaLabel, values, value, onSelect }: ClockDro
     }
   }
 
+  // handleKeyDown — Tab/Shift+Tab com o painel aberto: como o painel é portalado (fim do
+  // `<body>`, irmão do gatilho, não ancestral), o Tab nativo seguiria a ordem FÍSICA do DOM em
+  // vez da ordem LÓGICA dos 4 campos (De-hora/De-minuto/Até-hora/Até-minuto) — pedido do
+  // navigator pra corrigir. `containerRef` (o wrapper `#history-time-range-filter`) só contém
+  // os 4 botões-gatilho com `id` (as opções da lista não têm `id`, e o painel em si está fora
+  // dele, portalado), então `querySelectorAll('button[id]')` mais o índice do gatilho atual dá
+  // o próximo/anterior direto. Nas bordas (Tab no último campo, Shift+Tab no primeiro) não há
+  // vizinho — fecha o painel e deixa o Tab nativo seguir seu curso normal, sem
+  // `preventDefault`.
+  function handleKeyDown(e: ReactKeyboardEvent) {
+    handleTypeahead(e)
+    if (e.key !== 'Tab') return
+    const triggers = containerRef.current
+      ? Array.from(containerRef.current.querySelectorAll<HTMLButtonElement>('button[id]'))
+      : []
+    const idx = triggers.findIndex((btn) => btn.id === id)
+    const nextIdx = idx + (e.shiftKey ? -1 : 1)
+    const next = triggers[nextIdx]
+    if (!next) {
+      setOpen(false)
+      return
+    }
+    e.preventDefault()
+    setOpen(false)
+    next.focus({ preventScroll: true })
+  }
+
   return (
     <>
       <button
@@ -169,7 +211,7 @@ function ClockDropdownField({ id, ariaLabel, values, value, onSelect }: ClockDro
             id={`${id}-list`}
             ref={panelRef}
             style={style}
-            onKeyDown={handleTypeahead}
+            onKeyDown={handleKeyDown}
             className="max-h-48 w-14 overflow-y-auto rounded-md border border-border bg-surface shadow-xl scrollbar-thin"
           >
             <button
@@ -218,6 +260,7 @@ interface ClockSideFieldProps {
   ariaLabel: string
   value: ClockTime | null
   onCommit: (v: ClockTime | null) => void
+  containerRef: RefObject<HTMLDivElement | null>
 }
 
 // ClockSideField — os 2 campos (hora/minuto) de um lado (De ou Até) do filtro. Estado local
@@ -227,7 +270,13 @@ interface ClockSideFieldProps {
 // dois ficam `null` (lado aberto) — só um definido é um estado intermediário, não confirma
 // ainda (mesmo espírito do antigo `onAccept`/`onBlur`, evita abrir o modal de conflito com um
 // valor pela metade).
-function ClockSideField({ idPrefix, ariaLabel, value, onCommit }: ClockSideFieldProps) {
+function ClockSideField({
+  idPrefix,
+  ariaLabel,
+  value,
+  onCommit,
+  containerRef,
+}: ClockSideFieldProps) {
   const [prevValue, setPrevValue] = useState(value)
   const [hour, setHour] = useState<number | null>(value?.hour ?? null)
   const [minute, setMinute] = useState<number | null>(value?.minute ?? null)
@@ -258,6 +307,7 @@ function ClockSideField({ idPrefix, ariaLabel, value, onCommit }: ClockSideField
           setHour(v)
           commitIfComplete(v, minute)
         }}
+        containerRef={containerRef}
       />
       <span aria-hidden="true" className="text-muted-foreground text-caption">
         :
@@ -271,6 +321,7 @@ function ClockSideField({ idPrefix, ariaLabel, value, onCommit }: ClockSideField
           setMinute(v)
           commitIfComplete(hour, v)
         }}
+        containerRef={containerRef}
       />
     </div>
   )
@@ -300,6 +351,7 @@ export default function TimeRangeFilterPanel({ from, to, onChange }: TimeRangeFi
     resetSide: 'from' | 'to'
   } | null>(null)
   const [resetTick, setResetTick] = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   function handleFieldChange(field: 'from' | 'to', value: ClockTime | null) {
     const result = applyTimeRangeChange({ from, to }, field, value)
@@ -330,13 +382,18 @@ export default function TimeRangeFilterPanel({ from, to, onChange }: TimeRangeFi
   const resetSideLabel = pendingConflict?.resetSide === 'from' ? 'De' : 'Até'
 
   return (
-    <div id="history-time-range-filter" className="flex w-full items-center gap-2">
+    <div
+      id="history-time-range-filter"
+      ref={containerRef}
+      className="flex w-full items-center gap-2"
+    >
       <ClockSideField
         key={`from-${resetTick}`}
         idPrefix="history-time-range-from"
         ariaLabel="De"
         value={from}
         onCommit={(v) => handleFieldChange('from', v)}
+        containerRef={containerRef}
       />
       <span className="text-muted-foreground text-caption">–</span>
       <ClockSideField
@@ -345,6 +402,7 @@ export default function TimeRangeFilterPanel({ from, to, onChange }: TimeRangeFi
         ariaLabel="Até"
         value={to}
         onCommit={(v) => handleFieldChange('to', v)}
+        containerRef={containerRef}
       />
       <ConfirmDialog
         open={pendingConflict != null}
