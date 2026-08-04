@@ -33,6 +33,13 @@ func New(detectorType string, config map[string]string) (Detector, error) {
 			return nil, fmt.Errorf("yolo detector requires service_url")
 		}
 		return adapters.NewYolo(serviceURL, config["model"]), nil
+	case "huggingface":
+		modelID := config["model_id"]
+		token := config["api_token"]
+		if modelID == "" || token == "" {
+			return nil, fmt.Errorf("huggingface detector requires model_id and api_token")
+		}
+		return adapters.NewHuggingFace(modelID, token), nil
 	default:
 		return nil, fmt.Errorf("unknown detector type %q", detectorType)
 	}
