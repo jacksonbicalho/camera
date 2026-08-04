@@ -25,6 +25,7 @@ const CameraAnalysisSettingsPage = lazy(() => import('./pages/settings/CameraAna
 const CameraStatesSettingsPage = lazy(() => import('./pages/settings/CameraStatesSettingsPage'))
 const DiscoverPage = lazy(() => import('./pages/settings/DiscoverPage'))
 const AnalysisSettingsPage = lazy(() => import('./pages/settings/AnalysisSettingsPage'))
+const LabelEventsPage = lazy(() => import('./pages/settings/LabelEventsPage'))
 const ObjectDetectorsSettingsPage = lazy(
   () => import('./pages/settings/ObjectDetectorsSettingsPage'),
 )
@@ -376,6 +377,14 @@ export const routes = (
       element={
         <Lazy>
           <AnalysisSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/label-events"
+      element={
+        <Lazy>
+          <LabelEventsPage />
         </Lazy>
       }
     />

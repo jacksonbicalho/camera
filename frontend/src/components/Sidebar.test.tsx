@@ -169,13 +169,13 @@ describe('CA3: seção "Sistema" — Câmeras (todos) e Rastrear câmeras (admin
 })
 
 describe('CA3: seção "Movimentos" (admin) — Análise de vídeo, Rotular eventos, Histórico', () => {
-  it('admin vê os 3 itens; "Rotular eventos" aponta pra âncora #label-events; "Histórico" é um link pra /history (sem sub-menu)', () => {
+  it('admin vê os 3 itens; "Rotular eventos" aponta pra rota própria /settings/label-events; "Histórico" é um link pra /history (sem sub-menu)', () => {
     renderAt('/')
     expect(document.getElementById('sidebar-analysis')?.getAttribute('href')).toBe(
       '/settings/analysis',
     )
     expect(document.getElementById('sidebar-label-events')?.getAttribute('href')).toBe(
-      '/settings/analysis#label-events',
+      '/settings/label-events',
     )
     const history = document.getElementById('sidebar-history')!
     expect(history.tagName).toBe('A')
@@ -190,13 +190,13 @@ describe('CA3: seção "Movimentos" (admin) — Análise de vídeo, Rotular even
     expect(document.getElementById('sidebar-history')).toBeNull()
   })
 
-  it('"Análise de vídeo" e "Rotular eventos" nunca ficam ativos ao mesmo tempo (mesmo pathname, hash diferente)', () => {
+  it('"Análise de vídeo" e "Rotular eventos" ficam ativos só na própria rota (rotas distintas agora, sem hash compartilhado)', () => {
     renderAt('/settings/analysis')
     expect(document.getElementById('sidebar-analysis')?.className).toContain('bg-primary')
     expect(document.getElementById('sidebar-label-events')?.className).not.toContain('bg-primary')
 
     cleanup()
-    renderAt('/settings/analysis#label-events')
+    renderAt('/settings/label-events')
     expect(document.getElementById('sidebar-analysis')?.className).not.toContain('bg-primary')
     expect(document.getElementById('sidebar-label-events')?.className).toContain('bg-primary')
   })
@@ -294,5 +294,21 @@ describe('CA4: "Sobre" saiu do Sidebar (agora é o sub-link about-application do
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
     expect(document.getElementById('sidebar-about')).toBeNull()
+  })
+})
+
+describe('CA6: "Detectores de objetos" está na seção Movimentos (1º item), não mais em Administração', () => {
+  it('aparece antes de "Análise de vídeo" (1º item original de Movimentos) e antes de "Servidor" (1º item de Administração)', () => {
+    renderAt('/')
+    const detectors = document.getElementById('sidebar-object-detectors')!
+    const analysis = document.getElementById('sidebar-analysis')!
+    const server = document.getElementById('sidebar-server')!
+
+    expect(
+      detectors.compareDocumentPosition(analysis) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      detectors.compareDocumentPosition(server) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 })
