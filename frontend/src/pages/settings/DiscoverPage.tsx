@@ -6,6 +6,7 @@ import { authHeaders } from '../../auth'
 import { Loader2, Search } from '../../components/Icons'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
 import { findRegisteredCamera, identityLines, discoveredDisplayName } from './discoverDedupe'
 
 interface RegisteredCamera {
@@ -203,151 +204,117 @@ export default function DiscoverPage() {
         )}
 
         {results.length > 0 && (
-          <div className="bg-surface border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground uppercase tracking-wider">
-                  <th className="text-left px-4 py-2.5">IP</th>
-                  <th className="text-left px-4 py-2.5">Porta</th>
-                  <th className="text-left px-4 py-2.5">Método</th>
-                  <th className="text-left px-4 py-2.5">Nome / Modelo</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r, i) => {
-                  const cam = findRegisteredCamera(r.ip, registered)
-                  const regName = cam ? cam.name || cam.id || r.ip : null
-                  const lines = cam?.id ? identityLines(deviceInfo[cam.id] ?? {}) : []
-                  const fallbackName = discoveredDisplayName(r, registered)
-                  return (
-                    <>
-                      <tr
-                        key={i}
-                        className={`border-b border-border ${adding?.idx === i ? '' : 'last:border-0'} hover:bg-accent/40 transition-colors`}
-                      >
-                        <td className="px-4 py-2.5 font-mono text-foreground">{r.ip}</td>
-                        <td className="px-4 py-2.5 font-mono text-muted-foreground">{r.port}</td>
-                        <td className="px-4 py-2.5">
-                          {r.onvif ? (
-                            <Badge variant="info" className="font-mono">
-                              ONVIF
-                            </Badge>
-                          ) : (
-                            <Badge variant="neutral" className="font-mono">
-                              Scan
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 font-mono text-foreground">
-                          {lines.length > 0 ? (
-                            <div className="space-y-0.5">
-                              {lines.map((l) => (
-                                <div key={l.label}>
-                                  <span className="text-muted-foreground">{l.label}:</span>{' '}
-                                  {l.value}
-                                </div>
-                              ))}
+          <div className="flex flex-col gap-2">
+            {results.map((r, i) => {
+              const cam = findRegisteredCamera(r.ip, registered)
+              const regName = cam ? cam.name || cam.id || r.ip : null
+              const lines = cam?.id ? identityLines(deviceInfo[cam.id] ?? {}) : []
+              const fallbackName = discoveredDisplayName(r, registered)
+              return (
+                <Card key={i} id={`discover-result-${i}`} className="text-xs">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                    <span className="font-mono text-foreground">{r.ip}</span>
+                    <span className="font-mono text-muted-foreground">{r.port}</span>
+                    {r.onvif ? (
+                      <Badge variant="info" className="font-mono">
+                        ONVIF
+                      </Badge>
+                    ) : (
+                      <Badge variant="neutral" className="font-mono">
+                        Scan
+                      </Badge>
+                    )}
+                    <div className="font-mono text-foreground min-w-0">
+                      {lines.length > 0 ? (
+                        <div className="space-y-0.5">
+                          {lines.map((l) => (
+                            <div key={l.label}>
+                              <span className="text-muted-foreground">{l.label}:</span> {l.value}
                             </div>
-                          ) : (
-                            fallbackName || <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-right">
-                          {regName ? (
-                            <span className="text-xs font-mono text-muted-foreground">
-                              Já cadastrada como “{regName}”
+                          ))}
+                        </div>
+                      ) : (
+                        fallbackName || <span className="text-muted-foreground">—</span>
+                      )}
+                    </div>
+                    <div className="ml-auto">
+                      {regName ? (
+                        <span className="font-mono text-muted-foreground">
+                          Já cadastrada como “{regName}”
+                        </span>
+                      ) : adding?.idx === i ? (
+                        <Button variant="outline" size="sm" onClick={() => setAdding(null)}>
+                          Cancelar
+                        </Button>
+                      ) : (
+                        <Button size="sm" onClick={() => startAdding(i)}>
+                          Adicionar
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {adding?.idx === i && adding.step === 'creds' && (
+                    <div className="border-t border-border px-4 py-3 bg-surface-2/50">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <input
+                          placeholder="Usuário"
+                          value={adding.user}
+                          onChange={(e) =>
+                            setAdding((a) => (a ? { ...a, user: e.target.value } : a))
+                          }
+                          className={inputClass}
+                          autoFocus
+                        />
+                        <input
+                          type="password"
+                          placeholder="Senha"
+                          value={adding.pass}
+                          onChange={(e) =>
+                            setAdding((a) => (a ? { ...a, pass: e.target.value } : a))
+                          }
+                          onKeyDown={(e) => e.key === 'Enter' && confirmCreds(r)}
+                          className={inputClass}
+                        />
+                        <Button size="sm" onClick={() => confirmCreds(r)}>
+                          Confirmar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {adding?.idx === i && adding.step === 'loading' && (
+                    <div className="border-t border-border px-4 py-3 bg-surface-2/50">
+                      <p className="text-xs text-muted-foreground animate-pulse">
+                        Buscando streams disponíveis…
+                      </p>
+                    </div>
+                  )}
+
+                  {adding?.idx === i && adding.step === 'streams' && (
+                    <div className="border-t border-border px-4 py-3 bg-surface-2/50">
+                      <p className="text-xs text-muted-foreground mb-2">Escolha o stream:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {adding.streams.map((s) => (
+                          <Button
+                            key={s.url}
+                            variant="outline"
+                            size="sm"
+                            className="h-auto py-1.5"
+                            onClick={() => selectStream(r, s.url)}
+                          >
+                            <span className="font-medium">{s.name}</span>
+                            <span className="text-muted-foreground ml-1.5 font-mono">
+                              {s.url.replace(/^rtsp:\/\/[^@]+@/, 'rtsp://…@')}
                             </span>
-                          ) : adding?.idx === i ? (
-                            <Button variant="outline" size="sm" onClick={() => setAdding(null)}>
-                              Cancelar
-                            </Button>
-                          ) : (
-                            <Button size="sm" onClick={() => startAdding(i)}>
-                              Adicionar
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-
-                      {adding?.idx === i && adding.step === 'creds' && (
-                        <tr
-                          key={`${i}-creds`}
-                          className="border-b border-border last:border-0 bg-surface-2/50"
-                        >
-                          <td colSpan={5} className="px-4 py-3">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <input
-                                placeholder="Usuário"
-                                value={adding.user}
-                                onChange={(e) =>
-                                  setAdding((a) => (a ? { ...a, user: e.target.value } : a))
-                                }
-                                className={inputClass}
-                                autoFocus
-                              />
-                              <input
-                                type="password"
-                                placeholder="Senha"
-                                value={adding.pass}
-                                onChange={(e) =>
-                                  setAdding((a) => (a ? { ...a, pass: e.target.value } : a))
-                                }
-                                onKeyDown={(e) => e.key === 'Enter' && confirmCreds(r)}
-                                className={inputClass}
-                              />
-                              <Button size="sm" onClick={() => confirmCreds(r)}>
-                                Confirmar
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-
-                      {adding?.idx === i && adding.step === 'loading' && (
-                        <tr
-                          key={`${i}-loading`}
-                          className="border-b border-border last:border-0 bg-surface-2/50"
-                        >
-                          <td colSpan={5} className="px-4 py-3">
-                            <p className="text-xs text-muted-foreground animate-pulse">
-                              Buscando streams disponíveis…
-                            </p>
-                          </td>
-                        </tr>
-                      )}
-
-                      {adding?.idx === i && adding.step === 'streams' && (
-                        <tr
-                          key={`${i}-streams`}
-                          className="border-b border-border last:border-0 bg-surface-2/50"
-                        >
-                          <td colSpan={5} className="px-4 py-3">
-                            <p className="text-xs text-muted-foreground mb-2">Escolha o stream:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {adding.streams.map((s) => (
-                                <Button
-                                  key={s.url}
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-auto py-1.5"
-                                  onClick={() => selectStream(r, s.url)}
-                                >
-                                  <span className="font-medium">{s.name}</span>
-                                  <span className="text-muted-foreground ml-1.5 font-mono">
-                                    {s.url.replace(/^rtsp:\/\/[^@]+@/, 'rtsp://…@')}
-                                  </span>
-                                </Button>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  )
-                })}
-              </tbody>
-            </table>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
