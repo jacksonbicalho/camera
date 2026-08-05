@@ -3,68 +3,68 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import ConfirmDialog from '../../components/ConfirmDialog'
-import ObjectDetectorForm, {
-  type ObjectDetectorFormData,
-} from '../../components/ObjectDetectorForm'
+import TrainerForm, { type TrainerFormData } from '../../components/TrainerForm'
 import { authHeaders, onUnauthorized } from '../../auth'
 import { Button } from '@/components/ui/button'
 
-interface ObjectDetectorItem {
+interface TrainerItem {
   id: number
   name: string
+  type: string
   config: Record<string, string>
 }
 
-export default function ObjectDetectorsSettingsPage() {
+// TrainersSettingsPage — mirror total de ObjectDetectorsSettingsPage: rota
+// dedicada pra criação (/settings/trainers/new), sem estado local de "modo
+// criação" (mesmo padrão de edição via rota dedicada do CLAUDE.md).
+export default function TrainersSettingsPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  // Rota dedicada pra criação — sem estado local pra "modo criação" (mesmo
-  // padrão de edição via rota dedicada do CLAUDE.md, aplicado aqui à criação).
-  const isNewRoute = location.pathname === '/settings/detectors/new'
+  const isNewRoute = location.pathname === '/settings/trainers/new'
 
-  const [detectors, setDetectors] = useState<ObjectDetectorItem[]>([])
+  const [trainers, setTrainers] = useState<TrainerItem[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const loadDetectors = useCallback(async () => {
-    const res = await fetch('/api/settings/detectors', { headers: authHeaders() })
+  const loadTrainers = useCallback(async () => {
+    const res = await fetch('/api/settings/trainers', { headers: authHeaders() })
     if (res.status === 401) {
       onUnauthorized()
       return
     }
-    setDetectors(await res.json())
+    setTrainers(await res.json())
   }, [])
 
   useEffect(() => {
-    fetch('/api/settings/detectors', { headers: authHeaders() })
+    fetch('/api/settings/trainers', { headers: authHeaders() })
       .then(async (res) => {
         if (res.status === 401) {
           onUnauthorized()
           return
         }
-        setDetectors(await res.json())
+        setTrainers(await res.json())
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
-  const handleCreate = async (data: ObjectDetectorFormData) => {
+  const handleCreate = async (data: TrainerFormData) => {
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch('/api/settings/detectors', {
+      const res = await fetch('/api/settings/trainers', {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
       if (!res.ok) {
-        setError((await res.text()).trim() || 'Erro ao criar detector')
+        setError((await res.text()).trim() || 'Erro ao criar trainer')
         return
       }
-      navigate('/settings/detectors', { replace: true })
-      await loadDetectors()
+      navigate('/settings/trainers', { replace: true })
+      await loadTrainers()
     } finally {
       setSaving(false)
     }
@@ -73,28 +73,28 @@ export default function ObjectDetectorsSettingsPage() {
   const handleDelete = async () => {
     if (deleteId == null) return
     try {
-      await fetch(`/api/settings/detectors/${deleteId}`, {
+      await fetch(`/api/settings/trainers/${deleteId}`, {
         method: 'DELETE',
         headers: authHeaders(),
       })
-      await loadDetectors()
+      await loadTrainers()
     } finally {
       setDeleteId(null)
     }
   }
 
-  const detectorToDelete = detectors.find((d) => d.id === deleteId)
+  const trainerToDelete = trainers.find((t) => t.id === deleteId)
 
   return (
-    <SettingsLayout id="object-detectors-settings-page" footerId="object-detectors-settings-footer">
+    <SettingsLayout id="trainers-settings-page" footerId="trainers-settings-footer">
       <div className="space-y-4">
         <PageHeader
-          title="Detectores de objetos"
-          subtitle="Cadastro de detectores de objetos — desacoplado das câmeras por enquanto."
+          title="Treinadores"
+          subtitle="Cadastro de treinadores — usados pelo fine-tuning em Configurações → Análise de vídeo."
           actions={
             !isNewRoute && (
-              <Button id="object-detector-new" asChild size="sm" className="shrink-0">
-                <Link to="/settings/detectors/new">Novo detector</Link>
+              <Button id="trainer-new" asChild size="sm" className="shrink-0">
+                <Link to="/settings/trainers/new">Novo trainer</Link>
               </Button>
             )
           }
@@ -108,10 +108,10 @@ export default function ObjectDetectorsSettingsPage() {
 
         {isNewRoute && (
           <div className="bg-surface border border-border rounded-lg p-4">
-            <p className="text-xs font-medium text-muted-foreground mb-3">Novo detector</p>
-            <ObjectDetectorForm
+            <p className="text-xs font-medium text-muted-foreground mb-3">Novo trainer</p>
+            <TrainerForm
               onSave={handleCreate}
-              onCancel={() => navigate('/settings/detectors', { replace: true })}
+              onCancel={() => navigate('/settings/trainers', { replace: true })}
               saving={saving}
             />
           </div>
@@ -119,35 +119,33 @@ export default function ObjectDetectorsSettingsPage() {
 
         {loading ? (
           <p className="text-muted-foreground text-sm">Carregando...</p>
-        ) : detectors.length === 0 ? (
-          !isNewRoute && (
-            <p className="text-muted-foreground text-sm">Nenhum detector cadastrado.</p>
-          )
+        ) : trainers.length === 0 ? (
+          !isNewRoute && <p className="text-muted-foreground text-sm">Nenhum trainer cadastrado.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {detectors.map((det) => (
-              <div key={det.id} className="bg-surface border border-border rounded-lg px-4 py-3">
+            {trainers.map((t) => (
+              <div key={t.id} className="bg-surface border border-border rounded-lg px-4 py-3">
                 <div className="flex flex-wrap items-center gap-3 min-w-0">
                   <span className="text-sm font-medium text-foreground truncate min-w-0">
-                    {det.name}
+                    {t.name}
                   </span>
-                  {det.config.model && (
+                  {t.config.service_url && (
                     <span className="text-xs text-muted-foreground truncate">
-                      {det.config.model}
+                      {t.config.service_url}
                     </span>
+                  )}
+                  {t.config.model && (
+                    <span className="text-xs text-muted-foreground truncate">{t.config.model}</span>
                   )}
                   <div className="ml-auto flex items-center gap-1 pl-3 shrink-0">
                     <Button asChild variant="outline" size="sm">
-                      <Link to={`/settings/detectors/test/${det.id}`}>Testar</Link>
-                    </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={`/settings/detectors/edit/${det.id}`}>Editar</Link>
+                      <Link to={`/settings/trainers/edit/${t.id}`}>Editar</Link>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       className="text-destructive hover:text-destructive"
-                      onClick={() => setDeleteId(det.id)}
+                      onClick={() => setDeleteId(t.id)}
                     >
                       Remover
                     </Button>
@@ -161,8 +159,8 @@ export default function ObjectDetectorsSettingsPage() {
 
       <ConfirmDialog
         open={deleteId != null}
-        title="Remover detector"
-        message={`Remover "${detectorToDelete?.name}"? Esta ação não pode ser desfeita.`}
+        title="Remover trainer"
+        message={`Remover "${trainerToDelete?.name}"? Esta ação não pode ser desfeita.`}
         confirmLabel="Remover"
         danger
         onConfirm={handleDelete}

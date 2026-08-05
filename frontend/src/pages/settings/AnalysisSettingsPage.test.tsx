@@ -147,7 +147,12 @@ function mockFetchWithFtStatus(status: 'running' | 'pending') {
         })
       if (u === '/api/settings/analysis/annotation-count')
         return new Response(JSON.stringify({ count: 1, label_count: 65 }), { status: 200 })
-      if (u === '/api/settings/analysis/finetune/status/job1')
+      if (u === '/api/settings/trainers')
+        return new Response(
+          JSON.stringify([{ id: 42, name: 'YOLO principal', type: 'yolo', config: {} }]),
+          { status: 200 },
+        )
+      if (u === '/api/settings/analysis/finetune/status/job1?trainer_id=42')
         return new Response(JSON.stringify({ status, epoch: 5, total_epochs: 20, error: '' }), {
           status: 200,
         })
@@ -159,7 +164,11 @@ function mockFetchWithFtStatus(status: 'running' | 'pending') {
 describe('CA6: "Re-analisar tudo" desabilitado durante fine-tuning ativo', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', {
-      getItem: (key: string) => (key === 'ft_job_id' ? 'job1' : null),
+      getItem: (key: string) => {
+        if (key === 'ft_job_id') return 'job1'
+        if (key === 'ft_trainer_id') return '42'
+        return null
+      },
       setItem: vi.fn(),
       removeItem: vi.fn(),
     })
@@ -209,5 +218,41 @@ describe('CA6: tela de análise global não mostra mais toggle de ativação nem
     await screen.findByText(/análise de vídeo/i)
     expect(screen.queryByText(/ativar análise/i)).toBeNull()
     expect(screen.queryByText(/limiar de confiança/i)).toBeNull()
+  })
+})
+
+// CA6 (história feat/trainer-adapter-pattern): "Treinar agora" passa a
+// exigir um trainer cadastrado escolhido — o fine-tuning não usa mais
+// video_analysis_config.ServiceURL direto (internal/trainer, cadastro
+// próprio em /settings/trainers).
+describe('CA6: AnalysisSettingsPage exibe um seletor de trainer cadastrado', () => {
+  it('busca GET /api/settings/trainers e lista os trainers cadastrados num select', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        const u = String(url)
+        if (u === '/api/settings')
+          return new Response(JSON.stringify({ cameras: [] }), { status: 200 })
+        if (u === '/api/settings/analysis')
+          return new Response(JSON.stringify(defaultAnalysisConfig), { status: 200 })
+        if (u === '/api/settings/analysis/models')
+          return new Response(JSON.stringify({ device: 'cuda', vram_gb: 4, models: [] }), {
+            status: 200,
+          })
+        if (u === '/api/settings/analysis/annotation-count')
+          return new Response(JSON.stringify({ count: 1, label_count: 5 }), { status: 200 })
+        if (u === '/api/settings/trainers')
+          return new Response(
+            JSON.stringify([{ id: 7, name: 'YOLO principal', type: 'yolo', config: {} }]),
+            { status: 200 },
+          )
+        return new Response('{}', { status: 200 })
+      }),
+    )
+
+    renderPage()
+
+    const select = (await screen.findByLabelText(/trainer/i)) as HTMLSelectElement
+    expect(select.textContent).toContain('YOLO principal')
   })
 })

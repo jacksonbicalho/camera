@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,7 +14,7 @@ import (
 	"camera/internal/server"
 )
 
-func setupFinetuneServer(t *testing.T, yoloHandler http.HandlerFunc) (http.Handler, string) {
+func setupFinetuneServer(t *testing.T, yoloHandler http.HandlerFunc) (http.Handler, string, int64) {
 	t.Helper()
 	yoloSrv := httptest.NewServer(yoloHandler)
 	t.Cleanup(yoloSrv.Close)
@@ -28,9 +29,15 @@ func setupFinetuneServer(t *testing.T, yoloHandler http.HandlerFunc) (http.Handl
 	}); err != nil {
 		t.Fatalf("set analysis config: %v", err)
 	}
+	trainerID, err := db.InsertTrainer(database, "YOLO principal", "yolo", map[string]string{
+		"service_url": yoloSrv.URL,
+	})
+	if err != nil {
+		t.Fatalf("InsertTrainer: %v", err)
+	}
 	srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
 	token := loginAndGetToken(t, srv, "admin", "pw")
-	return srv, token
+	return srv, token, trainerID
 }
 
 func TestFinetuneStatus_JobNotFound_ReturnsErrorStatus(t *testing.T) {
@@ -38,9 +45,9 @@ func TestFinetuneStatus_JobNotFound_ReturnsErrorStatus(t *testing.T) {
 	yoloHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	})
-	srv, token := setupFinetuneServer(t, yoloHandler)
+	srv, token, trainerID := setupFinetuneServer(t, yoloHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/settings/analysis/finetune/status/lost-job-id", nil)
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/settings/analysis/finetune/status/lost-job-id?trainer_id=%d", trainerID), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
@@ -66,16 +73,16 @@ func TestFinetuneStatus_ServiceDown_Returns502(t *testing.T) {
 	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
 		t.Fatalf("create admin: %v", err)
 	}
-	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-		ServiceURL: "http://127.0.0.1:19999", // nothing listening here
-		Model:      "yolov8n",
-	}); err != nil {
-		t.Fatalf("set analysis config: %v", err)
+	trainerID, err := db.InsertTrainer(database, "YOLO principal", "yolo", map[string]string{
+		"service_url": "http://127.0.0.1:19999", // nothing listening here
+	})
+	if err != nil {
+		t.Fatalf("InsertTrainer: %v", err)
 	}
 	srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
 	token := loginAndGetToken(t, srv, "admin", "pw")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/settings/analysis/finetune/status/some-job", nil)
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/settings/analysis/finetune/status/some-job?trainer_id=%d", trainerID), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
@@ -104,6 +111,12 @@ func TestFinetuneStatus_DoneResetsBaseModelDetections(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("set analysis config: %v", err)
 	}
+	trainerID, err := db.InsertTrainer(database, "YOLO principal", "yolo", map[string]string{
+		"service_url": yoloSrv.URL,
+	})
+	if err != nil {
+		t.Fatalf("InsertTrainer: %v", err)
+	}
 	if _, err := db.CreateCamera(database, config.CameraConfig{ID: "cam1"}, nil); err != nil {
 		t.Fatalf("create camera: %v", err)
 	}
@@ -127,7 +140,7 @@ func TestFinetuneStatus_DoneResetsBaseModelDetections(t *testing.T) {
 	srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
 	token := loginAndGetToken(t, srv, "admin", "pw")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/settings/analysis/finetune/status/job-123", nil)
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/settings/analysis/finetune/status/job-123?trainer_id=%d", trainerID), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)

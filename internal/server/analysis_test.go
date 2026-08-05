@@ -3,6 +3,7 @@ package server_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -122,8 +123,28 @@ func TestFinetuneStatus_SetsHasCustomModelOnCompletion(t *testing.T) {
 	httptest.NewRecorder() // discard
 	srv.ServeHTTP(httptest.NewRecorder(), req)
 
+	// Registra o trainer cadastrado (feat/trainer-adapter-pattern) apontando
+	// pro mesmo mock YOLO — handleFinetuneStatus não lê mais
+	// video_analysis_config.ServiceURL, resolve via trainer_id.
+	trainerBody, _ := json.Marshal(map[string]any{
+		"name":   "YOLO principal",
+		"type":   "yolo",
+		"config": map[string]string{"service_url": yolo.URL},
+	})
+	trainerReq := httptest.NewRequest(http.MethodPost, "/api/settings/trainers", bytes.NewReader(trainerBody))
+	trainerReq.Header.Set("Authorization", "Bearer "+token)
+	trainerReq.Header.Set("Content-Type", "application/json")
+	trainerW := httptest.NewRecorder()
+	srv.ServeHTTP(trainerW, trainerReq)
+	var createdTrainer struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(trainerW.Body.Bytes(), &createdTrainer); err != nil {
+		t.Fatalf("unmarshal created trainer: %v", err)
+	}
+
 	// Call finetune status — should set has_custom_model=true.
-	req2 := httptest.NewRequest(http.MethodGet, "/api/settings/analysis/finetune/status/job123", nil)
+	req2 := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/settings/analysis/finetune/status/job123?trainer_id=%d", createdTrainer.ID), nil)
 	req2.Header.Set("Authorization", "Bearer "+token)
 	w2 := httptest.NewRecorder()
 	srv.ServeHTTP(w2, req2)

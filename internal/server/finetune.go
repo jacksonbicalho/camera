@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
-	"strings"
+	"strconv"
 
 	"camera/internal/analysis"
 	"camera/internal/db"
+	"camera/internal/trainer"
 )
 
 func (s *Server) handleReanalyze(w http.ResponseWriter, r *http.Request) {
@@ -38,21 +39,52 @@ func (s *Server) handleListModels(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(models)
 }
 
+// resolveTrainer looks up a registered trainer by id and builds its adapter
+// — shared by start/status/cancel now that fine-tuning dispatches via the
+// trainers cadastro (internal/trainer) instead of reading
+// video_analysis_config.ServiceURL directly. Writes the error response
+// itself (404 unknown id vs. 400 misconfigured type/config — same split as
+// handleTestDetector in detectors.go) so call sites just check ok. Returns
+// the db.Trainer alongside the adapter so handleStartFinetune can read
+// Config["model"] — status/cancel callers ignore it.
+func (s *Server) resolveTrainer(w http.ResponseWriter, trainerID int64) (trainer.Trainer, db.Trainer, bool) {
+	t, err := db.GetTrainer(s.db, trainerID)
+	if err != nil {
+		http.Error(w, "trainer not found", http.StatusNotFound)
+		return nil, db.Trainer{}, false
+	}
+	tr, err := trainer.New(t.Type, t.Config)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return nil, db.Trainer{}, false
+	}
+	return tr, t, true
+}
+
 func (s *Server) handleStartFinetune(w http.ResponseWriter, r *http.Request) {
 	if !s.requireDB(w) {
 		return
 	}
-	cfg, err := db.GetVideoAnalysisConfig(s.db)
-	if err != nil || cfg.ServiceURL == "" {
-		http.Error(w, "analysis service not configured", http.StatusServiceUnavailable)
+
+	var body struct {
+		TrainerID int64 `json:"trainer_id"`
+		Epochs    int   `json:"epochs"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if body.TrainerID == 0 {
+		http.Error(w, "trainer_id is required", http.StatusBadRequest)
+		return
+	}
+	tr, t, ok := s.resolveTrainer(w, body.TrainerID)
+	if !ok {
 		return
 	}
 
 	epochs := 20
-	var body struct {
-		Epochs int `json:"epochs"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err == nil && body.Epochs > 0 && body.Epochs <= 200 {
+	if body.Epochs > 0 && body.Epochs <= 200 {
 		epochs = body.Epochs
 	}
 
@@ -106,15 +138,11 @@ func (s *Server) handleStartFinetune(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	baseModel := "yolov8n"
-	for _, part := range strings.Split(cfg.Model, "+") {
-		if p := strings.TrimSpace(part); p != "custom" && p != "" {
-			baseModel = p
-			break
-		}
+	baseModel := t.Config["model"]
+	if baseModel == "" {
+		baseModel = "yolov8n"
 	}
-	client := analysis.NewClient(cfg.ServiceURL)
-	resp, err := client.Finetune(context.Background(), analysis.FinetuneRequest{
+	jobID, err := tr.Train(context.Background(), analysis.FinetuneRequest{
 		Annotations: items,
 		BaseModel:   baseModel,
 		Epochs:      epochs,
@@ -124,18 +152,24 @@ func (s *Server) handleStartFinetune(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(analysis.FinetuneResponse{JobID: jobID})
 }
 
 func (s *Server) handleCancelFinetune(w http.ResponseWriter, r *http.Request) {
-	cfg, err := db.GetVideoAnalysisConfig(s.db)
-	if err != nil || cfg.ServiceURL == "" {
-		http.Error(w, "analysis service not configured", http.StatusServiceUnavailable)
+	if !s.requireDB(w) {
+		return
+	}
+	trainerID, err := strconv.ParseInt(r.URL.Query().Get("trainer_id"), 10, 64)
+	if err != nil {
+		http.Error(w, "trainer_id is required", http.StatusBadRequest)
+		return
+	}
+	tr, _, ok := s.resolveTrainer(w, trainerID)
+	if !ok {
 		return
 	}
 	jobID := r.PathValue("job_id")
-	client := analysis.NewClient(cfg.ServiceURL)
-	_ = client.CancelFinetune(r.Context(), jobID)
+	_ = tr.Cancel(r.Context(), jobID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -143,15 +177,18 @@ func (s *Server) handleFinetuneStatus(w http.ResponseWriter, r *http.Request) {
 	if !s.requireDB(w) {
 		return
 	}
-	cfg, err := db.GetVideoAnalysisConfig(s.db)
-	if err != nil || cfg.ServiceURL == "" {
-		http.Error(w, "analysis service not configured", http.StatusServiceUnavailable)
+	trainerID, err := strconv.ParseInt(r.URL.Query().Get("trainer_id"), 10, 64)
+	if err != nil {
+		http.Error(w, "trainer_id is required", http.StatusBadRequest)
+		return
+	}
+	tr, _, ok := s.resolveTrainer(w, trainerID)
+	if !ok {
 		return
 	}
 
 	jobID := r.PathValue("job_id")
-	client := analysis.NewClient(cfg.ServiceURL)
-	status, err := client.FinetuneStatus(context.Background(), jobID)
+	status, err := tr.Status(context.Background(), jobID)
 	if err != nil {
 		if err.Error() == "job not found" {
 			w.Header().Set("Content-Type", "application/json")

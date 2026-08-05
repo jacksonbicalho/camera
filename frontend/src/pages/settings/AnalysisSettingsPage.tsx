@@ -17,6 +17,13 @@ interface ModelInfo {
   finetune: boolean
 }
 
+interface TrainerItem {
+  id: number
+  name: string
+  type: string
+  config: Record<string, string>
+}
+
 function ReanalyzePanel({ ftActive }: { ftActive: boolean }) {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
@@ -104,6 +111,15 @@ export default function AnalysisSettingsPage() {
   const [annCount, setAnnCount] = useState<number | null>(null)
   const [labelCount, setLabelCount] = useState<number | null>(null)
   const [epochs, setEpochs] = useState(20)
+  const [trainers, setTrainers] = useState<TrainerItem[]>([])
+  // trainer_id persiste ao lado de ft_job_id (mesma chave localStorage,
+  // ver CLAUDE.md/story) — fine-tuning não lê mais
+  // video_analysis_config.ServiceURL direto, precisa saber qual trainer
+  // cadastrado consultar pra sobreviver a um reload com job em andamento.
+  const [trainerId, setTrainerId] = useState<number | null>(() => {
+    const v = localStorage.getItem('ft_trainer_id')
+    return v ? Number(v) : null
+  })
   const [ftJobID, setFtJobID] = useState<string | null>(() => localStorage.getItem('ft_job_id'))
   const [ftStatus, setFtStatus] = useState<{
     status: string
@@ -154,12 +170,17 @@ export default function AnalysisSettingsPage() {
       .catch(() => setError('Falha ao carregar configurações'))
     refreshCounts()
     fetchModels()
+    fetch('/api/settings/trainers', { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setTrainers(Array.isArray(d) ? d : []))
+      .catch(() => setTrainers([]))
   }, [])
 
   useEffect(() => {
-    if (!ftJobID) return
+    if (!ftJobID || !trainerId) return
+    const statusURL = `/api/settings/analysis/finetune/status/${ftJobID}?trainer_id=${trainerId}`
     // Fetch once immediately to restore state when returning to the page
-    fetch(`/api/settings/analysis/finetune/status/${ftJobID}`, { headers: authHeaders() })
+    fetch(statusURL, { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : null))
       .then((s) => {
         if (s) setFtStatus(s)
@@ -167,9 +188,7 @@ export default function AnalysisSettingsPage() {
       .catch(() => {})
     pollRef.current = setInterval(async () => {
       try {
-        const r = await fetch(`/api/settings/analysis/finetune/status/${ftJobID}`, {
-          headers: authHeaders(),
-        })
+        const r = await fetch(statusURL, { headers: authHeaders() })
         if (!r.ok) return
         const s = await r.json()
         setFtStatus(s)
@@ -177,6 +196,7 @@ export default function AnalysisSettingsPage() {
           clearInterval(pollRef.current!)
           pollRef.current = null
           localStorage.removeItem('ft_job_id')
+          localStorage.removeItem('ft_trainer_id')
           if (s.status === 'error') setFtError(s.error || 'Erro no treino')
           if (s.status === 'done') {
             fetch('/api/settings/analysis', { headers: authHeaders() })
@@ -192,9 +212,10 @@ export default function AnalysisSettingsPage() {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
     }
-  }, [ftJobID])
+  }, [ftJobID, trainerId])
 
   async function handleStartFinetune() {
+    if (!trainerId) return
     setFtError('')
     setFtStatus(null)
     setFtJobID(null)
@@ -202,7 +223,7 @@ export default function AnalysisSettingsPage() {
     const res = await fetch('/api/settings/analysis/finetune', {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ epochs }),
+      body: JSON.stringify({ trainer_id: trainerId, epochs }),
     })
     if (!res.ok) {
       const msg = await res.text()
@@ -211,13 +232,14 @@ export default function AnalysisSettingsPage() {
     }
     const { job_id } = await res.json()
     localStorage.setItem('ft_job_id', job_id)
+    localStorage.setItem('ft_trainer_id', String(trainerId))
     setFtJobID(job_id)
     setFtStatus({ status: 'pending', epoch: 0, total_epochs: 20, error: '' })
   }
 
   async function handleCancelFinetune() {
-    if (!ftJobID) return
-    await fetch(`/api/settings/analysis/finetune/${ftJobID}`, {
+    if (!ftJobID || !trainerId) return
+    await fetch(`/api/settings/analysis/finetune/${ftJobID}?trainer_id=${trainerId}`, {
       method: 'DELETE',
       headers: authHeaders(),
     })
@@ -226,6 +248,7 @@ export default function AnalysisSettingsPage() {
       pollRef.current = null
     }
     localStorage.removeItem('ft_job_id')
+    localStorage.removeItem('ft_trainer_id')
     setFtJobID(null)
     setFtStatus(null)
     setFtError('')
@@ -368,10 +391,15 @@ export default function AnalysisSettingsPage() {
             </li>
             <li>
               Cadastre um detector em Configurações → Detectores de objetos apontando pro serviço
+              (YOLO ou Hugging Face, cada um com seus próprios campos)
             </li>
             <li>
               Escolha esse detector por câmera em Configurações → Câmeras → Análise — só a partir
               daí as gravações concluídas passam a ser analisadas automaticamente
+            </li>
+            <li>
+              Pra treinar um modelo personalizado (fine-tuning, abaixo), cadastre um trainer em
+              Configurações → Treinadores apontando pro mesmo serviço YOLO
             </li>
           </ol>
         </div>
@@ -403,6 +431,38 @@ export default function AnalysisSettingsPage() {
             </div>
           )}
           <div className="p-4 space-y-3">
+            <div>
+              <label
+                htmlFor="analysis-trainer"
+                className="block text-xs font-medium text-muted-foreground mb-1"
+              >
+                Trainer
+              </label>
+              <select
+                id="analysis-trainer"
+                className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring"
+                value={trainerId ?? ''}
+                disabled={ftActive}
+                onChange={(e) => {
+                  const v = e.target.value ? Number(e.target.value) : null
+                  setTrainerId(v)
+                  if (v) localStorage.setItem('ft_trainer_id', String(v))
+                  else localStorage.removeItem('ft_trainer_id')
+                }}
+              >
+                <option value="">Selecione um trainer</option>
+                {trainers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              {trainers.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Nenhum trainer cadastrado — cadastre um em Configurações → Treinadores.
+                </p>
+              )}
+            </div>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-0.5">
                 <p className="text-sm text-foreground">
@@ -417,7 +477,7 @@ export default function AnalysisSettingsPage() {
               </div>
               <Button
                 type="button"
-                disabled={(!annCount && !labelCount) || ftActive || modelNoFinetune}
+                disabled={(!annCount && !labelCount) || ftActive || modelNoFinetune || !trainerId}
                 onClick={handleStartFinetune}
                 className="bg-violet-600 hover:bg-violet-500 text-white shrink-0"
               >
