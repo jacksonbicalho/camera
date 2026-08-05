@@ -238,7 +238,7 @@ Histórias e análises ficam em `work_progress/stories/`/`work_progress/analysis
 - Vivem **dentro da story** (não são GitHub Issues): projeto solo, o release file já dá a visão agregada; Issues adicionariam latência e estado duplicado.
 - Um ticket = uma unidade implementável com TDD próprio, idealmente ≤ ~200 linhas de diff. Cada ticket vira **um commit** na branch da história (mensagem: `tipo(escopo): T1 — descrição`); o PR continua um por história.
 - Se durante a implementação um ticket se revelar maior que o previsto, o driver o divide (T2 → T2a/T2b) atualizando a tabela — sem novo gate.
-- Uma história com 1 ticket é válida; com mais de ~6, questione se não são duas histórias.
+- Uma história com 1 ticket é válida; **o máximo é 5 tickets por história** — ao bater esse teto (ex.: feedback de pré-push virando T6, T7...), a história encerra com o que já está aprovado e o que sobrar vira uma **nova** história (`/analyze`/`/story` do zero), nunca um T6+ na mesma.
 
 ### Code review automatizado
 
