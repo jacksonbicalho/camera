@@ -133,6 +133,11 @@ func (s *Server) routeTable() []route {
 		{"DELETE", "/api/settings/detectors/{id}", authAdmin, s.handleDeleteDetector},
 		{"POST", "/api/settings/detectors/{id}/test", authAdmin, s.handleTestDetector},
 
+		{"GET", "/api/settings/trainers", authAdmin, s.handleListTrainers},
+		{"POST", "/api/settings/trainers", authAdmin, s.handleCreateTrainer},
+		{"PUT", "/api/settings/trainers/{id}", authAdmin, s.handleUpdateTrainer},
+		{"DELETE", "/api/settings/trainers/{id}", authAdmin, s.handleDeleteTrainer},
+
 		{"GET", "/api/cameras/{id}/recordings", authCamera, s.handleRecordings},
 		{"GET", "/api/cameras/{id}/content-days", authCamera, s.handleContentDays},
 		{"GET", "/api/cameras/{id}/recordings/by-id/{recording_id}", authCamera, s.handleRecordingByID},
