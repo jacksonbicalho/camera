@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -10,24 +11,55 @@ import (
 	"strconv"
 	"time"
 
-	"camera/internal/analysis"
 	"camera/internal/db"
+	"camera/internal/detector"
 )
 
 type objectDetectorDTO struct {
 	ID        int64             `json:"id"`
 	Name      string            `json:"name"`
+	Type      string            `json:"type"`
 	CreatedAt time.Time         `json:"created_at"`
 	Config    map[string]string `json:"config"`
 }
 
+// detectorToDTO strips api_token — a secret — from the config it echoes
+// back; callers only ever set a new one, never read the stored value.
 func detectorToDTO(d db.ObjectDetector) objectDetectorDTO {
+	cfg := make(map[string]string, len(d.Config))
+	for k, v := range d.Config {
+		if k == "api_token" {
+			continue
+		}
+		cfg[k] = v
+	}
 	return objectDetectorDTO{
 		ID:        d.ID,
 		Name:      d.Name,
+		Type:      d.Type,
 		CreatedAt: d.CreatedAt,
-		Config:    d.Config,
+		Config:    cfg,
 	}
+}
+
+// validateDetectorConfig mirrors detector.New's own per-type validation
+// (kept separate so the HTTP layer can reject an incomplete cadastro with a
+// clear 400 before ever persisting it, rather than only failing later at
+// test/analyze time).
+func validateDetectorConfig(detectorType string, config map[string]string) error {
+	switch detectorType {
+	case "yolo", "":
+		if config["service_url"] == "" {
+			return fmt.Errorf("yolo detector requires service_url")
+		}
+	case "huggingface":
+		if config["model_id"] == "" || config["api_token"] == "" {
+			return fmt.Errorf("huggingface detector requires model_id and api_token")
+		}
+	default:
+		return fmt.Errorf("unknown detector type %q", detectorType)
+	}
+	return nil
 }
 
 func (s *Server) handleListDetectors(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +85,7 @@ func (s *Server) handleCreateDetector(w http.ResponseWriter, r *http.Request) {
 	}
 	var input struct {
 		Name   string            `json:"name"`
+		Type   string            `json:"type"`
 		Config map[string]string `json:"config"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -63,8 +96,20 @@ func (s *Server) handleCreateDetector(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
+	detectorType := input.Type
+	if detectorType == "" {
+		detectorType = "yolo"
+	}
+	if err := validateDetectorConfig(detectorType, input.Config); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	id, err := db.InsertObjectDetector(s.db, input.Name, input.Config)
 	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if err := db.SetObjectDetectorType(s.db, id, detectorType); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -87,12 +132,14 @@ func (s *Server) handleUpdateDetector(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	if _, err := db.GetObjectDetector(s.db, id); err != nil {
+	existing, err := db.GetObjectDetector(s.db, id)
+	if err != nil {
 		http.Error(w, "detector not found", http.StatusNotFound)
 		return
 	}
 	var input struct {
 		Name   string            `json:"name"`
+		Type   string            `json:"type"`
 		Config map[string]string `json:"config"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -103,7 +150,28 @@ func (s *Server) handleUpdateDetector(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
+	detectorType := input.Type
+	if detectorType == "" {
+		detectorType = "yolo"
+	}
+	// api_token is never echoed back (detectorToDTO strips it), so an empty
+	// value here means "unchanged", not "clear it" — same convention as the
+	// password field in UserForm.
+	if detectorType == "huggingface" && input.Config["api_token"] == "" {
+		if input.Config == nil {
+			input.Config = map[string]string{}
+		}
+		input.Config["api_token"] = existing.Config["api_token"]
+	}
+	if err := validateDetectorConfig(detectorType, input.Config); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	if err := db.UpdateObjectDetector(s.db, id, input.Name, input.Config); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if err := db.SetObjectDetectorType(s.db, id, detectorType); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -155,9 +223,9 @@ func (s *Server) handleTestDetector(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "detector not found", http.StatusNotFound)
 		return
 	}
-	serviceURL := det.Config["service_url"]
-	if serviceURL == "" {
-		http.Error(w, "detector has no service_url configured", http.StatusBadRequest)
+	dt, err := detector.New(det.Type, det.Config)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -218,11 +286,7 @@ func (s *Server) handleTestDetector(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
-	dets, err := analysis.NewClient(serviceURL).Analyze(ctx, analysis.AnalyzeRequest{
-		Path:                tmpPath,
-		Model:               det.Config["model"],
-		ConfidenceThreshold: confidence,
-	})
+	dets, err := dt.Detect(ctx, tmpPath, confidence)
 	if err != nil {
 		http.Error(w, "analyze failed: "+err.Error(), http.StatusBadGateway)
 		return

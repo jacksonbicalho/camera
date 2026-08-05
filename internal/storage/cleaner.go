@@ -19,6 +19,7 @@ import (
 
 	"camera/internal/analysis"
 	"camera/internal/db"
+	"camera/internal/detector"
 )
 
 type Cleaner struct {
@@ -32,12 +33,25 @@ type Cleaner struct {
 	log                  *slog.Logger
 	forceCh              chan struct{}
 	analyzer             analysis.Analyzer
-	analyzeMu            sync.Mutex
-	diskWarned           bool // edge-trigger state for the disk-usage notification
+	// detectorFactory resolves a non-yolo registered detector (today: only
+	// "huggingface") into a runnable adapter. Production default is
+	// detector.New; overridable in tests (WithDetectorFactory) so they never
+	// hit the real Hugging Face Inference API. The yolo path keeps going
+	// through `analyzer`/`WithAnalyzer` above — unchanged, still the
+	// override every existing test already uses — so this only widens what
+	// analyzeNewRecordings can dispatch to, without touching that contract.
+	detectorFactory func(detectorType string, config map[string]string) (detector.Detector, error)
+	analyzeMu       sync.Mutex
+	diskWarned      bool // edge-trigger state for the disk-usage notification
 }
 
 func (c *Cleaner) WithAnalyzer(a analysis.Analyzer) *Cleaner {
 	c.analyzer = a
+	return c
+}
+
+func (c *Cleaner) WithDetectorFactory(f func(detectorType string, config map[string]string) (detector.Detector, error)) *Cleaner {
+	c.detectorFactory = f
 	return c
 }
 
@@ -52,6 +66,7 @@ func New(storagePath string, withMotionMinutes, withoutMotionMinutes int, chunkD
 		db:                   database,
 		log:                  log,
 		forceCh:              make(chan struct{}, 1),
+		detectorFactory:      detector.New,
 	}
 }
 
@@ -921,6 +936,42 @@ func (c *Cleaner) AnalyzeNew() {
 // chosen but no confidence_threshold of its own set yet.
 const defaultAnalysisConfidenceThreshold = 0.4
 
+// huggingFaceImagePath picks what to send to the Hugging Face Inference API
+// for a recording: the motion snapshot (_motion.jpg) of the strongest motion
+// event within the recording's time window, when one exists. That snapshot
+// is the same kind of still image a human would manually upload via the
+// detector "test" page (/settings/detectors/test/:id) — a blind frame grab
+// from an arbitrary offset in the recording (the fallback, same as before
+// this method existed) has no guarantee the subject that triggered the
+// recording is even in frame.
+func (c *Cleaner) huggingFaceImagePath(cameraID, recordingPath string, startedAt, endedAt time.Time) string {
+	events, err := db.ListMotionEvents(c.db, cameraID, startedAt, endedAt)
+	if err != nil {
+		return recordingPath
+	}
+	best, bestScore := "", -1.0
+	for _, e := range events {
+		if e.FramePath == "" || e.Score <= bestScore {
+			continue
+		}
+		// e.FramePath is a bare filename (internal/motion/detector.go saves
+		// it that way) — reconstruct the real on-disk path the same way
+		// RemoveMotionEventJPEGs above already does, or os.Stat resolves it
+		// relative to the process CWD (never the recordings tree) and
+		// always misses.
+		dayDir := e.OccurredAt.UTC().Format("2006/01/02")
+		jpegPath := filepath.Join(c.storagePath, cameraID, filepath.FromSlash(dayDir), e.FramePath)
+		if _, err := os.Stat(jpegPath); err != nil {
+			continue
+		}
+		best, bestScore = jpegPath, e.Score
+	}
+	if best == "" {
+		return recordingPath
+	}
+	return best
+}
+
 func (c *Cleaner) analyzeNewRecordings() {
 	if c.db == nil {
 		return
@@ -991,27 +1042,46 @@ func (c *Cleaner) analyzeNewRecordings() {
 			}
 			detectors[p.detectorID] = det
 		}
-		serviceURL := det.Config["service_url"]
-		if serviceURL == "" {
-			c.log.Warn("analyzeNewRecordings: skipped (detector has no service_url)", "detector_id", p.detectorID)
-			continue
-		}
-		analyzer := c.analyzer
-		if analyzer == nil {
-			analyzer = analysis.NewClient(serviceURL)
-		}
 		threshold := defaultAnalysisConfidenceThreshold
 		if p.confidenceThreshold.Valid {
 			threshold = p.confidenceThreshold.Float64
 		}
+		// model is YOLO-specific ("custom" flags a fine-tuned model, see
+		// customModel below); huggingface detectors have no equivalent
+		// concept, so it stays "" for them — customModel just resolves to
+		// false, which is correct for that type.
 		model := det.Config["model"]
 
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		dets, err := analyzer.Analyze(ctx, analysis.AnalyzeRequest{
-			Path:                p.path,
-			Model:               model,
-			ConfidenceThreshold: threshold,
-		})
+		var dets []analysis.Detection
+		var err error
+		switch det.Type {
+		case "huggingface":
+			var dt detector.Detector
+			dt, err = c.detectorFactory(det.Type, det.Config)
+			if err != nil {
+				cancel()
+				c.log.Warn("analyzeNewRecordings: skipped (invalid detector config)", "detector_id", p.detectorID, "err", err)
+				continue
+			}
+			dets, err = dt.Detect(ctx, c.huggingFaceImagePath(p.cameraID, p.path, p.startedAt, p.endedAt), threshold)
+		default: // "yolo", and "" for detectors registered before the type column existed
+			serviceURL := det.Config["service_url"]
+			if serviceURL == "" {
+				cancel()
+				c.log.Warn("analyzeNewRecordings: skipped (detector has no service_url)", "detector_id", p.detectorID)
+				continue
+			}
+			analyzer := c.analyzer
+			if analyzer == nil {
+				analyzer = analysis.NewClient(serviceURL)
+			}
+			dets, err = analyzer.Analyze(ctx, analysis.AnalyzeRequest{
+				Path:                p.path,
+				Model:               model,
+				ConfidenceThreshold: threshold,
+			})
+		}
 		cancel()
 		if errors.Is(err, analysis.ErrServiceBusy) {
 			// Serviço ocupado (treino ou outra inferência usando a GPU) —

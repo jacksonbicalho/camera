@@ -6,18 +6,19 @@ import (
 )
 
 // ObjectDetector is a registered object-detection service: a stable identity
-// (id/name) plus an arbitrary key/value config (service_url, model,
-// confidence_threshold today; any future field needs no migration — see
-// object_detector_config).
+// (id/name/type) plus an arbitrary key/value config (service_url/model for
+// type "yolo", model_id/api_token for "huggingface"; any future field needs
+// no migration — see object_detector_config).
 type ObjectDetector struct {
 	ID        int64
 	Name      string
+	Type      string
 	CreatedAt time.Time
 	Config    map[string]string
 }
 
 func ListObjectDetectors(d *DB) ([]ObjectDetector, error) {
-	rows, err := d.Query(`SELECT id, name, created_at FROM object_detectors ORDER BY name`)
+	rows, err := d.Query(`SELECT id, name, type, created_at FROM object_detectors ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("list object detectors: %w", err)
 	}
@@ -26,7 +27,7 @@ func ListObjectDetectors(d *DB) ([]ObjectDetector, error) {
 	var list []ObjectDetector
 	for rows.Next() {
 		var det ObjectDetector
-		if err := rows.Scan(&det.ID, &det.Name, &det.CreatedAt); err != nil {
+		if err := rows.Scan(&det.ID, &det.Name, &det.Type, &det.CreatedAt); err != nil {
 			return nil, fmt.Errorf("list object detectors: scan: %w", err)
 		}
 		list = append(list, det)
@@ -47,8 +48,8 @@ func ListObjectDetectors(d *DB) ([]ObjectDetector, error) {
 
 func GetObjectDetector(d *DB, id int64) (ObjectDetector, error) {
 	var det ObjectDetector
-	err := d.QueryRow(`SELECT id, name, created_at FROM object_detectors WHERE id=?`, id).
-		Scan(&det.ID, &det.Name, &det.CreatedAt)
+	err := d.QueryRow(`SELECT id, name, type, created_at FROM object_detectors WHERE id=?`, id).
+		Scan(&det.ID, &det.Name, &det.Type, &det.CreatedAt)
 	if err != nil {
 		return ObjectDetector{}, fmt.Errorf("get object detector: %w", err)
 	}
@@ -57,6 +58,17 @@ func GetObjectDetector(d *DB, id int64) (ObjectDetector, error) {
 		return ObjectDetector{}, err
 	}
 	return det, nil
+}
+
+// SetObjectDetectorType updates the type discriminator ("yolo"/"huggingface")
+// of an already-inserted detector — kept separate from
+// InsertObjectDetector/UpdateObjectDetector so their existing signatures
+// (and every pre-existing caller) don't need to change.
+func SetObjectDetectorType(d *DB, id int64, detectorType string) error {
+	if _, err := d.Exec(`UPDATE object_detectors SET type=? WHERE id=?`, detectorType, id); err != nil {
+		return fmt.Errorf("set object detector type: %w", err)
+	}
+	return nil
 }
 
 func InsertObjectDetector(d *DB, name string, config map[string]string) (int64, error) {
