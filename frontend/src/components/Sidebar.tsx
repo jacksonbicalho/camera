@@ -12,6 +12,7 @@ import {
   Cctv,
   Eye,
   Film,
+  Gauge,
   HardDrive,
   History,
   Menu,
@@ -272,6 +273,15 @@ export default function Sidebar() {
                   to: '/settings/detectors',
                   label: 'Detectores de objetos',
                   icon: <Camera className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-trainers',
+                  to: '/settings/trainers',
+                  label: 'Treinadores',
+                  icon: <Gauge className="h-5 w-5 shrink-0" />,
                 }}
                 showLabel={showLabel}
               />

@@ -31,6 +31,8 @@ const ObjectDetectorsSettingsPage = lazy(
 )
 const ObjectDetectorFormPage = lazy(() => import('./pages/settings/ObjectDetectorFormPage'))
 const ObjectDetectorTestPage = lazy(() => import('./pages/settings/ObjectDetectorTestPage'))
+const TrainersSettingsPage = lazy(() => import('./pages/settings/TrainersSettingsPage'))
+const TrainerFormPage = lazy(() => import('./pages/settings/TrainerFormPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -273,6 +275,30 @@ export const routes = (
       element={
         <Lazy>
           <ObjectDetectorTestPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/trainers"
+      element={
+        <Lazy>
+          <TrainersSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/trainers/new"
+      element={
+        <Lazy>
+          <TrainersSettingsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/trainers/edit/:id"
+      element={
+        <Lazy>
+          <TrainerFormPage />
         </Lazy>
       }
     />
