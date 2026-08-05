@@ -149,48 +149,85 @@ describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', 
   })
 })
 
-describe('CA3: seção "Sistema" — Câmeras (todos) e Rastrear câmeras (admin)', () => {
-  it('admin vê Câmeras e Rastrear câmeras', () => {
+// CA2 (história refactor/reorganizar-sidebar-ia): Gravações/Histórico/
+// Relatórios migram de "Movimentos" pra dentro da seção "Sistema" (T2 desta
+// mesma história a renomeia pra "Câmeras e Gravações", ver CA5 — o CA2 aqui
+// testa a ordem/gate dos itens, não o nome da seção) — mesmo gate
+// admin-only individual de antes, só reposicionados. Ordem final: Câmeras,
+// Gravações, Histórico, Relatórios, Rastrear câmeras (que deixa de ser o 2º
+// item e vira o último).
+describe('CA2: seção "Câmeras e Gravações" (ex-"Sistema") ganha Gravações/Histórico/Relatórios, nesta ordem: Câmeras → Gravações → Histórico → Relatórios → Rastrear câmeras', () => {
+  it('admin vê os 5 itens, com os hrefs certos e nessa ordem', () => {
     renderAt('/')
-    expect(document.getElementById('sidebar-cameras')?.getAttribute('href')).toBe(
-      '/settings/cameras',
-    )
-    expect(document.getElementById('sidebar-discover')?.getAttribute('href')).toBe(
-      '/settings/discover',
-    )
+    const cameras = document.getElementById('sidebar-cameras')!
+    const recordings = document.getElementById('sidebar-recordings')!
+    const history = document.getElementById('sidebar-history')!
+    const relatorios = document.getElementById('sidebar-relatorios')!
+    const discover = document.getElementById('sidebar-discover')!
+
+    expect(recordings.getAttribute('href')).toBe('/recordings')
+    expect(history.tagName).toBe('A')
+    expect(history.getAttribute('href')).toBe('/history')
+    expect(relatorios.getAttribute('href')).toBe('/reports')
+    expect(discover.getAttribute('href')).toBe('/settings/discover')
+
+    const order = [cameras, recordings, history, relatorios, discover]
+    for (let i = 0; i < order.length - 1; i++) {
+      expect(
+        order[i].compareDocumentPosition(order[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+    }
   })
 
-  it('viewer vê Câmeras mas não Rastrear câmeras', () => {
+  it('viewer vê só Câmeras — Gravações/Histórico/Relatórios/Rastrear câmeras continuam admin-only (mesmo gate de antes, só migrado de seção)', () => {
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
     expect(document.getElementById('sidebar-cameras')).toBeTruthy()
+    expect(document.getElementById('sidebar-recordings')).toBeNull()
+    expect(document.getElementById('sidebar-history')).toBeNull()
+    expect(document.getElementById('sidebar-relatorios')).toBeNull()
     expect(document.getElementById('sidebar-discover')).toBeNull()
+  })
+
+  it('"Histórico" fica ativo em qualquer sub-rota /history/*', () => {
+    renderAt('/history/cam1')
+    expect(document.getElementById('sidebar-history')?.getAttribute('aria-current')).toBe('page')
   })
 })
 
-describe('CA3: seção "Movimentos" (admin) — Análise de vídeo, Rotular eventos, Histórico', () => {
-  it('admin vê os 3 itens; "Rotular eventos" aponta pra rota própria /settings/label-events; "Histórico" é um link pra /history (sem sub-menu)', () => {
+// CA3 (história refactor/reorganizar-sidebar-ia): "Movimentos" é renomeada
+// pra "Inteligência Artificial" e fica só com os 3 itens de IA, nesta
+// ordem: Análise de vídeo, Rotular eventos, Detectores de objetos (antes:
+// Detectores de objetos, Análise de vídeo, Rotular eventos + os 3 itens que
+// migraram pra Sistema no CA2 acima).
+describe('CA3: seção "Movimentos" renomeada para "Inteligência Artificial" — só Análise de vídeo/Rotular eventos/Detectores de objetos, nessa ordem', () => {
+  it('admin vê os 3 itens, com os hrefs certos e nessa ordem', () => {
     renderAt('/')
-    expect(document.getElementById('sidebar-analysis')?.getAttribute('href')).toBe(
-      '/settings/analysis',
-    )
-    expect(document.getElementById('sidebar-label-events')?.getAttribute('href')).toBe(
-      '/settings/label-events',
-    )
-    const history = document.getElementById('sidebar-history')!
-    expect(history.tagName).toBe('A')
-    expect(history.getAttribute('href')).toBe('/history')
+    const analysis = document.getElementById('sidebar-analysis')!
+    const labelEvents = document.getElementById('sidebar-label-events')!
+    const detectors = document.getElementById('sidebar-object-detectors')!
+
+    expect(analysis.getAttribute('href')).toBe('/settings/analysis')
+    expect(labelEvents.getAttribute('href')).toBe('/settings/label-events')
+    expect(detectors.getAttribute('href')).toBe('/settings/detectors')
+
+    expect(
+      analysis.compareDocumentPosition(labelEvents) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      labelEvents.compareDocumentPosition(detectors) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 
-  it('viewer não vê a seção Movimentos', () => {
+  it('viewer não vê a seção (admin-only inteira, como "Movimentos" já era)', () => {
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
     expect(document.getElementById('sidebar-analysis')).toBeNull()
     expect(document.getElementById('sidebar-label-events')).toBeNull()
-    expect(document.getElementById('sidebar-history')).toBeNull()
+    expect(document.getElementById('sidebar-object-detectors')).toBeNull()
   })
 
-  it('"Análise de vídeo" e "Rotular eventos" ficam ativos só na própria rota (rotas distintas agora, sem hash compartilhado)', () => {
+  it('"Análise de vídeo" e "Rotular eventos" ficam ativos só na própria rota', () => {
     renderAt('/settings/analysis')
     expect(document.getElementById('sidebar-analysis')?.className).toContain('bg-primary')
     expect(document.getElementById('sidebar-label-events')?.className).not.toContain('bg-primary')
@@ -201,9 +238,15 @@ describe('CA3: seção "Movimentos" (admin) — Análise de vídeo, Rotular even
     expect(document.getElementById('sidebar-label-events')?.className).toContain('bg-primary')
   })
 
-  it('"Histórico" fica ativo em qualquer sub-rota /history/*', () => {
-    renderAt('/history/cam1')
-    expect(document.getElementById('sidebar-history')?.getAttribute('aria-current')).toBe('page')
+  it('o cabeçalho da seção lê "Inteligência Artificial", não mais "Movimentos"', () => {
+    renderAt('/')
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    const sectionHeaders = Array.from(document.querySelectorAll('#sidebar p.uppercase')).map(
+      (p) => p.textContent,
+    )
+    expect(sectionHeaders).toContain('Inteligência Artificial')
+    expect(sectionHeaders).not.toContain('Movimentos')
+    expect(document.body.textContent).not.toContain('Movimentos')
   })
 })
 
@@ -241,22 +284,7 @@ describe('CA3: seção "Administração" ganha o item "Aparência" (→ /setting
   })
 })
 
-describe('CA2: Gravações e Relatórios migram pra dentro de "Movimentos"; "Estatísticas" sai do sidebar (conteúdo migrou pra Servidor); "Governança" deixa de existir', () => {
-  it('admin vê Gravações e Relatórios (mesmos hrefs de sempre); "Relatórios" é link direto pra /reports (sem flyout de câmera — a própria página já tem o seletor)', () => {
-    renderAt('/')
-    expect(document.getElementById('sidebar-recordings')?.getAttribute('href')).toBe('/recordings')
-    const relatorios = document.getElementById('sidebar-relatorios')!
-    expect(relatorios.tagName).toBe('A')
-    expect(relatorios.getAttribute('href')).toBe('/reports')
-  })
-
-  it('viewer não vê Gravações nem Relatórios (Movimentos continua admin-only)', () => {
-    vi.mocked(getRole).mockReturnValue('viewer')
-    renderAt('/')
-    expect(document.getElementById('sidebar-recordings')).toBeNull()
-    expect(document.getElementById('sidebar-relatorios')).toBeNull()
-  })
-
+describe('regressão: "Estatísticas" e "Governança" seguem fora do Sidebar (histórias anteriores)', () => {
   it('link "Estatísticas" não existe mais no sidebar', () => {
     renderAt('/')
     expect(document.getElementById('sidebar-stats')).toBeNull()
@@ -297,18 +325,51 @@ describe('CA4: "Sobre" saiu do Sidebar (agora é o sub-link about-application do
   })
 })
 
-describe('CA6: "Detectores de objetos" está na seção Movimentos (1º item), não mais em Administração', () => {
-  it('aparece antes de "Análise de vídeo" (1º item original de Movimentos) e antes de "Servidor" (1º item de Administração)', () => {
+// CA4 (história refactor/reorganizar-sidebar-ia): "Detectores de objetos"
+// passa a ser o ÚLTIMO item de "Inteligência Artificial" (antes era o 1º) —
+// mas a seção como um todo continua vindo antes de "Administração", isso
+// não mudou.
+describe('CA4: "Detectores de objetos" é o último item de "Inteligência Artificial", que segue antes de "Administração"', () => {
+  it('"Detectores de objetos" vem depois de "Rotular eventos" (último da própria seção) e antes de "Servidor" (1º item de Administração)', () => {
     renderAt('/')
+    const labelEvents = document.getElementById('sidebar-label-events')!
     const detectors = document.getElementById('sidebar-object-detectors')!
-    const analysis = document.getElementById('sidebar-analysis')!
     const server = document.getElementById('sidebar-server')!
 
     expect(
-      detectors.compareDocumentPosition(analysis) & Node.DOCUMENT_POSITION_FOLLOWING,
+      labelEvents.compareDocumentPosition(detectors) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     expect(
       detectors.compareDocumentPosition(server) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+  })
+})
+
+// CA5 (história refactor/reorganizar-sidebar-ia, T2): "Sistema" renomeada
+// pra "Câmeras e Gravações" (feedback do navigator: nome vago pro conteúdo
+// real da seção); cabeçalhos de seção ganham mais destaque visual
+// (font-bold/text-muted em vez de font-semibold/text-faint — ficavam mais
+// apagados que os próprios itens de navegação abaixo deles).
+describe('CA5: seção "Sistema" renomeada para "Câmeras e Gravações"; cabeçalhos de seção com font-bold/text-muted', () => {
+  it('o cabeçalho lê "Câmeras e Gravações", não mais "Sistema"', () => {
+    renderAt('/')
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    const sectionHeaders = Array.from(document.querySelectorAll('#sidebar p.uppercase')).map(
+      (p) => p.textContent,
+    )
+    expect(sectionHeaders).toContain('Câmeras e Gravações')
+    expect(sectionHeaders).not.toContain('Sistema')
+  })
+
+  it('o texto do cabeçalho de seção usa font-bold e text-muted (não font-semibold/text-faint)', () => {
+    renderAt('/')
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    const header = Array.from(document.querySelectorAll('#sidebar p.uppercase')).find(
+      (p) => p.textContent === 'Câmeras e Gravações',
+    )!
+    expect(header.className).toContain('font-bold')
+    expect(header.className).toContain('text-muted')
+    expect(header.className).not.toContain('font-semibold')
+    expect(header.className).not.toContain('text-faint')
   })
 })
