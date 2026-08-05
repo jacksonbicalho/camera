@@ -88,7 +88,7 @@ function SidebarSection({
     // claramente pertencer à que vem depois.
     <div className={cn(divider && 'border-t border-border/70 pt-4', showLabel ? 'w-full' : 'w-10')}>
       {showLabel && label && (
-        <p className="px-3 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-faint">
+        <p className="px-3 pb-0.5 text-[11px] font-bold uppercase tracking-wider text-muted">
           {label}
         </p>
       )}
@@ -190,7 +190,7 @@ export default function Sidebar() {
             />
           </SidebarSection>
 
-          <SidebarSection label="Sistema" showLabel={showLabel} divider>
+          <SidebarSection label="Câmeras e Gravações" showLabel={showLabel} divider>
             <SidebarNavLink
               item={{
                 id: 'sidebar-cameras',

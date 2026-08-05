@@ -150,11 +150,13 @@ describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', 
 })
 
 // CA2 (história refactor/reorganizar-sidebar-ia): Gravações/Histórico/
-// Relatórios migram de "Movimentos" pra dentro de "Sistema" — mesmo gate
+// Relatórios migram de "Movimentos" pra dentro da seção "Sistema" (T2 desta
+// mesma história a renomeia pra "Câmeras e Gravações", ver CA5 — o CA2 aqui
+// testa a ordem/gate dos itens, não o nome da seção) — mesmo gate
 // admin-only individual de antes, só reposicionados. Ordem final: Câmeras,
 // Gravações, Histórico, Relatórios, Rastrear câmeras (que deixa de ser o 2º
 // item e vira o último).
-describe('CA2: seção "Sistema" ganha Gravações/Histórico/Relatórios, nesta ordem: Câmeras → Gravações → Histórico → Relatórios → Rastrear câmeras', () => {
+describe('CA2: seção "Câmeras e Gravações" (ex-"Sistema") ganha Gravações/Histórico/Relatórios, nesta ordem: Câmeras → Gravações → Histórico → Relatórios → Rastrear câmeras', () => {
   it('admin vê os 5 itens, com os hrefs certos e nessa ordem', () => {
     renderAt('/')
     const cameras = document.getElementById('sidebar-cameras')!
@@ -340,5 +342,34 @@ describe('CA4: "Detectores de objetos" é o último item de "Inteligência Artif
     expect(
       detectors.compareDocumentPosition(server) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+  })
+})
+
+// CA5 (história refactor/reorganizar-sidebar-ia, T2): "Sistema" renomeada
+// pra "Câmeras e Gravações" (feedback do navigator: nome vago pro conteúdo
+// real da seção); cabeçalhos de seção ganham mais destaque visual
+// (font-bold/text-muted em vez de font-semibold/text-faint — ficavam mais
+// apagados que os próprios itens de navegação abaixo deles).
+describe('CA5: seção "Sistema" renomeada para "Câmeras e Gravações"; cabeçalhos de seção com font-bold/text-muted', () => {
+  it('o cabeçalho lê "Câmeras e Gravações", não mais "Sistema"', () => {
+    renderAt('/')
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    const sectionHeaders = Array.from(document.querySelectorAll('#sidebar p.uppercase')).map(
+      (p) => p.textContent,
+    )
+    expect(sectionHeaders).toContain('Câmeras e Gravações')
+    expect(sectionHeaders).not.toContain('Sistema')
+  })
+
+  it('o texto do cabeçalho de seção usa font-bold e text-muted (não font-semibold/text-faint)', () => {
+    renderAt('/')
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    const header = Array.from(document.querySelectorAll('#sidebar p.uppercase')).find(
+      (p) => p.textContent === 'Câmeras e Gravações',
+    )!
+    expect(header.className).toContain('font-bold')
+    expect(header.className).toContain('text-muted')
+    expect(header.className).not.toContain('font-semibold')
+    expect(header.className).not.toContain('text-faint')
   })
 })
