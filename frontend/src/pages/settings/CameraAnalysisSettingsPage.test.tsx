@@ -83,3 +83,72 @@ describe('CA5: tela de análise por câmera permite escolher detector cadastrado
     expect(putBody).toMatchObject({ detector_id: 2, confidence_threshold: 0.6 })
   })
 })
+
+// CA3 (história fix/camera-analysis-toggle): mesmo padrão de
+// CameraMotionSettingsPage — checkbox "Habilitado" independente do
+// detector escolhido; a seção de detector/limiar só aparece quando
+// marcado. Antes, `enabled` era derivado de `detectorId !== ''` — não
+// existia um jeito de desligar a análise sem "esquecer" o detector
+// escolhido.
+describe('CA3: checkbox "Habilitado" controla enabled diretamente; seção de configuração só aparece quando marcado', () => {
+  function mockAnalysisFetch(cfg: { enabled: boolean; detector_id: number | null }) {
+    let putBody: Record<string, unknown> | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown, init?: RequestInit) => {
+        const u = String(url)
+        if (u === '/api/settings/cameras/cam-1/analysis' && (!init || init.method === undefined)) {
+          return new Response(JSON.stringify(cfg), { status: 200 })
+        }
+        if (u === '/api/settings/detectors') {
+          return new Response(
+            JSON.stringify([
+              { id: 1, name: 'YOLOv8-nano', config: { service_url: 'http://yolo:8001' } },
+            ]),
+            { status: 200 },
+          )
+        }
+        if (u === '/api/settings/cameras/cam-1/analysis' && init?.method === 'PUT') {
+          putBody = JSON.parse(init.body as string)
+          return new Response(JSON.stringify(putBody), { status: 200 })
+        }
+        return new Response('{}', { status: 200 })
+      }),
+    )
+    return () => putBody
+  }
+
+  it('com enabled=false, a seção de detector/limiar fica escondida; marcar o checkbox revela', async () => {
+    mockAnalysisFetch({ enabled: false, detector_id: null })
+    renderPage()
+
+    const checkbox = (await screen.findByLabelText(/habilitado/i)) as HTMLInputElement
+    expect(checkbox.checked).toBe(false)
+    expect(screen.queryByLabelText(/detector/i)).toBeNull()
+
+    fireEvent.click(checkbox)
+    expect(await screen.findByLabelText(/detector/i)).toBeTruthy()
+  })
+
+  it('ao desmarcar o checkbox (com detector já escolhido) e salvar, manda enabled:false — não deriva mais de detectorId', async () => {
+    const getPutBody = mockAnalysisFetch({ enabled: true, detector_id: 1 })
+    renderPage()
+
+    const checkbox = (await screen.findByLabelText(/habilitado/i)) as HTMLInputElement
+    expect(checkbox.checked).toBe(true)
+    expect(await screen.findByLabelText(/detector/i)).toBeTruthy()
+
+    fireEvent.click(checkbox)
+    expect(screen.queryByLabelText(/detector/i)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /salvar/i }))
+
+    await waitFor(() => {
+      expect(getPutBody()).not.toBeNull()
+    })
+    // detector_id sobrevive ao desabilitar — desmarcar o checkbox não deve
+    // "esquecer" o detector já escolhido (o sintoma que motivou esta
+    // história: enabled derivado de detectorId apagava a escolha).
+    expect(getPutBody()).toMatchObject({ enabled: false, detector_id: 1 })
+  })
+})
