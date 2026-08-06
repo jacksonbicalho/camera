@@ -1028,6 +1028,21 @@ func (c *Cleaner) analyzeNewRecordings() {
 		if (i+1)%10 == 0 {
 			c.log.Info("analyzeNewRecordings: progress", "done", i+1, "total", total)
 		}
+		// candidates was snapshotted by the query above at the start of this
+		// run — a big batch can take minutes, and the navigator may disable
+		// analysis (or switch detectors) for a camera while it's still in
+		// flight. Re-check camera_analysis_config per item so a change takes
+		// effect immediately instead of only on the next AnalyzeNew() pass
+		// (confirmed live: a 222-recording batch kept hitting YOLO well
+		// after analysis had been turned off for that camera).
+		var curEnabled int
+		var curDetectorID sql.NullInt64
+		scanErr := c.db.QueryRow(`SELECT enabled, detector_id FROM camera_analysis_config WHERE camera_id=?`, p.cameraID).
+			Scan(&curEnabled, &curDetectorID)
+		if scanErr != nil || curEnabled == 0 || !curDetectorID.Valid || curDetectorID.Int64 != p.detectorID {
+			c.log.Debug("analyzeNewRecordings: skipped (config changed since batch was fetched)", "camera_id", p.cameraID, "path", p.path)
+			continue
+		}
 		if _, err := os.Stat(p.path); err != nil {
 			c.log.Warn("analyzeNewRecordings: file not found, skipping", "path", p.path)
 			continue

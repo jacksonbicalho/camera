@@ -373,3 +373,18 @@ describe('CA5: seção "Sistema" renomeada para "Câmeras e Gravações"; cabeç
     expect(header.className).not.toContain('text-faint')
   })
 })
+
+// CA2 (história fix/sidebar-divider-ia): a seção "Inteligência Artificial"
+// ficou sem a prop `divider` do SidebarSection por inconsistência — as
+// outras 3 seções (sem cabeçalho/"Ao vivo", "Câmeras e Gravações",
+// "Administração") já têm o separador `border-t` acima do cabeçalho.
+describe('CA2: seção "Inteligência Artificial" tem o mesmo separador (border-t) que as demais seções', () => {
+  it('o wrapper da seção tem border-t, igual a "Câmeras e Gravações" e "Administração"', () => {
+    renderAt('/')
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    const header = Array.from(document.querySelectorAll('#sidebar p.uppercase')).find(
+      (p) => p.textContent === 'Inteligência Artificial',
+    )!
+    expect(header.parentElement!.className).toContain('border-t')
+  })
+})

@@ -248,7 +248,7 @@ export default function Sidebar() {
           </SidebarSection>
 
           {isAdmin && (
-            <SidebarSection label="Inteligência Artificial" showLabel={showLabel}>
+            <SidebarSection label="Inteligência Artificial" showLabel={showLabel} divider>
               <SidebarNavLink
                 item={{
                   id: 'sidebar-analysis',

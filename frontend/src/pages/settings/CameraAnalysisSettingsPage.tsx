@@ -21,12 +21,19 @@ export default function CameraAnalysisSettingsPage() {
   const { settings } = useSettings()
   const cam = settings?.cameras?.find((c: CameraSettings) => c.id === id)
 
+  const [enabled, setEnabled] = useState(false)
   const [detectors, setDetectors] = useState<ObjectDetectorItem[]>([])
   const [detectorId, setDetectorId] = useState('')
   const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  // Habilitado sem detector é um estado inválido pra persistir (não faz
+  // nada de fato — analyzeNewRecordings exige detector_id) e confuso pro
+  // usuário reencontrar depois. Bloqueia o salvamento em vez de deixar
+  // silenciosamente.
+  const needsDetector = enabled && detectorId === ''
 
   useEffect(() => {
     if (!id) return
@@ -37,6 +44,7 @@ export default function CameraAnalysisSettingsPage() {
       fetch('/api/settings/detectors', { headers: authHeaders() }).then((r) => r.json()),
     ])
       .then(([cfg, detectorList]) => {
+        setEnabled(Boolean(cfg.enabled))
         setDetectorId(cfg.detector_id != null ? String(cfg.detector_id) : '')
         setThreshold(cfg.confidence_threshold ?? DEFAULT_THRESHOLD)
         setDetectors(detectorList ?? [])
@@ -52,7 +60,7 @@ export default function CameraAnalysisSettingsPage() {
         method: 'PUT',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          enabled: detectorId !== '',
+          enabled,
           detector_id: detectorId === '' ? null : Number(detectorId),
           confidence_threshold: detectorId === '' ? null : threshold,
         }),
@@ -84,59 +92,90 @@ export default function CameraAnalysisSettingsPage() {
       <div className="space-y-6">
         <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
           <div className="p-4">
-            <Label
-              htmlFor="camera-analysis-detector"
-              className="block text-xs text-muted-foreground mb-1"
-            >
-              Detector
-            </Label>
-            <select
-              id="camera-analysis-detector"
-              value={detectorId}
-              onChange={(e) => setDetectorId(e.target.value)}
-              className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring"
-            >
-              <option value="">Nenhum (câmera não é analisada)</option>
-              {detectors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground mt-1">
-              Detector cadastrado usado nas gravações desta câmera.
-            </p>
-          </div>
-
-          <div className="p-4">
-            <Label
-              htmlFor="camera-analysis-threshold"
-              className="block text-xs text-muted-foreground mb-1"
-            >
-              Limiar de confiança ({(threshold * 100).toFixed(0)}%)
-            </Label>
-            <input
-              id="camera-analysis-threshold"
-              type="range"
-              min={0.1}
-              max={0.9}
-              step={0.05}
-              disabled={detectorId === ''}
-              value={threshold}
-              onChange={(e) => setThreshold(Number(e.target.value))}
-              className="w-full accent-primary disabled:opacity-40"
-            />
-            <div className="flex justify-between text-xs text-muted-foreground mt-0.5">
-              <span>10%</span>
-              <span>90%</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="camera-analysis-enabled"
+                checked={enabled}
+                onChange={(e) => setEnabled(e.target.checked)}
+                className="accent-primary"
+              />
+              <label
+                htmlFor="camera-analysis-enabled"
+                className="text-xs text-muted-foreground cursor-pointer"
+              >
+                Habilitado
+              </label>
             </div>
           </div>
 
+          {enabled && (
+            <>
+              <div className="p-4">
+                <Label
+                  htmlFor="camera-analysis-detector"
+                  className="block text-xs text-muted-foreground mb-1"
+                >
+                  Detector
+                </Label>
+                <select
+                  id="camera-analysis-detector"
+                  value={detectorId}
+                  onChange={(e) => setDetectorId(e.target.value)}
+                  className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring"
+                >
+                  <option value="">Nenhum</option>
+                  {detectors.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Detector cadastrado usado nas gravações desta câmera.
+                </p>
+              </div>
+
+              <div className="p-4">
+                <Label
+                  htmlFor="camera-analysis-threshold"
+                  className="block text-xs text-muted-foreground mb-1"
+                >
+                  Limiar de confiança ({(threshold * 100).toFixed(0)}%)
+                </Label>
+                <input
+                  id="camera-analysis-threshold"
+                  type="range"
+                  min={0.1}
+                  max={0.9}
+                  step={0.05}
+                  disabled={detectorId === ''}
+                  value={threshold}
+                  onChange={(e) => setThreshold(Number(e.target.value))}
+                  className="w-full accent-primary disabled:opacity-40"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground mt-0.5">
+                  <span>10%</span>
+                  <span>90%</span>
+                </div>
+              </div>
+            </>
+          )}
+
           <div className="p-4 flex items-center justify-between">
             {error && <p className="text-sm text-red-400">{error}</p>}
-            {saved && <p className="text-sm text-green-400">Salvo</p>}
-            {!error && !saved && <span />}
-            <Button id="camera-analysis-save" onClick={handleSave} disabled={saving}>
+            {!error && saved && <p className="text-sm text-green-400">Salvo</p>}
+            {!error && !saved && needsDetector && (
+              <p className="text-xs text-amber-400">
+                Selecione um detector pra habilitar a análise.
+              </p>
+            )}
+            {!error && !saved && !needsDetector && <span />}
+            <Button
+              id="camera-analysis-save"
+              onClick={handleSave}
+              disabled={saving || needsDetector}
+            >
               {saving ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>

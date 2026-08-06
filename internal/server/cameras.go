@@ -167,7 +167,11 @@ func (s *Server) handleListSettingsCameras(w http.ResponseWriter, r *http.Reques
 	for i, c := range cams {
 		dto := cameraToDTO(c)
 		if cfg, err := db.GetCameraAnalysisConfig(s.db, c.ID); err == nil {
-			dto.AnalysisEnabled = cfg.Enabled
+			// AnalysisEnabled reflects whether the camera is actually
+			// analyzed (same criteria analyzeNewRecordings uses to pick
+			// candidates), not just the raw Enabled bit — a camera with no
+			// detector chosen is never analyzed regardless of Enabled.
+			dto.AnalysisEnabled = cfg.Enabled && cfg.DetectorID != nil
 		}
 		list[i] = dto
 	}
