@@ -1348,7 +1348,7 @@ describe('HistoryPage', () => {
     })
   })
 
-  describe('CA5: abrir o Histórico com :motionId marca a notificação do evento como lida', () => {
+  describe('CA2: reproduzir uma gravação marca como lida qualquer notificação de evento contido na sua janela', () => {
     it('com :motionId na URL, chama markReadByEvent(cameraId, evento.time)', async () => {
       stubFetch(recordingsJul4, [{ id: 99, time: '2026-07-04T10:00:30Z', score: 1 }])
       gateway.getRecording.mockResolvedValue({ filename: 'c.mp4', date: '2026-07-04' })
@@ -1358,12 +1358,118 @@ describe('HistoryPage', () => {
       })
     })
 
-    it('sem :motionId na URL, não marca nada como lido', async () => {
+    it('sem nenhum evento na janela da gravação selecionada, não marca nada como lido', async () => {
       renderAt('/history/cam1')
       await waitFor(() => {
         expect(document.getElementById('history-header')).not.toBeNull()
       })
       expect(notif.markReadByEvent).not.toHaveBeenCalled()
+    })
+
+    it('abrir uma gravação sem :motionId cujo evento cai dentro da sua janela já marca a notificação como lida (seleção automática, sem clique nenhum)', async () => {
+      stubFetch(recordingsJul4, [{ id: 99, time: '2026-07-04T10:00:30Z', score: 1 }])
+      gateway.getRecording.mockResolvedValue({ filename: 'c.mp4', date: '2026-07-04' })
+      renderAt('/history/cam1/3')
+      await waitFor(() => {
+        expect(notif.markReadByEvent).toHaveBeenCalledWith('cam1', '2026-07-04T10:00:30Z')
+      })
+    })
+
+    it('clicar num card cujo evento cai na janela marca a notificação como lida, mesmo sem :motionId na URL', async () => {
+      // Evento dentro da janela de a.mp4 (07:12:00-07:12:42) — fora da janela de b.mp4
+      // (07:12:00-08:04:10, o card selecionado por padrão).
+      stubFetch(recordings, [{ id: 51, time: '2026-07-05T07:12:20Z', score: 1 }])
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
+      })
+      expect(notif.markReadByEvent).not.toHaveBeenCalledWith('cam1', '2026-07-05T07:12:20Z')
+      document
+        .getElementById('history-recording-1')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(notif.markReadByEvent).toHaveBeenCalledWith('cam1', '2026-07-05T07:12:20Z')
+      })
+    })
+
+    it('avanço automático da reprodução contínua marca como lida o evento da gravação nova, sem interação do usuário', async () => {
+      // Evento dentro da janela de b.mp4 (08:03:00-08:04:10) — a gravação pra qual a
+      // reprodução contínua avança ao terminar a.mp4.
+      stubFetch(recordings, [{ id: 50, time: '2026-07-05T08:03:30Z', score: 1 }])
+      renderAt('/history/cam1')
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-2')).not.toBeNull()
+      })
+      document
+        .getElementById('history-recording-1')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        const video = document.getElementById('history-player-video') as HTMLVideoElement
+        expect(video.getAttribute('src')).toBe('/recordings/cam1/a.mp4?token=tok')
+      })
+      notif.markReadByEvent.mockClear()
+
+      document
+        .getElementById('history-continuous-toggle')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await waitFor(() => {
+        expect(
+          document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked'),
+        ).toBe('true')
+      })
+
+      const video = document.getElementById('history-player-video') as HTMLVideoElement
+      video.dispatchEvent(new Event('ended'))
+
+      await waitFor(() => {
+        expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBe(
+          'true',
+        )
+      })
+      await waitFor(() => {
+        expect(notif.markReadByEvent).toHaveBeenCalledWith('cam1', '2026-07-05T08:03:30Z')
+      })
+    })
+  })
+
+  describe('CA3: scroll da lista lateral não acompanha o avanço automático da reprodução contínua', () => {
+    it('avanço automático da reprodução contínua NÃO rola a lista (só ação explícita do usuário rola)', async () => {
+      const scrollIntoView = vi.fn()
+      const original = Element.prototype.scrollIntoView
+      Element.prototype.scrollIntoView = scrollIntoView
+      try {
+        renderAt('/history/cam1')
+        await waitFor(() => {
+          expect(document.getElementById('history-recording-2')).not.toBeNull()
+        })
+        document
+          .getElementById('history-recording-1')!
+          .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        await waitFor(() => {
+          const video = document.getElementById('history-player-video') as HTMLVideoElement
+          expect(video.getAttribute('src')).toBe('/recordings/cam1/a.mp4?token=tok')
+        })
+        document
+          .getElementById('history-continuous-toggle')!
+          .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        await waitFor(() => {
+          expect(
+            document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked'),
+          ).toBe('true')
+        })
+        scrollIntoView.mockClear()
+
+        const video = document.getElementById('history-player-video') as HTMLVideoElement
+        video.dispatchEvent(new Event('ended'))
+        await waitFor(() => {
+          expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBe(
+            'true',
+          )
+        })
+        expect(scrollIntoView).not.toHaveBeenCalled()
+      } finally {
+        Element.prototype.scrollIntoView = original
+      }
     })
   })
 

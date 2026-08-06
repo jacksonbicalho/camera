@@ -478,9 +478,25 @@ export default function HistoryPage() {
   }
 
   // Rola a lista até o item ativo entrar em vista — sobretudo importante ao abrir a URL
-  // compartilhável de uma gravação específica (/history/:cameraId/:recordingId).
+  // compartilhável de uma gravação específica (/history/:cameraId/:recordingId). Suprimida só
+  // no avanço AUTOMÁTICO da reprodução contínua (`suppressScrollRef`, setada por
+  // `handleSegmentChange` abaixo) — rolar a cada gravação nova, sem nenhuma ação do usuário,
+  // atrapalha quem ajustou a posição da tela manualmente (bug relatado pelo navigator, pior
+  // no celular). "Opt-out" (suprime só o caso automático) em vez de "opt-in": mount inicial,
+  // troca de dia/câmera, clique manual num card e deep-link continuam rolando normalmente.
+  // `HistoryTimeline` (régua de 24h) tem seu PRÓPRIO scrollIntoView espelhando este mesmo
+  // padrão — o mesmo ref é repassado pra ela via prop (ver `<HistoryTimeline
+  // suppressScrollRef={...}>` abaixo) pra suprimir os dois juntos. Só ESTE efeito reseta a
+  // flag (nunca o de HistoryTimeline): React descarrega passive effects de baixo pra cima na
+  // árvore — HistoryTimeline é filha, seu efeito roda ANTES deste, então resetar aqui (o
+  // último a rodar) garante que a flag já foi lida pelos dois antes de sumir.
   const activeCardRef = useRef<HTMLButtonElement | null>(null)
+  const suppressScrollRef = useRef(false)
   useEffect(() => {
+    if (suppressScrollRef.current) {
+      suppressScrollRef.current = false
+      return
+    }
     activeCardRef.current?.scrollIntoView({
       behavior: 'smooth',
       block: 'nearest',
@@ -665,18 +681,36 @@ export default function HistoryPage() {
       )
     }
   }
-  // Marca como lida a notificação do evento quando o Histórico abre com :motionId — mesmo
-  // evento resolvido acima (`events.find`), mas via useEffect (não dentro do bloco de ajuste
-  // de estado durante o render acima): chamar `markReadByEvent` ali dispararia o setState do
+  // Marca como lida qualquer notificação cujo evento caia na janela de contenção da gravação
+  // EM REPRODUÇÃO (`selected`) — mesma janela ([start-trailMs, start+chunkMs+leadMs)) que
+  // `recordingCategory`/`recordingItems` já usa pra colorir os cards. Generaliza o mecanismo
+  // antigo (restrito a `clipActive`+`:motionId` do deep-link): `selected` muda tanto por
+  // clique manual (`selectRecording`) quanto por avanço automático da reprodução contínua
+  // (`handleSegmentChange`), então os três casos (clique, contínua, deep-link) passam pelo
+  // mesmo caminho — o evento-âncora do deep-link sempre cai dentro da própria janela, já que
+  // `resolvedClipSegments` acima foi construído com o mesmo lead/trail. Via useEffect (não
+  // ajuste durante o render): chamar `markReadByEvent` no render dispararia o setState do
   // NotificationProvider (um componente ANCESTRAL) durante o render do HistoryPage — React
-  // não permite atualizar o estado de OUTRO componente durante o render do componente atual
-  // (diferente do padrão "ajuste durante o render" já usado nesta página, que só vale pro
-  // PRÓPRIO estado do componente que está renderizando).
+  // não permite atualizar o estado de OUTRO componente durante o render do componente atual.
+  // `markReadByEvent` é idempotente pra evento sem notificação ou já lido (bail-out no
+  // Provider), então rodar de novo a cada poll (`recordings`/`events` trocando de referência)
+  // é seguro.
   useEffect(() => {
-    if (!clipActive || !camera) return
-    const ev = events.find((e) => String(e.id) === initialMotionId)
-    if (ev) markReadByEvent(camera.id, ev.time)
-  }, [clipActive, camera, events, initialMotionId, markReadByEvent])
+    if (!selected || !camera) return
+    const idx = recordings.findIndex((r) => r.id === selected.id)
+    const chunkMs = recordingDurationMs(selected, recordings[idx - 1])
+    const start = Date.parse(selected.start)
+    if (Number.isNaN(start)) return
+    const leadMs = (camera.playback_lead_seconds ?? 10) * 1000
+    const trailMs = (camera.playback_trail_seconds ?? 10) * 1000
+    const rangeStart = start - trailMs
+    const rangeEnd = start + chunkMs + leadMs
+    for (const ev of events) {
+      const t = Date.parse(ev.time)
+      if (Number.isNaN(t) || t < rangeStart || t >= rangeEnd) continue
+      markReadByEvent(camera.id, ev.time)
+    }
+  }, [selected, camera, recordings, events, markReadByEvent])
   // Prioridade: contínua > clipe (só enquanto `clipActive` — sai do modo, mesmo com um
   // clipe já congelado em `resolvedClipSegments`, cai pro chunk inteiro) > gravação única.
   // Sem sobreposição real (ex.: a gravação-alvo sumiu do dia, `resolvedClipSegments` congela
@@ -706,7 +740,12 @@ export default function HistoryPage() {
   })
   const handleSegmentChange = useCallback((index: number) => {
     const rec = activeRecordingsRef.current[index]
-    if (rec) setSelectedId((id) => (id === rec.id ? id : rec.id))
+    if (!rec) return
+    setSelectedId((id) => {
+      if (id === rec.id) return id
+      suppressScrollRef.current = true
+      return rec.id
+    })
   }, [])
 
   // videoError não pode grudar na gravação seguinte — reseta ao trocar. `playing` já é
@@ -1092,6 +1131,7 @@ export default function HistoryPage() {
                 cameraId={camera.id}
                 selectedId={selectedId}
                 day={selectedDate ?? undefined}
+                suppressScrollRef={suppressScrollRef}
               />
             </div>
           </CameraStageHeader>
