@@ -442,14 +442,14 @@ func main() {
 	// Renomeia (idempotente) pastas de classe antigas com espaços/acentos para slug.
 	stateengine.MigrateSampleDirsToSlug(cfg.Storage.Path)
 	if database != nil {
-		if vacfg, err := db.GetVideoAnalysisConfig(database); err == nil && vacfg.ServiceURL != "" {
+		if serviceURL, err := db.GetStateClassificationServiceURL(database); err == nil && serviceURL != "" {
 			rtspByID := make(map[string]string, len(cameras))
 			for _, cam := range cameras {
 				rtspByID[cam.ID] = cam.RTSPURL
 			}
 			deps := stateengine.Deps{
 				Grabber:    stateengine.NewSnapshotGrabber(takeSnapshot, func(camID string) string { return rtspByID[camID] }, cfg.Storage.Path),
-				Classifier: analysis.NewClient(vacfg.ServiceURL),
+				Classifier: analysis.NewClient(serviceURL),
 				Persist: func(cid int64, state string, conf float64, framePath string) error {
 					return db.RecordStateTransition(database, cid, state, conf, framePath)
 				},
