@@ -29,6 +29,12 @@ export default function CameraAnalysisSettingsPage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
 
+  // Habilitado sem detector é um estado inválido pra persistir (não faz
+  // nada de fato — analyzeNewRecordings exige detector_id) e confuso pro
+  // usuário reencontrar depois. Bloqueia o salvamento em vez de deixar
+  // silenciosamente.
+  const needsDetector = enabled && detectorId === ''
+
   useEffect(() => {
     if (!id) return
     Promise.all([
@@ -118,7 +124,7 @@ export default function CameraAnalysisSettingsPage() {
                   onChange={(e) => setDetectorId(e.target.value)}
                   className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring"
                 >
-                  <option value="">Nenhum (câmera não é analisada)</option>
+                  <option value="">Nenhum</option>
                   {detectors.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
@@ -158,9 +164,18 @@ export default function CameraAnalysisSettingsPage() {
 
           <div className="p-4 flex items-center justify-between">
             {error && <p className="text-sm text-red-400">{error}</p>}
-            {saved && <p className="text-sm text-green-400">Salvo</p>}
-            {!error && !saved && <span />}
-            <Button id="camera-analysis-save" onClick={handleSave} disabled={saving}>
+            {!error && saved && <p className="text-sm text-green-400">Salvo</p>}
+            {!error && !saved && needsDetector && (
+              <p className="text-xs text-amber-400">
+                Selecione um detector pra habilitar a análise.
+              </p>
+            )}
+            {!error && !saved && !needsDetector && <span />}
+            <Button
+              id="camera-analysis-save"
+              onClick={handleSave}
+              disabled={saving || needsDetector}
+            >
               {saving ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>

@@ -151,4 +151,19 @@ describe('CA3: checkbox "Habilitado" controla enabled diretamente; seção de co
     // história: enabled derivado de detectorId apagava a escolha).
     expect(getPutBody()).toMatchObject({ enabled: false, detector_id: 1 })
   })
+
+  it('com enabled=true e nenhum detector escolhido, o botão Salvar fica desabilitado; escolher um detector habilita', async () => {
+    mockAnalysisFetch({ enabled: true, detector_id: null })
+    renderPage()
+
+    const saveBtn = (await screen.findByRole('button', { name: /salvar/i })) as HTMLButtonElement
+    expect(saveBtn.disabled).toBe(true)
+    expect(await screen.findByText(/selecione um detector/i)).toBeTruthy()
+
+    const detectorSelect = screen.getByLabelText(/detector/i) as HTMLSelectElement
+    fireEvent.change(detectorSelect, { target: { value: '1' } })
+
+    expect(saveBtn.disabled).toBe(false)
+    expect(screen.queryByText(/selecione um detector/i)).toBeNull()
+  })
 })
