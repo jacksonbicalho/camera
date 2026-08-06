@@ -665,18 +665,36 @@ export default function HistoryPage() {
       )
     }
   }
-  // Marca como lida a notificação do evento quando o Histórico abre com :motionId — mesmo
-  // evento resolvido acima (`events.find`), mas via useEffect (não dentro do bloco de ajuste
-  // de estado durante o render acima): chamar `markReadByEvent` ali dispararia o setState do
+  // Marca como lida qualquer notificação cujo evento caia na janela de contenção da gravação
+  // EM REPRODUÇÃO (`selected`) — mesma janela ([start-trailMs, start+chunkMs+leadMs)) que
+  // `recordingCategory`/`recordingItems` já usa pra colorir os cards. Generaliza o mecanismo
+  // antigo (restrito a `clipActive`+`:motionId` do deep-link): `selected` muda tanto por
+  // clique manual (`selectRecording`) quanto por avanço automático da reprodução contínua
+  // (`handleSegmentChange`), então os três casos (clique, contínua, deep-link) passam pelo
+  // mesmo caminho — o evento-âncora do deep-link sempre cai dentro da própria janela, já que
+  // `resolvedClipSegments` acima foi construído com o mesmo lead/trail. Via useEffect (não
+  // ajuste durante o render): chamar `markReadByEvent` no render dispararia o setState do
   // NotificationProvider (um componente ANCESTRAL) durante o render do HistoryPage — React
-  // não permite atualizar o estado de OUTRO componente durante o render do componente atual
-  // (diferente do padrão "ajuste durante o render" já usado nesta página, que só vale pro
-  // PRÓPRIO estado do componente que está renderizando).
+  // não permite atualizar o estado de OUTRO componente durante o render do componente atual.
+  // `markReadByEvent` é idempotente pra evento sem notificação ou já lido (bail-out no
+  // Provider), então rodar de novo a cada poll (`recordings`/`events` trocando de referência)
+  // é seguro.
   useEffect(() => {
-    if (!clipActive || !camera) return
-    const ev = events.find((e) => String(e.id) === initialMotionId)
-    if (ev) markReadByEvent(camera.id, ev.time)
-  }, [clipActive, camera, events, initialMotionId, markReadByEvent])
+    if (!selected || !camera) return
+    const idx = recordings.findIndex((r) => r.id === selected.id)
+    const chunkMs = recordingDurationMs(selected, recordings[idx - 1])
+    const start = Date.parse(selected.start)
+    if (Number.isNaN(start)) return
+    const leadMs = (camera.playback_lead_seconds ?? 10) * 1000
+    const trailMs = (camera.playback_trail_seconds ?? 10) * 1000
+    const rangeStart = start - trailMs
+    const rangeEnd = start + chunkMs + leadMs
+    for (const ev of events) {
+      const t = Date.parse(ev.time)
+      if (Number.isNaN(t) || t < rangeStart || t >= rangeEnd) continue
+      markReadByEvent(camera.id, ev.time)
+    }
+  }, [selected, camera, recordings, events, markReadByEvent])
   // Prioridade: contínua > clipe (só enquanto `clipActive` — sai do modo, mesmo com um
   // clipe já congelado em `resolvedClipSegments`, cai pro chunk inteiro) > gravação única.
   // Sem sobreposição real (ex.: a gravação-alvo sumiu do dia, `resolvedClipSegments` congela
