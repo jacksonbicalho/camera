@@ -3,13 +3,11 @@ package server_test
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"camera/internal/config"
-	"camera/internal/db"
 	"camera/internal/server"
 )
 
@@ -20,6 +18,13 @@ func setupWithCamera(t *testing.T) (http.Handler, string) {
 	srv = withTestUsersAndCameras(t, srv, cameras)
 	token := loginAndGetToken(t, srv, "admin", "pw")
 	return srv, token
+}
+
+// analysisConfigDTO espelha o novo corpo de GET/PUT /api/settings/analysis
+// (T3): {state_trainer_id} substitui {service_url, model, has_custom_model}
+// — aponta pra um trainer já cadastrado em vez de repetir a URL/modelo.
+type analysisConfigDTO struct {
+	StateTrainerID *int64 `json:"state_trainer_id"`
 }
 
 func TestGetAnalysisConfig_Default(t *testing.T) {
@@ -33,20 +38,38 @@ func TestGetAnalysisConfig_Default(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
-	var cfg db.VideoAnalysisConfig
+	var cfg analysisConfigDTO
 	if err := json.Unmarshal(w.Body.Bytes(), &cfg); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if cfg.Model != "yolov8n" {
-		t.Errorf("default model = %q, want yolov8n", cfg.Model)
+	if cfg.StateTrainerID != nil {
+		t.Errorf("CA2: state_trainer_id = %v, want nil por padrão", *cfg.StateTrainerID)
 	}
 }
 
-func TestUpdateAnalysisConfig(t *testing.T) {
+func TestUpdateAnalysisConfig_StateTrainerID(t *testing.T) {
 	srv, token := setupDrivesServer(t)
 
-	body := `{"service_url":"http://yolo:8000","model":"yolov8s"}`
-	req := httptest.NewRequest(http.MethodPut, "/api/settings/analysis", bytes.NewBufferString(body))
+	// Registra um trainer de verdade (a config aponta pra ele, não digita URL/modelo).
+	trainerBody, _ := json.Marshal(map[string]any{
+		"name":   "YOLO principal",
+		"type":   "yolo",
+		"config": map[string]string{"service_url": "http://yolo:8000"},
+	})
+	trainerReq := httptest.NewRequest(http.MethodPost, "/api/settings/trainers", bytes.NewReader(trainerBody))
+	trainerReq.Header.Set("Authorization", "Bearer "+token)
+	trainerReq.Header.Set("Content-Type", "application/json")
+	trainerW := httptest.NewRecorder()
+	srv.ServeHTTP(trainerW, trainerReq)
+	var createdTrainer struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(trainerW.Body.Bytes(), &createdTrainer); err != nil {
+		t.Fatalf("unmarshal created trainer: %v", err)
+	}
+
+	body, _ := json.Marshal(analysisConfigDTO{StateTrainerID: &createdTrainer.ID})
+	req := httptest.NewRequest(http.MethodPut, "/api/settings/analysis", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -61,10 +84,28 @@ func TestUpdateAnalysisConfig(t *testing.T) {
 	w2 := httptest.NewRecorder()
 	srv.ServeHTTP(w2, req2)
 
-	var cfg db.VideoAnalysisConfig
+	var cfg analysisConfigDTO
 	json.Unmarshal(w2.Body.Bytes(), &cfg)
-	if cfg.ServiceURL != "http://yolo:8000" {
-		t.Errorf("ServiceURL = %q, want http://yolo:8000", cfg.ServiceURL)
+	if cfg.StateTrainerID == nil || *cfg.StateTrainerID != createdTrainer.ID {
+		t.Errorf("CA2: state_trainer_id = %v, want %d", cfg.StateTrainerID, createdTrainer.ID)
+	}
+}
+
+// CA4: o catálogo de modelos (GET /api/settings/analysis/models) e o aviso
+// de elegibilidade de fine-tuning que ele alimentava saem por completo —
+// decisão do navigator na análise (o usuário digita qualquer modelo livre
+// no cadastro do trainer, sem validação prévia; falhas chegam pelo status
+// assíncrono do job, que já tem mensagem amigável pra esse caso).
+func TestAnalysisModelsEndpoint_Removed(t *testing.T) {
+	srv, token := setupDrivesServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings/analysis/models", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("CA4: GET /api/settings/analysis/models = %d, want 404 (rota removida)", w.Code)
 	}
 }
 
@@ -85,86 +126,6 @@ func TestGetCameraAnalysisConfig_Default(t *testing.T) {
 	// análise não pode ter default true.
 	if result["enabled"] != false {
 		t.Errorf("default per-camera enabled = %v, want false", result["enabled"])
-	}
-}
-
-func TestGetAnalysisConfig_HasCustomModelDefault(t *testing.T) {
-	srv, token := setupDrivesServer(t)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/settings/analysis", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
-
-	var cfg db.VideoAnalysisConfig
-	json.Unmarshal(w.Body.Bytes(), &cfg)
-	if cfg.HasCustomModel {
-		t.Error("HasCustomModel should be false by default")
-	}
-}
-
-func TestFinetuneStatus_SetsHasCustomModelOnCompletion(t *testing.T) {
-	// Mock YOLO service that returns status=completed.
-	yolo := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"done","epoch":20,"total_epochs":20}`))
-	}))
-	defer yolo.Close()
-
-	srv, token := setupDrivesServer(t)
-
-	// Configure the analysis service URL to point to our mock.
-	cfgBody, _ := json.Marshal(map[string]any{
-		"enabled":     true,
-		"service_url": yolo.URL,
-		"model":       "yolov8n",
-	})
-	req := httptest.NewRequest(http.MethodPut, "/api/settings/analysis", bytes.NewReader(cfgBody))
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-	httptest.NewRecorder() // discard
-	srv.ServeHTTP(httptest.NewRecorder(), req)
-
-	// Registra o trainer cadastrado (feat/trainer-adapter-pattern) apontando
-	// pro mesmo mock YOLO — handleFinetuneStatus não lê mais
-	// video_analysis_config.ServiceURL, resolve via trainer_id.
-	trainerBody, _ := json.Marshal(map[string]any{
-		"name":   "YOLO principal",
-		"type":   "yolo",
-		"config": map[string]string{"service_url": yolo.URL},
-	})
-	trainerReq := httptest.NewRequest(http.MethodPost, "/api/settings/trainers", bytes.NewReader(trainerBody))
-	trainerReq.Header.Set("Authorization", "Bearer "+token)
-	trainerReq.Header.Set("Content-Type", "application/json")
-	trainerW := httptest.NewRecorder()
-	srv.ServeHTTP(trainerW, trainerReq)
-	var createdTrainer struct {
-		ID int64 `json:"id"`
-	}
-	if err := json.Unmarshal(trainerW.Body.Bytes(), &createdTrainer); err != nil {
-		t.Fatalf("unmarshal created trainer: %v", err)
-	}
-
-	// Call finetune status — should set has_custom_model=true.
-	req2 := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/settings/analysis/finetune/status/job123?trainer_id=%d", createdTrainer.ID), nil)
-	req2.Header.Set("Authorization", "Bearer "+token)
-	w2 := httptest.NewRecorder()
-	srv.ServeHTTP(w2, req2)
-
-	if w2.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w2.Code, w2.Body.String())
-	}
-
-	// Config should now have has_custom_model=true.
-	req3 := httptest.NewRequest(http.MethodGet, "/api/settings/analysis", nil)
-	req3.Header.Set("Authorization", "Bearer "+token)
-	w3 := httptest.NewRecorder()
-	srv.ServeHTTP(w3, req3)
-
-	var cfg db.VideoAnalysisConfig
-	json.Unmarshal(w3.Body.Bytes(), &cfg)
-	if !cfg.HasCustomModel {
-		t.Error("HasCustomModel should be true after finetune completes")
 	}
 }
 

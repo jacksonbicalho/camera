@@ -3,19 +3,10 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
-
-// VideoAnalysisConfig is the shared config for the YOLO service used by
-// fine-tuning and state classification training — not per-recording
-// analysis anymore (that moved to a detector + threshold chosen per camera,
-// see CameraAnalysisConfig).
-type VideoAnalysisConfig struct {
-	ServiceURL     string `json:"service_url"`
-	Model          string `json:"model"`
-	HasCustomModel bool   `json:"has_custom_model"`
-}
 
 type Detection struct {
 	ID          int64     `json:"id"`
@@ -26,36 +17,64 @@ type Detection struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-func GetVideoAnalysisConfig(d *DB) (VideoAnalysisConfig, error) {
-	var cfg VideoAnalysisConfig
-	var hasCustomModel int
-	err := d.QueryRow(`
-		SELECT service_url, model, has_custom_model
-		FROM video_analysis_config WHERE id=1`).
-		Scan(&cfg.ServiceURL, &cfg.Model, &hasCustomModel)
+// stateClassificationTrainerIDKey is the system_config key holding which
+// registered trainer (internal/db/trainers.go) state classification should
+// use — replaces video_analysis_config.service_url (T3 removes that table):
+// trainers/detectors already register a service_url each, so state
+// classification just points at one instead of duplicating it.
+const stateClassificationTrainerIDKey = "analysis.state_trainer_id"
+
+// GetStateClassificationTrainerID returns the id of the trainer registered
+// to source state classification's YOLO service URL, or nil when none is
+// configured yet (state classification simply doesn't run — same effect as
+// an empty service_url before) OR when the stored value is unreadable
+// (corrupted/legacy) — same "config ilegível vira default silencioso"
+// idiom already used by StorageSettingsFromDB (config.go).
+func GetStateClassificationTrainerID(d *DB) (*int64, error) {
+	all, err := GetAllConfig(d)
 	if err != nil {
-		return VideoAnalysisConfig{}, err
+		return nil, fmt.Errorf("get state classification trainer id: %w", err)
 	}
-	cfg.HasCustomModel = hasCustomModel != 0
-	return cfg, nil
+	v, ok := all[stateClassificationTrainerIDKey]
+	if !ok || v == "" {
+		return nil, nil
+	}
+	id, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return nil, nil
+	}
+	return &id, nil
 }
 
-func UpdateVideoAnalysisConfig(d *DB, cfg VideoAnalysisConfig) error {
-	_, err := d.Exec(`
-		UPDATE video_analysis_config
-		SET service_url=?, model=?
-		WHERE id=1`,
-		cfg.ServiceURL, cfg.Model)
-	return err
+// SetStateClassificationTrainerID persists which trainer state
+// classification should use — nil clears the setting.
+func SetStateClassificationTrainerID(d *DB, trainerID *int64) error {
+	v := ""
+	if trainerID != nil {
+		v = strconv.FormatInt(*trainerID, 10)
+	}
+	return SetConfig(d, stateClassificationTrainerIDKey, v)
 }
 
-func SetHasCustomModel(d *DB, v bool) error {
-	n := 0
-	if v {
-		n = 1
+// GetStateClassificationServiceURL resolves the YOLO service URL state
+// classification should use right now, by looking up the trainer
+// configured via GetStateClassificationTrainerID. Returns "" (no error)
+// when no trainer is configured, or when the configured trainer was since
+// deleted — callers treat that the same as "not configured", never an
+// error (mesmo comportamento de hoje com o service_url vazio).
+func GetStateClassificationServiceURL(d *DB) (string, error) {
+	id, err := GetStateClassificationTrainerID(d)
+	if err != nil {
+		return "", err
 	}
-	_, err := d.Exec(`UPDATE video_analysis_config SET has_custom_model=? WHERE id=1`, n)
-	return err
+	if id == nil {
+		return "", nil
+	}
+	trainer, err := GetTrainer(d, *id)
+	if err != nil {
+		return "", nil
+	}
+	return trainer.Config["service_url"], nil
 }
 
 // CameraAnalysisConfig is a camera's own analysis setup: whether it's on,

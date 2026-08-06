@@ -141,10 +141,10 @@ func TestClassifierValidation(t *testing.T) {
 	path := "/api/settings/cameras/" + id + "/classifiers"
 
 	cases := map[string]func(map[string]any){
-		"name vazio":   func(b map[string]any) { b["name"] = "  " },
-		"< 2 classes":  func(b map[string]any) { b["classes"] = []string{"aberto"} },
+		"name vazio":    func(b map[string]any) { b["name"] = "  " },
+		"< 2 classes":   func(b map[string]any) { b["classes"] = []string{"aberto"} },
 		"crop inválido": func(b map[string]any) { b["crop_w"] = 0.95; b["crop_x"] = 0.5 },
-		"sem gatilho":  func(b map[string]any) { b["trigger_motion"] = false },
+		"sem gatilho":   func(b map[string]any) { b["trigger_motion"] = false },
 	}
 	for name, mutate := range cases {
 		body := validClassifierBody()
@@ -334,7 +334,14 @@ func TestClassifierTrain(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]string{"job_id": "j1"})
 	}))
 	defer yolo.Close()
-	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{ServiceURL: yolo.URL, Model: "yolov8n"}); err != nil {
+	// CA3: state classification resolve a URL do serviço YOLO através do
+	// trainer configurado (analysis.state_trainer_id → trainers.service_url)
+	// — não mais um campo direto em video_analysis_config.
+	trainerID, err := db.InsertTrainer(database, "YOLO principal", "yolo", map[string]string{"service_url": yolo.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetStateClassificationTrainerID(database, &trainerID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -351,27 +358,29 @@ func TestClassifierTrain(t *testing.T) {
 	trainPath := "/api/settings/cameras/cam1/classifiers/" + strconv.FormatInt(created.ID, 10) + "/train"
 
 	jpeg := base64.StdEncoding.EncodeToString([]byte("fake"))
-	w = doJSON(t, srv, http.MethodPost, trainPath, token, map[string]any{
-		"samples": []map[string]string{
-			{"label": "fechado", "image_b64": jpeg},
-			{"label": "aberto", "image_b64": jpeg},
-		},
+	t.Run("CA3: treino usa a URL do trainer configurado pra state classification", func(t *testing.T) {
+		w = doJSON(t, srv, http.MethodPost, trainPath, token, map[string]any{
+			"samples": []map[string]string{
+				{"label": "fechado", "image_b64": jpeg},
+				{"label": "aberto", "image_b64": jpeg},
+			},
+		})
+		if w.Code != http.StatusOK {
+			t.Fatalf("train: expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			JobID string `json:"job_id"`
+		}
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		if resp.JobID != "j1" {
+			t.Fatalf("expected job_id j1, got %q", resp.JobID)
+		}
+		// treino deve mirar o modelo DESTE classificador (não o compartilhado)
+		wantModel := "custom-cls-" + strconv.FormatInt(created.ID, 10)
+		if gotModel != wantModel {
+			t.Fatalf("expected train model %q, got %q", wantModel, gotModel)
+		}
 	})
-	if w.Code != http.StatusOK {
-		t.Fatalf("train: expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-	var resp struct {
-		JobID string `json:"job_id"`
-	}
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp.JobID != "j1" {
-		t.Fatalf("expected job_id j1, got %q", resp.JobID)
-	}
-	// treino deve mirar o modelo DESTE classificador (não o compartilhado)
-	wantModel := "custom-cls-" + strconv.FormatInt(created.ID, 10)
-	if gotModel != wantModel {
-		t.Fatalf("expected train model %q, got %q", wantModel, gotModel)
-	}
 
 	// < 2 classes → 400
 	w = doJSON(t, srv, http.MethodPost, trainPath, token, map[string]any{
@@ -426,7 +435,12 @@ func TestClassifierTrainFromStoredSamples(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]string{"job_id": "j2"})
 	}))
 	defer yolo.Close()
-	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{ServiceURL: yolo.URL, Model: "yolov8n"}); err != nil {
+	// CA3: mesmo mecanismo de resolução via trainer que TestClassifierTrain.
+	trainerID, err := db.InsertTrainer(database, "YOLO principal", "yolo", map[string]string{"service_url": yolo.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetStateClassificationTrainerID(database, &trainerID); err != nil {
 		t.Fatal(err)
 	}
 

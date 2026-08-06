@@ -23,22 +23,6 @@ func (s *Server) handleReanalyze(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) handleListModels(w http.ResponseWriter, r *http.Request) {
-	cfg, err := db.GetVideoAnalysisConfig(s.db)
-	if err != nil || cfg.ServiceURL == "" {
-		http.Error(w, "analysis service not configured", http.StatusServiceUnavailable)
-		return
-	}
-	client := analysis.NewClient(cfg.ServiceURL)
-	models, err := client.Models(r.Context())
-	if err != nil {
-		http.Error(w, "yolo service unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(models)
-}
-
 // resolveTrainer looks up a registered trainer by id and builds its adapter
 // — shared by start/status/cancel now that fine-tuning dispatches via the
 // trainers cadastro (internal/trainer) instead of reading
@@ -202,7 +186,6 @@ func (s *Server) handleFinetuneStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if status.Status == "done" || status.Status == "completed" {
-		_ = db.SetHasCustomModel(s.db, true)
 		if err := db.ResetDetectionsForReanalysis(s.db); err != nil {
 			s.log.Warn("finetune done: reset detections failed", "err", err)
 		}

@@ -7,33 +7,95 @@ import (
 	"camera/internal/db"
 )
 
-func TestVideoAnalysisConfig_DefaultAndUpdate(t *testing.T) {
+// GetStateClassificationServiceURL substitui video_analysis_config.service_url
+// (removida em T3): em vez de um campo digitado à parte, resolve a URL do
+// serviço YOLO através de um trainer já cadastrado (trainers/trainer_config,
+// internal/db/trainers.go) — sem exigir cadastrar a mesma URL de novo.
+func TestStateClassificationServiceConfig_DefaultAndSet(t *testing.T) {
 	database := openTestDB(t)
 
-	cfg, err := db.GetVideoAnalysisConfig(database)
-	if err != nil {
-		t.Fatalf("GetVideoAnalysisConfig: %v", err)
-	}
-	if cfg.Model != "yolov8n" {
-		t.Errorf("default model = %q, want yolov8n", cfg.Model)
-	}
+	t.Run("CA2: sem trainer configurado, id e URL resolvida ficam vazios", func(t *testing.T) {
+		id, err := db.GetStateClassificationTrainerID(database)
+		if err != nil {
+			t.Fatalf("GetStateClassificationTrainerID: %v", err)
+		}
+		if id != nil {
+			t.Errorf("default trainer id = %v, want nil", *id)
+		}
+		url, err := db.GetStateClassificationServiceURL(database)
+		if err != nil {
+			t.Fatalf("GetStateClassificationServiceURL: %v", err)
+		}
+		if url != "" {
+			t.Errorf("default service url = %q, want empty", url)
+		}
+	})
 
-	cfg.ServiceURL = "http://yolo:8000"
-	cfg.Model = "yolov8s"
-	if err := db.UpdateVideoAnalysisConfig(database, cfg); err != nil {
-		t.Fatalf("UpdateVideoAnalysisConfig: %v", err)
-	}
+	t.Run("CA2: setar um trainer persiste o id e resolve a URL DELE, não um campo separado", func(t *testing.T) {
+		trainerID, err := db.InsertTrainer(database, "YOLO principal", "yolo", map[string]string{
+			"service_url": "http://yolo:8001",
+			"model":       "yolo11n",
+		})
+		if err != nil {
+			t.Fatalf("InsertTrainer: %v", err)
+		}
+		if err := db.SetStateClassificationTrainerID(database, &trainerID); err != nil {
+			t.Fatalf("SetStateClassificationTrainerID: %v", err)
+		}
 
-	got, err := db.GetVideoAnalysisConfig(database)
-	if err != nil {
-		t.Fatalf("GetVideoAnalysisConfig after update: %v", err)
-	}
-	if got.ServiceURL != "http://yolo:8000" {
-		t.Errorf("ServiceURL = %q, want http://yolo:8000", got.ServiceURL)
-	}
-	if got.Model != "yolov8s" {
-		t.Errorf("Model = %q, want yolov8s", got.Model)
-	}
+		gotID, err := db.GetStateClassificationTrainerID(database)
+		if err != nil {
+			t.Fatalf("GetStateClassificationTrainerID after set: %v", err)
+		}
+		if gotID == nil || *gotID != trainerID {
+			t.Errorf("trainer id = %v, want %d", gotID, trainerID)
+		}
+
+		url, err := db.GetStateClassificationServiceURL(database)
+		if err != nil {
+			t.Fatalf("GetStateClassificationServiceURL after set: %v", err)
+		}
+		if url != "http://yolo:8001" {
+			t.Errorf("service url = %q, want http://yolo:8001 (do trainer cadastrado)", url)
+		}
+	})
+
+	t.Run("CA2: trainer configurado e depois apagado volta a resolver como não configurado, sem erro", func(t *testing.T) {
+		trainerID, err := db.InsertTrainer(database, "YOLO temporário", "yolo", map[string]string{
+			"service_url": "http://yolo:9000",
+		})
+		if err != nil {
+			t.Fatalf("InsertTrainer: %v", err)
+		}
+		if err := db.SetStateClassificationTrainerID(database, &trainerID); err != nil {
+			t.Fatalf("SetStateClassificationTrainerID: %v", err)
+		}
+		if err := db.DeleteTrainer(database, trainerID); err != nil {
+			t.Fatalf("DeleteTrainer: %v", err)
+		}
+
+		url, err := db.GetStateClassificationServiceURL(database)
+		if err != nil {
+			t.Fatalf("GetStateClassificationServiceURL after trainer deleted: %v", err)
+		}
+		if url != "" {
+			t.Errorf("service url = %q, want empty (trainer apagado)", url)
+		}
+	})
+
+	t.Run("CA2: valor corrompido em system_config é tratado como não configurado, sem erro", func(t *testing.T) {
+		if err := db.SetConfig(database, "analysis.state_trainer_id", "not-a-number"); err != nil {
+			t.Fatalf("SetConfig: %v", err)
+		}
+
+		id, err := db.GetStateClassificationTrainerID(database)
+		if err != nil {
+			t.Fatalf("GetStateClassificationTrainerID: %v", err)
+		}
+		if id != nil {
+			t.Errorf("trainer id = %v, want nil (valor corrompido)", *id)
+		}
+	})
 }
 
 func TestCameraAnalysisConfig_DefaultAndSet(t *testing.T) {

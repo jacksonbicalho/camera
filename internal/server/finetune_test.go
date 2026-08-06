@@ -23,12 +23,6 @@ func setupFinetuneServer(t *testing.T, yoloHandler http.HandlerFunc) (http.Handl
 	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
 		t.Fatalf("create admin: %v", err)
 	}
-	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-		ServiceURL: yoloSrv.URL,
-		Model:      "yolov8n",
-	}); err != nil {
-		t.Fatalf("set analysis config: %v", err)
-	}
 	trainerID, err := db.InsertTrainer(database, "YOLO principal", "yolo", map[string]string{
 		"service_url": yoloSrv.URL,
 	})
@@ -104,12 +98,6 @@ func TestFinetuneStatus_DoneResetsBaseModelDetections(t *testing.T) {
 	database := openServerTestDB(t)
 	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
 		t.Fatalf("create admin: %v", err)
-	}
-	if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-		ServiceURL: yoloSrv.URL,
-		Model:      "yolov8n",
-	}); err != nil {
-		t.Fatalf("set analysis config: %v", err)
 	}
 	trainerID, err := db.InsertTrainer(database, "YOLO principal", "yolo", map[string]string{
 		"service_url": yoloSrv.URL,

@@ -5,16 +5,7 @@ import { authHeaders } from '../../auth'
 import { Button } from '@/components/ui/button'
 
 interface AnalysisConfig {
-  service_url: string
-  model: string
-  has_custom_model?: boolean
-}
-
-interface ModelInfo {
-  name: string
-  group: string
-  inference: boolean
-  finetune: boolean
+  state_trainer_id: number | null
 }
 
 interface TrainerItem {
@@ -24,7 +15,16 @@ interface TrainerItem {
   config: Record<string, string>
 }
 
-function ReanalyzePanel({ ftActive }: { ftActive: boolean }) {
+function ReanalyzePanel({
+  ftActive,
+  anyCameraAnalysisEnabled,
+}: {
+  ftActive: boolean
+  // null = ainda carregando GET /api/settings/cameras — desabilita por
+  // segurança, mas sem mostrar o aviso ainda (mesma distinção usada pelo
+  // gate de "Novo classificador" em CameraStatesSettingsPage.tsx).
+  anyCameraAnalysisEnabled: boolean | null
+}) {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [err, setErr] = useState('')
@@ -54,8 +54,8 @@ function ReanalyzePanel({ ftActive }: { ftActive: boolean }) {
       <div>
         <p className="text-sm font-medium text-foreground">Re-analisar tudo</p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Limpa as detecções existentes e re-envia todas as gravações ao serviço YOLO com o modelo
-          atual.
+          Limpa as detecções existentes e re-envia todas as gravações pro detector configurado em
+          cada câmera.
         </p>
         {err && <p className="text-xs text-red-400 mt-1">{err}</p>}
         {done && (
@@ -68,14 +68,19 @@ function ReanalyzePanel({ ftActive }: { ftActive: boolean }) {
             Fine-tuning em andamento — aguarde para reanalisar (evita disputar a GPU com o treino).
           </p>
         )}
+        {anyCameraAnalysisEnabled === false && (
+          <p className="text-xs text-amber-400 mt-1">
+            Nenhuma câmera com análise habilitada — configure um detector por câmera em
+            Configurações → Câmeras → Análise antes de reanalisar.
+          </p>
+        )}
       </div>
       <Button
         id="analysis-reanalyze"
         type="button"
-        variant="secondary"
-        className="shrink-0"
+        className="bg-violet-600 hover:bg-violet-500 text-white shrink-0"
         onClick={handleReanalyze}
-        disabled={busy || ftActive}
+        disabled={busy || ftActive || anyCameraAnalysisEnabled !== true}
       >
         {busy ? 'Aguarde...' : 'Re-analisar tudo'}
       </Button>
@@ -84,38 +89,17 @@ function ReanalyzePanel({ ftActive }: { ftActive: boolean }) {
 }
 
 export default function AnalysisSettingsPage() {
-  const [cfg, setCfg] = useState<AnalysisConfig>({
-    service_url: '',
-    model: 'yolov8n',
-  })
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [cfg, setCfg] = useState<AnalysisConfig>({ state_trainer_id: null })
+  const [savingStateTrainer, setSavingStateTrainer] = useState(false)
   const [error, setError] = useState('')
-  const [serviceModels, setServiceModels] = useState<ModelInfo[] | null>(null)
-  const [serviceOffline, setServiceOffline] = useState(false)
-  const [serviceDevice, setServiceDevice] = useState<string | null>(null)
-  const [serviceVramGb, setServiceVramGb] = useState<number | null>(null)
-
-  const activeBase = cfg.model.startsWith('custom+')
-    ? cfg.model.slice('custom+'.length)
-    : cfg.model === 'custom'
-      ? null
-      : cfg.model
-  const activeModelInfo =
-    activeBase && serviceModels ? (serviceModels.find((m) => m.name === activeBase) ?? null) : null
-  const modelNoFinetune =
-    serviceModels !== null &&
-    !serviceOffline &&
-    activeModelInfo !== null &&
-    !activeModelInfo.finetune
   const [annCount, setAnnCount] = useState<number | null>(null)
   const [labelCount, setLabelCount] = useState<number | null>(null)
   const [epochs, setEpochs] = useState(20)
   const [trainers, setTrainers] = useState<TrainerItem[]>([])
   // trainer_id persiste ao lado de ft_job_id (mesma chave localStorage,
-  // ver CLAUDE.md/story) — fine-tuning não lê mais
-  // video_analysis_config.ServiceURL direto, precisa saber qual trainer
-  // cadastrado consultar pra sobreviver a um reload com job em andamento.
+  // ver CLAUDE.md/story) — fine-tuning não lê mais nenhum config global,
+  // precisa saber qual trainer cadastrado consultar pra sobreviver a um
+  // reload com job em andamento.
   const [trainerId, setTrainerId] = useState<number | null>(() => {
     const v = localStorage.getItem('ft_trainer_id')
     return v ? Number(v) : null
@@ -130,26 +114,10 @@ export default function AnalysisSettingsPage() {
   const [ftError, setFtError] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const ftActive = ftStatus?.status === 'running' || ftStatus?.status === 'pending'
-
-  function fetchModels() {
-    fetch('/api/settings/analysis/models', { headers: authHeaders() })
-      .then((r) => {
-        if (!r.ok) throw new Error('offline')
-        return r.json()
-      })
-      .then((d) => {
-        setServiceModels(d.models)
-        setServiceDevice(d.device ?? null)
-        setServiceVramGb(typeof d.vram_gb === 'number' ? d.vram_gb : null)
-        setServiceOffline(false)
-      })
-      .catch(() => {
-        setServiceModels(null)
-        setServiceDevice(null)
-        setServiceVramGb(null)
-        setServiceOffline(true)
-      })
-  }
+  // "Re-analisar tudo" só faz sentido com pelo menos 1 câmera com análise
+  // habilitada (analysis_enabled) — sem isso, analyzeNewRecordings não
+  // reprocessa nada, mesmo com as flags resetadas. null = ainda carregando.
+  const [anyCameraAnalysisEnabled, setAnyCameraAnalysisEnabled] = useState<boolean | null>(null)
 
   function refreshCounts() {
     fetch('/api/settings/analysis/annotation-count', { headers: authHeaders() })
@@ -169,11 +137,19 @@ export default function AnalysisSettingsPage() {
       .then(setCfg)
       .catch(() => setError('Falha ao carregar configurações'))
     refreshCounts()
-    fetchModels()
     fetch('/api/settings/trainers', { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setTrainers(Array.isArray(d) ? d : []))
       .catch(() => setTrainers([]))
+    fetch('/api/settings/cameras', { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d: unknown) => {
+        const list = Array.isArray(d) ? d : []
+        setAnyCameraAnalysisEnabled(
+          list.some((c) => (c as { analysis_enabled?: boolean }).analysis_enabled),
+        )
+      })
+      .catch(() => setAnyCameraAnalysisEnabled(false))
   }, [])
 
   useEffect(() => {
@@ -198,12 +174,6 @@ export default function AnalysisSettingsPage() {
           localStorage.removeItem('ft_job_id')
           localStorage.removeItem('ft_trainer_id')
           if (s.status === 'error') setFtError(s.error || 'Erro no treino')
-          if (s.status === 'done') {
-            fetch('/api/settings/analysis', { headers: authHeaders() })
-              .then((r) => r.json())
-              .then((data) => setCfg(data))
-              .catch(() => {})
-          }
         }
       } catch {
         /* ignore poll errors */
@@ -254,25 +224,26 @@ export default function AnalysisSettingsPage() {
     setFtError('')
   }
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault()
+  // Único campo desta seção — salva sozinho ao trocar (sem botão "Salvar"
+  // separado, mesmo padrão de outros seletores simples do app, ex. accent
+  // color em AppearanceSettingsPage).
+  async function handleStateTrainerChange(v: string) {
+    const stateTrainerId = v ? Number(v) : null
     setError('')
-    setSaving(true)
+    setSavingStateTrainer(true)
     try {
       const res = await fetch('/api/settings/analysis', {
         method: 'PUT',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(cfg),
+        body: JSON.stringify({ state_trainer_id: stateTrainerId }),
       })
       if (res.ok) {
-        setSaved(true)
-        setTimeout(() => setSaved(false), 2000)
-        fetchModels()
+        setCfg({ state_trainer_id: stateTrainerId })
       } else {
         setError('Erro ao salvar')
       }
     } finally {
-      setSaving(false)
+      setSavingStateTrainer(false)
     }
   }
 
@@ -281,155 +252,53 @@ export default function AnalysisSettingsPage() {
       <div className="space-y-6">
         <PageHeader
           title="Análise de vídeo"
-          subtitle="Serviço YOLO usado por detectores de objetos, fine-tuning e treino de state classification."
+          subtitle="Serviço usado por classificação de estado — detectores de objetos (por câmera) e fine-tuning (por trainer) têm seu próprio cadastro em Configurações → Detectores/Treinadores."
         />
 
-        <form
-          onSubmit={handleSave}
-          className="bg-surface-2 rounded-lg border border-border divide-y divide-border"
-        >
-          <div className="p-4 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  URL do serviço
-                </label>
-                <input
-                  type="url"
-                  className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring"
-                  placeholder="http://yolo:8001"
-                  value={cfg.service_url}
-                  onChange={(e) => setCfg((c) => ({ ...c, service_url: e.target.value }))}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Endereço do container YOLO (ex: <code>http://yolo:8001</code>)
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Modelo
-                </label>
-                {serviceOffline ? (
-                  <div className="w-full bg-surface-2 text-amber-400 text-sm rounded px-3 py-2 border border-amber-600">
-                    Serviço YOLO offline — configure a URL e verifique se o container está rodando
-                  </div>
-                ) : serviceModels === null ? (
-                  <div className="w-full bg-surface-2 text-muted-foreground text-sm rounded px-3 py-2 border border-border">
-                    Carregando modelos...
-                  </div>
-                ) : (
-                  <>
-                    <select
-                      className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring"
-                      value={cfg.model}
-                      onChange={(e) => setCfg((c) => ({ ...c, model: e.target.value }))}
-                    >
-                      {cfg.has_custom_model &&
-                        (() => {
-                          const base = cfg.model.startsWith('custom+')
-                            ? cfg.model.slice('custom+'.length)
-                            : cfg.model === 'custom'
-                              ? 'yolov8n'
-                              : cfg.model
-                          const combinedValue = `custom+${base}`
-                          return (
-                            <optgroup label="Custom">
-                              <option value="custom">custom ✓ (treinado)</option>
-                              <option value={combinedValue}>custom + {base}</option>
-                            </optgroup>
-                          )
-                        })()}
-                      {Array.from(
-                        new Set(
-                          serviceModels
-                            .filter((m) => m.inference && m.name !== 'custom')
-                            .map((m) => m.group),
-                        ),
-                      ).map((group) => (
-                        <optgroup key={group} label={group}>
-                          {serviceModels
-                            .filter((m) => m.group === group && m.inference && m.name !== 'custom')
-                            .map((m) => (
-                              <option key={m.name} value={m.name}>
-                                {m.name}
-                              </option>
-                            ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      n = mais rápido · x = mais preciso
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 flex items-center justify-between">
-            {error && <p className="text-sm text-red-400">{error}</p>}
-            {saved && <p className="text-sm text-green-400">Salvo</p>}
-            {!error && !saved && <span />}
-            <Button id="analysis-save" type="submit" disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
-            </Button>
-          </div>
-        </form>
-
         <div className="bg-surface-2 rounded-lg border border-border p-4">
-          <h4 className="text-sm font-medium text-foreground mb-2">Como usar</h4>
-          <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-            <li>
-              Suba o serviço YOLO:{' '}
-              <code className="bg-surface-2 px-1 rounded">docker compose --profile yolo up -d</code>
-            </li>
-            <li>
-              Configure a URL acima (padrão:{' '}
-              <code className="bg-surface-2 px-1 rounded">http://yolo:8001</code>) — usada por
-              fine-tuning e treino de state classification
-            </li>
-            <li>
-              Cadastre um detector em Configurações → Detectores de objetos apontando pro serviço
-              (YOLO ou Hugging Face, cada um com seus próprios campos)
-            </li>
-            <li>
-              Escolha esse detector por câmera em Configurações → Câmeras → Análise — só a partir
-              daí as gravações concluídas passam a ser analisadas automaticamente
-            </li>
-            <li>
-              Pra treinar um modelo personalizado (fine-tuning, abaixo), cadastre um trainer em
-              Configurações → Treinadores apontando pro mesmo serviço YOLO
-            </li>
-          </ol>
+          <label
+            htmlFor="analysis-state-trainer"
+            className="block text-sm font-medium text-foreground mb-2"
+          >
+            Serviço usado por classificação de estado
+          </label>
+          <select
+            id="analysis-state-trainer"
+            className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring disabled:opacity-60"
+            value={cfg.state_trainer_id ?? ''}
+            disabled={savingStateTrainer}
+            onChange={(e) => handleStateTrainerChange(e.target.value)}
+          >
+            <option value="">Nenhum</option>
+            {trainers.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          {trainers.length === 0 ? (
+            <p className="text-xs text-muted-foreground mt-1">
+              Nenhum trainer cadastrado — cadastre um em Configurações → Treinadores.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1">
+              Aponta pro mesmo serviço YOLO já cadastrado ali — sem digitar a URL de novo.
+            </p>
+          )}
+          {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
         </div>
-
-        <ReanalyzePanel ftActive={ftActive} />
 
         <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
           <div className="p-4">
-            <h4 className="text-sm font-semibold text-foreground mb-1">Fine-tuning</h4>
+            <h4 className="text-sm font-semibold text-foreground mb-1">Treinar Modelo</h4>
             <p className="text-xs text-muted-foreground">
               Treina um modelo personalizado usando os snapshots que você anotou nos eventos de
               movimento. O modelo gerado (
-              <code className="bg-surface-2 px-1 rounded">custom.pt</code>) fica disponível no
-              seletor acima.
+              <code className="bg-surface-2 px-1 rounded">custom.pt</code>) fica disponível pra
+              qualquer detector cadastrado que aponte pro modelo <code>custom</code>.
             </p>
           </div>
 
-          {modelNoFinetune && serviceDevice === 'cpu' && (
-            <div className="px-4 py-2 bg-amber-900/40 border-b border-amber-700 text-amber-300 text-xs">
-              O serviço de análise está rodando sem GPU (CPU) — fine-tuning não é viável em nenhum
-              modelo nesse modo.
-            </div>
-          )}
-          {modelNoFinetune && serviceDevice !== 'cpu' && (
-            <div className="px-4 py-2 bg-amber-900/40 border-b border-amber-700 text-amber-300 text-xs">
-              O modelo <strong>{activeBase}</strong> não suporta fine-tuning na GPU disponível
-              {serviceVramGb !== null ? ` (${serviceVramGb}GB)` : ''}. Selecione um modelo menor
-              (ex: yolov8n, yolo11n).
-            </div>
-          )}
           <div className="p-4 space-y-3">
             <div>
               <label
@@ -477,7 +346,7 @@ export default function AnalysisSettingsPage() {
               </div>
               <Button
                 type="button"
-                disabled={(!annCount && !labelCount) || ftActive || modelNoFinetune || !trainerId}
+                disabled={(!annCount && !labelCount) || ftActive || !trainerId}
                 onClick={handleStartFinetune}
                 className="bg-violet-600 hover:bg-violet-500 text-white shrink-0"
               >
@@ -560,6 +429,8 @@ export default function AnalysisSettingsPage() {
             </div>
           )}
         </div>
+
+        <ReanalyzePanel ftActive={ftActive} anyCameraAnalysisEnabled={anyCameraAnalysisEnabled} />
       </div>
     </SettingsLayout>
   )

@@ -119,7 +119,6 @@ func (s *Server) routeTable() []route {
 
 		{"GET", "/api/settings/analysis", authAdmin, s.handleGetAnalysisConfig},
 		{"PUT", "/api/settings/analysis", authAdmin, s.handleUpdateAnalysisConfig},
-		{"GET", "/api/settings/analysis/models", authAdmin, s.handleListModels},
 		{"POST", "/api/settings/analysis/reanalyze", authAdmin, s.handleReanalyze},
 		{"POST", "/api/settings/analysis/finetune", authAdmin, s.handleStartFinetune},
 		{"DELETE", "/api/settings/analysis/finetune/{job_id}", authAdmin, s.handleCancelFinetune},

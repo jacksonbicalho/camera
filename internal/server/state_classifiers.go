@@ -150,8 +150,8 @@ func (s *Server) handleStateClassifierTrain(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	cfg, err := db.GetVideoAnalysisConfig(s.db)
-	if err != nil || cfg.ServiceURL == "" {
+	serviceURL, err := db.GetStateClassificationServiceURL(s.db)
+	if err != nil || serviceURL == "" {
 		http.Error(w, "serviço de análise não configurado", http.StatusServiceUnavailable)
 		return
 	}
@@ -185,7 +185,7 @@ func (s *Server) handleStateClassifierTrain(w http.ResponseWriter, r *http.Reque
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	jobID, err := analysis.NewClient(cfg.ServiceURL).ClassifyTrain(ctx, analysis.ClassifyTrainRequest{
+	jobID, err := analysis.NewClient(serviceURL).ClassifyTrain(ctx, analysis.ClassifyTrainRequest{
 		Samples:   samples,
 		BaseModel: "yolov8n-cls",
 		Epochs:    20,
