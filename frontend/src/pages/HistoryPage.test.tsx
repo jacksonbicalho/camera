@@ -1432,6 +1432,47 @@ describe('HistoryPage', () => {
     })
   })
 
+  describe('CA3: scroll da lista lateral não acompanha o avanço automático da reprodução contínua', () => {
+    it('avanço automático da reprodução contínua NÃO rola a lista (só ação explícita do usuário rola)', async () => {
+      const scrollIntoView = vi.fn()
+      const original = Element.prototype.scrollIntoView
+      Element.prototype.scrollIntoView = scrollIntoView
+      try {
+        renderAt('/history/cam1')
+        await waitFor(() => {
+          expect(document.getElementById('history-recording-2')).not.toBeNull()
+        })
+        document
+          .getElementById('history-recording-1')!
+          .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        await waitFor(() => {
+          const video = document.getElementById('history-player-video') as HTMLVideoElement
+          expect(video.getAttribute('src')).toBe('/recordings/cam1/a.mp4?token=tok')
+        })
+        document
+          .getElementById('history-continuous-toggle')!
+          .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        await waitFor(() => {
+          expect(
+            document.getElementById('history-continuous-toggle')?.getAttribute('aria-checked'),
+          ).toBe('true')
+        })
+        scrollIntoView.mockClear()
+
+        const video = document.getElementById('history-player-video') as HTMLVideoElement
+        video.dispatchEvent(new Event('ended'))
+        await waitFor(() => {
+          expect(document.getElementById('history-recording-2')?.getAttribute('aria-current')).toBe(
+            'true',
+          )
+        })
+        expect(scrollIntoView).not.toHaveBeenCalled()
+      } finally {
+        Element.prototype.scrollIntoView = original
+      }
+    })
+  })
+
   describe('CA6: Histórico aberto com :motionId abre já na janela recortada do evento (mesma lógica de /recording)', () => {
     it('com :motionId na URL, o player não começa do zero do chunk — começa no offset da janela [evento-lead, evento+trail], igual ao clipSegments usado por /recording/:cameraId/:recordingId/:motionId', async () => {
       stubFetch(recordingsJul4, [{ id: 99, time: '2026-07-04T10:00:30Z', score: 1 }])

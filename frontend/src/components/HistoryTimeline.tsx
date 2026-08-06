@@ -43,6 +43,15 @@ interface HistoryTimelineProps {
    * para não quebrar chamadores/testes que não têm um "dia" próprio pra passar — nesse
    * caso, sem nenhum item, o componente não renderiza nada (não dá pra saber que dia é). */
   day?: Date
+  /** Mesmo ref que HistoryPage usa pra suprimir o `scrollIntoView` da SUA lista lateral no
+   * avanço automático da reprodução contínua (ver `suppressScrollRef`/`handleSegmentChange`
+   * em HistoryPage.tsx) — repassado aqui pra suprimir também o scroll da régua nesse mesmo
+   * caso. Este componente só LÊ a flag (nunca reseta) — HistoryPage é quem reseta, no seu
+   * próprio efeito: React descarrega passive effects de baixo pra cima na árvore (filhos
+   * antes dos pais) dentro do MESMO commit, e este componente é filho de HistoryPage, então
+   * o efeito abaixo sempre roda ANTES do de HistoryPage — resetar aqui apagaria o sinal
+   * antes do pai conseguir lê-lo. Omitido = nunca suprime (retrocompatível). */
+  suppressScrollRef?: { current: boolean }
 }
 
 // Atraso entre o mouse parar de se mover e o preview (imagem + horário) aparecer — sem
@@ -115,6 +124,7 @@ export default function HistoryTimeline({
   selectedId,
   day,
   filter,
+  suppressScrollRef,
 }: HistoryTimelineProps) {
   // Ref simples (não callback) — a largura de cada card vem só da CONTAGEM de gravações
   // (determinística, conhecida no 1º render), não de uma medição via ResizeObserver: só
@@ -130,12 +140,13 @@ export default function HistoryTimeline({
   // linha já está visível.
   const activeLineRef = useRef<HTMLSpanElement | null>(null)
   useEffect(() => {
+    if (suppressScrollRef?.current) return
     activeLineRef.current?.scrollIntoView({
       behavior: 'smooth',
       inline: 'nearest',
       block: 'nearest',
     })
-  }, [selectedId])
+  }, [selectedId, suppressScrollRef])
   // Deslocamento horizontal do scroll da régua (`#history-timeline-scroll`) — o preview
   // (miniatura + horário no hover) fica FORA do container que rola, pra não ser cortado
   // verticalmente por `overflow-y-hidden` (ele flutua ACIMA da trilha via `bottom-full`);

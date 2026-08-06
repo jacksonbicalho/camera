@@ -478,9 +478,25 @@ export default function HistoryPage() {
   }
 
   // Rola a lista até o item ativo entrar em vista — sobretudo importante ao abrir a URL
-  // compartilhável de uma gravação específica (/history/:cameraId/:recordingId).
+  // compartilhável de uma gravação específica (/history/:cameraId/:recordingId). Suprimida só
+  // no avanço AUTOMÁTICO da reprodução contínua (`suppressScrollRef`, setada por
+  // `handleSegmentChange` abaixo) — rolar a cada gravação nova, sem nenhuma ação do usuário,
+  // atrapalha quem ajustou a posição da tela manualmente (bug relatado pelo navigator, pior
+  // no celular). "Opt-out" (suprime só o caso automático) em vez de "opt-in": mount inicial,
+  // troca de dia/câmera, clique manual num card e deep-link continuam rolando normalmente.
+  // `HistoryTimeline` (régua de 24h) tem seu PRÓPRIO scrollIntoView espelhando este mesmo
+  // padrão — o mesmo ref é repassado pra ela via prop (ver `<HistoryTimeline
+  // suppressScrollRef={...}>` abaixo) pra suprimir os dois juntos. Só ESTE efeito reseta a
+  // flag (nunca o de HistoryTimeline): React descarrega passive effects de baixo pra cima na
+  // árvore — HistoryTimeline é filha, seu efeito roda ANTES deste, então resetar aqui (o
+  // último a rodar) garante que a flag já foi lida pelos dois antes de sumir.
   const activeCardRef = useRef<HTMLButtonElement | null>(null)
+  const suppressScrollRef = useRef(false)
   useEffect(() => {
+    if (suppressScrollRef.current) {
+      suppressScrollRef.current = false
+      return
+    }
     activeCardRef.current?.scrollIntoView({
       behavior: 'smooth',
       block: 'nearest',
@@ -724,7 +740,12 @@ export default function HistoryPage() {
   })
   const handleSegmentChange = useCallback((index: number) => {
     const rec = activeRecordingsRef.current[index]
-    if (rec) setSelectedId((id) => (id === rec.id ? id : rec.id))
+    if (!rec) return
+    setSelectedId((id) => {
+      if (id === rec.id) return id
+      suppressScrollRef.current = true
+      return rec.id
+    })
   }, [])
 
   // videoError não pode grudar na gravação seguinte — reseta ao trocar. `playing` já é
@@ -1110,6 +1131,7 @@ export default function HistoryPage() {
                 cameraId={camera.id}
                 selectedId={selectedId}
                 day={selectedDate ?? undefined}
+                suppressScrollRef={suppressScrollRef}
               />
             </div>
           </CameraStageHeader>
