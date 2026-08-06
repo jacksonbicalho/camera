@@ -177,6 +177,20 @@ export default function CameraStatesSettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { settings } = useSettings()
   const camName = settings?.cameras?.find((c) => c.id === id)?.name
+  // Sem nenhum trainer configurado pra state classification
+  // (Configurações → Análise de vídeo), um classificador novo nunca vai
+  // conseguir treinar/rodar — bloqueia a criação (não a edição dos que já
+  // existem) em vez de deixar o usuário montar algo que nunca vai
+  // funcionar. `null` = ainda carregando (mesmo trato inicial de
+  // `serviceModels` em AnalysisSettingsPage — não sabemos ainda, então não
+  // bloqueia nem libera até a resposta chegar).
+  const [stateTrainerConfigured, setStateTrainerConfigured] = useState<boolean | null>(null)
+  useEffect(() => {
+    fetch('/api/settings/analysis', { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setStateTrainerConfigured(Boolean(d?.state_trainer_id)))
+      .catch(() => setStateTrainerConfigured(false))
+  }, [])
 
   // Estado atual de cada classificador, em poll (~5s) — atualiza ao runner mudar.
   useEffect(() => {
@@ -399,6 +413,7 @@ export default function CameraStatesSettingsPage() {
               </Button>
               <Button
                 id="state-classifier-new"
+                disabled={stateTrainerConfigured !== true}
                 onClick={() => {
                   setEditing(emptyClassifier())
                   setError(null)
@@ -408,6 +423,13 @@ export default function CameraStatesSettingsPage() {
               </Button>
             </div>
           </div>
+
+          {stateTrainerConfigured === false && (
+            <p id="state-classifier-new-hint" className="text-xs text-muted-foreground mb-3">
+              Configure um trainer em Configurações → Análise de vídeo antes de criar um
+              classificador — sem isso ele nunca vai conseguir treinar/rodar.
+            </p>
+          )}
 
           {trainMsg && (
             <p id="state-train-msg" className="text-xs text-muted-foreground mb-3">
