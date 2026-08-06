@@ -90,17 +90,11 @@ func TestTrainerAdapterPattern(t *testing.T) {
 	})
 
 	// CA4: handleStartFinetune despacha via o trainer cadastrado
-	// (trainer_id), não mais video_analysis_config.ServiceURL/Model direto.
-	// video_analysis_config fica com ServiceURL vazio e Model="yolov8n" de
-	// propósito — se o handler ainda lesse dali (comportamento de antes
-	// desta história), a chamada falharia com 503 "analysis service not
-	// configured" (ServiceURL) ou usaria o Model errado; o trainer_config
-	// usa um model DIFERENTE ("yolo11n") justamente pra provar que o valor
-	// vem do cadastro do trainer, não do config global (um teste que
-	// usasse o mesmo valor nos dois lados mascararia a fonte real). O
-	// trainer é inserido via SQL cru (db.InsertTrainer ainda não existe
-	// nesta fase — a tabela nasce da migration do T1, que roda
-	// independente dos accessors Go).
+	// (trainer_id) e usa o model DO PRÓPRIO TRAINER — não existe mais
+	// nenhum config global de service_url/model pra fine-tuning ler
+	// (video_analysis_config foi removida por completo nesta história); o
+	// único jeito do teste passar é o handler realmente ler
+	// trainer_config.
 	t.Run("CA4: handleStartFinetune despacha via o trainer cadastrado (trainer_id) e usa o model do próprio trainer", func(t *testing.T) {
 		var gotBaseModel string
 		yoloSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -119,12 +113,6 @@ func TestTrainerAdapterPattern(t *testing.T) {
 		database := openServerTestDB(t)
 		if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
 			t.Fatalf("create admin: %v", err)
-		}
-		if err := db.UpdateVideoAnalysisConfig(database, db.VideoAnalysisConfig{
-			ServiceURL: "", // deliberadamente vazio — ver comentário acima
-			Model:      "yolov8n",
-		}); err != nil {
-			t.Fatalf("set analysis config: %v", err)
 		}
 		if _, err := db.CreateCamera(database, config.CameraConfig{ID: "cam1"}, nil); err != nil {
 			t.Fatalf("create camera: %v", err)

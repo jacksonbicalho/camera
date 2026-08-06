@@ -8,16 +8,6 @@ import (
 	"time"
 )
 
-// VideoAnalysisConfig is the shared config for the YOLO service used by
-// fine-tuning and state classification training — not per-recording
-// analysis anymore (that moved to a detector + threshold chosen per camera,
-// see CameraAnalysisConfig).
-type VideoAnalysisConfig struct {
-	ServiceURL     string `json:"service_url"`
-	Model          string `json:"model"`
-	HasCustomModel bool   `json:"has_custom_model"`
-}
-
 type Detection struct {
 	ID          int64     `json:"id"`
 	Label       string    `json:"label"`
@@ -25,38 +15,6 @@ type Detection struct {
 	FrameCount  int       `json:"frame_count"`
 	CustomModel bool      `json:"custom_model"`
 	CreatedAt   time.Time `json:"created_at"`
-}
-
-func GetVideoAnalysisConfig(d *DB) (VideoAnalysisConfig, error) {
-	var cfg VideoAnalysisConfig
-	var hasCustomModel int
-	err := d.QueryRow(`
-		SELECT service_url, model, has_custom_model
-		FROM video_analysis_config WHERE id=1`).
-		Scan(&cfg.ServiceURL, &cfg.Model, &hasCustomModel)
-	if err != nil {
-		return VideoAnalysisConfig{}, err
-	}
-	cfg.HasCustomModel = hasCustomModel != 0
-	return cfg, nil
-}
-
-func UpdateVideoAnalysisConfig(d *DB, cfg VideoAnalysisConfig) error {
-	_, err := d.Exec(`
-		UPDATE video_analysis_config
-		SET service_url=?, model=?
-		WHERE id=1`,
-		cfg.ServiceURL, cfg.Model)
-	return err
-}
-
-func SetHasCustomModel(d *DB, v bool) error {
-	n := 0
-	if v {
-		n = 1
-	}
-	_, err := d.Exec(`UPDATE video_analysis_config SET has_custom_model=? WHERE id=1`, n)
-	return err
 }
 
 // stateClassificationTrainerIDKey is the system_config key holding which
@@ -69,7 +27,9 @@ const stateClassificationTrainerIDKey = "analysis.state_trainer_id"
 // GetStateClassificationTrainerID returns the id of the trainer registered
 // to source state classification's YOLO service URL, or nil when none is
 // configured yet (state classification simply doesn't run — same effect as
-// an empty service_url before).
+// an empty service_url before) OR when the stored value is unreadable
+// (corrupted/legacy) — same "config ilegível vira default silencioso"
+// idiom already used by StorageSettingsFromDB (config.go).
 func GetStateClassificationTrainerID(d *DB) (*int64, error) {
 	all, err := GetAllConfig(d)
 	if err != nil {

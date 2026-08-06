@@ -7,35 +7,6 @@ import (
 	"camera/internal/db"
 )
 
-func TestVideoAnalysisConfig_DefaultAndUpdate(t *testing.T) {
-	database := openTestDB(t)
-
-	cfg, err := db.GetVideoAnalysisConfig(database)
-	if err != nil {
-		t.Fatalf("GetVideoAnalysisConfig: %v", err)
-	}
-	if cfg.Model != "yolov8n" {
-		t.Errorf("default model = %q, want yolov8n", cfg.Model)
-	}
-
-	cfg.ServiceURL = "http://yolo:8000"
-	cfg.Model = "yolov8s"
-	if err := db.UpdateVideoAnalysisConfig(database, cfg); err != nil {
-		t.Fatalf("UpdateVideoAnalysisConfig: %v", err)
-	}
-
-	got, err := db.GetVideoAnalysisConfig(database)
-	if err != nil {
-		t.Fatalf("GetVideoAnalysisConfig after update: %v", err)
-	}
-	if got.ServiceURL != "http://yolo:8000" {
-		t.Errorf("ServiceURL = %q, want http://yolo:8000", got.ServiceURL)
-	}
-	if got.Model != "yolov8s" {
-		t.Errorf("Model = %q, want yolov8s", got.Model)
-	}
-}
-
 // GetStateClassificationServiceURL substitui video_analysis_config.service_url
 // (removida em T3): em vez de um campo digitado à parte, resolve a URL do
 // serviço YOLO através de um trainer já cadastrado (trainers/trainer_config,
@@ -109,6 +80,20 @@ func TestStateClassificationServiceConfig_DefaultAndSet(t *testing.T) {
 		}
 		if url != "" {
 			t.Errorf("service url = %q, want empty (trainer apagado)", url)
+		}
+	})
+
+	t.Run("CA2: valor corrompido em system_config é tratado como não configurado, sem erro", func(t *testing.T) {
+		if err := db.SetConfig(database, "analysis.state_trainer_id", "not-a-number"); err != nil {
+			t.Fatalf("SetConfig: %v", err)
+		}
+
+		id, err := db.GetStateClassificationTrainerID(database)
+		if err != nil {
+			t.Fatalf("GetStateClassificationTrainerID: %v", err)
+		}
+		if id != nil {
+			t.Errorf("trainer id = %v, want nil (valor corrompido)", *id)
 		}
 	})
 }
