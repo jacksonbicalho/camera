@@ -15,7 +15,16 @@ interface TrainerItem {
   config: Record<string, string>
 }
 
-function ReanalyzePanel({ ftActive }: { ftActive: boolean }) {
+function ReanalyzePanel({
+  ftActive,
+  anyCameraAnalysisEnabled,
+}: {
+  ftActive: boolean
+  // null = ainda carregando GET /api/settings/cameras — desabilita por
+  // segurança, mas sem mostrar o aviso ainda (mesma distinção usada pelo
+  // gate de "Novo classificador" em CameraStatesSettingsPage.tsx).
+  anyCameraAnalysisEnabled: boolean | null
+}) {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [err, setErr] = useState('')
@@ -45,8 +54,8 @@ function ReanalyzePanel({ ftActive }: { ftActive: boolean }) {
       <div>
         <p className="text-sm font-medium text-foreground">Re-analisar tudo</p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Limpa as detecções existentes e re-envia todas as gravações ao serviço YOLO com o modelo
-          atual.
+          Limpa as detecções existentes e re-envia todas as gravações pro detector configurado em
+          cada câmera.
         </p>
         {err && <p className="text-xs text-red-400 mt-1">{err}</p>}
         {done && (
@@ -59,14 +68,19 @@ function ReanalyzePanel({ ftActive }: { ftActive: boolean }) {
             Fine-tuning em andamento — aguarde para reanalisar (evita disputar a GPU com o treino).
           </p>
         )}
+        {anyCameraAnalysisEnabled === false && (
+          <p className="text-xs text-amber-400 mt-1">
+            Nenhuma câmera com análise habilitada — configure um detector por câmera em
+            Configurações → Câmeras → Análise antes de reanalisar.
+          </p>
+        )}
       </div>
       <Button
         id="analysis-reanalyze"
         type="button"
-        variant="secondary"
-        className="shrink-0"
+        className="bg-violet-600 hover:bg-violet-500 text-white shrink-0"
         onClick={handleReanalyze}
-        disabled={busy || ftActive}
+        disabled={busy || ftActive || anyCameraAnalysisEnabled !== true}
       >
         {busy ? 'Aguarde...' : 'Re-analisar tudo'}
       </Button>
@@ -100,6 +114,10 @@ export default function AnalysisSettingsPage() {
   const [ftError, setFtError] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const ftActive = ftStatus?.status === 'running' || ftStatus?.status === 'pending'
+  // "Re-analisar tudo" só faz sentido com pelo menos 1 câmera com análise
+  // habilitada (analysis_enabled) — sem isso, analyzeNewRecordings não
+  // reprocessa nada, mesmo com as flags resetadas. null = ainda carregando.
+  const [anyCameraAnalysisEnabled, setAnyCameraAnalysisEnabled] = useState<boolean | null>(null)
 
   function refreshCounts() {
     fetch('/api/settings/analysis/annotation-count', { headers: authHeaders() })
@@ -123,6 +141,15 @@ export default function AnalysisSettingsPage() {
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setTrainers(Array.isArray(d) ? d : []))
       .catch(() => setTrainers([]))
+    fetch('/api/settings/cameras', { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d: unknown) => {
+        const list = Array.isArray(d) ? d : []
+        setAnyCameraAnalysisEnabled(
+          list.some((c) => (c as { analysis_enabled?: boolean }).analysis_enabled),
+        )
+      })
+      .catch(() => setAnyCameraAnalysisEnabled(false))
   }, [])
 
   useEffect(() => {
@@ -225,13 +252,13 @@ export default function AnalysisSettingsPage() {
       <div className="space-y-6">
         <PageHeader
           title="Análise de vídeo"
-          subtitle="Serviço YOLO usado por classificação de estado — detectores de objetos (por câmera) e fine-tuning (por trainer) têm seu próprio cadastro em Configurações → Detectores/Treinadores."
+          subtitle="Serviço usado por classificação de estado — detectores de objetos (por câmera) e fine-tuning (por trainer) têm seu próprio cadastro em Configurações → Detectores/Treinadores."
         />
 
         <div className="bg-surface-2 rounded-lg border border-border p-4">
           <label
             htmlFor="analysis-state-trainer"
-            className="block text-xs font-medium text-muted-foreground mb-1"
+            className="block text-sm font-medium text-foreground mb-2"
           >
             Serviço usado por classificação de estado
           </label>
@@ -261,37 +288,9 @@ export default function AnalysisSettingsPage() {
           {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
         </div>
 
-        <div className="bg-surface-2 rounded-lg border border-border p-4">
-          <h4 className="text-sm font-medium text-foreground mb-2">Como usar</h4>
-          <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-            <li>
-              Suba o serviço YOLO:{' '}
-              <code className="bg-surface-2 px-1 rounded">docker compose --profile yolo up -d</code>
-            </li>
-            <li>
-              Cadastre um detector em Configurações → Detectores de objetos apontando pro serviço
-              (YOLO ou Hugging Face, cada um com seus próprios campos)
-            </li>
-            <li>
-              Escolha esse detector por câmera em Configurações → Câmeras → Análise — só a partir
-              daí as gravações concluídas passam a ser analisadas automaticamente
-            </li>
-            <li>
-              Pra treinar um modelo personalizado (fine-tuning, abaixo), cadastre um trainer em
-              Configurações → Treinadores apontando pro mesmo serviço YOLO
-            </li>
-            <li>
-              Pra classificação de estado (Configurações → Câmeras → Estados), escolha acima qual
-              trainer cadastrado fornece o serviço
-            </li>
-          </ol>
-        </div>
-
-        <ReanalyzePanel ftActive={ftActive} />
-
         <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
           <div className="p-4">
-            <h4 className="text-sm font-semibold text-foreground mb-1">Fine-tuning</h4>
+            <h4 className="text-sm font-semibold text-foreground mb-1">Treinar Modelo</h4>
             <p className="text-xs text-muted-foreground">
               Treina um modelo personalizado usando os snapshots que você anotou nos eventos de
               movimento. O modelo gerado (
@@ -430,6 +429,8 @@ export default function AnalysisSettingsPage() {
             </div>
           )}
         </div>
+
+        <ReanalyzePanel ftActive={ftActive} anyCameraAnalysisEnabled={anyCameraAnalysisEnabled} />
       </div>
     </SettingsLayout>
   )

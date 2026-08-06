@@ -20,12 +20,17 @@ const trainers = [
 
 // stateTrainerID: valor devolvido por GET /api/settings/analysis
 // (state_trainer_id) — null por padrão (nenhum trainer escolhido ainda).
+// anyCameraAnalysisEnabled: pelo menos 1 câmera com analysis_enabled=true
+// em GET /api/settings/cameras — true por padrão (não afeta os testes que
+// não são sobre esse gate).
 function mockFetch({
   stateTrainerID = null,
   putSpy,
+  anyCameraAnalysisEnabled = true,
 }: {
   stateTrainerID?: number | null
   putSpy?: (url: string, body: unknown) => void
+  anyCameraAnalysisEnabled?: boolean
 } = {}) {
   vi.stubGlobal(
     'fetch',
@@ -33,6 +38,11 @@ function mockFetch({
       const u = String(url)
       if (u === '/api/settings')
         return new Response(JSON.stringify({ cameras: [] }), { status: 200 })
+      if (u === '/api/settings/cameras')
+        return new Response(
+          JSON.stringify([{ id: 'cam1', analysis_enabled: anyCameraAnalysisEnabled }]),
+          { status: 200 },
+        )
       if (u === '/api/settings/analysis') {
         if (init?.method === 'PUT') {
           putSpy?.(u, init.body ? JSON.parse(String(init.body)) : null)
@@ -145,6 +155,10 @@ describe('CA6: "Re-analisar tudo" desabilitado durante fine-tuning ativo', () =>
         const u = String(url)
         if (u === '/api/settings')
           return new Response(JSON.stringify({ cameras: [] }), { status: 200 })
+        if (u === '/api/settings/cameras')
+          return new Response(JSON.stringify([{ id: 'cam1', analysis_enabled: true }]), {
+            status: 200,
+          })
         if (u === '/api/settings/analysis')
           return new Response(JSON.stringify({ state_trainer_id: null }), { status: 200 })
         if (u === '/api/settings/analysis/annotation-count')
@@ -191,7 +205,27 @@ describe('CA6: "Re-analisar tudo" desabilitado durante fine-tuning ativo', () =>
     renderPage()
 
     const btn = await screen.findByRole('button', { name: /re-analisar tudo/i })
-    expect((btn as HTMLButtonElement).disabled).toBe(false)
+    await vi.waitFor(() => expect((btn as HTMLButtonElement).disabled).toBe(false))
+  })
+})
+
+describe('CA7: "Re-analisar tudo" exige ao menos 1 câmera com análise habilitada', () => {
+  it('nenhuma câmera com analysis_enabled, o botão fica desabilitado e explica o motivo', async () => {
+    mockFetch({ anyCameraAnalysisEnabled: false })
+    renderPage()
+
+    const btn = await screen.findByRole('button', { name: /re-analisar tudo/i })
+    await vi.waitFor(() => expect((btn as HTMLButtonElement).disabled).toBe(true))
+    await screen.findByText(/nenhuma câmera com análise habilitada/i)
+  })
+
+  it('com pelo menos 1 câmera com analysis_enabled, o botão continua habilitado', async () => {
+    mockFetch({ anyCameraAnalysisEnabled: true })
+    renderPage()
+
+    const btn = await screen.findByRole('button', { name: /re-analisar tudo/i })
+    await vi.waitFor(() => expect((btn as HTMLButtonElement).disabled).toBe(false))
+    expect(screen.queryByText(/nenhuma câmera com análise habilitada/i)).toBeNull()
   })
 })
 
