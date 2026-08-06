@@ -37,9 +37,17 @@ func TestCameraListEndpoints_ExposeAnalysisEnabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("criar câmera cam2: %v", err)
 	}
-	cam1ID, cam2ID := cam1.ID, cam2.ID
+	cam3, err := db.CreateCamera(database, config.CameraConfig{Name: "cam3", RTSPURL: "rtsp://fake3"}, nil)
+	if err != nil {
+		t.Fatalf("criar câmera cam3: %v", err)
+	}
+	cam4, err := db.CreateCamera(database, config.CameraConfig{Name: "cam4", RTSPURL: "rtsp://fake4"}, nil)
+	if err != nil {
+		t.Fatalf("criar câmera cam4: %v", err)
+	}
+	cam1ID, cam2ID, cam3ID, cam4ID := cam1.ID, cam2.ID, cam3.ID, cam4.ID
 
-	if err := db.SetUserCameras(database, viewerID, []string{cam1ID}); err != nil {
+	if err := db.SetUserCameras(database, viewerID, []string{cam1ID, cam3ID}); err != nil {
 		t.Fatalf("set cameras: %v", err)
 	}
 
@@ -47,7 +55,33 @@ func TestCameraListEndpoints_ExposeAnalysisEnabled(t *testing.T) {
 		t.Fatalf("SetCameraAnalysisConfig: %v", err)
 	}
 
-	cameras := []config.CameraConfig{cam1, cam2}
+	// cam3: caminho POSITIVO do critério composto — enabled=true E detector
+	// escolhido, único cenário em que analysis_enabled deve ser true.
+	detID, err := db.InsertObjectDetector(database, "yolo-cam3", map[string]string{
+		"service_url": "http://yolo:8000",
+	})
+	if err != nil {
+		t.Fatalf("InsertObjectDetector: %v", err)
+	}
+	if err := db.SetCameraAnalysisConfig(database, cam3ID, db.CameraAnalysisConfig{
+		Enabled:    true,
+		DetectorID: &detID,
+	}); err != nil {
+		t.Fatalf("SetCameraAnalysisConfig cam3: %v", err)
+	}
+
+	// cam4: última combinação do critério composto — detector escolhido MAS
+	// enabled=false (ex.: usuário desmarcou o checkbox sem esquecer o
+	// detector, ver T2). Sem este caso, uma implementação que checasse só
+	// DetectorID (ignorando Enabled) passaria despercebida.
+	if err := db.SetCameraAnalysisConfig(database, cam4ID, db.CameraAnalysisConfig{
+		Enabled:    false,
+		DetectorID: &detID,
+	}); err != nil {
+		t.Fatalf("SetCameraAnalysisConfig cam4: %v", err)
+	}
+
+	cameras := []config.CameraConfig{cam1, cam2, cam3, cam4}
 	srv := server.NewServer(config.ServerConfig{}, "UTC", cameras, discardLogger(), nil).
 		WithDB(database)
 
@@ -71,11 +105,31 @@ func TestCameraListEndpoints_ExposeAnalysisEnabled(t *testing.T) {
 		for _, c := range list {
 			got[c["id"].(string)] = c["analysis_enabled"]
 		}
-		if got[cam1ID] != true {
-			t.Errorf("cam1 (default, sem override): esperava analysis_enabled=true, veio %v", got[cam1ID])
+		// CA4 (história fix/camera-analysis-toggle): analysis_enabled agora
+		// exige detector_id também, não só enabled — cam1 nunca teve um
+		// detector escolhido (sem linha em camera_analysis_config), então
+		// nunca é de fato analisada (mesmo critério que
+		// analyzeNewRecordings já usa) e o badge não deve aparecer pra ela —
+		// tanto pela ausência de detector quanto pelo default de
+		// GetCameraAnalysisConfig ter passado a ser Enabled=false (adendo
+		// pré-push desta mesma história: "análise não pode ser padrão true").
+		if got[cam1ID] != false {
+			t.Errorf("cam1 (default, sem override, sem detector): esperava analysis_enabled=false, veio %v", got[cam1ID])
 		}
 		if got[cam2ID] != false {
 			t.Errorf("cam2 (desabilitada explicitamente): esperava analysis_enabled=false, veio %v", got[cam2ID])
+		}
+		// cam3: caminho positivo — enabled=true E detector escolhido é o
+		// ÚNICO cenário coberto por este teste que espera analysis_enabled
+		// true; sem ele, uma implementação incorreta (ex.: sempre false, ou
+		// só checar DetectorID e esquecer Enabled) passaria despercebida.
+		if got[cam3ID] != true {
+			t.Errorf("cam3 (enabled=true, com detector): esperava analysis_enabled=true, veio %v", got[cam3ID])
+		}
+		// cam4: detector escolhido mas enabled=false — fecha a 4ª combinação
+		// do AND (ver comentário na criação de cam4 acima).
+		if got[cam4ID] != false {
+			t.Errorf("cam4 (enabled=false, com detector): esperava analysis_enabled=false, veio %v", got[cam4ID])
 		}
 	})
 
@@ -92,12 +146,22 @@ func TestCameraListEndpoints_ExposeAnalysisEnabled(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		// viewer só tem acesso a cam1 (SetUserCameras acima concede só essa).
-		if len(list) != 1 {
-			t.Fatalf("esperava 1 câmera visível ao viewer, veio %d", len(list))
+		// viewer tem acesso a cam1 e cam3 (SetUserCameras acima).
+		if len(list) != 2 {
+			t.Fatalf("esperava 2 câmeras visíveis ao viewer, veio %d", len(list))
 		}
-		if list[0]["analysis_enabled"] != true {
-			t.Errorf("cam1: esperava analysis_enabled=true, veio %v", list[0]["analysis_enabled"])
+		got := map[string]any{}
+		for _, c := range list {
+			got[c["id"].(string)] = c["analysis_enabled"]
+		}
+		// CA4: ver comentários equivalentes no subteste acima — cam1 não tem
+		// detector escolhido (analysis_enabled=false mesmo com o default
+		// Enabled=true); cam3 tem enabled=true E detector, único caso true.
+		if got[cam1ID] != false {
+			t.Errorf("cam1: esperava analysis_enabled=false (sem detector), veio %v", got[cam1ID])
+		}
+		if got[cam3ID] != true {
+			t.Errorf("cam3: esperava analysis_enabled=true (enabled + detector), veio %v", got[cam3ID])
 		}
 	})
 }

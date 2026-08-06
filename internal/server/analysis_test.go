@@ -81,8 +81,10 @@ func TestGetCameraAnalysisConfig_Default(t *testing.T) {
 	}
 	var result map[string]any
 	json.Unmarshal(w.Body.Bytes(), &result)
-	if result["enabled"] != true {
-		t.Errorf("default per-camera enabled = %v, want true", result["enabled"])
+	// Feedback do navigator na pré-push de fix/camera-analysis-toggle:
+	// análise não pode ter default true.
+	if result["enabled"] != false {
+		t.Errorf("default per-camera enabled = %v, want false", result["enabled"])
 	}
 }
 

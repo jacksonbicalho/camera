@@ -44,8 +44,11 @@ func TestCameraAnalysisConfig_DefaultAndSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetCameraAnalysisConfig: %v", err)
 	}
-	if !cfg.Enabled {
-		t.Error("default per-camera enabled should be true")
+	// Feedback do navigator na pré-push de fix/camera-analysis-toggle:
+	// análise não pode ter default true — uma câmera nunca configurada
+	// deve começar desligada (opt-in), não ligada com detector nil.
+	if cfg.Enabled {
+		t.Error("default per-camera enabled should be false")
 	}
 	if cfg.DetectorID != nil {
 		t.Errorf("default DetectorID should be nil, got %v", *cfg.DetectorID)

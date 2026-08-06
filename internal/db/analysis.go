@@ -77,8 +77,13 @@ func GetCameraAnalysisConfig(d *DB, cameraID string) (CameraAnalysisConfig, erro
 		FROM camera_analysis_config WHERE camera_id=?`, cameraID).
 		Scan(&enabled, &detectorID, &threshold)
 	if err != nil {
-		// no row means default: enabled, no detector chosen yet.
-		return CameraAnalysisConfig{Enabled: true}, nil
+		// No row means the camera was never configured — analysis defaults
+		// to OFF (opt-in), not on. It used to default to Enabled:true (only
+		// DetectorID being nil actually gated real analysis), but that made
+		// a never-configured camera's checkbox start checked and, before T3
+		// fixed the exposure, showed the "Análise de objetos" badge for a
+		// camera that was never actually analyzed.
+		return CameraAnalysisConfig{Enabled: false}, nil
 	}
 	cfg := CameraAnalysisConfig{Enabled: enabled != 0}
 	if detectorID.Valid {

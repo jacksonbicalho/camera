@@ -928,7 +928,9 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		var analysisEnabled bool
 		if s.db != nil {
 			if cfg, err := db.GetCameraAnalysisConfig(s.db, c.ID); err == nil {
-				analysisEnabled = cfg.Enabled
+				// See the equivalent comment in cameras.go — reflects
+				// whether the camera is actually analyzed, not just Enabled.
+				analysisEnabled = cfg.Enabled && cfg.DetectorID != nil
 			}
 		}
 		list[i] = cameraInfo{
