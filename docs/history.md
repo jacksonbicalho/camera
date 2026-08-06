@@ -4,8 +4,6 @@ O **Histórico** (`/history/:cameraId`, aba ao lado de "Ao vivo" no topo da pág
 câmera) mostra as gravações do dia selecionado, com um player e uma tira de cards pra
 trocar de gravação.
 
-![Página de Histórico, com a tira de gravações do dia e o toggle de reprodução contínua](images/history.png)
-
 ## Navegação
 
 - **Calendário** (canto superior direito da tira de gravações) — escolhe o dia; só dias
