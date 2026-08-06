@@ -1319,6 +1319,172 @@ func TestAnalyzeNewRecordings_SkipsWhenFileNotOnDisk(t *testing.T) {
 	}
 }
 
+// hookAnalyzer wraps analysis.FakeAnalyzer to run a callback right after
+// each Analyze call completes — used to simulate the navigator disabling
+// analysis for a camera WHILE a batch fetched under the old config is still
+// being processed (CA5, história fix/camera-analysis-toggle). Runs AFTER
+// FakeAnalyzer.Analyze (not before) so OnAnalyze sees the incremented
+// Called count for the call that just finished.
+type hookAnalyzer struct {
+	analysis.FakeAnalyzer
+	OnAnalyze func()
+}
+
+func (h *hookAnalyzer) Analyze(ctx context.Context, req analysis.AnalyzeRequest) ([]analysis.Detection, error) {
+	dets, err := h.FakeAnalyzer.Analyze(ctx, req)
+	if h.OnAnalyze != nil {
+		h.OnAnalyze()
+	}
+	return dets, err
+}
+
+// CA5 (história fix/camera-analysis-toggle): analyzeNewRecordings monta a
+// lista de candidatos com UMA query no início e itera até o fim — sem isso,
+// desabilitar a análise (ou trocar o detector) NO MEIO de um lote grande já
+// buscado não tem efeito nenhum até a próxima passada, desperdiçando
+// chamadas ao YOLO por algo que o usuário já desligou (confirmado ao vivo no
+// dev-camera: um lote de 222 gravações continuou sendo enviado depois da
+// análise ser desabilitada). O fix re-checa camera_analysis_config por item
+// antes de despachar.
+func TestAnalyzeNewRecordings_SkipsWhenConfigChangesMidBatch(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCameraWithMotion(t, database, "cam1", 10, 10)
+	configureCameraDetector(t, database, "cam1", "http://yolo:8000", "yolov8n", 0.4)
+
+	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+	pathA := mp4WithTimestamp(dir, "cam1", base)
+	pathB := mp4WithTimestamp(dir, "cam1", base.Add(5*time.Minute))
+	writeFile(t, pathA, base)
+	writeFile(t, pathB, base.Add(5*time.Minute))
+
+	if err := db.InsertRecording(database, db.Recording{
+		CameraID:  "cam1",
+		StartedAt: base,
+		EndedAt:   base.Add(5 * time.Minute),
+		Path:      pathA,
+		SizeBytes: 1024,
+		HasMotion: true,
+	}); err != nil {
+		t.Fatalf("InsertRecording pathA: %v", err)
+	}
+	if err := db.InsertRecording(database, db.Recording{
+		CameraID:  "cam1",
+		StartedAt: base.Add(5 * time.Minute),
+		EndedAt:   base.Add(10 * time.Minute),
+		Path:      pathB,
+		SizeBytes: 1024,
+		HasMotion: true,
+	}); err != nil {
+		t.Fatalf("InsertRecording pathB: %v", err)
+	}
+
+	// Depois de analisar a 1ª gravação (pathA), simula o navigator
+	// desabilitando a análise pra essa câmera — a 2ª (pathB), já no
+	// candidates buscado antes dessa mudança, deve ser pulada.
+	fake := &hookAnalyzer{
+		FakeAnalyzer: analysis.FakeAnalyzer{
+			Results: []analysis.Detection{{Label: "person", Confidence: 0.9, FrameCount: 5}},
+		},
+	}
+	fake.OnAnalyze = func() {
+		if fake.Called == 1 {
+			if err := db.SetCameraAnalysisConfig(database, "cam1", db.CameraAnalysisConfig{Enabled: false}); err != nil {
+				t.Fatalf("SetCameraAnalysisConfig (disable mid-batch): %v", err)
+			}
+		}
+	}
+
+	storage.New(dir, 0, 0, 5*time.Minute, 0, 0, database, discardLogger()).
+		WithAnalyzer(fake).
+		AnalyzeNew()
+
+	if fake.Called != 1 {
+		t.Fatalf("expected analyzer called once (pathA only, pathB skipped after config change), got %d", fake.Called)
+	}
+	detsA, _ := db.ListDetectionsByPath(database, pathA)
+	if len(detsA) != 1 {
+		t.Errorf("pathA should have been analyzed (config was still enabled), got %d detections", len(detsA))
+	}
+	detsB, _ := db.ListDetectionsByPath(database, pathB)
+	if len(detsB) != 0 {
+		t.Errorf("pathB should have been skipped (config changed mid-batch), got %d detections", len(detsB))
+	}
+}
+
+// CA5, ramo irmão do teste acima: a câmera continua HABILITADA, mas o
+// detector é trocado no meio do lote — sem re-checar detector_id (só
+// enabled), pathB seria analisado com o detector antigo mesmo já não sendo
+// mais o escolhido.
+func TestAnalyzeNewRecordings_SkipsWhenDetectorSwitchedMidBatch(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+	createTestCameraWithMotion(t, database, "cam1", 10, 10)
+	configureCameraDetector(t, database, "cam1", "http://yolo:8000", "yolov8n", 0.4)
+
+	newDetID, err := db.InsertObjectDetector(database, "cam1-detector-v2", map[string]string{
+		"service_url": "http://yolo:9000",
+		"model":       "yolo11n",
+	})
+	if err != nil {
+		t.Fatalf("InsertObjectDetector (2º detector): %v", err)
+	}
+
+	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+	pathA := mp4WithTimestamp(dir, "cam1", base)
+	pathB := mp4WithTimestamp(dir, "cam1", base.Add(5*time.Minute))
+	writeFile(t, pathA, base)
+	writeFile(t, pathB, base.Add(5*time.Minute))
+
+	if err := db.InsertRecording(database, db.Recording{
+		CameraID: "cam1", StartedAt: base, EndedAt: base.Add(5 * time.Minute),
+		Path: pathA, SizeBytes: 1024, HasMotion: true,
+	}); err != nil {
+		t.Fatalf("InsertRecording pathA: %v", err)
+	}
+	if err := db.InsertRecording(database, db.Recording{
+		CameraID: "cam1", StartedAt: base.Add(5 * time.Minute), EndedAt: base.Add(10 * time.Minute),
+		Path: pathB, SizeBytes: 1024, HasMotion: true,
+	}); err != nil {
+		t.Fatalf("InsertRecording pathB: %v", err)
+	}
+
+	// Depois de analisar pathA, simula o navigator trocando de detector pra
+	// essa câmera (continua habilitada) — pathB, já no candidates buscado
+	// com o detector antigo, deve ser pulado.
+	fake := &hookAnalyzer{
+		FakeAnalyzer: analysis.FakeAnalyzer{
+			Results: []analysis.Detection{{Label: "person", Confidence: 0.9, FrameCount: 5}},
+		},
+	}
+	fake.OnAnalyze = func() {
+		if fake.Called == 1 {
+			threshold := 0.4
+			if err := db.SetCameraAnalysisConfig(database, "cam1", db.CameraAnalysisConfig{
+				Enabled: true, DetectorID: &newDetID, ConfidenceThreshold: &threshold,
+			}); err != nil {
+				t.Fatalf("SetCameraAnalysisConfig (switch detector mid-batch): %v", err)
+			}
+		}
+	}
+
+	storage.New(dir, 0, 0, 5*time.Minute, 0, 0, database, discardLogger()).
+		WithAnalyzer(fake).
+		AnalyzeNew()
+
+	if fake.Called != 1 {
+		t.Fatalf("expected analyzer called once (pathA only, pathB skipped after detector switch), got %d", fake.Called)
+	}
+	detsA, _ := db.ListDetectionsByPath(database, pathA)
+	if len(detsA) != 1 {
+		t.Errorf("pathA should have been analyzed (config was still the original detector), got %d detections", len(detsA))
+	}
+	detsB, _ := db.ListDetectionsByPath(database, pathB)
+	if len(detsB) != 0 {
+		t.Errorf("pathB should have been skipped (detector switched mid-batch), got %d detections", len(detsB))
+	}
+}
+
 // Quando ffmpeg é morto abruptamente, o último segmento fica sem moov atom
 // (ilegível). syncRecordings deve detectar isso, deletar o arquivo do disco
 // e remover o registro do banco.
