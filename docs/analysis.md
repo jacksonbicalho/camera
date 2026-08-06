@@ -17,9 +17,10 @@ o resultado é exibido na interface web junto ao evento de movimento corresponde
 
 O serviço é totalmente independente do `docker-compose.yml` da câmera — tem
 seu próprio compose file em `services/yolo/`. Ele só precisa (1) estar
-acessível pela **URL do serviço** configurada em Settings e (2) montar o
-**mesmo diretório de storage** usado pela instância da câmera que vai
-consumi-lo (os paths de arquivo trocados via API, ex. `/data/state_samples/...`,
+acessível pela URL configurada em quem for usá-lo — detector, trainer ou o
+seletor de classificação de estado (ver "Configuração na interface web"
+abaixo) — e (2) montar o **mesmo diretório de storage** usado pela
+instância da câmera que vai consumi-lo (os paths de arquivo trocados via API, ex. `/data/state_samples/...`,
 são resolvidos dentro do container do YOLO a partir desse volume). Copie
 `services/yolo/.env.example` para `services/yolo/.env` e ajuste
 `YOLO_STORAGE_PATH`/`YOLO_MODELS_PATH` antes de subir.
@@ -70,14 +71,14 @@ sudo systemctl restart docker
 
 ## Configuração na interface web
 
-Em **Configurações → Análise de vídeo**:
+Não existe um form único "ligar a análise" — cada papel tem seu próprio
+cadastro, todos apontando pro(s) mesmo(s) container(es) YOLO:
 
-| Campo | Descrição |
-|---|---|
-| **Ativar análise** | Habilita o envio de gravações ao serviço YOLO |
-| **URL do serviço** | Endereço do container (padrão: `http://localhost:8001`) |
-| **Limiar de confiança** | Confiança mínima para uma detecção ser registrada (padrão: 60%) |
-| **Modelo** | Modelo YOLO a usar para análise e fine-tuning |
+| Papel | Onde configurar | O que cadastra |
+|---|---|---|
+| **Análise por câmera** (detecção de objetos nas gravações) | Configurações → Detectores de objetos (cadastro do detector) + Configurações → Câmeras → Análise (por câmera) | URL do serviço + modelo (livre, ex. `yolov8n`, `custom+yolov8n`) no detector; habilita/desabilita e escolhe o detector por câmera |
+| **Fine-tuning** (treinar um modelo personalizado) | Configurações → Treinadores | URL do serviço + modelo base (livre, default `yolov8n`) |
+| **Classificação de estado** | Configurações → Análise de vídeo | Escolhe, num `<select>`, qual trainer já cadastrado (acima) fornece o serviço — não digita URL de novo |
 
 ---
 
@@ -105,8 +106,9 @@ Cada geração oferece cinco tamanhos — nano (n), small (s), medium (m), large
 
 ### Modo combinado
 
-O campo modelo aceita `custom+yolov8n` — executa os dois modelos e une os resultados.
-Útil para complementar o modelo fine-tunado (que conhece seus objetos específicos) com
+O campo **Modelo** do detector (Configurações → Detectores de objetos) aceita
+`custom+yolov8n` — executa os dois modelos e une os resultados. Útil para
+complementar o modelo fine-tunado (que conhece seus objetos específicos) com
 a detecção genérica do modelo base.
 
 ---
@@ -118,11 +120,16 @@ anotou na seção **Rotular eventos**.
 
 ### Fluxo
 
-1. Acesse **Configurações → Análise de vídeo → Rotular eventos**
-2. Atribua labels e bounding boxes aos eventos de movimento
-3. Em **Fine-tuning**, configure as épocas e o modelo base
-4. Clique em **Treinar** — o progresso aparece em tempo real
-5. Após concluir, selecione `custom` ou `custom+yolov8n` como modelo ativo
+1. Cadastre um trainer em **Configurações → Treinadores** (URL do serviço +
+   modelo base, default `yolov8n`)
+2. Acesse **Configurações → Análise de vídeo → Rotular eventos**
+3. Atribua labels e bounding boxes aos eventos de movimento
+4. Em **Fine-tuning**, escolha o trainer cadastrado e as épocas, clique em
+   **Treinar agora** — o progresso aparece em tempo real
+5. Após concluir, o modelo treinado (`custom.pt`) fica disponível pra
+   qualquer detector cadastrado (Configurações → Detectores de objetos) que
+   aponte pro nome `custom` (ou `custom+<modelo base>`, modo combinado) —
+   não existe mais um "modelo ativo" global pra selecionar
 
 ### Épocas recomendadas
 
