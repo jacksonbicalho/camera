@@ -117,7 +117,7 @@ func AggregateMotionEvents(db *DB, from, to time.Time, cameraID string) (EventRe
 
 	const tsLayout = "2006-01-02 15:04:05"
 	hRows, err := db.Query(
-		`SELECT h.changed_at
+		`SELECT h.changed_at, c.name, h.state
 		 FROM camera_state_history h
 		 JOIN camera_state_classifiers c ON c.id = h.classifier_id
 		 WHERE c.camera_id = ?
@@ -131,12 +131,14 @@ func AggregateMotionEvents(db *DB, from, to time.Time, cameraID string) (EventRe
 	defer hRows.Close()
 	for hRows.Next() {
 		var changedAt time.Time
-		if err := hRows.Scan(&changedAt); err != nil {
+		var classifierName, state string
+		if err := hRows.Scan(&changedAt, &classifierName, &state); err != nil {
 			return EventReport{}, fmt.Errorf("scan state row: %w", err)
 		}
 		total++
-		addDay(changedAt.UTC().Format("2006-01-02"), "estados")
-		byCategory["estados"]++
+		cat := StateCategory(classifierName, state)
+		addDay(changedAt.UTC().Format("2006-01-02"), cat)
+		byCategory[cat]++
 	}
 	if err := hRows.Err(); err != nil {
 		return EventReport{}, err
@@ -205,7 +207,7 @@ func AggregateMotionEventsHourly(db *DB, from, to time.Time, cameraID string, lo
 
 	const tsLayout = "2006-01-02 15:04:05"
 	hRows, err := db.Query(
-		`SELECT h.changed_at
+		`SELECT h.changed_at, c.name, h.state
 		 FROM camera_state_history h
 		 JOIN camera_state_classifiers c ON c.id = h.classifier_id
 		 WHERE c.camera_id = ?
@@ -219,12 +221,14 @@ func AggregateMotionEventsHourly(db *DB, from, to time.Time, cameraID string, lo
 	defer hRows.Close()
 	for hRows.Next() {
 		var changedAt time.Time
-		if err := hRows.Scan(&changedAt); err != nil {
+		var classifierName, state string
+		if err := hRows.Scan(&changedAt, &classifierName, &state); err != nil {
 			return EventReport{}, fmt.Errorf("scan state row: %w", err)
 		}
 		total++
-		addHour(changedAt.In(loc).Hour(), "estados")
-		byCategory["estados"]++
+		cat := StateCategory(classifierName, state)
+		addHour(changedAt.In(loc).Hour(), cat)
+		byCategory[cat]++
 	}
 	if err := hRows.Err(); err != nil {
 		return EventReport{}, err

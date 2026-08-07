@@ -41,8 +41,16 @@ describe('categoryDetail', () => {
   it('movimento: total do label vazio, sem linhas de label', () => {
     expect(categoryDetail('movimento', byLabel)).toEqual({ total: 5, labels: [] })
   })
-  it('estados: total vem do byCategory, sem labels', () => {
+  it('estados (bucket bare, retrocompat): total vem do byCategory, sem labels', () => {
     expect(categoryDetail('estados', byLabel, { estados: 7 })).toEqual({ total: 7, labels: [] })
+  })
+  it('estados:<slug>:<estado> (categoria composta): total vem do byCategory pela CHAVE exata, sem labels', () => {
+    expect(
+      categoryDetail('estados:portão:aberto', byLabel, {
+        'estados:portão:aberto': 4,
+        'estados:portão:fechado': 3,
+      }),
+    ).toEqual({ total: 4, labels: [] })
   })
 })
 

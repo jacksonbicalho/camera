@@ -39,24 +39,19 @@ function parseLocalDate(s: string | undefined): Date {
 // fiel à classificação real do YOLO) usa uma frase genérica com o próprio label — não mais
 // um bucket "Detecções de modelos de IA" que escondia o que foi de fato detectado.
 function categoryDescription(cat: string): string {
-  switch (cat) {
-    case 'movimento':
-      return 'Movimento detectado por diferença de pixels, sem classificação.'
-    case 'pessoa':
-      return 'Detecções classificadas como pessoa.'
-    case 'estados':
-      return 'Transições de classificadores de estado.'
-    default:
-      return `Detecções classificadas como "${categoryLabel(cat)}".`
-  }
+  if (cat === 'movimento') return 'Movimento detectado por diferença de pixels, sem classificação.'
+  if (cat === 'pessoa') return 'Detecções classificadas como pessoa.'
+  if (cat === 'estados' || cat.startsWith('estados:'))
+    return 'Transições de classificadores de estado.'
+  return `Detecções classificadas como "${categoryLabel(cat)}".`
 }
 
 // sortCategories ordena a pilha/legenda: pessoa primeiro, movimento depois, resto em
-// ordem alfabética, `estados` sempre por último (mesma convenção do dropdown do
-// Histórico — HistoryPage.tsx —, com `estados` adicionalmente empurrado pro fim aqui).
+// ordem alfabética, qualquer `estados:*` sempre por último (mesma convenção do dropdown do
+// Histórico — HistoryPage.tsx —, com `estados:*` adicionalmente empurrado pro fim aqui).
 function sortCategories(categories: Iterable<string>): string[] {
   const rank = (cat: string) =>
-    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat === 'estados' ? 3 : 2
+    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat.startsWith('estados:') ? 3 : 2
   return [...categories].sort((a, b) => {
     const diff = rank(a) - rank(b)
     return diff !== 0 ? diff : a.localeCompare(b)

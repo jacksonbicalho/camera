@@ -19,16 +19,17 @@ export interface CategoryDetail {
 }
 
 // categoryDetail devolve o total e o detalhamento por label de uma categoria, para o
-// modal: `estados` vem de `byCategory`; as demais somam os labels que caem na categoria
-// (mesma regra do eventCategory), listando-os por contagem desc (o label vazio — base do
-// `movimento` — não vira linha de detalhe).
+// modal: qualquer categoria `estados:*` (composta por classificador+estado) vem de
+// `byCategory` — já é o grão mais fino possível, sem detalhamento por label; as demais
+// somam os labels que caem na categoria (mesma regra do eventCategory), listando-os por
+// contagem desc (o label vazio — base do `movimento` — não vira linha de detalhe).
 export function categoryDetail(
   cat: EventCategory,
   byLabel: Record<string, number>,
   byCategory?: Record<string, number>,
 ): CategoryDetail {
-  if (cat === 'estados') {
-    return { total: byCategory?.estados ?? 0, labels: [] }
+  if (cat === 'estados' || cat.startsWith('estados:')) {
+    return { total: byCategory?.[cat] ?? 0, labels: [] }
   }
   let total = 0
   const labels: { label: string; count: number }[] = []
