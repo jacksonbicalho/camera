@@ -136,6 +136,78 @@ func TestClassifierCreateAndList(t *testing.T) {
 	}
 }
 
+// TestClassifierNameUniquePerCamera cobre a história feat/estados-categoria-granular
+// (pré-requisito identificado pelo navigator na revisão da análise): nome de
+// classificador precisa ser único POR CÂMERA — a categoria composta
+// estados:<slug-do-nome>:<estado> depende disso pra não ficar ambígua.
+func TestClassifierNameUniquePerCamera(t *testing.T) {
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	cam1 := config.CameraConfig{ID: "cam1", Name: "Cam1", RTSPURL: "rtsp://x/"}
+	cam2 := config.CameraConfig{ID: "cam2", Name: "Cam2", RTSPURL: "rtsp://x/"}
+	if _, err := db.CreateCamera(database, cam1, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CreateCamera(database, cam2, nil); err != nil {
+		t.Fatal(err)
+	}
+	srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{cam1, cam2}, discardLogger(), nil).WithDB(database)
+	token := loginAndGetToken(t, srv, "admin", "pw")
+
+	body := validClassifierBody()
+	body["name"] = "Pessoa"
+	w := doJSON(t, srv, http.MethodPost, "/api/settings/cameras/cam1/classifiers", token, body)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("1º create (cam1): expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	t.Run("CA2: nome duplicado na MESMA câmera é rejeitado com erro claro (409)", func(t *testing.T) {
+		w := doJSON(t, srv, http.MethodPost, "/api/settings/cameras/cam1/classifiers", token, body)
+		if w.Code != http.StatusConflict {
+			t.Fatalf("2º create (mesmo nome, cam1): expected 409, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("CA2: mesmo nome em câmera DIFERENTE continua permitido", func(t *testing.T) {
+		w := doJSON(t, srv, http.MethodPost, "/api/settings/cameras/cam2/classifiers", token, body)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("create (mesmo nome, cam2): expected 201, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	// 2º classificador em cam1, nome distinto — pra exercitar o caminho de UPDATE:
+	// (a) salvar sem mudar o nome não pode se autobloquear (excludeID); (b) renomear
+	// pra colidir com um nome já usado na mesma câmera deve continuar rejeitado.
+	portaoBody := validClassifierBody()
+	portaoBody["name"] = "Portão"
+	w2 := doJSON(t, srv, http.MethodPost, "/api/settings/cameras/cam1/classifiers", token, portaoBody)
+	if w2.Code != http.StatusCreated {
+		t.Fatalf("create Portão (cam1): expected 201, got %d: %s", w2.Code, w2.Body.String())
+	}
+	var portao struct {
+		ID int64 `json:"id"`
+	}
+	json.Unmarshal(w2.Body.Bytes(), &portao)
+
+	t.Run("CA2: salvar (PUT) sem mudar o nome não se autobloqueia (excludeID)", func(t *testing.T) {
+		w := doJSON(t, srv, http.MethodPut, "/api/settings/cameras/cam1/classifiers/"+strconv.FormatInt(portao.ID, 10), token, portaoBody)
+		if w.Code != http.StatusOK {
+			t.Fatalf("update sem mudar nome: expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("CA2: renomear (PUT) pra um nome já usado por OUTRO classificador da MESMA câmera é rejeitado (409)", func(t *testing.T) {
+		renamed := validClassifierBody()
+		renamed["name"] = "Pessoa" // já existe em cam1 (o classificador criado no início do teste)
+		w := doJSON(t, srv, http.MethodPut, "/api/settings/cameras/cam1/classifiers/"+strconv.FormatInt(portao.ID, 10), token, renamed)
+		if w.Code != http.StatusConflict {
+			t.Fatalf("update renomeando pra nome duplicado: expected 409, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
 func TestClassifierValidation(t *testing.T) {
 	srv, token, id := setupClassifierServer(t)
 	path := "/api/settings/cameras/" + id + "/classifiers"

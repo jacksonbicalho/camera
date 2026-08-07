@@ -70,6 +70,13 @@ func (s *Server) handleStateClassifierCreate(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
+	if taken, err := db.ClassifierNameTaken(s.db, id, c.Name, 0); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	} else if taken {
+		http.Error(w, "já existe um classificador com esse nome nesta câmera", http.StatusConflict)
+		return
+	}
 	newID, err := db.CreateStateClassifier(s.db, c)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -94,6 +101,13 @@ func (s *Server) handleStateClassifierUpdate(w http.ResponseWriter, r *http.Requ
 	}
 	c, ok := decodeClassifier(w, r, id, cid)
 	if !ok {
+		return
+	}
+	if taken, err := db.ClassifierNameTaken(s.db, id, c.Name, cid); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	} else if taken {
+		http.Error(w, "já existe um classificador com esse nome nesta câmera", http.StatusConflict)
 		return
 	}
 	if err := db.UpdateStateClassifier(s.db, c); err != nil {

@@ -92,6 +92,7 @@ func TestFooterClassifiersForUser(t *testing.T) {
 	}
 	// c2: footer ligado mas só u2 → u1 não vê
 	c2 := makeClassifier("cam1")
+	c2.Name = "Quintal"
 	c2.FooterEnabled = true
 	c2.FooterUserIDs = []int64{u2}
 	if _, err := db.CreateStateClassifier(database, c2); err != nil {
@@ -99,6 +100,7 @@ func TestFooterClassifiersForUser(t *testing.T) {
 	}
 	// c3: u1 destinatário mas footer desligado → u1 não vê
 	c3 := makeClassifier("cam1")
+	c3.Name = "Varanda"
 	c3.FooterEnabled = false
 	c3.FooterUserIDs = []int64{u1}
 	if _, err := db.CreateStateClassifier(database, c3); err != nil {
