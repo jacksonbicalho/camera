@@ -19,6 +19,7 @@ import (
 
 	"camera/frontend"
 	"camera/internal/analysis"
+	"camera/internal/capture/rtsp"
 	"camera/internal/config"
 	"camera/internal/db"
 	"camera/internal/dbbackup"
@@ -577,16 +578,7 @@ func printStartupURLs(port int) {
 }
 
 func takeSnapshot(ctx context.Context, rtspURL string) ([]byte, error) {
-	cmd := osexec.CommandContext(ctx,
-		"ffmpeg",
-		"-rtsp_transport", "tcp",
-		"-i", rtspURL,
-		"-frames:v", "1",
-		"-f", "image2",
-		"-vcodec", "mjpeg",
-		"-",
-	)
-	return cmd.Output()
+	return rtsp.Snapshot(ctx, rtspURL, rtsp.OSExecutor{})
 }
 
 // extractFrame extrai um frame LIMPO (JPEG) de um MP4 no offset dado — a gravação
