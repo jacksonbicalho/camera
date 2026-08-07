@@ -12,6 +12,7 @@ import {
   categoryStrokeColor,
   categoryLabel,
 } from './eventCategory'
+import type { MotionEvent } from './cameraUtils'
 
 describe('recordingCategory', () => {
   const recAt = (ms: number) => ({ start: new Date(ms).toISOString() })
@@ -29,11 +30,16 @@ describe('recordingCategory', () => {
     const events = [{ time: new Date(400_000).toISOString(), label: 'pessoa' }]
     expect(recordingCategory(recAt(0), events, 300_000)).toBe('continua')
   })
-  it('chunk só com transição de estado (kind=state) → estados (verde)', () => {
+  it('chunk só com transição de estado (kind=state) → estados:<slug>:<estado> (verde)', () => {
     const events = [
-      { time: new Date(60_000).toISOString(), label: 'aberto', kind: 'state' as const },
+      {
+        time: new Date(60_000).toISOString(),
+        label: 'aberto',
+        kind: 'state' as const,
+        classifier_name: 'Portão',
+      },
     ]
-    expect(recordingCategory(recAt(0), events, 300_000)).toBe('estados')
+    expect(recordingCategory(recAt(0), events, 300_000)).toBe('estados:portão:aberto')
   })
   it('detecção real predomina sobre estado no mesmo chunk', () => {
     const events = [
@@ -44,11 +50,21 @@ describe('recordingCategory', () => {
   })
   it('estado tem prioridade sobre continua mas perde para pessoa/movimento/label específico', () => {
     const stateOnly = [
-      { time: new Date(60_000).toISOString(), label: 'fechado', kind: 'state' as const },
+      {
+        time: new Date(60_000).toISOString(),
+        label: 'fechado',
+        kind: 'state' as const,
+        classifier_name: 'Portão',
+      },
     ]
-    expect(recordingCategory(recAt(0), stateOnly, 300_000)).toBe('estados')
+    expect(recordingCategory(recAt(0), stateOnly, 300_000)).toBe('estados:portão:fechado')
     const withPerson = [
-      { time: new Date(60_000).toISOString(), label: 'fechado', kind: 'state' as const },
+      {
+        time: new Date(60_000).toISOString(),
+        label: 'fechado',
+        kind: 'state' as const,
+        classifier_name: 'Portão',
+      },
       { time: new Date(90_000).toISOString(), label: 'pessoa' },
     ]
     expect(recordingCategory(recAt(0), withPerson, 300_000)).toBe('pessoa')
@@ -146,10 +162,16 @@ describe('eventCategory', () => {
       expect(eventCategory({ label: 'Cachorro' })).toBe('cachorro')
     })
   })
-  it('kind=state → estados (independe do label)', () => {
-    expect(eventCategory({ kind: 'state', label: 'aberto' })).toBe('estados')
-    expect(eventCategory({ kind: 'state', label: 'pessoa' })).toBe('estados')
-    expect(eventCategory({ kind: 'state', label: '' })).toBe('estados')
+  it('kind=state vira sempre estados:<slug>:<estado> — nunca cai em pessoa/movimento mesmo se o label disser isso', () => {
+    expect(eventCategory({ kind: 'state', label: 'aberto', classifier_name: 'Portão' })).toBe(
+      'estados:portão:aberto',
+    )
+    expect(eventCategory({ kind: 'state', label: 'pessoa', classifier_name: 'Sensor' })).toBe(
+      'estados:sensor:pessoa',
+    )
+    expect(eventCategory({ kind: 'state', label: '', classifier_name: 'Sensor' })).toBe(
+      'estados:sensor:',
+    )
   })
 })
 
@@ -297,7 +319,7 @@ describe('filterEventsByCategory', () => {
     { id: 2, label: 'pessoa' },
     { id: 3, label: 'carro' },
     { id: 4, label: 'Pessoa detectada' },
-    { id: 5, label: 'aberto', kind: 'state' as const },
+    { id: 5, label: 'aberto', kind: 'state' as const, classifier_name: 'Portão' },
   ]
   it('todos devolve tudo', () => {
     expect(filterEventsByCategory(evs, 'todos')).toHaveLength(5)
@@ -311,8 +333,8 @@ describe('filterEventsByCategory', () => {
   it('filtra por um label específico (ex.: carro) — fiel ao label real, não mais um bucket "ia"', () => {
     expect(filterEventsByCategory(evs, 'carro').map((e) => e.id)).toEqual([3])
   })
-  it('filtra por estados (transições kind=state)', () => {
-    expect(filterEventsByCategory(evs, 'estados').map((e) => e.id)).toEqual([5])
+  it('filtra por estados (transições kind=state) — categoria composta por classificador+estado', () => {
+    expect(filterEventsByCategory(evs, 'estados:portão:aberto').map((e) => e.id)).toEqual([5])
   })
 })
 
@@ -354,5 +376,40 @@ describe('matchesTimelineFilter', () => {
       expect(matchesTimelineFilter('pessoa', 'carro')).toBe(false)
       expect(matchesTimelineFilter('continua', 'carro')).toBe(false)
     })
+  })
+})
+
+// história feat/estados-categoria-granular — a categoria de uma transição de state
+// classifier deixa de ser o bucket fixo 'estados' e vira uma chave composta por
+// (classificador, estado): estados:<slug-do-nome>:<estado>. `ev` é tipado via
+// Pick<MotionEvent, ...> (variável, não literal solto) pra `classifier_name` passar sem
+// disparar excess-property-check contra a assinatura ainda não-alterada de eventCategory.
+describe('CA3: categoria composta de transição de estado (estados:<slug>:<estado>)', () => {
+  const stateEvent = (
+    classifierName: string,
+    state: string,
+  ): Pick<MotionEvent, 'label' | 'kind' | 'classifier_name'> => ({
+    label: state,
+    kind: 'state',
+    classifier_name: classifierName,
+  })
+
+  it('eventCategory computa a chave composta a partir do nome do classificador + estado', () => {
+    expect(eventCategory(stateEvent('Pessoa', 'saindo'))).toBe('estados:pessoa:saindo')
+    expect(eventCategory(stateEvent('Pessoa', 'entrando'))).toBe('estados:pessoa:entrando')
+    expect(eventCategory(stateEvent('Portão', 'aberto'))).toBe('estados:portão:aberto')
+  })
+
+  it('categoryLabel formata a categoria composta como "Estados: <Nome> · <estado>"', () => {
+    expect(categoryLabel('estados:pessoa:saindo')).toBe('Estados: Pessoa · saindo')
+    expect(categoryLabel('estados:portão:aberto')).toBe('Estados: Portão · aberto')
+  })
+
+  it('categoryColor/categoryBorderColor/categoryStrokeColor tratam QUALQUER estados:* como o mesmo verde fixo', () => {
+    expect(categoryColor('estados:pessoa:saindo')).toBe('bg-green-500')
+    expect(categoryColor('estados:portao:fechado')).toBe('bg-green-500')
+    expect(categoryColor('estados:pessoa:saindo')).toBe(categoryColor('estados:portao:fechado'))
+    expect(categoryBorderColor('estados:pessoa:saindo')).toBe('border-green-500')
+    expect(categoryStrokeColor('estados:pessoa:saindo')).toBe('stroke-green-500')
   })
 })
