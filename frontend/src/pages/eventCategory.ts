@@ -2,17 +2,40 @@ import type { MotionEvent, Recording } from './cameraUtils'
 
 // Categoria de um evento (redesign do Escopo B — chips do painel de eventos).
 // Transições de classificador de estado chegam ao feed com `kind:'state'` (mescladas
-// no backend a partir de camera_state_history) e caem em `estados`, independente do
-// label; os demais derivam do label — fiel ao valor real detectado (ex.: "carro"), não
-// mais um bucket genérico "ia" que descartava a classificação (mesma regra do
-// `MotionCategory` no backend, internal/db/reports.go). `movimento`/`pessoa`/`estados`
-// continuam como categorias "conhecidas" do produto (cor fixa, ver `categoryColor`);
-// qualquer outro valor é um label real, dinâmico.
+// no backend a partir de camera_state_history) e caem numa chave COMPOSTA por
+// (classificador, estado) — `estados:<slug-do-nome>:<estado>`, ex. `estados:pessoa:saindo`
+// — em vez do bucket genérico `'estados'` de antes: um classificador pode se chamar
+// "Pessoa" e coincidir visualmente com a categoria real `'pessoa'` (detecção de objeto
+// YOLO, `label='person'`), duas fontes de dados diferentes que só compartilham o nome por
+// coincidência (achado real desta história). O slug é o nome do classificador normalizado
+// (trim+lowercase, mesma normalização de `MotionCategory`/labels comuns abaixo) — nome é
+// único POR CÂMERA (constraint de banco, ver migration 0048), então a chave nunca fica
+// ambígua dentro da mesma câmera; classificadores homônimos em câmeras DIFERENTES
+// compartilham a mesma chave de propósito (mesma UX de `'pessoa'`/`'movimento'`, que já
+// agregam todas as câmeras sob um único filtro). Os demais eventos derivam do label —
+// fiel ao valor real detectado (ex.: "carro"), não mais um bucket genérico "ia" que
+// descartava a classificação (mesma regra do `MotionCategory` no backend,
+// internal/db/reports.go). `movimento`/`pessoa`/qualquer `estados:*` continuam como
+// categorias "conhecidas" do produto (cor fixa, ver `categoryColor`); qualquer outro
+// valor é um label real, dinâmico.
 export type EventCategory = string
 export type EventFilter = 'todos' | EventCategory
 
-export function eventCategory(ev: Pick<MotionEvent, 'label' | 'kind'>): EventCategory {
-  if (ev.kind === 'state') return 'estados'
+// slugifyClassifierName normaliza o nome de um classificador pra uso como identificador
+// dentro da chave composta — mesma normalização (trim+lowercase) que labels comuns já
+// recebem abaixo, sem remoção de acentos (mesma limitação aceita hoje pra labels comuns).
+function slugifyClassifierName(name: string): string {
+  return name.trim().toLowerCase()
+}
+
+export function eventCategory(
+  ev: Pick<MotionEvent, 'label' | 'kind' | 'classifier_name'>,
+): EventCategory {
+  if (ev.kind === 'state') {
+    const slug = slugifyClassifierName(ev.classifier_name ?? '')
+    const state = (ev.label ?? '').trim()
+    return `estados:${slug}:${state}`
+  }
   const label = (ev.label ?? '').trim()
   if (!label) return 'movimento'
   if (/pessoa|person/i.test(label)) return 'pessoa'
@@ -68,6 +91,12 @@ const LABEL_PALETTE: CategoryPalette[] = [
 // determinística por HASH pra qualquer label arbitrário (a MESMA string sempre cai na
 // MESMA paleta, em qualquer sessão ou página — sem precisar cadastrar cor por label).
 function paletteFor(category: string): CategoryPalette {
+  // QUALQUER categoria de transição de estado (`estados:<slug>:<estado>`) usa o mesmo
+  // verde fixo, independente do classificador — o verde já é a "assinatura visual" de
+  // state classifier em toda a UI (timeline, thumbnail, régua); fragmentar por
+  // classificador tornaria mais difícil reconhecer "isso é uma transição de estado" de
+  // relance. A granularidade fica só no texto (`categoryLabel`), não na cor.
+  if (category === 'estados' || category.startsWith('estados:')) return KNOWN_COLORS.estados
   const known = KNOWN_COLORS[category]
   if (known) return known
   let hash = 0
@@ -96,21 +125,30 @@ export function categoryStrokeColor(category: string): string {
   return paletteFor(category).stroke
 }
 
-// categoryLabel capitaliza a 1ª letra de uma categoria pra exibição — UMA função só,
-// sem casos especiais: "movimento"→"Movimento", "carro"→"Carro" etc.
+// categoryLabel formata uma categoria pra exibição: capitaliza a 1ª letra pro caso comum
+// ("movimento"→"Movimento", "carro"→"Carro"); uma categoria composta de estado
+// (`estados:<slug>:<estado>`) vira "Estados: <Nome> · <estado>" — só o slug (nome do
+// classificador) é capitalizado, o estado fica cru como veio (mesma convenção de labels
+// comuns, que também não têm capitalização própria além da 1ª letra do bucket).
 export function categoryLabel(category: string): string {
   if (!category) return category
+  if (category.startsWith('estados:')) {
+    const [, slug, state] = category.split(':')
+    const name = slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : ''
+    return `Estados: ${name} · ${state ?? ''}`
+  }
   return category.charAt(0).toUpperCase() + category.slice(1)
 }
 
 // categoryTier ordena a PRIORIDADE de uma categoria pra resolver um chunk com vários
-// eventos: pessoa (0, topo) > qualquer label específico (1) > movimento (2) > estados
-// (3, fundo). Detecção real predomina; um chunk cujo único evento é uma transição de
-// estado fica `estados` (verde, como na timeline) em vez de cair em `continua` (azul).
+// eventos: pessoa (0, topo) > qualquer label específico (1) > movimento (2) > qualquer
+// estados:* (3, fundo). Detecção real predomina; um chunk cujo único evento é uma
+// transição de estado fica na categoria de estado (verde, como na timeline) em vez de
+// cair em `continua` (azul).
 function categoryTier(cat: string): number {
   if (cat === 'pessoa') return 0
   if (cat === 'movimento') return 2
-  if (cat === 'estados') return 3
+  if (cat === 'estados' || cat.startsWith('estados:')) return 3
   return 1
 }
 
@@ -202,16 +240,10 @@ export function firstEventInChunk<T extends Pick<MotionEvent, 'time'>>(
 // real, capitalizado, sem caso especial (era um bucket "Detecção IA" genérico antes).
 export function eventTitle(ev: Pick<MotionEvent, 'label' | 'kind'>): string {
   const cat = eventCategory(ev)
-  switch (cat) {
-    case 'pessoa':
-      return 'Pessoa detectada'
-    case 'movimento':
-      return 'Movimento detectado'
-    case 'estados':
-      return (ev.label ?? '').trim() || 'Estado'
-    default:
-      return categoryLabel(cat)
-  }
+  if (cat === 'pessoa') return 'Pessoa detectada'
+  if (cat === 'movimento') return 'Movimento detectado'
+  if (cat === 'estados' || cat.startsWith('estados:')) return (ev.label ?? '').trim() || 'Estado'
+  return categoryLabel(cat)
 }
 
 // eventCardLines devolve as duas linhas do card de evento (título em cima, subtítulo

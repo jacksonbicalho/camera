@@ -46,16 +46,17 @@ func TestAggregateMotionEvents(t *testing.T) {
 	if len(rep.ByDay) != 2 || rep.ByDay[0].Day != "2026-06-20" || rep.ByDay[0].Count != 3 || rep.ByDay[1].Day != "2026-06-21" || rep.ByDay[1].Count != 1 {
 		t.Errorf("by_day = %+v", rep.ByDay)
 	}
-	// dia 20: 1 pessoa + 1 movimento (label vazio) + 1 estado
-	if rep.ByDay[0].ByCategory["pessoa"] != 1 || rep.ByDay[0].ByCategory["movimento"] != 1 || rep.ByDay[0].ByCategory["estados"] != 1 {
+	// dia 20: 1 pessoa + 1 movimento (label vazio) + 1 estado (aberto)
+	if rep.ByDay[0].ByCategory["pessoa"] != 1 || rep.ByDay[0].ByCategory["movimento"] != 1 ||
+		rep.ByDay[0].ByCategory["estados:portão:aberto"] != 1 {
 		t.Errorf("by_day[0].by_category = %+v", rep.ByDay[0].ByCategory)
 	}
-	// dia 21: só 1 estado
-	if rep.ByDay[1].ByCategory["estados"] != 1 || len(rep.ByDay[1].ByCategory) != 1 {
+	// dia 21: só 1 estado (fechado — categoria composta DIFERENTE da de "aberto")
+	if rep.ByDay[1].ByCategory["estados:portão:fechado"] != 1 || len(rep.ByDay[1].ByCategory) != 1 {
 		t.Errorf("by_day[1].by_category = %+v", rep.ByDay[1].ByCategory)
 	}
-	if rep.ByCategory["estados"] != 2 {
-		t.Errorf("by_category[estados] = %d, want 2 (%+v)", rep.ByCategory["estados"], rep.ByCategory)
+	if rep.ByCategory["estados:portão:aberto"] != 1 || rep.ByCategory["estados:portão:fechado"] != 1 {
+		t.Errorf("by_category[estados:*] = %+v, want aberto=1 fechado=1", rep.ByCategory)
 	}
 	if rep.ByLabel["pessoa"] != 1 || rep.ByLabel[""] != 1 {
 		t.Errorf("by_label = %+v", rep.ByLabel)
@@ -100,14 +101,14 @@ func TestAggregateMotionEventsHourly(t *testing.T) {
 	if rep.ByHour[9].Hour != 9 || rep.ByHour[9].Count != 2 || rep.ByHour[9].ByCategory["movimento"] != 1 || rep.ByHour[9].ByCategory["pessoa"] != 1 {
 		t.Errorf("hora 9 = %+v", rep.ByHour[9])
 	}
-	if rep.ByHour[12].Count != 1 || rep.ByHour[12].ByCategory["estados"] != 1 {
+	if rep.ByHour[12].Count != 1 || rep.ByHour[12].ByCategory["estados:portão:aberto"] != 1 {
 		t.Errorf("hora 12 (estado) = %+v", rep.ByHour[12])
 	}
 	if rep.ByHour[0].Count != 0 {
 		t.Errorf("hora 0 deveria ser zero: %+v", rep.ByHour[0])
 	}
-	if rep.ByCategory["estados"] != 1 {
-		t.Errorf("by_category[estados] = %d, want 1", rep.ByCategory["estados"])
+	if rep.ByCategory["estados:portão:aberto"] != 1 {
+		t.Errorf("by_category[estados:portão:aberto] = %d, want 1", rep.ByCategory["estados:portão:aberto"])
 	}
 	if rep.ByLabel[""] != 1 || rep.ByLabel["pessoa"] != 1 {
 		t.Errorf("by_label = %+v", rep.ByLabel)
@@ -226,4 +227,55 @@ func TestMotionCategory_FielAoLabelReal(t *testing.T) {
 			t.Errorf("MotionCategory(%q) = %q, want %q", c.label, got, c.want)
 		}
 	}
+}
+
+// história feat/estados-categoria-granular — ByCategory/by_category deixa de agregar
+// transições de estado no bucket fixo "estados" e passa a quebrar por (classificador,
+// estado): estados:<slug-do-nome>:<estado>. Cobre AggregateMotionEvents (diário) e
+// AggregateMotionEventsHourly (por hora) — as 2 que quebram por categoria.
+func TestAggregateMotionEventsStateCategoryComposite(t *testing.T) {
+	database := openTestDB(t)
+	ensureCamera(t, database, "cam1")
+
+	classifierCfg := makeClassifier("cam1")
+	classifierCfg.Name = "Pessoa"
+	classifierCfg.Classes = []string{"entrando", "saindo"}
+	cid, err := db.CreateStateClassifier(database, classifierCfg)
+	if err != nil {
+		t.Fatalf("classifier: %v", err)
+	}
+	insertTransition(t, database, cid, "saindo", 0.9, "/x/a.jpg", "2026-06-20 12:00:00")
+	insertTransition(t, database, cid, "entrando", 0.9, "/x/b.jpg", "2026-06-20 13:00:00")
+
+	from := time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)
+
+	t.Run("CA6: AggregateMotionEvents quebra ByCategory por (classificador, estado), não mais o bucket genérico \"estados\"", func(t *testing.T) {
+		rep, err := db.AggregateMotionEvents(database, from, to, "cam1")
+		if err != nil {
+			t.Fatalf("aggregate: %v", err)
+		}
+		if rep.ByCategory["estados"] != 0 {
+			t.Errorf("bucket genérico \"estados\" não deveria mais existir, got %d", rep.ByCategory["estados"])
+		}
+		if rep.ByCategory["estados:pessoa:saindo"] != 1 {
+			t.Errorf("by_category[estados:pessoa:saindo] = %d, want 1 (%+v)", rep.ByCategory["estados:pessoa:saindo"], rep.ByCategory)
+		}
+		if rep.ByCategory["estados:pessoa:entrando"] != 1 {
+			t.Errorf("by_category[estados:pessoa:entrando] = %d, want 1 (%+v)", rep.ByCategory["estados:pessoa:entrando"], rep.ByCategory)
+		}
+	})
+
+	t.Run("CA6: AggregateMotionEventsHourly quebra by_category por (classificador, estado)", func(t *testing.T) {
+		rep, err := db.AggregateMotionEventsHourly(database, from, to, "cam1", time.UTC)
+		if err != nil {
+			t.Fatalf("aggregate hourly: %v", err)
+		}
+		if rep.ByCategory["estados"] != 0 {
+			t.Errorf("bucket genérico \"estados\" não deveria mais existir, got %d", rep.ByCategory["estados"])
+		}
+		if rep.ByCategory["estados:pessoa:saindo"] != 1 || rep.ByCategory["estados:pessoa:entrando"] != 1 {
+			t.Errorf("by_category composto ausente/errado: %+v", rep.ByCategory)
+		}
+	})
 }

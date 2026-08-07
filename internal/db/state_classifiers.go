@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -108,6 +109,27 @@ const classifierCols = `id, camera_id, name, model, threshold,
 	trigger_motion, trigger_interval_seconds,
 	crop_x, crop_y, crop_w, crop_h, min_consecutive, enabled, notify_enabled, footer_enabled,
 	history_retention_minutes`
+
+// ClassifierNameTaken reports whether another classifier of the same camera already
+// uses `name` — pré-check antes de create/update (mesmo padrão de SetUserEmail/
+// SetUsername em users.go), pra devolver um erro amigável em vez de deixar a
+// violação da UNIQUE(camera_id, name) estourar como erro genérico de banco.
+// excludeID (0 em create) deixa o próprio classificador de fora da checagem, pra
+// update não se autobloquear ao salvar sem mudar o nome.
+func ClassifierNameTaken(database *DB, cameraID, name string, excludeID int64) (bool, error) {
+	var existingID int64
+	err := database.QueryRow(
+		`SELECT id FROM camera_state_classifiers WHERE camera_id = ? AND name = ? AND id != ?`,
+		cameraID, name, excludeID,
+	).Scan(&existingID)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return false, fmt.Errorf("check classifier name: %w", err)
+}
 
 // CreateStateClassifier inserts a classifier and its classes, returning the new id.
 func CreateStateClassifier(database *DB, c stateclass.Classifier) (int64, error) {

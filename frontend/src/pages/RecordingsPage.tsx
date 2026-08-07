@@ -29,7 +29,7 @@ interface ModalTarget {
 // `estados` como opção separada, mas segue a mesma prioridade pra pessoa/movimento).
 function sortCategories(categories: Iterable<string>): string[] {
   const rank = (cat: string) =>
-    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat === 'estados' ? 3 : 2
+    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat.startsWith('estados:') ? 3 : 2
   return [...categories].sort((a, b) => {
     const diff = rank(a) - rank(b)
     return diff !== 0 ? diff : a.localeCompare(b)

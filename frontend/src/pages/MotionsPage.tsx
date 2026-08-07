@@ -14,7 +14,7 @@ import { useMoments, momentThumb } from '../hooks/useMoments'
 // (pessoa primeiro, movimento depois, resto alfabético, estados sempre por último).
 function sortCategories(categories: Iterable<string>): string[] {
   const rank = (cat: string) =>
-    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat === 'estados' ? 3 : 2
+    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat.startsWith('estados:') ? 3 : 2
   return [...categories].sort((a, b) => {
     const diff = rank(a) - rank(b)
     return diff !== 0 ? diff : a.localeCompare(b)

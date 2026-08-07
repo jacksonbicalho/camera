@@ -81,12 +81,6 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 			strings.Contains(strings.ToLower(category), query)
 	}
 
-	// "estados" é categoria especial: não vem de motion_events, é sua própria fonte
-	// (camera_state_history). Entra no resultado se catFilter for nil (sem filtro) ou
-	// contiver "estados".
-	_, wantsEstados := catFilter["estados"]
-	wantsEstados = wantsEstados || catFilter == nil
-
 	moments := []moment{}
 	// categories é o universo de categorias do dia (respeitando `cameras`/permissão),
 	// SEM aplicar catFilter/q — os chips do frontend usam isso pra nunca sumir quando
@@ -122,19 +116,21 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if trs, err := db.ListCameraStateTransitions(s.db, c.ID, dayStart, dayEnd); err == nil {
-			if len(trs) > 0 {
-				categories["estados"] = struct{}{}
-			}
-			if wantsEstados {
-				for _, t := range trs {
-					if !matchesQuery(t.State, "estados") {
+			for _, t := range trs {
+				cat := db.StateCategory(t.ClassifierName, t.State)
+				categories[cat] = struct{}{}
+				if catFilter != nil {
+					if _, ok := catFilter[cat]; !ok {
 						continue
 					}
-					moments = append(moments, moment{
-						CameraID: c.ID, CameraName: c.Name, Time: t.ChangedAt.UTC().Format(time.RFC3339),
-						Kind: "state", Label: t.State, Category: "estados", Frame: t.FramePath, Score: t.Confidence,
-					})
 				}
+				if !matchesQuery(t.State, cat) {
+					continue
+				}
+				moments = append(moments, moment{
+					CameraID: c.ID, CameraName: c.Name, Time: t.ChangedAt.UTC().Format(time.RFC3339),
+					Kind: "state", Label: t.State, Category: cat, Frame: t.FramePath, Score: t.Confidence,
+				})
 			}
 		}
 	}

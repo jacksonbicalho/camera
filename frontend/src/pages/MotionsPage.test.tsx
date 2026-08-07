@@ -24,7 +24,7 @@ const moments = [
     time: '2026-06-23T08:08:05Z',
     kind: 'state',
     label: 'aberto',
-    category: 'estados',
+    category: 'estados:portão:aberto',
     frame: '/recordings/state_history/1/x.jpg',
     score: 0.9,
   },
