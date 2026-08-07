@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"camera/internal/capture/rtsp"
 	"camera/internal/config"
 	"camera/internal/exec"
 	"camera/internal/ffprobe"
@@ -43,28 +44,19 @@ func (s *HLSStreamer) Start() error {
 	playlist := filepath.Join(dir, "index.m3u8")
 	segmentPattern := filepath.Join(dir, "%06d.ts")
 	s.log.Debug("starting hls ffmpeg", "camera", s.camera.ID, "playlist", playlist)
-	args := []string{
-		"-rtsp_transport", "tcp",
+	args := rtsp.TransportArgs()
+	args = append(args,
 		"-fflags", "+nobuffer",
 		"-flags", "+low_delay",
 		"-analyzeduration", "500000",
 		"-probesize", "32768",
-		"-i", s.camera.RTSPURL,
-	}
-	if s.needsTranscode() {
+	)
+	args = append(args, rtsp.InputArgs(s.camera.RTSPURL)...)
+	needsTranscode := s.needsTranscode()
+	if needsTranscode {
 		s.log.Warn("transcoding video to h264", "camera", s.camera.ID, "source_codec", s.stream.VideoCodec, "mode", s.camera.HLSVideoMode)
-		args = append(args, "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency")
-		if s.stream.HasAudio {
-			args = append(args, "-c:a", "copy")
-		} else {
-			args = append(args, "-an")
-		}
-	} else {
-		args = append(args, "-c", "copy")
-		if !s.stream.HasAudio {
-			args = append(args, "-an")
-		}
 	}
+	args = append(args, rtsp.TranscodeArgs(needsTranscode, s.stream.HasAudio)...)
 
 	segmentSeconds := s.camera.HLSSegmentSecondsOrDefault()
 	listSize, hlsFlags := hlsListSizeAndFlags(s.camera.HLSDVRSecondsOrDefault(), segmentSeconds, s.camera.HLSListSizeOrDefault())
@@ -120,14 +112,7 @@ func (s *HLSStreamer) Stop() {
 }
 
 func (s *HLSStreamer) needsTranscode() bool {
-	switch s.camera.HLSVideoMode {
-	case "h264":
-		return true
-	case "copy":
-		return false
-	default: // "auto" or empty
-		return s.stream.VideoCodec != "" && s.stream.VideoCodec != "h264"
-	}
+	return rtsp.NeedsTranscode(s.camera.HLSVideoMode, s.stream.VideoCodec)
 }
 
 func hlsListSizeAndFlags(dvrSeconds, segmentSeconds, defaultListSize int) (listSize int, flags string) {
