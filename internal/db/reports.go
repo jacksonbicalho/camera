@@ -32,6 +32,18 @@ func MotionCategory(label string) string {
 	return strings.ToLower(trimmed)
 }
 
+// StateCategory monta a chave composta de categoria de uma transição de state
+// classifier — estados:<slug-do-nome>:<estado> — mesma regra do `eventCategory` no
+// frontend (frontend/src/pages/eventCategory.ts): o slug é o nome do classificador
+// normalizado (trim+lowercase, mesma normalização de MotionCategory acima). Nome é
+// único POR CÂMERA (migration 0048), então a chave nunca fica ambígua dentro da mesma
+// câmera; classificadores homônimos em câmeras diferentes compartilham a mesma chave
+// de propósito (mesma UX de `MotionCategory`, que já agrega todas as câmeras).
+func StateCategory(classifierName, state string) string {
+	slug := strings.ToLower(strings.TrimSpace(classifierName))
+	return "estados:" + slug + ":" + strings.TrimSpace(state)
+}
+
 // HourCount is the event count for one hour-of-day (0..23) no fuso pedido, com a quebra
 // por categoria — usado no modo "dia" (barras por hora).
 type HourCount struct {

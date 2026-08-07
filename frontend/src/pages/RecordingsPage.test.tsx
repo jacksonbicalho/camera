@@ -72,7 +72,7 @@ const moments = [
     time: '2026-06-23T08:08:05Z',
     kind: 'state',
     label: 'aberto',
-    category: 'estados',
+    category: 'estados:portão:aberto',
     frame: '/recordings/state_history/1/x.jpg',
     score: 0.9,
   },
@@ -424,7 +424,7 @@ describe('RecordingsPage', () => {
         'recordings-cat-todos',
         'recordings-cat-pessoa',
         'recordings-cat-zebra',
-        'recordings-cat-estados',
+        'recordings-cat-estados:portão:aberto',
       ])
     })
 
@@ -442,7 +442,7 @@ describe('RecordingsPage', () => {
         'recordings-cat-todos',
         'recordings-cat-pessoa',
         'recordings-cat-carro',
-        'recordings-cat-estados',
+        'recordings-cat-estados:portão:aberto',
       ])
     })
 
@@ -468,7 +468,7 @@ describe('RecordingsPage', () => {
       })
     })
 
-    it('rótulos dos chips são capitalizados (categoryLabel) — "Todos"/"Pessoa"/"Carro"/"Estados"', async () => {
+    it('rótulos dos chips são capitalizados (categoryLabel) — "Todos"/"Pessoa"/"Carro"/"Estados: Portão · aberto"', async () => {
       stubMomentsFetch()
       renderRecordings()
       await waitFor(() => {
@@ -477,7 +477,7 @@ describe('RecordingsPage', () => {
       const labels = Array.from(
         document.getElementById('recordings-category-chips')!.querySelectorAll('button'),
       ).map((b) => b.textContent?.trim())
-      expect(labels).toEqual(['Todos', 'Pessoa', 'Carro', 'Estados'])
+      expect(labels).toEqual(['Todos', 'Pessoa', 'Carro', 'Estados: Portão · aberto'])
     })
 
     it('o chip da categoria ATIVA nunca desaparece, mesmo quando o servidor filtra a resposta pra só ela', async () => {
@@ -497,7 +497,7 @@ describe('RecordingsPage', () => {
       expect(document.getElementById('recordings-cat-carro')).not.toBeNull()
       expect(document.getElementById('recordings-cat-todos')).not.toBeNull()
       expect(document.getElementById('recordings-cat-pessoa')).not.toBeNull()
-      expect(document.getElementById('recordings-cat-estados')).not.toBeNull()
+      expect(document.getElementById('recordings-cat-estados:portão:aberto')).not.toBeNull()
     })
   })
 
@@ -657,7 +657,7 @@ describe('RecordingsPage', () => {
                   moments: filtered,
                   total: filtered.length,
                   hasMore: false,
-                  categories: ['carro', 'estados', 'pessoa'],
+                  categories: ['carro', 'estados:portão:aberto', 'pessoa'],
                 }),
             })
           }
@@ -683,7 +683,7 @@ describe('RecordingsPage', () => {
         expect(document.getElementById('moment-1')).toBeNull()
       })
       expect(document.getElementById('recordings-cat-carro')).not.toBeNull()
-      expect(document.getElementById('recordings-cat-estados')).not.toBeNull()
+      expect(document.getElementById('recordings-cat-estados:portão:aberto')).not.toBeNull()
     })
 
     it('permite adicionar uma 2ª categoria DEPOIS que o fetch da 1ª já resolveu (fluxo real, não uma corrida de timing)', async () => {
