@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
-import CameraSettingsTabs from '../../components/CameraSettingsTabs'
-import EntitySubtitle from '../../components/EntitySubtitle'
-import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { authHeaders } from '../../auth'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -14,12 +11,27 @@ interface ObjectDetectorItem {
   name: string
 }
 
+interface CameraOption {
+  id: string
+  name: string
+}
+
 const DEFAULT_THRESHOLD = 0.4
 
 export default function CameraAnalysisSettingsPage() {
   const { id } = useParams<{ id: string }>()
-  const { settings } = useSettings()
-  const cam = settings?.cameras?.find((c: CameraSettings) => c.id === id)
+  const navigate = useNavigate()
+
+  // Câmeras pra popular o <select> de troca — fetch direto (não via
+  // useSettings), mesmo padrão de report-camera-select em ReportsPage.
+  const [cameras, setCameras] = useState<CameraOption[]>([])
+  useEffect(() => {
+    fetch('/api/cameras', { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: CameraOption[]) => setCameras(Array.isArray(list) ? list : []))
+      .catch(() => {})
+  }, [])
+  const cam = cameras.find((c) => c.id === id)
 
   const [enabled, setEnabled] = useState(false)
   const [detectors, setDetectors] = useState<ObjectDetectorItem[]>([])
@@ -79,15 +91,31 @@ export default function CameraAnalysisSettingsPage() {
   return (
     <SettingsLayout id="camera-analysis-page" footerId="camera-analysis-footer">
       <PageHeader
-        title="Câmeras"
+        title="Análise por câmera"
         subtitle={
-          <EntitySubtitle
-            parent={{ label: cam?.name ?? '...', to: `/settings/cameras/${id}` }}
-            current="Análise"
-          />
+          cam?.name && (
+            <span id="analysis-camera-name" className="block text-base font-medium text-foreground">
+              {cam.name}
+            </span>
+          )
+        }
+        actions={
+          <select
+            id="analysis-camera-select"
+            aria-label="Câmera"
+            value={id}
+            onChange={(e) => navigate(`/settings/analyses/${e.target.value}`, { replace: true })}
+            disabled={cameras.length <= 1}
+            className="bg-surface-2 text-foreground text-xs rounded px-2 py-1 border border-border max-w-44 disabled:opacity-70"
+          >
+            {cameras.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         }
       />
-      <CameraSettingsTabs id={id!} active="analysis" />
 
       <div className="space-y-6">
         <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">

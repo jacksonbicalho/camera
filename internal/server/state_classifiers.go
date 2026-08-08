@@ -18,6 +18,32 @@ import (
 	"camera/internal/stateengine"
 )
 
+// handleClassifierGet resolve um classificador só pelo próprio id (sem o id
+// da câmera na URL) — o frontend usa isso pra descobrir o camera_id ao
+// entrar direto num deep-link de edição (/settings/states/edit/:cid).
+func (s *Server) handleClassifierGet(w http.ResponseWriter, r *http.Request) {
+	cid, err := strconv.ParseInt(r.PathValue("cid"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if s.db == nil {
+		http.Error(w, "banco de dados não configurado", http.StatusServiceUnavailable)
+		return
+	}
+	c, err := db.GetStateClassifier(s.db, cid)
+	if err == sql.ErrNoRows {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(c)
+}
+
 func (s *Server) handleStateClassifiersGet(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if !s.cameraExists(id) {

@@ -55,6 +55,12 @@ func TestPublishClassifierStateNotifiesAccessOnly(t *testing.T) {
 	if ns[0].Title != "Portão" || ns[0].Message != "Estado: aberto" {
 		t.Fatalf("notificação inesperada: %+v", ns[0])
 	}
+
+	t.Run("CA3: link da notificação aponta pra /settings/states/{camera_id} (história refactor/camera-tabs-para-sidebar-ia)", func(t *testing.T) {
+		if ns[0].Link != "/settings/states/cam1" {
+			t.Fatalf("expected link /settings/states/cam1, got %q", ns[0].Link)
+		}
+	})
 }
 
 func TestPublishClassifierStateConditional(t *testing.T) {

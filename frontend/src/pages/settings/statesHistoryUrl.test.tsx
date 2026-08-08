@@ -12,7 +12,6 @@ vi.mock('../../auth', () => ({
 vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
-vi.mock('../../components/CameraSettingsTabs', () => ({ default: () => <div /> }))
 
 const classifiers = [
   {
@@ -57,7 +56,7 @@ function LocationSearch() {
 function GoNoParam() {
   const nav = useNavigate()
   return (
-    <button id="go-no-param" onClick={() => nav('/settings/cameras/states/cam1')}>
+    <button id="go-no-param" onClick={() => nav('/settings/states/cam1')}>
       x
     </button>
   )
@@ -68,7 +67,7 @@ function renderAt(entry: string) {
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route
-          path="/settings/cameras/states/:id"
+          path="/settings/states/:id"
           element={
             <>
               <CameraStatesSettingsPage />
@@ -86,7 +85,7 @@ const el = (id: string) => document.getElementById(id)
 
 describe('CameraStatesSettingsPage — Histórico reflete na URL', () => {
   it('abrir pelo botão da lista escreve ?history={cid} na URL', async () => {
-    renderAt('/settings/cameras/states/cam1')
+    renderAt('/settings/states/cam1')
     await screen.findByText('Portão')
 
     fireEvent.click(el('state-history-1')!)
@@ -95,7 +94,7 @@ describe('CameraStatesSettingsPage — Histórico reflete na URL', () => {
   })
 
   it('remover o param ?history fecha a view de Histórico', async () => {
-    renderAt('/settings/cameras/states/cam1?history=1')
+    renderAt('/settings/states/cam1?history=1')
     // deep-link abre a view (botão Voltar do Histórico aparece)
     await screen.findByText('← Voltar')
 
