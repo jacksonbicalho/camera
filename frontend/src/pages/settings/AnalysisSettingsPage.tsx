@@ -70,8 +70,8 @@ function ReanalyzePanel({
         )}
         {anyCameraAnalysisEnabled === false && (
           <p className="text-xs text-amber-400 mt-1">
-            Nenhuma câmera com análise habilitada — configure um detector por câmera em
-            Configurações → Câmeras → Análise antes de reanalisar.
+            Nenhuma câmera com análise habilitada — configure um detector por câmera em Inteligência
+            Artificial → Análise por câmera antes de reanalisar.
           </p>
         )}
       </div>

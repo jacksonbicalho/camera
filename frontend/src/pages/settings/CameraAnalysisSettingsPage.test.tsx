@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import CameraAnalysisSettingsPage from './CameraAnalysisSettingsPage'
 
 vi.mock('../../auth', () => ({
@@ -165,5 +165,68 @@ describe('CA3: checkbox "Habilitado" controla enabled diretamente; seção de co
 
     expect(saveBtn.disabled).toBe(false)
     expect(screen.queryByText(/selecione um detector/i)).toBeNull()
+  })
+})
+
+// CA5 (história refactor/camera-tabs-para-sidebar-ia): a página passa a viver
+// em /settings/analyses/:id (chegando pela seção Inteligência Artificial em
+// vez da aba da câmera) e ganha um <select> pra trocar de câmera sem voltar
+// pra uma landing — mesmo padrão de report-camera-select em ReportsPage
+// (fetch /api/cameras direto, não via useSettings; ao trocar, navega replace
+// pra /settings/analyses/<nova câmera>).
+function LocationProbe() {
+  const location = useLocation()
+  return <div id="test-location">{location.pathname}</div>
+}
+
+function renderAtAnalysesRoute(initial = '/settings/analyses/cam-1') {
+  return render(
+    <MemoryRouter initialEntries={[initial]}>
+      <Routes>
+        <Route path="/settings/analyses/:id" element={<CameraAnalysisSettingsPage />} />
+      </Routes>
+      <LocationProbe />
+    </MemoryRouter>,
+  )
+}
+
+describe('CA5: <select id="analysis-camera-select"> troca de câmera sem voltar pra uma landing', () => {
+  it('lista as câmeras (via GET /api/cameras) e, ao trocar, navega pra /settings/analyses/<nova câmera>', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        const u = String(url)
+        if (u === '/api/cameras') {
+          return new Response(
+            JSON.stringify([
+              { id: 'cam-1', name: 'Entrada' },
+              { id: 'cam-2', name: 'Quintal' },
+            ]),
+            { status: 200 },
+          )
+        }
+        if (
+          u === '/api/settings/cameras/cam-1/analysis' ||
+          u === '/api/settings/cameras/cam-2/analysis'
+        ) {
+          return new Response(JSON.stringify({ enabled: false, detector_id: null }), {
+            status: 200,
+          })
+        }
+        if (u === '/api/settings/detectors') {
+          return new Response(JSON.stringify([]), { status: 200 })
+        }
+        return new Response('{}', { status: 200 })
+      }),
+    )
+
+    renderAtAnalysesRoute()
+
+    const select = (await screen.findByLabelText(/câmera/i)) as HTMLSelectElement
+    fireEvent.change(select, { target: { value: 'cam-2' } })
+
+    await waitFor(() => {
+      expect(document.getElementById('test-location')!.textContent).toBe('/settings/analyses/cam-2')
+    })
   })
 })

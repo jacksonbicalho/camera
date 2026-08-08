@@ -22,6 +22,7 @@ const CameraDetailSettingsPage = lazy(() => import('./pages/settings/CameraDetai
 const CameraMotionSettingsPage = lazy(() => import('./pages/settings/CameraMotionSettingsPage'))
 const CameraZonesSettingsPage = lazy(() => import('./pages/settings/CameraZonesSettingsPage'))
 const CameraAnalysisSettingsPage = lazy(() => import('./pages/settings/CameraAnalysisSettingsPage'))
+const AnalysesLandingPage = lazy(() => import('./pages/settings/AnalysesLandingPage'))
 const CameraStatesSettingsPage = lazy(() => import('./pages/settings/CameraStatesSettingsPage'))
 const DiscoverPage = lazy(() => import('./pages/settings/DiscoverPage'))
 const AnalysisSettingsPage = lazy(() => import('./pages/settings/AnalysisSettingsPage'))
@@ -359,7 +360,15 @@ export const routes = (
       }
     />
     <Route
-      path="/settings/cameras/analysis/:id"
+      path="/settings/analyses"
+      element={
+        <Lazy>
+          <AnalysesLandingPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/analyses/:id"
       element={
         <Lazy>
           <CameraAnalysisSettingsPage />
