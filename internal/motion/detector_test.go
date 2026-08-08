@@ -27,7 +27,7 @@ type fakeFrameCommander struct {
 	started int
 }
 
-func (c *fakeFrameCommander) Start(url string, width, height, fps int) (frameProcess, error) {
+func (c *fakeFrameCommander) Start(url string, width, height, fps int, captureType string) (frameProcess, error) {
 	c.started++
 	return c.process, nil
 }
@@ -61,7 +61,7 @@ func TestDetectorRecordsEventWhenDiffExceedsThreshold(t *testing.T) {
 	})
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
-	det := newDetector("entrada", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(), nil, nil, nil)
+	det := newDetector("entrada", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(), nil, nil, nil)
 
 	det.processFrames(context.Background())
 
@@ -84,7 +84,7 @@ func TestDetectorIgnoresSmallDiff(t *testing.T) {
 	})
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
-	det := newDetector("entrada", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(), nil, nil, nil)
+	det := newDetector("entrada", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(), nil, nil, nil)
 
 	det.processFrames(context.Background())
 
@@ -106,7 +106,7 @@ func TestDetectorTimestampIsApproxNow(t *testing.T) {
 	})
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
-	det := newDetector("entrada", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(), nil, nil, nil)
+	det := newDetector("entrada", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(), nil, nil, nil)
 
 	before := time.Now().UTC().Truncate(time.Second)
 	det.processFrames(context.Background())
@@ -132,7 +132,7 @@ func TestDetectorNotifyRawCalledForSubThresholdDiff(t *testing.T) {
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
 	var rawEvents []Event
-	det := newDetector("entrada", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(), nil, func(ev Event) {
+	det := newDetector("entrada", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(), nil, func(ev Event) {
 		rawEvents = append(rawEvents, ev)
 	}, nil)
 
@@ -155,7 +155,7 @@ func TestDetectorNotifyRawCalledAlongsideNotify(t *testing.T) {
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
 	var notified, rawNotified int
-	det := newDetector("entrada", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(),
+	det := newDetector("entrada", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(),
 		func(ev Event) { notified++ },
 		func(ev Event) { rawNotified++ },
 		nil,
@@ -185,7 +185,7 @@ func TestDetectorCooldownSuppressesEventsWithinWindow(t *testing.T) {
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1, CooldownSeconds: 30}
 	var notified int
-	det := newDetector("cam", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(),
+	det := newDetector("cam", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(),
 		func(Event) { notified++ }, nil, nil)
 
 	t0 := time.Date(2026, 5, 7, 10, 0, 0, 0, time.UTC)
@@ -218,7 +218,7 @@ func TestDetectorCooldownAllowsEventAfterWindow(t *testing.T) {
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1, CooldownSeconds: 30}
 	var notified int
-	det := newDetector("cam", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(),
+	det := newDetector("cam", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(),
 		func(Event) { notified++ }, nil, nil)
 
 	t0 := time.Date(2026, 5, 7, 10, 0, 0, 0, time.UTC)
@@ -251,7 +251,7 @@ func TestDetectorCooldownZeroDisablesSuppression(t *testing.T) {
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1, CooldownSeconds: 0}
 	var notified int
-	det := newDetector("cam", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(),
+	det := newDetector("cam", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(),
 		func(Event) { notified++ }, nil, nil)
 
 	det.processFrames(context.Background())
@@ -275,7 +275,7 @@ func TestDetectorCachesZonesAcrossFrames(t *testing.T) {
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1, CooldownSeconds: 0}
 	zoneCalls := 0
-	det := newDetector("cam", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(),
+	det := newDetector("cam", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(),
 		nil, nil, func() []zones.Zone { zoneCalls++; return nil })
 
 	det.processFrames(context.Background())
@@ -298,7 +298,7 @@ func TestDetectorReloadZonesRefreshesCache(t *testing.T) {
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1, CooldownSeconds: 0}
 	zoneCalls := 0
-	det := newDetector("cam", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(),
+	det := newDetector("cam", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(),
 		nil, nil, func() []zones.Zone { zoneCalls++; return nil })
 
 	det.processFrames(context.Background()) // loads zones once (cached)
@@ -318,7 +318,7 @@ func TestDetectorContextCancellationTerminatesProcess(t *testing.T) {
 	st := newStore(t.TempDir(), nil)
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
-	det := newDetector("cam", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(), nil, nil, nil)
+	det := newDetector("cam", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(), nil, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	finished := make(chan struct{})
@@ -363,7 +363,7 @@ type fakeBlockCommander struct {
 	process *fakeBlockProcess
 }
 
-func (c *fakeBlockCommander) Start(url string, width, height, fps int) (frameProcess, error) {
+func (c *fakeBlockCommander) Start(url string, width, height, fps int, captureType string) (frameProcess, error) {
 	return c.process, nil
 }
 
@@ -382,7 +382,7 @@ func TestDetectorExclusionZoneSuppressesEvent(t *testing.T) {
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
 	fullZone := zones.Zone{X: 0, Y: 0, W: 1, H: 1}
-	det := newDetector("cam", "rtsp://fake", 2, 2, cfg, cmd, st, discardLogger(), nil, nil,
+	det := newDetector("cam", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(), nil, nil,
 		func() []zones.Zone { return []zones.Zone{fullZone} })
 
 	det.processFrames(context.Background())
@@ -414,7 +414,7 @@ func TestDetectorBBoxUsesBackgroundSubtraction(t *testing.T) {
 	})
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
-	det := newDetector("cam", "rtsp://fake", 4, 1, cfg, cmd, st, discardLogger(), nil, nil, nil)
+	det := newDetector("cam", "rtsp://fake", "rtsp", 4, 1, cfg, cmd, st, discardLogger(), nil, nil, nil)
 	det.processFrames(context.Background())
 
 	// Both frame1 and frame2 trigger motion (diff > 0.05 from their prev).

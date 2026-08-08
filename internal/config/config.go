@@ -146,6 +146,7 @@ type CameraConfig struct {
 	HLSDVRSeconds     *int          `yaml:"hls_dvr_seconds"`
 	Motion            *MotionConfig `yaml:"motion"`
 	RecordingEnabled  bool          `yaml:"recording_enabled"`
+	LiveEnabled       bool          `yaml:"live_enabled"`
 }
 
 func (c CameraConfig) HLSSegmentSecondsOrDefault() int {

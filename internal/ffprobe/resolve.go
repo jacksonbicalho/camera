@@ -8,11 +8,12 @@ import (
 
 // Resolver groups stream field overrides used when probing is not needed.
 type Resolver struct {
-	VideoCodec string
-	HasAudio   *bool
-	Width      int
-	Height     int
-	RTSPURL    string
+	VideoCodec  string
+	HasAudio    *bool
+	Width       int
+	Height      int
+	RTSPURL     string
+	CaptureType string
 }
 
 // Resolve probes the RTSP stream when all stream fields are unset ("auto"),
@@ -24,7 +25,7 @@ func Resolve(ctx context.Context, r Resolver, prober *Prober, log *slog.Logger) 
 	if needsProbe {
 		probeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		defer cancel()
-		raw, err := prober.Probe(probeCtx, r.RTSPURL)
+		raw, err := prober.Probe(probeCtx, r.RTSPURL, r.CaptureType)
 		if err != nil {
 			log.Warn("ffprobe failed, assuming audio present", "url", r.RTSPURL, "error", err)
 			info.HasAudio = true

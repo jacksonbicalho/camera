@@ -250,11 +250,12 @@ func main() {
 
 	startCameraProcs := func(cam config.CameraConfig) {
 		stream := ffprobe.Resolve(context.Background(), ffprobe.Resolver{
-			VideoCodec: cam.VideoCodec,
-			HasAudio:   cam.HasAudio,
-			Width:      cam.Width,
-			Height:     cam.Height,
-			RTSPURL:    cam.RTSPURL,
+			VideoCodec:  cam.VideoCodec,
+			HasAudio:    cam.HasAudio,
+			Width:       cam.Width,
+			Height:      cam.Height,
+			RTSPURL:     cam.RTSPURL,
+			CaptureType: cam.EffectiveCaptureType(),
 		}, prober, slog)
 
 		// Persiste os dados detectados pelo ffprobe no banco.
@@ -281,7 +282,7 @@ func main() {
 		if cfg.Server.SegmentsPath != "" {
 			// The HLS pipeline runs unless the camera is set to WebRTC-only and can
 			// actually use it (H.264) — that camera stops writing .ts entirely.
-			if webrtc.ShouldRunHLS(stream.VideoCodec, cam.EffectiveLiveTransport()) {
+			if webrtc.ShouldRunHLS(stream.VideoCodec, cam.EffectiveLiveTransport(), cam.EffectiveCaptureType(), cam.LiveEnabled) {
 				str := hls.NewHLSStreamer(cam, cfg.Server, stream, commander, slog)
 				wg.Add(1)
 				go func() {
@@ -297,7 +298,7 @@ func main() {
 		// repackaged without transcoding, and the per-camera live_transport=hls
 		// preference forces HLS by skipping the publisher. Cameras without a
 		// publisher make the front fall back to HLS. Uses the main RTSP URL.
-		if webrtc.ShouldPublish(stream.VideoCodec, cam.EffectiveLiveTransport()) {
+		if webrtc.ShouldPublish(stream.VideoCodec, cam.EffectiveLiveTransport(), cam.EffectiveCaptureType(), cam.LiveEnabled) {
 			audioFmt, err := webrtc.ProbeAudio(camCtx, cam.RTSPURL)
 			if err != nil {
 				slog.Warn("live: audio probe failed, continuing without audio", "camera", cam.ID, "error", err)
@@ -339,7 +340,7 @@ func main() {
 			// real dimensions instead of the main stream's.
 			motionStream := stream
 			if murl := cam.EffectiveMotionURL(); murl != cam.RTSPURL {
-				motionStream = ffprobe.Resolve(context.Background(), ffprobe.Resolver{RTSPURL: murl}, prober, slog)
+				motionStream = ffprobe.Resolve(context.Background(), ffprobe.Resolver{RTSPURL: murl, CaptureType: cam.EffectiveCaptureType()}, prober, slog)
 			}
 			mon := motion.New(cam, motionStream, motionCfg, cfg.Storage.Path, reconnect, slog,
 				func() []zones.Zone {

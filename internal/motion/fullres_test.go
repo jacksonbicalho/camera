@@ -125,7 +125,7 @@ func TestDetectorSnapshotIsDetectionFrameFullRes(t *testing.T) {
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
 	// width/height are the full-res pipe dimensions; no grabber is injected.
-	d := newDetector("cam", "rtsp://fake", w, h, cfg, cmd, st, discardLogger(), nil, nil, nil)
+	d := newDetector("cam", "rtsp://fake", "rtsp", w, h, cfg, cmd, st, discardLogger(), nil, nil, nil)
 
 	d.processFrames(context.Background())
 

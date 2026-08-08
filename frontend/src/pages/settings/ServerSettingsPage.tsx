@@ -21,6 +21,13 @@ interface CameraInfo {
   motion_threshold: number
 }
 
+interface CameraStatsData {
+  total_bytes: number
+  total_chunks: number
+  total_seconds: number
+  total_motion_events: number
+}
+
 // Mesmo estilo de card que StatsPage usava antes de ser removida (bg-surface/
 // border/rounded-xl, título text-xs uppercase text-faint, grid de label/valor
 // sem divisórias — história reorganizar-sidebar-governanca) — não extraído
@@ -84,6 +91,7 @@ export default function ServerSettingsPage() {
 
   const [cameras, setCameras] = useState<CameraInfo[]>([])
   const [expandedCams, setExpandedCams] = useState<Set<string>>(new Set())
+  const [cameraStats, setCameraStats] = useState<Record<string, CameraStatsData | null>>({})
 
   useEffect(() => {
     fetch('/api/cameras', { headers: authHeaders() })
@@ -110,6 +118,15 @@ export default function ServerSettingsPage() {
       }
       return next
     })
+    // Busca as estatísticas só na primeira expansão (lazy), migrado de
+    // CameraDetailSettingsPage — a página de detalhe da câmera não mostra
+    // mais essa sessão.
+    if (!(id in cameraStats)) {
+      fetch(`/api/cameras/${id}/stats`, { headers: authHeaders() })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => setCameraStats((prev) => ({ ...prev, [id]: data })))
+        .catch(() => {})
+    }
   }
 
   const cameraHealthMap = Object.fromEntries((stats?.cameras ?? []).map((c) => [c.id, c]))
@@ -320,6 +337,37 @@ export default function ServerSettingsPage() {
                                   Detecção de movimento desativada para esta câmera.
                                 </p>
                               )}
+                              <div
+                                id={`camera-stats-${cam.id}`}
+                                className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4"
+                              >
+                                {(() => {
+                                  const s = cameraStats[cam.id]
+                                  const fields: Field[] = s
+                                    ? [
+                                        {
+                                          label: 'Total gravado',
+                                          value: formatDuration(s.total_seconds),
+                                        },
+                                        { label: 'Segmentos MP4', value: String(s.total_chunks) },
+                                        {
+                                          label: 'Espaço em disco',
+                                          value: formatBytes(s.total_bytes),
+                                        },
+                                        {
+                                          label: 'Eventos de movimento',
+                                          value: String(s.total_motion_events),
+                                        },
+                                      ]
+                                    : [{ label: 'Estatísticas', value: 'Carregando...' }]
+                                  return fields.map(({ label, value }) => (
+                                    <div key={label}>
+                                      <p className="text-xs text-faint mb-1">{label}</p>
+                                      <p className="text-sm font-mono text-foreground">{value}</p>
+                                    </div>
+                                  ))
+                                })()}
+                              </div>
                             </div>
                           )}
                         </div>

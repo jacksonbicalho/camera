@@ -56,15 +56,19 @@ func NewProber(exec Executor) *Prober {
 	return &Prober{exec: exec}
 }
 
-func (p *Prober) Probe(ctx context.Context, url string) ([]byte, error) {
-	return p.exec.Execute(ctx, "ffprobe",
-		"-rtsp_transport", "tcp",
+func (p *Prober) Probe(ctx context.Context, url, captureType string) ([]byte, error) {
+	args := []string{}
+	if captureType != "hls" {
+		args = append(args, "-rtsp_transport", "tcp")
+	}
+	args = append(args,
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_streams",
 		"-show_format",
 		url,
 	)
+	return p.exec.Execute(ctx, "ffprobe", args...)
 }
 
 type OSExecutor struct{}

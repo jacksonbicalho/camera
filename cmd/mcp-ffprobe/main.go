@@ -21,7 +21,7 @@ func main() {
 		Name:        "probe_stream",
 		Description: "Run ffprobe on an RTSP or media stream URL and return stream/format metadata as JSON.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in probeInput) (*mcp.CallToolResult, any, error) {
-		out, err := prober.Probe(ctx, in.URL)
+		out, err := prober.Probe(ctx, in.URL, "rtsp")
 		if err != nil {
 			return &mcp.CallToolResult{
 				IsError: true,

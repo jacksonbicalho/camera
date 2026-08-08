@@ -25,7 +25,7 @@ func TestProberCallsFFprobeWithCorrectArguments(t *testing.T) {
 	exec := &fakeExecutor{output: []byte(`{}`)}
 	p := ffprobe.NewProber(exec)
 
-	if _, err := p.Probe(context.Background(), "rtsp://192.168.1.10:554/stream"); err != nil {
+	if _, err := p.Probe(context.Background(), "rtsp://192.168.1.10:554/stream", "rtsp"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -54,7 +54,7 @@ func TestProberReturnsFFprobeOutput(t *testing.T) {
 	exec := &fakeExecutor{output: want}
 	p := ffprobe.NewProber(exec)
 
-	got, err := p.Probe(context.Background(), "rtsp://any")
+	got, err := p.Probe(context.Background(), "rtsp://any", "rtsp")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestProberPropagatesExecutorError(t *testing.T) {
 	exec := &fakeExecutor{err: want}
 	p := ffprobe.NewProber(exec)
 
-	_, err := p.Probe(context.Background(), "rtsp://any")
+	_, err := p.Probe(context.Background(), "rtsp://any", "rtsp")
 	if !errors.Is(err, want) {
 		t.Errorf("expected error %v, got %v", want, err)
 	}
@@ -137,6 +137,37 @@ func TestParseReturnsErrorOnInvalidJSON(t *testing.T) {
 	if err == nil {
 		t.Error("expected error on invalid JSON")
 	}
+}
+
+// --- capture_type (história feat/hls-capture-backend-completo) ---
+
+func TestProberCaptureType(t *testing.T) {
+	t.Run("CA4: capture_type=hls omite -rtsp_transport tcp", func(t *testing.T) {
+		exec := &fakeExecutor{output: []byte(`{}`)}
+		p := ffprobe.NewProber(exec)
+
+		if _, err := p.Probe(context.Background(), "https://cam.example.com/stream/playlist.m3u8", "hls"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if containsSeq(exec.capturedArgs, "-rtsp_transport", "tcp") {
+			t.Errorf("capture_type=hls não deve emitir -rtsp_transport tcp, got %v", exec.capturedArgs)
+		}
+		if exec.capturedArgs[len(exec.capturedArgs)-1] != "https://cam.example.com/stream/playlist.m3u8" {
+			t.Errorf("expected URL as last arg, got %q", exec.capturedArgs[len(exec.capturedArgs)-1])
+		}
+	})
+
+	t.Run("CA4: capture_type default (rtsp) preserva -rtsp_transport tcp", func(t *testing.T) {
+		exec := &fakeExecutor{output: []byte(`{}`)}
+		p := ffprobe.NewProber(exec)
+
+		if _, err := p.Probe(context.Background(), "rtsp://192.168.1.10:554/stream", "rtsp"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !containsSeq(exec.capturedArgs, "-rtsp_transport", "tcp") {
+			t.Errorf("capture_type default deve continuar forçando -rtsp_transport tcp, got %v", exec.capturedArgs)
+		}
+	})
 }
 
 func containsSeq(args []string, key, value string) bool {

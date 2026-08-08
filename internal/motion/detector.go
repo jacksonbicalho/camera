@@ -28,26 +28,27 @@ type frameProcess interface {
 }
 
 type frameCommander interface {
-	Start(url string, width, height, fps int) (frameProcess, error)
+	Start(url string, width, height, fps int, captureType string) (frameProcess, error)
 }
 
 type detector struct {
-	cameraID   string
-	url        string
-	width      int // diff resolution (downscaled grayscale used for diff/bbox)
-	height     int
-	fullW      int // full-res pipe + snapshot resolution (0 → same as width/height)
-	fullH      int
-	cfg        config.MotionConfig
-	commander  frameCommander
-	st         *store
-	log        *slog.Logger
-	notify     func(Event)
-	notifyRaw  func(Event)
-	getZones   func() []zones.Zone
-	now        func() time.Time
-	lastEvent  time.Time
-	zoneLastEv []time.Time
+	cameraID    string
+	url         string
+	captureType string
+	width       int // diff resolution (downscaled grayscale used for diff/bbox)
+	height      int
+	fullW       int // full-res pipe + snapshot resolution (0 → same as width/height)
+	fullH       int
+	cfg         config.MotionConfig
+	commander   frameCommander
+	st          *store
+	log         *slog.Logger
+	notify      func(Event)
+	notifyRaw   func(Event)
+	getZones    func() []zones.Zone
+	now         func() time.Time
+	lastEvent   time.Time
+	zoneLastEv  []time.Time
 
 	zonesMu     sync.RWMutex
 	cachedZones []zones.Zone
@@ -59,21 +60,22 @@ type detector struct {
 	inspectors map[string]inspectorEntry
 }
 
-func newDetector(cameraID, url string, width, height int, cfg config.MotionConfig, cmd frameCommander, st *store, log *slog.Logger, notify func(Event), notifyRaw func(Event), getZones func() []zones.Zone) *detector {
+func newDetector(cameraID, url, captureType string, width, height int, cfg config.MotionConfig, cmd frameCommander, st *store, log *slog.Logger, notify func(Event), notifyRaw func(Event), getZones func() []zones.Zone) *detector {
 	return &detector{
-		cameraID:   cameraID,
-		url:        url,
-		width:      width,
-		height:     height,
-		cfg:        cfg,
-		commander:  cmd,
-		st:         st,
-		log:        log,
-		notify:     notify,
-		notifyRaw:  notifyRaw,
-		getZones:   getZones,
-		now:        func() time.Time { return time.Now().UTC() },
-		inspectors: make(map[string]inspectorEntry),
+		cameraID:    cameraID,
+		url:         url,
+		captureType: captureType,
+		width:       width,
+		height:      height,
+		cfg:         cfg,
+		commander:   cmd,
+		st:          st,
+		log:         log,
+		notify:      notify,
+		notifyRaw:   notifyRaw,
+		getZones:    getZones,
+		now:         func() time.Time { return time.Now().UTC() },
+		inspectors:  make(map[string]inspectorEntry),
 	}
 }
 
@@ -144,7 +146,7 @@ func (d *detector) unregisterInspector(id string) {
 func (d *detector) processFrames(ctx context.Context) {
 	fw, fh := d.fullDims()
 	d.log.Debug("motion: starting frame capture", "camera", d.cameraID, "fullW", fw, "fullH", fh, "diffW", d.width, "diffH", d.height, "fps", d.cfg.FPS)
-	proc, err := d.commander.Start(d.url, fw, fh, d.cfg.FPS)
+	proc, err := d.commander.Start(d.url, fw, fh, d.cfg.FPS, d.captureType)
 	if err != nil {
 		d.log.Error("motion: failed to start frame capture", "camera", d.cameraID, "error", err)
 		return

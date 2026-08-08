@@ -248,3 +248,65 @@ describe('CA3: "Servidor" absorve o conteúdo de Estatísticas (KPIs + atividade
     expect(document.getElementById('motion-score-chart-cam2')).toBeNull()
   })
 })
+
+describe('CA6: card expansível de câmera mostra as estatísticas da câmera (migrado de CameraDetailSettingsPage)', () => {
+  it('ao expandir, busca GET /api/cameras/{id}/stats e mostra total gravado/segmentos/espaço/eventos', async () => {
+    mockSettings = baseSettings({})
+    mockStats = {
+      recordings_count: 0,
+      recordings_bytes: 0,
+      recordings_duration_seconds: 0,
+      camera_count: 1,
+      connected_clients: 0,
+      cameras: [
+        {
+          id: 'cam1',
+          online: true,
+          motion_enabled: false,
+          last_recording_at: null,
+          top_motion_score: 0,
+          min_motion_score: 0,
+        },
+      ],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url === '/api/cameras/cam1/stats')
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                total_bytes: 1_073_741_824,
+                total_chunks: 42,
+                total_seconds: 3600,
+                total_motion_events: 7,
+              }),
+          })
+        if (url.startsWith('/api/cameras'))
+          return Promise.resolve({
+            status: 200,
+            json: () => Promise.resolve([{ id: 'cam1', name: 'Corredor', motion_threshold: 12 }]),
+          })
+        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+      }),
+    )
+    render(
+      <MemoryRouter initialEntries={['/settings/server']}>
+        <ServerSettingsPage />
+      </MemoryRouter>,
+    )
+    const corredorRow = await waitFor(() => {
+      const el = screen.getByText('Corredor')
+      return el.closest('button')!
+    })
+    fireEvent.click(corredorRow)
+    await waitFor(() => {
+      expect(document.getElementById('camera-stats-cam1')).not.toBeNull()
+      const text = document.getElementById('camera-stats-cam1')!.textContent
+      expect(text).toContain('1h')
+      expect(text).toContain('42')
+      expect(text).toContain('7')
+    })
+  })
+})
