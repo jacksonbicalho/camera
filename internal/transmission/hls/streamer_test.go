@@ -569,3 +569,45 @@ func TestHLSStreamerRunStopsOnContextCancel(t *testing.T) {
 		t.Fatal("Run did not return after context cancel")
 	}
 }
+
+// --- capture_type (história feat/hls-capture-fundacao) ---
+
+func TestHLSStreamerCaptureType(t *testing.T) {
+	server := config.ServerConfig{SegmentsPath: t.TempDir()}
+
+	t.Run("CA5: capture_type=hls usa internal/capture/hls (sem -rtsp_transport tcp)", func(t *testing.T) {
+		camera := config.CameraConfig{
+			ID:          "cam-hls",
+			RTSPURL:     "https://cam.example.com/stream/playlist.m3u8",
+			CaptureType: "hls",
+		}
+		cmd := &fakeCommander{}
+		s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+		if err := s.Start(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		args := cmd.calls[0]
+		if containsSequence(args, "-rtsp_transport", "tcp") {
+			t.Error("capture_type=hls não deve emitir -rtsp_transport tcp")
+		}
+		if !containsSequence(args, "-i", "https://cam.example.com/stream/playlist.m3u8") {
+			t.Error("expected -i <url> in args")
+		}
+		if !containsSequence(args, "-fflags", "+nobuffer") {
+			t.Error("expected -fflags +nobuffer in args (tuning genérico, independente de capture_type)")
+		}
+	})
+
+	t.Run("CA5: capture_type default (vazio) preserva o comportamento RTSP atual", func(t *testing.T) {
+		camera := config.CameraConfig{ID: "cam-rtsp", RTSPURL: "rtsp://192.168.1.10:554/stream"}
+		cmd := &fakeCommander{}
+		s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+		if err := s.Start(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		args := cmd.calls[0]
+		if !containsSequence(args, "-rtsp_transport", "tcp") {
+			t.Error("capture_type default deve continuar forçando -rtsp_transport tcp")
+		}
+	})
+}

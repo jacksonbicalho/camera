@@ -130,6 +130,7 @@ type CameraConfig struct {
 	Name              string        `yaml:"name"`
 	RTSPURL           string        `yaml:"rtsp_url"`
 	MotionRTSPURL     string        `yaml:"motion_rtsp_url"`
+	CaptureType       string        `yaml:"capture_type"`
 	ChunkDuration     Duration      `yaml:"chunk_duration"`
 	ReconnectInterval Duration      `yaml:"reconnect_interval"`
 	VideoCodec        string        `yaml:"video_codec"`
@@ -192,6 +193,15 @@ func (c CameraConfig) EffectiveLiveTransport() string {
 		return "auto"
 	}
 	return c.LiveTransport
+}
+
+// EffectiveCaptureType returns the per-camera capture protocol, defaulting to
+// "rtsp" (the only protocol supported before capture_type existed) when unset.
+func (c CameraConfig) EffectiveCaptureType() string {
+	if c.CaptureType == "" {
+		return "rtsp"
+	}
+	return c.CaptureType
 }
 
 func (c CameraConfig) EffectiveChunkDuration() time.Duration {

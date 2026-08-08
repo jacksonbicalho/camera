@@ -456,3 +456,50 @@ func TestRecorderRunStopsOnContextCancel(t *testing.T) {
 		t.Fatal("Run did not return after context cancel")
 	}
 }
+
+// --- capture_type (história feat/hls-capture-fundacao) ---
+
+func TestRecorderCaptureType(t *testing.T) {
+	tmpDir := t.TempDir()
+	ts := time.Date(2026, 4, 30, 14, 30, 0, 0, time.UTC)
+	storage := config.StorageConfig{Path: tmpDir}
+
+	t.Run("CA4: capture_type=hls usa internal/capture/hls (sem -rtsp_transport tcp)", func(t *testing.T) {
+		camera := config.CameraConfig{
+			ID:          "cam-hls",
+			RTSPURL:     "https://cam.example.com/stream/playlist.m3u8",
+			CaptureType: "hls",
+		}
+		cmd := &fakeCommander{}
+		rec := recorder.NewRecorder(camera, storage, ffprobe.StreamInfo{}, cmd, discardLogger())
+		if err := rec.Start(ts); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		args := cmd.calls[0]
+		if containsSequence(args, "-rtsp_transport", "tcp") {
+			t.Error("capture_type=hls não deve emitir -rtsp_transport tcp")
+		}
+		if !containsSequence(args, "-i", "https://cam.example.com/stream/playlist.m3u8") {
+			t.Error("expected -i <url> in args")
+		}
+	})
+
+	t.Run("CA4: capture_type default (vazio) preserva o comportamento RTSP atual", func(t *testing.T) {
+		camera := config.CameraConfig{
+			ID:      "cam-rtsp",
+			RTSPURL: "rtsp://192.168.1.10:554/stream",
+		}
+		cmd := &fakeCommander{}
+		rec := recorder.NewRecorder(camera, storage, ffprobe.StreamInfo{}, cmd, discardLogger())
+		if err := rec.Start(ts); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		args := cmd.calls[0]
+		if !containsSequence(args, "-rtsp_transport", "tcp") {
+			t.Error("capture_type default deve continuar forçando -rtsp_transport tcp")
+		}
+		if !containsSequence(args, "-i", "rtsp://192.168.1.10:554/stream") {
+			t.Error("expected -i <rtsp_url> in args")
+		}
+	})
+}

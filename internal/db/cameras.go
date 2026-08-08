@@ -39,15 +39,16 @@ func CreateCamera(db *DB, cam config.CameraConfig, motion *config.MotionConfig) 
 	defer tx.Rollback() //nolint:errcheck
 
 	_, err = tx.Exec(
-		`INSERT INTO cameras(id, name, rtsp_url, motion_rtsp_url, chunk_duration, reconnect_interval,
+		`INSERT INTO cameras(id, name, rtsp_url, motion_rtsp_url, capture_type, chunk_duration, reconnect_interval,
 		                     video_codec, has_audio, width, height, display_order,
 		                     hls_video_mode, record_video_mode, live_transport, hls_segment_seconds, hls_list_size,
 		                     hls_dvr_seconds, recording_enabled)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		cam.ID,
 		cam.Name,
 		cam.RTSPURL,
 		cam.MotionRTSPURL,
+		cam.EffectiveCaptureType(),
 		durationToStr(cam.ChunkDuration, config.DefaultChunkDuration),
 		durationToStr(cam.ReconnectInterval, config.DefaultReconnectInterval),
 		nullStr(cam.VideoCodec),
@@ -91,13 +92,13 @@ func GetCamera(db *DB, id string) (config.CameraConfig, error) {
 	var segSec, listSize, dvrSec sql.NullInt64
 	var recEnabled int
 	err := db.QueryRow(
-		`SELECT id, name, rtsp_url, motion_rtsp_url, chunk_duration, reconnect_interval,
+		`SELECT id, name, rtsp_url, motion_rtsp_url, capture_type, chunk_duration, reconnect_interval,
 		        video_codec, has_audio, width, height, display_order,
 		        hls_video_mode, record_video_mode, live_transport, hls_segment_seconds, hls_list_size,
 		        hls_dvr_seconds, recording_enabled
 		 FROM cameras WHERE id=?`, id,
 	).Scan(
-		&cam.ID, &cam.Name, &cam.RTSPURL, &cam.MotionRTSPURL, &chunk, &reconnect,
+		&cam.ID, &cam.Name, &cam.RTSPURL, &cam.MotionRTSPURL, &cam.CaptureType, &chunk, &reconnect,
 		&codec, &hasAudio, &width, &height, &cam.DisplayOrder,
 		&cam.HLSVideoMode, &cam.RecordVideoMode, &cam.LiveTransport, &segSec, &listSize,
 		&dvrSec, &recEnabled,
@@ -142,7 +143,7 @@ func GetCamera(db *DB, id string) (config.CameraConfig, error) {
 // Uses a LEFT JOIN to avoid nested queries (single-connection SQLite pool).
 func ListCameras(db *DB) ([]config.CameraConfig, error) {
 	rows, err := db.Query(`
-		SELECT c.id, c.name, c.rtsp_url, c.motion_rtsp_url, c.chunk_duration, c.reconnect_interval,
+		SELECT c.id, c.name, c.rtsp_url, c.motion_rtsp_url, c.capture_type, c.chunk_duration, c.reconnect_interval,
 		       c.video_codec, c.has_audio, c.width, c.height, c.display_order,
 		       c.hls_video_mode, c.record_video_mode, c.live_transport, c.hls_segment_seconds, c.hls_list_size,
 		       c.hls_dvr_seconds, c.recording_enabled,
@@ -169,7 +170,7 @@ func ListCameras(db *DB) ([]config.CameraConfig, error) {
 		var mFPS, mCooldown, mCaptureW, mCaptureH, mPlaybackLead, mPlaybackTrail sql.NullInt64
 
 		if err := rows.Scan(
-			&cam.ID, &cam.Name, &cam.RTSPURL, &cam.MotionRTSPURL, &chunk, &reconnect,
+			&cam.ID, &cam.Name, &cam.RTSPURL, &cam.MotionRTSPURL, &cam.CaptureType, &chunk, &reconnect,
 			&codec, &hasAudio, &width, &height, &cam.DisplayOrder,
 			&cam.HLSVideoMode, &cam.RecordVideoMode, &cam.LiveTransport, &segSec, &listSize,
 			&dvrSec, &recEnabled,
@@ -224,7 +225,7 @@ func UpdateCamera(db *DB, cam config.CameraConfig, motion *config.MotionConfig) 
 	defer tx.Rollback() //nolint:errcheck
 
 	_, err = tx.Exec(
-		`UPDATE cameras SET name=?, rtsp_url=?, motion_rtsp_url=?, chunk_duration=?, reconnect_interval=?,
+		`UPDATE cameras SET name=?, rtsp_url=?, motion_rtsp_url=?, capture_type=?, chunk_duration=?, reconnect_interval=?,
 		                    video_codec=?, has_audio=?, width=?, height=?, display_order=?,
 		                    hls_video_mode=?, record_video_mode=?, live_transport=?,
 		                    hls_segment_seconds=?, hls_list_size=?, hls_dvr_seconds=?,
@@ -233,6 +234,7 @@ func UpdateCamera(db *DB, cam config.CameraConfig, motion *config.MotionConfig) 
 		cam.Name,
 		cam.RTSPURL,
 		cam.MotionRTSPURL,
+		cam.EffectiveCaptureType(),
 		durationToStr(cam.ChunkDuration, config.DefaultChunkDuration),
 		durationToStr(cam.ReconnectInterval, config.DefaultReconnectInterval),
 		nullStr(cam.VideoCodec),
