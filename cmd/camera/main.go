@@ -27,7 +27,6 @@ import (
 	"camera/internal/email"
 	"camera/internal/exec"
 	"camera/internal/ffprobe"
-	"camera/internal/live"
 	"camera/internal/logger"
 	"camera/internal/motion"
 	"camera/internal/recorder"
@@ -36,7 +35,8 @@ import (
 	"camera/internal/stateclass"
 	"camera/internal/stateengine"
 	"camera/internal/storage"
-	"camera/internal/streaming"
+	"camera/internal/transmission/hls"
+	"camera/internal/transmission/webrtc"
 	"camera/internal/updater"
 	"camera/internal/zones"
 )
@@ -220,7 +220,7 @@ func main() {
 		cancelsByID    = make(map[string]context.CancelFunc)
 		motionMonsByID = make(map[string]*motion.Monitor)
 		streamsByID    = make(map[string]ffprobe.StreamInfo)
-		livePubsByID   = make(map[string]*live.Publisher)
+		livePubsByID   = make(map[string]*webrtc.Publisher)
 		wg             sync.WaitGroup
 	)
 
@@ -281,8 +281,8 @@ func main() {
 		if cfg.Server.SegmentsPath != "" {
 			// The HLS pipeline runs unless the camera is set to WebRTC-only and can
 			// actually use it (H.264) — that camera stops writing .ts entirely.
-			if live.ShouldRunHLS(stream.VideoCodec, cam.EffectiveLiveTransport()) {
-				str := streaming.NewHLSStreamer(cam, cfg.Server, stream, commander, slog)
+			if webrtc.ShouldRunHLS(stream.VideoCodec, cam.EffectiveLiveTransport()) {
+				str := hls.NewHLSStreamer(cam, cfg.Server, stream, commander, slog)
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -297,8 +297,8 @@ func main() {
 		// repackaged without transcoding, and the per-camera live_transport=hls
 		// preference forces HLS by skipping the publisher. Cameras without a
 		// publisher make the front fall back to HLS. Uses the main RTSP URL.
-		if live.ShouldPublish(stream.VideoCodec, cam.EffectiveLiveTransport()) {
-			audioFmt, err := live.ProbeAudio(camCtx, cam.RTSPURL)
+		if webrtc.ShouldPublish(stream.VideoCodec, cam.EffectiveLiveTransport()) {
+			audioFmt, err := webrtc.ProbeAudio(camCtx, cam.RTSPURL)
 			if err != nil {
 				slog.Warn("live: audio probe failed, continuing without audio", "camera", cam.ID, "error", err)
 			}
@@ -306,14 +306,14 @@ func main() {
 			// else (AAC and friends — the common case on IP cameras) needs a
 			// real transcode to Opus (TranscodeAudioSource, spawns ffmpeg) for
 			// WebRTC browsers to play it at all.
-			var audioSource live.Source
+			var audioSource webrtc.Source
 			switch {
 			case audioFmt.Present && audioFmt.Transcode:
-				audioSource = live.NewTranscodeAudioSource(cam.RTSPURL, commander, slog)
+				audioSource = webrtc.NewTranscodeAudioSource(cam.RTSPURL, commander, slog)
 			case audioFmt.Present:
-				audioSource = live.NewRTSPAudioSource(cam.RTSPURL, slog)
+				audioSource = webrtc.NewRTSPAudioSource(cam.RTSPURL, slog)
 			}
-			pub, err := live.NewPublisher(cam.ID, live.NewRTSPSource(cam.RTSPURL, slog), audioSource, audioFmt, slog)
+			pub, err := webrtc.NewPublisher(cam.ID, webrtc.NewRTSPSource(cam.RTSPURL, slog), audioSource, audioFmt, slog)
 			if err != nil {
 				slog.Error("live: failed to create webrtc publisher", "camera", cam.ID, "error", err)
 			} else {

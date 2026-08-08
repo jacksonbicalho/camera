@@ -1,8 +1,8 @@
 // Package rtsp centraliza a captura de câmeras via RTSP (o único protocolo de
 // captura do projeto hoje) — args/decisões que hoje estão duplicadas entre
-// internal/recorder, internal/streaming e o snapshot avulso de cmd/camera.
-// internal/motion (pipe contínuo de frames) e internal/live (WebRTC, via
-// gortsplib) ficam fora de propósito — mecanismos de captura genuinamente
+// internal/recorder, internal/transmission/hls e o snapshot avulso de cmd/camera.
+// internal/motion (pipe contínuo de frames) e internal/transmission/webrtc
+// (WebRTC, via gortsplib) ficam fora de propósito — mecanismos de captura genuinamente
 // diferentes, ver work_progress/analysis (história feat/capture-rtsp-dominio).
 // Os pedaços protocolo-agnósticos (decisão de transcode, args de input,
 // execução de comando) vivem em internal/core — ver work_progress/analysis

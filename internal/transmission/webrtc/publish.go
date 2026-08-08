@@ -1,4 +1,4 @@
-package live
+package webrtc
 
 // ShouldPublish reports whether a WebRTC publisher should run for a camera with
 // the given video codec and live transport preference. WebRTC in browsers only

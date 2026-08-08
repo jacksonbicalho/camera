@@ -1,10 +1,10 @@
-// Package live implements low-latency WebRTC delivery of a camera's live feed.
+// Package webrtc implements low-latency WebRTC delivery of a camera's live feed.
 // It pulls H.264 RTP from an RTSP source and repackages it to WebRTC viewers
 // without transcoding: a Publisher holds a single shared H.264 track and fans
 // each RTP packet out to every connected PeerConnection. This targets
 // sub-second latency at near-zero CPU (no decode), unlike the segment-based
 // HLS pipeline which floors around 5-6s.
-package live
+package webrtc
 
 import (
 	"context"
