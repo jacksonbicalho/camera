@@ -282,7 +282,7 @@ func main() {
 		if cfg.Server.SegmentsPath != "" {
 			// The HLS pipeline runs unless the camera is set to WebRTC-only and can
 			// actually use it (H.264) — that camera stops writing .ts entirely.
-			if webrtc.ShouldRunHLS(stream.VideoCodec, cam.EffectiveLiveTransport()) {
+			if webrtc.ShouldRunHLS(stream.VideoCodec, cam.EffectiveLiveTransport(), cam.EffectiveCaptureType(), cam.LiveEnabled) {
 				str := hls.NewHLSStreamer(cam, cfg.Server, stream, commander, slog)
 				wg.Add(1)
 				go func() {
@@ -298,7 +298,7 @@ func main() {
 		// repackaged without transcoding, and the per-camera live_transport=hls
 		// preference forces HLS by skipping the publisher. Cameras without a
 		// publisher make the front fall back to HLS. Uses the main RTSP URL.
-		if webrtc.ShouldPublish(stream.VideoCodec, cam.EffectiveLiveTransport()) {
+		if webrtc.ShouldPublish(stream.VideoCodec, cam.EffectiveLiveTransport(), cam.EffectiveCaptureType(), cam.LiveEnabled) {
 			audioFmt, err := webrtc.ProbeAudio(camCtx, cam.RTSPURL)
 			if err != nil {
 				slog.Warn("live: audio probe failed, continuing without audio", "camera", cam.ID, "error", err)
