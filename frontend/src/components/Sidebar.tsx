@@ -10,7 +10,6 @@ import {
   BarChart2,
   Camera,
   Cctv,
-  Check,
   Eye,
   Film,
   Gauge,
@@ -18,6 +17,7 @@ import {
   History,
   LayoutGrid,
   Menu,
+  Network,
   Palette,
   Pencil,
   Search,
@@ -301,7 +301,7 @@ export default function Sidebar() {
                   id: 'sidebar-states',
                   to: '/settings/states',
                   label: 'Estados',
-                  icon: <Check className="h-5 w-5 shrink-0" />,
+                  icon: <Network className="h-5 w-5 shrink-0" />,
                 }}
                 showLabel={showLabel}
               />

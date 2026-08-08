@@ -13,7 +13,6 @@ vi.mock('../../auth', () => ({
 vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
-vi.mock('../../components/CameraSettingsTabs', () => ({ default: () => <div /> }))
 
 function stubFetch(stateTrainerId: number | null) {
   vi.stubGlobal(
@@ -35,9 +34,9 @@ afterEach(() => {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/settings/cameras/states/cam1']}>
+    <MemoryRouter initialEntries={['/settings/states/cam1']}>
       <Routes>
-        <Route path="/settings/cameras/states/:id" element={<CameraStatesSettingsPage />} />
+        <Route path="/settings/states/:id" element={<CameraStatesSettingsPage />} />
       </Routes>
     </MemoryRouter>,
   )

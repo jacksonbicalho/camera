@@ -13,7 +13,6 @@ vi.mock('../../auth', () => ({
 vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
-vi.mock('../../components/CameraSettingsTabs', () => ({ default: () => <div /> }))
 
 const classifiers = [
   {
@@ -84,11 +83,11 @@ function RecordingProbe() {
   return <div data-testid="camera-probe">{loc.pathname}</div>
 }
 
-function renderPage(initial = '/settings/cameras/states/cam1') {
+function renderPage(initial = '/settings/states/cam1') {
   return render(
     <MemoryRouter initialEntries={[initial]}>
       <Routes>
-        <Route path="/settings/cameras/states/:id" element={<CameraStatesSettingsPage />} />
+        <Route path="/settings/states/:id" element={<CameraStatesSettingsPage />} />
         <Route path="/recording/:cameraId/:recordingId" element={<RecordingProbe />} />
       </Routes>
     </MemoryRouter>,
@@ -129,7 +128,7 @@ describe('CameraStatesSettingsPage — histórico', () => {
   })
 
   it('deep-link ?history={cid} abre direto a view de Histórico', async () => {
-    renderPage('/settings/cameras/states/cam1?history=1')
+    renderPage('/settings/states/cam1?history=1')
     await screen.findByText('Histórico — Portão')
   })
 })

@@ -13,15 +13,6 @@ vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
-vi.mock('../../components/CameraSettingsTabs', () => ({ default: () => <div /> }))
-
-vi.mock('../../hooks/useSettings', () => ({
-  useSettings: () => ({
-    settings: { cameras: [{ id: 'cam-1', name: 'Entrada' }] },
-    reload: () => {},
-  }),
-}))
-
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -29,9 +20,9 @@ afterEach(() => {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/settings/cameras/analysis/cam-1']}>
+    <MemoryRouter initialEntries={['/settings/analyses/cam-1']}>
       <Routes>
-        <Route path="/settings/cameras/analysis/:id" element={<CameraAnalysisSettingsPage />} />
+        <Route path="/settings/analyses/:id" element={<CameraAnalysisSettingsPage />} />
       </Routes>
     </MemoryRouter>,
   )
