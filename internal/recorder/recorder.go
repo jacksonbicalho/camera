@@ -9,6 +9,7 @@ import (
 
 	"camera/internal/capture/rtsp"
 	"camera/internal/config"
+	"camera/internal/core"
 	"camera/internal/exec"
 	"camera/internal/ffprobe"
 )
@@ -48,7 +49,7 @@ func (r *Recorder) Start(now time.Time) error {
 		r.log.Warn("transcoding video to h264", "camera", r.camera.ID, "source_codec", r.stream.VideoCodec, "mode", r.camera.RecordVideoMode)
 	}
 	args := rtsp.ConnectArgs(r.camera.RTSPURL)
-	args = append(args, rtsp.TranscodeArgs(needsTranscode, r.stream.HasAudio)...)
+	args = append(args, core.TranscodeArgs(needsTranscode, r.stream.HasAudio)...)
 	args = append(args,
 		"-f", "segment",
 		"-segment_time", fmt.Sprintf("%d", duration),
@@ -68,7 +69,7 @@ func (r *Recorder) Start(now time.Time) error {
 }
 
 func (r *Recorder) needsTranscode() bool {
-	return rtsp.NeedsTranscode(r.camera.RecordVideoMode, r.stream.VideoCodec)
+	return core.NeedsTranscode(r.camera.RecordVideoMode, r.stream.VideoCodec)
 }
 
 func (r *Recorder) Run(ctx context.Context, reconnect time.Duration) {
