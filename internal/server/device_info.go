@@ -99,7 +99,10 @@ func (p ffprobeStreamProber) ProbeStream(ctx context.Context, rtspURL string) ma
 	if p.prober == nil {
 		return nil
 	}
-	raw, err := p.prober.Probe(ctx, rtspURL)
+	// Device info collection targets hardware discovery conventions (Dahua/
+	// Intelbras CGI) that only make sense for an RTSP camera; this generic
+	// ffprobe fallback stays RTSP-only.
+	raw, err := p.prober.Probe(ctx, rtspURL, "rtsp")
 	if err != nil {
 		return nil
 	}

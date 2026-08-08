@@ -286,7 +286,7 @@ func (s *Server) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 	// When all stream fields are "auto", probe the stream before inserting so
 	// the DB stores real values from the start instead of showing "auto" in the UI.
 	if s.prober != nil && req.VideoCodec == "" && req.HasAudio == nil && req.Width == 0 && req.Height == 0 {
-		info := ffprobe.Resolve(r.Context(), ffprobe.Resolver{RTSPURL: req.RTSPURL}, s.prober, s.log)
+		info := ffprobe.Resolve(r.Context(), ffprobe.Resolver{RTSPURL: req.RTSPURL, CaptureType: cam.CaptureType}, s.prober, s.log)
 		cam.VideoCodec = info.VideoCodec
 		cam.HasAudio = &info.HasAudio
 		cam.Width = info.Width

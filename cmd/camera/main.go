@@ -250,11 +250,12 @@ func main() {
 
 	startCameraProcs := func(cam config.CameraConfig) {
 		stream := ffprobe.Resolve(context.Background(), ffprobe.Resolver{
-			VideoCodec: cam.VideoCodec,
-			HasAudio:   cam.HasAudio,
-			Width:      cam.Width,
-			Height:     cam.Height,
-			RTSPURL:    cam.RTSPURL,
+			VideoCodec:  cam.VideoCodec,
+			HasAudio:    cam.HasAudio,
+			Width:       cam.Width,
+			Height:      cam.Height,
+			RTSPURL:     cam.RTSPURL,
+			CaptureType: cam.EffectiveCaptureType(),
 		}, prober, slog)
 
 		// Persiste os dados detectados pelo ffprobe no banco.
@@ -339,7 +340,7 @@ func main() {
 			// real dimensions instead of the main stream's.
 			motionStream := stream
 			if murl := cam.EffectiveMotionURL(); murl != cam.RTSPURL {
-				motionStream = ffprobe.Resolve(context.Background(), ffprobe.Resolver{RTSPURL: murl}, prober, slog)
+				motionStream = ffprobe.Resolve(context.Background(), ffprobe.Resolver{RTSPURL: murl, CaptureType: cam.EffectiveCaptureType()}, prober, slog)
 			}
 			mon := motion.New(cam, motionStream, motionCfg, cfg.Storage.Path, reconnect, slog,
 				func() []zones.Zone {
