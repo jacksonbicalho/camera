@@ -45,7 +45,7 @@ func notifyStateTransition(database *db.DB, c stateclass.Classifier, state strin
 			Type:    "info",
 			Title:   c.Name,
 			Message: fmt.Sprintf("Estado: %s", state),
-			Link:    "/settings/cameras/states/" + c.CameraID,
+			Link:    "/settings/states/" + c.CameraID,
 		}); err != nil {
 			return err
 		}

@@ -159,6 +159,10 @@ func (s *Server) routeTable() []route {
 		{"PUT", "/api/cameras/{id}/motion/zones", authCamera, s.handleMotionZonesPut},
 
 		// State classification: config (admin) + leitura do estado corrente (cameraAccess).
+		// Resolve um classificador só pelo próprio id, sem o id da câmera — usado pelo
+		// deep-link de edição /settings/states/edit/:cid do frontend (história
+		// refactor/camera-tabs-para-sidebar-ia), que não carrega o id da câmera na URL.
+		{"GET", "/api/settings/classifiers/{cid}", authAdmin, s.handleClassifierGet},
 		{"GET", "/api/settings/cameras/{id}/classifiers", authAdmin, s.handleStateClassifiersGet},
 		{"POST", "/api/settings/cameras/{id}/classifiers", authAdmin, s.handleStateClassifierCreate},
 		{"PUT", "/api/settings/cameras/{id}/classifiers/{cid}", authAdmin, s.handleStateClassifierUpdate},

@@ -136,6 +136,46 @@ func TestClassifierCreateAndList(t *testing.T) {
 	}
 }
 
+// TestGetClassifierByID cobre a história refactor/camera-tabs-para-sidebar-ia:
+// a rota de edição de um classificador (/settings/states/edit/:cid, no
+// frontend) deixa de carregar o id da câmera na URL — o front resolve o
+// camera_id chamando esse endpoint novo, só com o id do próprio classificador.
+func TestGetClassifierByID(t *testing.T) {
+	srv, token, camID := setupClassifierServer(t)
+
+	w := doJSON(t, srv, http.MethodPost, "/api/settings/cameras/"+camID+"/classifiers", token, validClassifierBody())
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID int64 `json:"id"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &created)
+
+	t.Run("CA2: GET /api/settings/classifiers/{cid} resolve o classificador só pelo próprio id, incluindo camera_id", func(t *testing.T) {
+		w := doJSON(t, srv, http.MethodGet, "/api/settings/classifiers/"+strconv.FormatInt(created.ID, 10), token, nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var got struct {
+			ID       int64  `json:"id"`
+			CameraID string `json:"camera_id"`
+			Name     string `json:"name"`
+		}
+		json.Unmarshal(w.Body.Bytes(), &got)
+		if got.ID != created.ID || got.CameraID != camID || got.Name != "Portão" {
+			t.Fatalf("unexpected classifier: %+v", got)
+		}
+	})
+
+	t.Run("CA2: id inexistente devolve 404", func(t *testing.T) {
+		w := doJSON(t, srv, http.MethodGet, "/api/settings/classifiers/999999", token, nil)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
 // TestClassifierNameUniquePerCamera cobre a história feat/estados-categoria-granular
 // (pré-requisito identificado pelo navigator na revisão da análise): nome de
 // classificador precisa ser único POR CÂMERA — a categoria composta
