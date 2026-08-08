@@ -22,28 +22,6 @@ function fmtResolution(w: number, h: number): string {
   return `${w} × ${h}`
 }
 
-function fmtBytes(b: number): string {
-  if (b === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(b) / Math.log(1024))
-  return `${(b / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
-}
-
-function fmtDuration(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`
-  if (seconds < 3600) return `${Math.round(seconds / 60)}min`
-  const h = Math.floor(seconds / 3600)
-  const m = Math.round((seconds % 3600) / 60)
-  return m > 0 ? `${h}h ${m}min` : `${h}h`
-}
-
-interface CameraStatsData {
-  total_bytes: number
-  total_chunks: number
-  total_seconds: number
-  total_motion_events: number
-}
-
 export default function CameraDetailSettingsPage() {
   const { id } = useParams<{ id: string }>()
   const isAdmin = getRole() === 'admin'
@@ -55,7 +33,6 @@ export default function CameraDetailSettingsPage() {
   const editing = isAdmin && location.pathname.startsWith('/settings/cameras/edit/')
   const { settings, reload } = useSettings()
   const cam = settings?.cameras.find((c) => c.id === id) as Camera | undefined
-  const [stats, setStats] = useState<CameraStatsData | null>(null)
 
   const stopEditing = () => {
     setError(null)
@@ -66,16 +43,6 @@ export default function CameraDetailSettingsPage() {
 
   const [viewerCam, setViewerCam] = useState<CameraSettings | null>(null)
   const [viewerLoading, setViewerLoading] = useState(!isAdmin)
-
-  useEffect(() => {
-    if (!id) return
-    fetch(`/api/cameras/${id}/stats`, { headers: authHeaders() })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data) setStats(data)
-      })
-      .catch(() => {})
-  }, [id])
 
   useEffect(() => {
     if (isAdmin || !id) return
@@ -138,19 +105,6 @@ export default function CameraDetailSettingsPage() {
               fields={[
                 { label: 'Gravar em disco', value: viewerCam.recording_enabled ? 'Sim' : 'Não' },
               ]}
-            />
-            <SettingsSection
-              title="Estatísticas"
-              fields={
-                stats == null
-                  ? [{ label: 'Carregando...', value: '' }]
-                  : [
-                      { label: 'Total gravado', value: fmtDuration(stats.total_seconds) },
-                      { label: 'Segmentos MP4', value: String(stats.total_chunks) },
-                      { label: 'Espaço em disco', value: fmtBytes(stats.total_bytes) },
-                      { label: 'Eventos de movimento', value: String(stats.total_motion_events) },
-                    ]
-              }
             />
             <DeviceInfoPanel cameraId={id!} isAdmin={false} />
           </div>
@@ -258,23 +212,6 @@ export default function CameraDetailSettingsPage() {
                 { label: 'Intervalo de reconexão', value: cam.reconnect_interval },
               ],
             ]}
-          />
-          <SettingsSection
-            title="Estatísticas"
-            groups={
-              stats == null
-                ? [[{ label: 'Carregando...', value: '' }]]
-                : [
-                    [
-                      { label: 'Total gravado', value: fmtDuration(stats.total_seconds) },
-                      { label: 'Segmentos MP4', value: String(stats.total_chunks) },
-                    ],
-                    [
-                      { label: 'Espaço em disco', value: fmtBytes(stats.total_bytes) },
-                      { label: 'Eventos de movimento', value: String(stats.total_motion_events) },
-                    ],
-                  ]
-            }
           />
           <DeviceInfoPanel cameraId={id!} isAdmin={isAdmin} />
         </div>

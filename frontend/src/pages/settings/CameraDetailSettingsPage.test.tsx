@@ -60,4 +60,15 @@ describe('CameraDetailSettingsPage', () => {
       expect(link.getAttribute('href')).toBe('/settings/cameras/cam-1')
     })
   })
+
+  describe('CA6: não mostra mais a seção "Estatísticas" (migrada pra ServerSettingsPage)', () => {
+    it('visualizando: "Estatísticas" não aparece', async () => {
+      renderAt('/settings/cameras/cam-1')
+      await waitFor(() => {
+        const h3 = screen.getByRole('heading', { level: 3 })
+        expect(h3.textContent).toBe('Corredor de entrada')
+      })
+      expect(document.body.textContent).not.toContain('Estatísticas')
+    })
+  })
 })
