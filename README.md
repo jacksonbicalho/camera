@@ -209,7 +209,8 @@ O servidor emite dois endpoints SSE por câmera:
 | Pacote | Responsabilidade |
 |---|---|
 | `internal/recorder` | Grava RTSP → MP4 em chunks |
-| `internal/streaming` | Gera playlist HLS ao vivo |
+| `internal/transmission/hls` | Gera playlist HLS ao vivo |
+| `internal/transmission/webrtc` | Entrega o ao-vivo de baixa latência via WebRTC |
 | `internal/motion` | Detecta movimento via ffmpeg pipe raw; persiste eventos no banco e em NDJSON; salva snapshot JPEG anotado por evento |
 | `internal/storage` | Sincroniza MP4s do disco para o banco (`recordings`) e apaga chunks com retenção diferenciada por categoria via SQL |
 | `internal/db` | Acesso ao SQLite; executa migrations na inicialização; tabelas: cameras, users, recordings, motion_events, settings |
