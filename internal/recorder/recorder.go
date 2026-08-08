@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"camera/internal/capture/hls"
 	"camera/internal/capture/rtsp"
 	"camera/internal/config"
 	"camera/internal/core"
@@ -48,7 +49,12 @@ func (r *Recorder) Start(now time.Time) error {
 	if needsTranscode {
 		r.log.Warn("transcoding video to h264", "camera", r.camera.ID, "source_codec", r.stream.VideoCodec, "mode", r.camera.RecordVideoMode)
 	}
-	args := rtsp.ConnectArgs(r.camera.RTSPURL)
+	var args []string
+	if r.camera.EffectiveCaptureType() == "hls" {
+		args = hls.ConnectArgs(r.camera.RTSPURL)
+	} else {
+		args = rtsp.ConnectArgs(r.camera.RTSPURL)
+	}
 	args = append(args, core.TranscodeArgs(needsTranscode, r.stream.HasAudio)...)
 	args = append(args,
 		"-f", "segment",
