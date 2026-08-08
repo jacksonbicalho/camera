@@ -42,8 +42,8 @@ func CreateCamera(db *DB, cam config.CameraConfig, motion *config.MotionConfig) 
 		`INSERT INTO cameras(id, name, rtsp_url, motion_rtsp_url, capture_type, chunk_duration, reconnect_interval,
 		                     video_codec, has_audio, width, height, display_order,
 		                     hls_video_mode, record_video_mode, live_transport, hls_segment_seconds, hls_list_size,
-		                     hls_dvr_seconds, recording_enabled)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		                     hls_dvr_seconds, recording_enabled, live_enabled)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		cam.ID,
 		cam.Name,
 		cam.RTSPURL,
@@ -63,6 +63,7 @@ func CreateCamera(db *DB, cam config.CameraConfig, motion *config.MotionConfig) 
 		nullIntPtr(cam.HLSListSize),
 		nullIntPtr(cam.HLSDVRSeconds),
 		boolToInt(cam.RecordingEnabled),
+		boolToInt(cam.LiveEnabled),
 	)
 	if err != nil {
 		return config.CameraConfig{}, fmt.Errorf("insert camera: %w", err)
@@ -90,18 +91,18 @@ func GetCamera(db *DB, id string) (config.CameraConfig, error) {
 	var width, height sql.NullInt64
 
 	var segSec, listSize, dvrSec sql.NullInt64
-	var recEnabled int
+	var recEnabled, liveEnabled int
 	err := db.QueryRow(
 		`SELECT id, name, rtsp_url, motion_rtsp_url, capture_type, chunk_duration, reconnect_interval,
 		        video_codec, has_audio, width, height, display_order,
 		        hls_video_mode, record_video_mode, live_transport, hls_segment_seconds, hls_list_size,
-		        hls_dvr_seconds, recording_enabled
+		        hls_dvr_seconds, recording_enabled, live_enabled
 		 FROM cameras WHERE id=?`, id,
 	).Scan(
 		&cam.ID, &cam.Name, &cam.RTSPURL, &cam.MotionRTSPURL, &cam.CaptureType, &chunk, &reconnect,
 		&codec, &hasAudio, &width, &height, &cam.DisplayOrder,
 		&cam.HLSVideoMode, &cam.RecordVideoMode, &cam.LiveTransport, &segSec, &listSize,
-		&dvrSec, &recEnabled,
+		&dvrSec, &recEnabled, &liveEnabled,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -129,6 +130,7 @@ func GetCamera(db *DB, id string) (config.CameraConfig, error) {
 	cam.HLSListSize = scanIntPtr(listSize)
 	cam.HLSDVRSeconds = scanIntPtr(dvrSec)
 	cam.RecordingEnabled = recEnabled != 0
+	cam.LiveEnabled = liveEnabled != 0
 
 	motion, err := getMotion(db.DB, id)
 	if err != nil {
@@ -146,7 +148,7 @@ func ListCameras(db *DB) ([]config.CameraConfig, error) {
 		SELECT c.id, c.name, c.rtsp_url, c.motion_rtsp_url, c.capture_type, c.chunk_duration, c.reconnect_interval,
 		       c.video_codec, c.has_audio, c.width, c.height, c.display_order,
 		       c.hls_video_mode, c.record_video_mode, c.live_transport, c.hls_segment_seconds, c.hls_list_size,
-		       c.hls_dvr_seconds, c.recording_enabled,
+		       c.hls_dvr_seconds, c.recording_enabled, c.live_enabled,
 		       cm.enabled, cm.threshold, cm.fps, cm.cooldown_seconds,
 		       cm.capture_width, cm.capture_height, cm.playback_lead_seconds, cm.playback_trail_seconds
 		FROM cameras c
@@ -164,7 +166,7 @@ func ListCameras(db *DB) ([]config.CameraConfig, error) {
 		var chunk, reconnect string
 		var codec sql.NullString
 		var hasAudio, width, height, segSec, listSize, dvrSec sql.NullInt64
-		var recEnabled int
+		var recEnabled, liveEnabled int
 		var mEnabled sql.NullInt64
 		var mThreshold sql.NullFloat64
 		var mFPS, mCooldown, mCaptureW, mCaptureH, mPlaybackLead, mPlaybackTrail sql.NullInt64
@@ -173,7 +175,7 @@ func ListCameras(db *DB) ([]config.CameraConfig, error) {
 			&cam.ID, &cam.Name, &cam.RTSPURL, &cam.MotionRTSPURL, &cam.CaptureType, &chunk, &reconnect,
 			&codec, &hasAudio, &width, &height, &cam.DisplayOrder,
 			&cam.HLSVideoMode, &cam.RecordVideoMode, &cam.LiveTransport, &segSec, &listSize,
-			&dvrSec, &recEnabled,
+			&dvrSec, &recEnabled, &liveEnabled,
 			&mEnabled, &mThreshold, &mFPS, &mCooldown, &mCaptureW, &mCaptureH, &mPlaybackLead, &mPlaybackTrail,
 		); err != nil {
 			return nil, fmt.Errorf("scan camera: %w", err)
@@ -198,6 +200,7 @@ func ListCameras(db *DB) ([]config.CameraConfig, error) {
 		cam.HLSListSize = scanIntPtr(listSize)
 		cam.HLSDVRSeconds = scanIntPtr(dvrSec)
 		cam.RecordingEnabled = recEnabled != 0
+		cam.LiveEnabled = liveEnabled != 0
 		if mEnabled.Valid {
 			cam.Motion = &config.MotionConfig{
 				Enabled:             mEnabled.Int64 != 0,
@@ -229,7 +232,7 @@ func UpdateCamera(db *DB, cam config.CameraConfig, motion *config.MotionConfig) 
 		                    video_codec=?, has_audio=?, width=?, height=?, display_order=?,
 		                    hls_video_mode=?, record_video_mode=?, live_transport=?,
 		                    hls_segment_seconds=?, hls_list_size=?, hls_dvr_seconds=?,
-		                    recording_enabled=?
+		                    recording_enabled=?, live_enabled=?
 		 WHERE id=?`,
 		cam.Name,
 		cam.RTSPURL,
@@ -249,6 +252,7 @@ func UpdateCamera(db *DB, cam config.CameraConfig, motion *config.MotionConfig) 
 		nullIntPtr(cam.HLSListSize),
 		nullIntPtr(cam.HLSDVRSeconds),
 		boolToInt(cam.RecordingEnabled),
+		boolToInt(cam.LiveEnabled),
 		cam.ID,
 	)
 	if err != nil {

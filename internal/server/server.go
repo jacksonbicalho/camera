@@ -676,6 +676,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		HLSListSize       *int       `json:"hls_list_size"`
 		HLSDVRSeconds     *int       `json:"hls_dvr_seconds"`
 		RecordingEnabled  bool       `json:"recording_enabled"`
+		LiveEnabled       bool       `json:"live_enabled"`
 		Motion            *motionDTO `json:"motion"`
 	}
 	camList := s.cameras
@@ -734,6 +735,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			HLSListSize:       c.HLSListSize,
 			HLSDVRSeconds:     c.HLSDVRSeconds,
 			RecordingEnabled:  c.RecordingEnabled,
+			LiveEnabled:       c.LiveEnabled,
 			Motion:            motion,
 		}
 	}

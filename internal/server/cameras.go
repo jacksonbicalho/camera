@@ -85,6 +85,7 @@ type cameraConfigDTO struct {
 	HLSListSize       *int             `json:"hls_list_size"`
 	HLSDVRSeconds     *int             `json:"hls_dvr_seconds"`
 	RecordingEnabled  bool             `json:"recording_enabled"`
+	LiveEnabled       bool             `json:"live_enabled"`
 	Motion            *motionConfigDTO `json:"motion"`
 	AnalysisEnabled   bool             `json:"analysis_enabled"`
 }
@@ -110,6 +111,7 @@ func cameraToDTO(cam config.CameraConfig) cameraConfigDTO {
 		HLSListSize:       cam.HLSListSize,
 		HLSDVRSeconds:     cam.HLSDVRSeconds,
 		RecordingEnabled:  cam.RecordingEnabled,
+		LiveEnabled:       cam.LiveEnabled,
 	}
 	if cam.Motion != nil {
 		dto.Motion = &motionConfigDTO{
@@ -226,6 +228,7 @@ func (s *Server) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 		HLSListSize       *int             `json:"hls_list_size"`
 		HLSDVRSeconds     *int             `json:"hls_dvr_seconds"`
 		RecordingEnabled  *bool            `json:"recording_enabled"`
+		LiveEnabled       *bool            `json:"live_enabled"`
 		Motion            *motionConfigDTO `json:"motion"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -244,6 +247,7 @@ func (s *Server) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 	}
 
 	recEnabled := req.RecordingEnabled == nil || *req.RecordingEnabled
+	liveEnabled := req.LiveEnabled == nil || *req.LiveEnabled
 	cam := config.CameraConfig{
 		Name:              req.Name,
 		RTSPURL:           req.RTSPURL,
@@ -260,6 +264,7 @@ func (s *Server) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 		HLSListSize:       req.HLSListSize,
 		HLSDVRSeconds:     req.HLSDVRSeconds,
 		RecordingEnabled:  recEnabled,
+		LiveEnabled:       liveEnabled,
 	}
 	if req.ChunkDuration != "" {
 		d, err := time.ParseDuration(req.ChunkDuration)
@@ -350,6 +355,7 @@ func (s *Server) handleUpdateCamera(w http.ResponseWriter, r *http.Request) {
 		HLSListSize       *int             `json:"hls_list_size"`
 		HLSDVRSeconds     *int             `json:"hls_dvr_seconds"`
 		RecordingEnabled  *bool            `json:"recording_enabled"`
+		LiveEnabled       *bool            `json:"live_enabled"`
 		Motion            *motionConfigDTO `json:"motion"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -376,6 +382,10 @@ func (s *Server) handleUpdateCamera(w http.ResponseWriter, r *http.Request) {
 	if req.RecordingEnabled != nil {
 		recEnabled = *req.RecordingEnabled
 	}
+	liveEnabled := existing.LiveEnabled
+	if req.LiveEnabled != nil {
+		liveEnabled = *req.LiveEnabled
+	}
 	cam := config.CameraConfig{
 		ID:                id,
 		Name:              req.Name,
@@ -394,6 +404,7 @@ func (s *Server) handleUpdateCamera(w http.ResponseWriter, r *http.Request) {
 		HLSListSize:       req.HLSListSize,
 		HLSDVRSeconds:     req.HLSDVRSeconds,
 		RecordingEnabled:  recEnabled,
+		LiveEnabled:       liveEnabled,
 	}
 	if req.ChunkDuration != "" {
 		d, err := time.ParseDuration(req.ChunkDuration)
