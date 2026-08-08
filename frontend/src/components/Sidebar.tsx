@@ -91,7 +91,10 @@ function SidebarSection({
     // claramente pertencer à que vem depois.
     <div className={cn(divider && 'border-t border-border/70 pt-4', showLabel ? 'w-full' : 'w-10')}>
       {showLabel && label && (
-        <p className="px-3 pb-0.5 text-[11px] font-bold uppercase tracking-wider text-muted">
+        <p
+          title={label}
+          className="truncate px-3 pb-0.5 text-[11px] font-bold uppercase tracking-wider text-muted"
+        >
           {label}
         </p>
       )}
@@ -104,12 +107,12 @@ function SidebarSection({
 // navigator — substitui o antigo flyout popup por trás de um único ícone
 // "Configurações"): recolhido mostra só ícones; expandido mostra também os
 // cabeçalhos de seção e rola (scrollbar-thin) quando o conteúdo excede a
-// altura da viewport. Só "Câmeras" (dentro de "Sistema") fica visível pra
-// todo mundo — o resto de Sistema (Gravações/Histórico/Relatórios/Rastrear
-// câmeras), a seção Inteligência Artificial inteira (Análise de vídeo/
+// altura da viewport. Só "Câmeras" (dentro de "Câmeras e Gravações") fica
+// visível pra todo mundo — o resto de Câmeras e Gravações (Gravações/
+// Histórico/Relatórios), a seção Inteligência inteira (Análise de vídeo/
 // Rotular eventos/Detectores de objetos) e Administração (inclui
-// "Aparência") são admin-only, mesma regra de acesso que essas páginas já
-// tinham. Nem o logo, nem o
+// "Rastrear câmeras" e "Aparência") são admin-only, mesma regra de acesso
+// que essas páginas já tinham. Nem o logo, nem o
 // avatar do usuário, nem o item
 // "Sobre" moram mais aqui — migraram pra `TopBar.tsx` (barra full-width
 // acima da linha Sidebar+conteúdo, renderizada pelo `Layout`; "Sobre" virou
@@ -236,21 +239,10 @@ export default function Sidebar() {
                 showLabel={showLabel}
               />
             )}
-            {isAdmin && (
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-discover',
-                  to: '/settings/discover',
-                  label: 'Rastrear câmeras',
-                  icon: <Search className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-            )}
           </SidebarSection>
 
           {isAdmin && (
-            <SidebarSection label="Inteligência Artificial" showLabel={showLabel} divider>
+            <SidebarSection label="Inteligência" showLabel={showLabel} divider>
               <SidebarNavLink
                 item={{
                   id: 'sidebar-analysis',
@@ -325,6 +317,15 @@ export default function Sidebar() {
                   to: '/settings/storage',
                   label: 'Armazenamento',
                   icon: <HardDrive className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-discover',
+                  to: '/settings/discover',
+                  label: 'Rastrear câmeras',
+                  icon: <Search className="h-5 w-5 shrink-0" />,
                 }}
                 showLabel={showLabel}
               />

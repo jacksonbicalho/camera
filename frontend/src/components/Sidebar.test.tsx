@@ -154,24 +154,23 @@ describe('CA2: rail em seções sempre visíveis, sem link direto pra /events', 
 // mesma história a renomeia pra "Câmeras e Gravações", ver CA5 — o CA2 aqui
 // testa a ordem/gate dos itens, não o nome da seção) — mesmo gate
 // admin-only individual de antes, só reposicionados. Ordem final: Câmeras,
-// Gravações, Histórico, Relatórios, Rastrear câmeras (que deixa de ser o 2º
-// item e vira o último).
-describe('CA2: seção "Câmeras e Gravações" (ex-"Sistema") ganha Gravações/Histórico/Relatórios, nesta ordem: Câmeras → Gravações → Histórico → Relatórios → Rastrear câmeras', () => {
-  it('admin vê os 5 itens, com os hrefs certos e nessa ordem', () => {
+// Gravações, Histórico, Relatórios. "Rastrear câmeras" saiu daqui e foi pra
+// dentro de "Administração" (pedido do navigator testando a branch de
+// refactor/camera-tabs-para-sidebar-ia — ver describe de Administração).
+describe('CA2: seção "Câmeras e Gravações" (ex-"Sistema") ganha Gravações/Histórico/Relatórios, nesta ordem: Câmeras → Gravações → Histórico → Relatórios', () => {
+  it('admin vê os 4 itens, com os hrefs certos e nessa ordem', () => {
     renderAt('/')
     const cameras = document.getElementById('sidebar-cameras')!
     const recordings = document.getElementById('sidebar-recordings')!
     const history = document.getElementById('sidebar-history')!
     const relatorios = document.getElementById('sidebar-relatorios')!
-    const discover = document.getElementById('sidebar-discover')!
 
     expect(recordings.getAttribute('href')).toBe('/recordings')
     expect(history.tagName).toBe('A')
     expect(history.getAttribute('href')).toBe('/history')
     expect(relatorios.getAttribute('href')).toBe('/reports')
-    expect(discover.getAttribute('href')).toBe('/settings/discover')
 
-    const order = [cameras, recordings, history, relatorios, discover]
+    const order = [cameras, recordings, history, relatorios]
     for (let i = 0; i < order.length - 1; i++) {
       expect(
         order[i].compareDocumentPosition(order[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -179,14 +178,13 @@ describe('CA2: seção "Câmeras e Gravações" (ex-"Sistema") ganha Gravações
     }
   })
 
-  it('viewer vê só Câmeras — Gravações/Histórico/Relatórios/Rastrear câmeras continuam admin-only (mesmo gate de antes, só migrado de seção)', () => {
+  it('viewer vê só Câmeras — Gravações/Histórico/Relatórios continuam admin-only (mesmo gate de antes, só migrado de seção)', () => {
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
     expect(document.getElementById('sidebar-cameras')).toBeTruthy()
     expect(document.getElementById('sidebar-recordings')).toBeNull()
     expect(document.getElementById('sidebar-history')).toBeNull()
     expect(document.getElementById('sidebar-relatorios')).toBeNull()
-    expect(document.getElementById('sidebar-discover')).toBeNull()
   })
 
   it('"Histórico" fica ativo em qualquer sub-rota /history/*', () => {
@@ -238,13 +236,13 @@ describe('CA3: seção "Movimentos" renomeada para "Inteligência Artificial" �
     expect(document.getElementById('sidebar-label-events')?.className).toContain('bg-primary')
   })
 
-  it('o cabeçalho da seção lê "Inteligência Artificial", não mais "Movimentos"', () => {
+  it('o cabeçalho da seção lê "Inteligência" (encurtado de "Inteligência Artificial" — pedido do navigator, corrigia também a quebra de linha do rail), não mais "Movimentos"', () => {
     renderAt('/')
     fireEvent.click(document.getElementById('sidebar-collapse')!)
     const sectionHeaders = Array.from(document.querySelectorAll('#sidebar p.uppercase')).map(
       (p) => p.textContent,
     )
-    expect(sectionHeaders).toContain('Inteligência Artificial')
+    expect(sectionHeaders).toContain('Inteligência')
     expect(sectionHeaders).not.toContain('Movimentos')
     expect(document.body.textContent).not.toContain('Movimentos')
   })
@@ -266,6 +264,30 @@ describe('CA4/CA9: seção "Administração" (admin) — Servidor, Armazenamento
     expect(document.getElementById('sidebar-storage')).toBeNull()
     expect(document.getElementById('sidebar-server')).toBeNull()
     expect(document.getElementById('sidebar-users')).toBeNull()
+  })
+})
+
+// Regressão (feedback do navigator testando a branch de
+// refactor/camera-tabs-para-sidebar-ia): "Rastrear câmeras" saiu de "Câmeras
+// e Gravações" e foi pra "Administração", logo depois de "Armazenamento".
+describe('regressão: "Rastrear câmeras" migrou pra "Administração", depois de "Armazenamento"', () => {
+  it('admin vê "Rastrear câmeras" dentro de Administração, entre Armazenamento e Usuários', () => {
+    renderAt('/')
+    const storage = document.getElementById('sidebar-storage')!
+    const discover = document.getElementById('sidebar-discover')!
+    const users = document.getElementById('sidebar-users')!
+
+    expect(discover.getAttribute('href')).toBe('/settings/discover')
+    expect(
+      storage.compareDocumentPosition(discover) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(discover.compareDocumentPosition(users) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('viewer não vê "Rastrear câmeras" (seção Administração inteira é admin-only)', () => {
+    vi.mocked(getRole).mockReturnValue('viewer')
+    renderAt('/')
+    expect(document.getElementById('sidebar-discover')).toBeNull()
   })
 })
 
@@ -383,8 +405,30 @@ describe('CA2: seção "Inteligência Artificial" tem o mesmo separador (border-
     renderAt('/')
     fireEvent.click(document.getElementById('sidebar-collapse')!)
     const header = Array.from(document.querySelectorAll('#sidebar p.uppercase')).find(
-      (p) => p.textContent === 'Inteligência Artificial',
+      (p) => p.textContent === 'Inteligência',
     )!
     expect(header.parentElement!.className).toContain('border-t')
+  })
+})
+
+// Regressão (feedback do navigator testando a branch de
+// refactor/camera-tabs-para-sidebar-ia no desktop real): "Inteligência
+// Artificial" (label original, depois encurtado pra "Inteligência" — ver
+// CA3 acima) era o label de seção mais longo do rail e quebrava em 2 linhas
+// dentro da largura fixa do rail expandido (w-48) — o cabeçalho nunca tinha
+// whitespace-nowrap/truncate, então o wrap padrão do navegador entrava em
+// ação quando o texto não cabia. `truncate` (nowrap+overflow-hidden+
+// ellipsis) garante uma linha só sempre, independente de métrica de fonte —
+// mantido como garantia estrutural pra QUALQUER label de seção, mesmo após
+// o encurtamento ter aliviado o caso específico que motivou o fix.
+describe('regressão: cabeçalho de seção nunca quebra em 2 linhas (truncate + title pro texto completo)', () => {
+  it('o cabeçalho "Inteligência" tem a classe truncate e o title com o texto completo', () => {
+    renderAt('/')
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    const header = Array.from(document.querySelectorAll('#sidebar p.uppercase')).find(
+      (p) => p.textContent === 'Inteligência',
+    )!
+    expect(header.className).toContain('truncate')
+    expect(header.getAttribute('title')).toBe('Inteligência')
   })
 })
