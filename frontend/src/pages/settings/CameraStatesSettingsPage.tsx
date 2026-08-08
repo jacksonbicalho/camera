@@ -4,8 +4,6 @@ import { format } from 'date-fns'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import DatePicker from '../../components/DatePicker'
-import CameraSettingsTabs from '../../components/CameraSettingsTabs'
-import EntitySubtitle from '../../components/EntitySubtitle'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import BboxCanvas, { type BboxRect } from '../../components/BboxCanvas'
 import { authHeaders, onUnauthorized, getRole, getToken } from '../../auth'
@@ -164,7 +162,7 @@ async function loadEventImageURL(
 }
 
 export default function CameraStatesSettingsPage() {
-  const { id, cid } = useParams<{ id: string; cid?: string }>()
+  const { id: idParam, cid } = useParams<{ id?: string; cid?: string }>()
   const navigate = useNavigate()
   const isAdmin = getRole() === 'admin'
   const [items, setItems] = useState<StateClassifier[]>([])
@@ -175,8 +173,34 @@ export default function CameraStatesSettingsPage() {
   const [states, setStates] = useState<Record<number, string>>({})
   const [historyFor, setHistoryFor] = useState<StateClassifier | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
-  const { settings } = useSettings()
-  const camName = settings?.cameras?.find((c) => c.id === id)?.name
+
+  // Câmeras pra popular o <select> de troca — fetch direto, mesmo padrão de
+  // report-camera-select em ReportsPage / analysis-camera-select em
+  // CameraAnalysisSettingsPage.
+  const [cameras, setCameras] = useState<{ id: string; name: string }[]>([])
+  useEffect(() => {
+    fetch('/api/cameras', { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => setCameras(Array.isArray(list) ? list : []))
+      .catch(() => {})
+  }, [])
+
+  // Deep-link direto em /settings/states/edit/:cid (sem :id de câmera, ex.
+  // vindo de uma notificação) — resolve o camera_id a partir do próprio
+  // classificador (GET /api/settings/classifiers/{cid}) antes de qualquer
+  // fetch escopado por câmera. Rotas normais (/settings/states/:id) já
+  // trazem :id na URL, então este efeito nunca dispara pra elas.
+  const [resolvedCameraId, setResolvedCameraId] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    if (idParam || !cid) return
+    fetch(`/api/settings/classifiers/${cid}`, { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => setResolvedCameraId(c?.camera_id))
+      .catch(() => {})
+  }, [idParam, cid])
+  const id = idParam ?? resolvedCameraId
+
+  const camName = cameras.find((c) => c.id === id)?.name
   // Sem nenhum trainer configurado pra state classification
   // (Configurações → Análise de vídeo), um classificador novo nunca vai
   // conseguir treinar/rodar — bloqueia a criação (não a edição dos que já
@@ -194,7 +218,7 @@ export default function CameraStatesSettingsPage() {
 
   // Estado atual de cada classificador, em poll (~5s) — atualiza ao runner mudar.
   useEffect(() => {
-    if (editing || items.length === 0) return
+    if (!id || editing || items.length === 0) return
     let cancelled = false
     const fetchStates = () =>
       Promise.all(
@@ -216,6 +240,7 @@ export default function CameraStatesSettingsPage() {
   }, [items, id, editing])
 
   const reload = useCallback(async () => {
+    if (!id) return
     const res = await fetch(`/api/settings/cameras/${id}/classifiers`, { headers: authHeaders() })
     if (res.status === 401) {
       onUnauthorized()
@@ -225,6 +250,10 @@ export default function CameraStatesSettingsPage() {
   }, [id])
 
   useEffect(() => {
+    // Deep-link /settings/states/edit/:cid (sem :id) — o efeito abaixo resolve
+    // o camera_id primeiro; este aqui espera esse resultado antes de buscar a
+    // lista de classificadores (senão bateria em .../cameras/undefined/...).
+    if (!id) return
     fetch(`/api/settings/cameras/${id}/classifiers`, { headers: authHeaders() })
       .then((res) => {
         if (res.status === 401) {
@@ -335,19 +364,39 @@ export default function CameraStatesSettingsPage() {
     setTrainingId(null)
   }
 
+  const statesHeader = (
+    <PageHeader
+      title="Estados"
+      subtitle={
+        camName && (
+          <span id="states-camera-name" className="block text-base font-medium text-foreground">
+            {camName}
+          </span>
+        )
+      }
+      actions={
+        <select
+          id="states-camera-select"
+          aria-label="Câmera"
+          value={id ?? ''}
+          onChange={(e) => navigate(`/settings/states/${e.target.value}`, { replace: true })}
+          disabled={cameras.length <= 1}
+          className="bg-surface-2 text-foreground text-xs rounded px-2 py-1 border border-border max-w-44 disabled:opacity-70"
+        >
+          {cameras.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      }
+    />
+  )
+
   if (!isAdmin) {
     return (
       <SettingsLayout id="camera-states-page" footerId="camera-states-footer">
-        <PageHeader
-          title="Câmeras"
-          subtitle={
-            <EntitySubtitle
-              parent={{ label: camName ?? '...', to: `/settings/cameras/${id}` }}
-              current="Estados"
-            />
-          }
-        />
-        <CameraSettingsTabs id={id!} active="states" />
+        {statesHeader}
         <p className="text-muted-foreground text-sm">Apenas administradores.</p>
       </SettingsLayout>
     )
@@ -355,16 +404,7 @@ export default function CameraStatesSettingsPage() {
 
   return (
     <SettingsLayout id="camera-states-page" footerId="camera-states-footer">
-      <PageHeader
-        title="Câmeras"
-        subtitle={
-          <EntitySubtitle
-            parent={{ label: camName ?? '...', to: `/settings/cameras/${id}` }}
-            current="Estados"
-          />
-        }
-      />
-      <CameraSettingsTabs id={id!} active="states" />
+      {statesHeader}
 
       {error && (
         <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
@@ -379,13 +419,13 @@ export default function CameraStatesSettingsPage() {
           onChange={setEditing}
           onDone={() => {
             setEditing(null)
-            if (cid) navigate(`/settings/cameras/states/${id}`)
+            if (cid) navigate(`/settings/states/${id}`)
             else reload()
           }}
           onCancel={() => {
             setEditing(null)
             setError(null)
-            if (cid) navigate(`/settings/cameras/states/${id}`)
+            if (cid) navigate(`/settings/states/${id}`)
           }}
         />
       ) : historyFor ? (
@@ -498,7 +538,16 @@ export default function CameraStatesSettingsPage() {
                     onClick={() => {
                       setEditing(c)
                       setError(null)
-                      navigate(`/settings/cameras/${id}/states/edit/${c.id}`)
+                      // A rota de edição (/settings/states/edit/:cid) não carrega
+                      // :id — sem isso, o próximo render perderia `id` até o
+                      // round-trip de GET /api/settings/classifiers/{cid}
+                      // terminar (o componente não desmonta na troca de rota).
+                      // Aqui `id` já é conhecido (é a câmera da própria lista) —
+                      // propaga direto pra não perder o render. O efeito de
+                      // resolução ainda dispara o GET /classifiers/{cid} (é
+                      // idempotente, mesmo resultado), só não bloqueia mais nada.
+                      setResolvedCameraId(id)
+                      navigate(`/settings/states/edit/${c.id}`)
                     }}
                   >
                     <Pencil className="w-4 h-4" />

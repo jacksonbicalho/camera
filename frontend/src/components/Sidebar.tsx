@@ -10,6 +10,7 @@ import {
   BarChart2,
   Camera,
   Cctv,
+  Check,
   Eye,
   Film,
   Gauge,
@@ -292,6 +293,15 @@ export default function Sidebar() {
                   to: '/settings/analyses',
                   label: 'Análise por câmera',
                   icon: <LayoutGrid className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-states',
+                  to: '/settings/states',
+                  label: 'Estados',
+                  icon: <Check className="h-5 w-5 shrink-0" />,
                 }}
                 showLabel={showLabel}
               />

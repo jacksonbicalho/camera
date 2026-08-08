@@ -94,10 +94,7 @@ export default function CameraAnalysisSettingsPage() {
         title="Análise por câmera"
         subtitle={
           cam?.name && (
-            <span
-              id="analysis-camera-name"
-              className="block text-base font-medium text-foreground"
-            >
+            <span id="analysis-camera-name" className="block text-base font-medium text-foreground">
               {cam.name}
             </span>
           )
