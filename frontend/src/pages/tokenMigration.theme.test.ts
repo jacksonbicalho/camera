@@ -13,6 +13,7 @@ const GRAY_RAMP = /\b[a-z-]*(?:bg|text|border|ring|divide|from|to|via)-gray-\d{2
 
 const MIGRATED_FILES = [
   'src/components/CameraForm.tsx',
+  'src/components/CameraMotionSection.tsx',
   'src/components/CameraSettingsTabs.tsx',
   'src/components/ConfirmDialog.tsx',
   'src/components/DeviceInfoPanel.tsx',
@@ -24,7 +25,7 @@ const MIGRATED_FILES = [
   'src/pages/NotificationsPage.tsx',
   'src/pages/settings/AnalysisSettingsPage.tsx',
   'src/pages/settings/AppearanceSettingsPage.tsx',
-  'src/pages/settings/CameraMotionSettingsPage.tsx',
+  'src/pages/settings/CameraDetailSettingsPage.tsx',
   'src/pages/settings/CameraStatesSettingsPage.tsx',
 ]
 

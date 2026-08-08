@@ -20,7 +20,6 @@ describe('CameraSettingsTabs', () => {
       expect(screen.queryByRole('navigation')).toBeNull()
       expect(screen.queryByText('Câmeras')).toBeNull()
       expect(screen.getByText('Zonas')).toBeTruthy()
-      expect(screen.getByText('Detecção de movimento')).toBeTruthy()
       expect(screen.getByText('Nova câmera')).toBeTruthy()
     })
   })
@@ -28,19 +27,22 @@ describe('CameraSettingsTabs', () => {
   // CA8 (história refactor/camera-tabs-para-sidebar-ia): Análise e Estados
   // saem da página de câmera — passam a viver em Inteligência Artificial
   // (/settings/analyses, /settings/states), escolhendo a câmera lá dentro em
-  // vez de navegar câmera-primeiro. Só Câmera/Movimento/Zonas continuam aqui.
-  describe('CA8: só 3 abas — Análise e Estados saem daqui (viram links em Inteligência Artificial)', () => {
-    it('não renderiza mais "Análise" nem "Estados"', () => {
+  // vez de navegar câmera-primeiro. Só Câmera/Zonas continuam aqui.
+  //
+  // CA5 (história feat/camera-form-reshape, T4): "Detecção de movimento" deixa
+  // de ser aba própria — vira sessão dentro de /settings/cameras/:id.
+  describe('CA8: só 2 abas — Análise e Estados saem daqui (viram links em Inteligência Artificial); Movimento vira sessão', () => {
+    it('não renderiza mais "Análise", "Estados" nem "Detecção de movimento" como aba', () => {
       render(
         <MemoryRouter>
           <CameraSettingsTabs id="cam-1" active="zones" />
         </MemoryRouter>,
       )
       expect(screen.getByText('Câmera')).toBeTruthy()
-      expect(screen.getByText('Detecção de movimento')).toBeTruthy()
       expect(screen.getByText('Zonas')).toBeTruthy()
       expect(screen.queryByText('Análise')).toBeNull()
       expect(screen.queryByText('Estados')).toBeNull()
+      expect(screen.queryByText('Detecção de movimento')).toBeNull()
     })
   })
 })

@@ -3,7 +3,7 @@ import { getRole } from '../auth'
 import { Button } from '@/components/ui/button'
 import { Plus } from './Icons'
 
-type Tab = 'detail' | 'motion' | 'zones'
+type Tab = 'detail' | 'zones'
 
 interface Props {
   id: string
@@ -12,7 +12,6 @@ interface Props {
 
 const TABS: { key: Tab; label: string; path: (id: string) => string }[] = [
   { key: 'detail', label: 'Câmera', path: (id) => `/settings/cameras/${id}` },
-  { key: 'motion', label: 'Detecção de movimento', path: (id) => `/settings/cameras/motion/${id}` },
   { key: 'zones', label: 'Zonas', path: (id) => `/settings/cameras/zones/${id}` },
 ]
 

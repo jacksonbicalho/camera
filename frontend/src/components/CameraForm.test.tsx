@@ -45,21 +45,21 @@ describe('CameraForm sessões — Nome / Captura / Gravação / Transmissão sem
 })
 
 describe('CA3: sessão "Captura" — seletor capture_type com campos condicionais', () => {
-  it('default (rtsp): mostra a URL RTSP, o campo de substream e o botão de detecção', () => {
+  it('default (rtsp): mostra "RTSP URL" como rótulo', () => {
     renderForm()
     const select = document.getElementById('camera-capture-type') as HTMLSelectElement
     expect(select.value).toBe('rtsp')
-    expect(document.getElementById('camera-motion-rtsp-url')).toBeTruthy()
-    expect(document.getElementById('camera-motion-rtsp-detect')).toBeTruthy()
+    expect(screen.getByText('RTSP URL')).toBeTruthy()
+    // O campo de substream (motion_rtsp_url) não é mais desta sessão — migrou
+    // pra "Detecção de movimento" (CameraMotionSection, história T4).
+    expect(document.getElementById('camera-motion-rtsp-url')).toBeNull()
   })
 
-  it('capture_type=hls: esconde o campo de substream, o botão de detecção, e troca o rótulo/placeholder da URL', () => {
+  it('capture_type=hls: troca o rótulo/placeholder da URL', () => {
     renderForm()
     fireEvent.change(document.getElementById('camera-capture-type')!, {
       target: { value: 'hls' },
     })
-    expect(document.getElementById('camera-motion-rtsp-url')).toBeNull()
-    expect(document.getElementById('camera-motion-rtsp-detect')).toBeNull()
     expect(screen.getByText('URL HLS')).toBeTruthy()
     expect(screen.queryByText('RTSP URL')).toBeNull()
   })
@@ -107,5 +107,42 @@ describe('CA4: sessão "Gravação" esconde campos quando desligada; sessão "Tr
 
     expect(document.getElementById('camera-live-transport')).toBeNull()
     expect(document.getElementById('camera-form-hls-video-mode')).toBeNull()
+  })
+
+  it('selecionar Transporte=WebRTC força Codec de vídeo=H.264 (desabilitado) e esconde os campos HLS (HLS desligado, sem fallback)', () => {
+    renderForm()
+    const codecSelect = document.getElementById('camera-form-video-codec') as HTMLSelectElement
+    fireEvent.change(codecSelect, { target: { value: 'hevc' } })
+    expect(codecSelect.value).toBe('hevc')
+
+    fireEvent.change(document.getElementById('camera-live-transport')!, {
+      target: { value: 'webrtc' },
+    })
+
+    expect(codecSelect.value).toBe('h264')
+    expect(codecSelect.disabled).toBe(true)
+    expect(document.getElementById('camera-form-hls-video-mode')).toBeNull()
+    expect(document.getElementById('camera-form-hls-segment-seconds')).toBeNull()
+    expect(document.getElementById('camera-form-hls-list-size')).toBeNull()
+    expect(document.getElementById('camera-form-hls-dvr-seconds')).toBeNull()
+    expect(screen.getByText(/HLS desligado/)).toBeTruthy()
+  })
+
+  it('sair do WebRTC restaura o Codec de vídeo customizado anterior, em vez de deixar h264 preso', () => {
+    renderForm()
+    const codecSelect = document.getElementById('camera-form-video-codec') as HTMLSelectElement
+    fireEvent.change(codecSelect, { target: { value: 'hevc' } })
+
+    fireEvent.change(document.getElementById('camera-live-transport')!, {
+      target: { value: 'webrtc' },
+    })
+    expect(codecSelect.value).toBe('h264')
+
+    fireEvent.change(document.getElementById('camera-live-transport')!, {
+      target: { value: 'auto' },
+    })
+
+    expect(codecSelect.value).toBe('hevc')
+    expect(codecSelect.disabled).toBe(false)
   })
 })

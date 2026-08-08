@@ -869,12 +869,22 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	type cameraInfo struct {
 		ID                   string      `json:"id"`
 		Name                 string      `json:"name"`
+		RTSPURL              string      `json:"rtsp_url"`
+		CaptureType          string      `json:"capture_type"`
+		ChunkDuration        string      `json:"chunk_duration"`
+		ReconnectInterval    string      `json:"reconnect_interval"`
 		RecordingEnabled     bool        `json:"recording_enabled"`
 		VideoCodec           string      `json:"video_codec,omitempty"`
 		HasAudio             *bool       `json:"has_audio"`
 		Width                int         `json:"width,omitempty"`
 		Height               int         `json:"height,omitempty"`
+		HLSVideoMode         string      `json:"hls_video_mode"`
+		RecordVideoMode      string      `json:"record_video_mode"`
+		LiveEnabled          bool        `json:"live_enabled"`
 		LiveTransport        string      `json:"live_transport"`
+		HLSSegmentSeconds    *int        `json:"hls_segment_seconds"`
+		HLSListSize          *int        `json:"hls_list_size"`
+		HLSDVRSeconds        *int        `json:"hls_dvr_seconds"`
 		Motion               *motionInfo `json:"motion"`
 		MotionThreshold      float64     `json:"motion_threshold"`
 		PlaybackLeadSeconds  int         `json:"playback_lead_seconds"`
@@ -940,12 +950,22 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		list[i] = cameraInfo{
 			ID:                   c.ID,
 			Name:                 c.Name,
+			RTSPURL:              maskRTSP(c.RTSPURL),
+			CaptureType:          c.EffectiveCaptureType(),
+			ChunkDuration:        formatDuration(c.EffectiveChunkDuration()),
+			ReconnectInterval:    formatDuration(c.EffectiveReconnectInterval()),
 			RecordingEnabled:     c.RecordingEnabled,
 			VideoCodec:           c.VideoCodec,
 			HasAudio:             c.HasAudio,
 			Width:                c.Width,
 			Height:               c.Height,
+			HLSVideoMode:         c.HLSVideoMode,
+			RecordVideoMode:      c.RecordVideoMode,
+			LiveEnabled:          c.LiveEnabled,
 			LiveTransport:        c.EffectiveLiveTransport(),
+			HLSSegmentSeconds:    c.HLSSegmentSeconds,
+			HLSListSize:          c.HLSListSize,
+			HLSDVRSeconds:        c.HLSDVRSeconds,
 			Motion:               motion,
 			MotionThreshold:      mc.Threshold,
 			PlaybackLeadSeconds:  lead,
