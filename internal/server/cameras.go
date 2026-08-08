@@ -70,6 +70,7 @@ type cameraConfigDTO struct {
 	Name              string           `json:"name"`
 	RTSPURL           string           `json:"rtsp_url"`
 	MotionRTSPURL     string           `json:"motion_rtsp_url,omitempty"`
+	CaptureType       string           `json:"capture_type"`
 	ChunkDuration     string           `json:"chunk_duration"`
 	ReconnectInterval string           `json:"reconnect_interval"`
 	VideoCodec        string           `json:"video_codec,omitempty"`
@@ -94,6 +95,7 @@ func cameraToDTO(cam config.CameraConfig) cameraConfigDTO {
 		Name:              cam.Name,
 		RTSPURL:           cam.RTSPURL,
 		MotionRTSPURL:     cam.MotionRTSPURL,
+		CaptureType:       cam.EffectiveCaptureType(),
 		ChunkDuration:     formatDuration(cam.EffectiveChunkDuration()),
 		ReconnectInterval: formatDuration(cam.EffectiveReconnectInterval()),
 		VideoCodec:        cam.VideoCodec,
@@ -190,6 +192,18 @@ func normalizeLiveTransport(s string) string {
 	}
 }
 
+// normalizeCaptureType coerces the client-provided capture type to a valid
+// value, defaulting to "rtsp" (the only protocol supported before
+// capture_type existed) for empty or unknown input.
+func normalizeCaptureType(s string) string {
+	switch s {
+	case "rtsp", "hls":
+		return s
+	default:
+		return "rtsp"
+	}
+}
+
 func (s *Server) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 	if !s.requireDB(w) {
 		return
@@ -198,6 +212,7 @@ func (s *Server) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 		Name              string           `json:"name"`
 		RTSPURL           string           `json:"rtsp_url"`
 		MotionRTSPURL     string           `json:"motion_rtsp_url"`
+		CaptureType       string           `json:"capture_type"`
 		ChunkDuration     string           `json:"chunk_duration"`
 		ReconnectInterval string           `json:"reconnect_interval"`
 		VideoCodec        string           `json:"video_codec"`
@@ -233,6 +248,7 @@ func (s *Server) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 		Name:              req.Name,
 		RTSPURL:           req.RTSPURL,
 		MotionRTSPURL:     req.MotionRTSPURL,
+		CaptureType:       normalizeCaptureType(req.CaptureType),
 		VideoCodec:        req.VideoCodec,
 		HasAudio:          req.HasAudio,
 		Width:             req.Width,
@@ -320,6 +336,7 @@ func (s *Server) handleUpdateCamera(w http.ResponseWriter, r *http.Request) {
 		Name              string           `json:"name"`
 		RTSPURL           string           `json:"rtsp_url"`
 		MotionRTSPURL     string           `json:"motion_rtsp_url"`
+		CaptureType       string           `json:"capture_type"`
 		ChunkDuration     string           `json:"chunk_duration"`
 		ReconnectInterval string           `json:"reconnect_interval"`
 		VideoCodec        string           `json:"video_codec"`
@@ -364,6 +381,7 @@ func (s *Server) handleUpdateCamera(w http.ResponseWriter, r *http.Request) {
 		Name:              req.Name,
 		RTSPURL:           req.RTSPURL,
 		MotionRTSPURL:     req.MotionRTSPURL,
+		CaptureType:       normalizeCaptureType(req.CaptureType),
 		VideoCodec:        req.VideoCodec,
 		HasAudio:          req.HasAudio,
 		Width:             req.Width,

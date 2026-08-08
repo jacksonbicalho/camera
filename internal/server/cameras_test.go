@@ -606,3 +606,110 @@ func TestReorderCameras_ForbiddenForViewer(t *testing.T) {
 		t.Fatalf("expected 403, got %d", w.Code)
 	}
 }
+
+// --- capture_type (história feat/hls-capture-fundacao) ---
+
+func TestCameraCaptureType(t *testing.T) {
+	t.Run("CA3: POST sem capture_type usa o default rtsp", func(t *testing.T) {
+		srv, adminToken, _, _, _ := setupCamerasServer(t)
+
+		body := `{"name":"cam-default","rtsp_url":"rtsp://fake-default"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/cameras", bytes.NewBufferString(body))
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+
+		if w.Code != http.StatusCreated {
+			t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]any
+		json.NewDecoder(w.Body).Decode(&resp)
+		if resp["capture_type"] != "rtsp" {
+			t.Errorf("expected capture_type=rtsp by default, got %v", resp["capture_type"])
+		}
+	})
+
+	t.Run("CA3: POST com capture_type=hls persiste e retorna hls", func(t *testing.T) {
+		srv, adminToken, _, _, _ := setupCamerasServer(t)
+
+		body := `{"name":"cam-hls","rtsp_url":"https://cam.example.com/stream/playlist.m3u8","capture_type":"hls"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/cameras", bytes.NewBufferString(body))
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+
+		if w.Code != http.StatusCreated {
+			t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]any
+		json.NewDecoder(w.Body).Decode(&resp)
+		if resp["capture_type"] != "hls" {
+			t.Errorf("expected capture_type=hls, got %v", resp["capture_type"])
+		}
+		id, _ := resp["id"].(string)
+
+		// GET /api/settings/cameras deve refletir o valor persistido.
+		req2 := httptest.NewRequest(http.MethodGet, "/api/settings/cameras", nil)
+		req2.Header.Set("Authorization", "Bearer "+adminToken)
+		w2 := httptest.NewRecorder()
+		srv.ServeHTTP(w2, req2)
+		var list []map[string]any
+		json.NewDecoder(w2.Body).Decode(&list)
+		found := false
+		for _, c := range list {
+			if c["id"] == id {
+				found = true
+				if c["capture_type"] != "hls" {
+					t.Errorf("list: expected capture_type=hls, got %v", c["capture_type"])
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("camera %s não encontrada em GET /api/settings/cameras", id)
+		}
+
+		// GET /api/settings (handleSettings) também deve refletir.
+		req3 := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
+		req3.Header.Set("Authorization", "Bearer "+adminToken)
+		w3 := httptest.NewRecorder()
+		srv.ServeHTTP(w3, req3)
+		var settings map[string]any
+		json.NewDecoder(w3.Body).Decode(&settings)
+		cams, _ := settings["cameras"].([]any)
+		found = false
+		for _, raw := range cams {
+			c, _ := raw.(map[string]any)
+			if c["id"] == id {
+				found = true
+				if c["capture_type"] != "hls" {
+					t.Errorf("GET /api/settings: expected capture_type=hls, got %v", c["capture_type"])
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("camera %s não encontrada em GET /api/settings", id)
+		}
+	})
+
+	t.Run("CA3: PUT atualiza capture_type de rtsp pra hls", func(t *testing.T) {
+		srv, adminToken, _, cam1ID, _ := setupCamerasServer(t)
+
+		body := `{"name":"cam1","rtsp_url":"https://cam.example.com/playlist.m3u8","capture_type":"hls"}`
+		req := httptest.NewRequest(http.MethodPut, "/api/settings/cameras/"+cam1ID, bytes.NewBufferString(body))
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]any
+		json.NewDecoder(w.Body).Decode(&resp)
+		if resp["capture_type"] != "hls" {
+			t.Errorf("expected capture_type=hls after update, got %v", resp["capture_type"])
+		}
+	})
+}
