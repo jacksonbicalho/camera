@@ -16,11 +16,33 @@ vi.mock('../../components/CameraForm', () => ({ default: () => <div>form de edi�
 vi.mock('../../hooks/useSettings', () => ({
   useSettings: () => ({
     settings: {
-      cameras: [{ id: 'cam-1', name: 'Corredor de entrada', rtsp_url: '', video_codec: '' }],
+      cameras: [
+        {
+          id: 'cam-1',
+          name: 'Corredor de entrada',
+          rtsp_url: 'rtsp://cam/stream',
+          capture_type: 'rtsp',
+          video_codec: '',
+          has_audio: null,
+          width: 0,
+          height: 0,
+          reconnect_interval: '30s',
+          recording_enabled: true,
+          chunk_duration: '5m',
+          record_video_mode: 'auto',
+          live_enabled: true,
+          live_transport: 'auto',
+          hls_video_mode: 'auto',
+          hls_segment_seconds: null,
+          hls_list_size: null,
+          hls_dvr_seconds: null,
+        },
+      ],
     },
     reload: () => {},
   }),
 }))
+vi.mock('../../hooks/useMotionPeak', () => ({ useMotionPeak: () => null }))
 
 afterEach(cleanup)
 
@@ -69,6 +91,30 @@ describe('CameraDetailSettingsPage', () => {
         expect(h3.textContent).toBe('Corredor de entrada')
       })
       expect(document.body.textContent).not.toContain('Estatísticas')
+    })
+  })
+
+  describe('CA5: "Detecção de movimento" vira sessão dentro da página (migrada de CameraMotionSettingsPage, rota /settings/cameras/motion/:id removida)', () => {
+    it('a sessão de detecção de movimento aparece na mesma página, sem precisar de outra rota', async () => {
+      renderAt('/settings/cameras/cam-1')
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('Detecção de movimento')
+      })
+      expect(document.getElementById('motion_enabled')).toBeTruthy()
+    })
+  })
+
+  describe('visualização espelha as mesmas sessões do form (Captura/Gravação/Transmissão), fechadas', () => {
+    it('mostra as 3 sessões com os dados reais da câmera, em vez do agrupamento antigo Vídeo/Transmissão ao vivo', async () => {
+      renderAt('/settings/cameras/cam-1')
+      await waitFor(() => {
+        expect(screen.getByText('Captura')).toBeTruthy()
+      })
+      expect(screen.getByText('Gravação')).toBeTruthy()
+      expect(screen.getByText('Transmissão')).toBeTruthy()
+      expect(screen.queryByText('Vídeo')).toBeNull()
+      expect(screen.queryByText('Transmissão ao vivo')).toBeNull()
+      expect(screen.getByText('rtsp://cam/stream')).toBeTruthy()
     })
   })
 })

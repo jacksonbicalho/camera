@@ -103,6 +103,66 @@ func TestGetCamerasReturnsList(t *testing.T) {
 	}
 }
 
+func TestGetCamerasIncludesCaptureAndTransportFields(t *testing.T) {
+	cfg := config.ServerConfig{}
+	segSeconds := 4
+	cameras := []config.CameraConfig{
+		{
+			ID:                "entrada",
+			RTSPURL:           "rtsp://admin:secret@192.168.1.10:554/stream",
+			CaptureType:       "hls",
+			RecordVideoMode:   "copy",
+			HLSVideoMode:      "copy",
+			LiveEnabled:       false,
+			HLSSegmentSeconds: &segSeconds,
+		},
+	}
+	srv := server.NewServer(cfg, "UTC", cameras, discardLogger(), nil)
+	srv = withTestUsersAndCameras(t, srv, cameras)
+
+	token := loginAndGetToken(t, srv, "master", "secret")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cameras", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var list []map[string]any
+	json.NewDecoder(w.Body).Decode(&list)
+	if len(list) != 1 {
+		t.Fatalf("expected 1 camera, got %d", len(list))
+	}
+	cam := list[0]
+	if rtsp, _ := cam["rtsp_url"].(string); rtsp != "rtsp://admin:xxxxx@192.168.1.10:554/stream" {
+		t.Errorf("expected masked rtsp_url, got %q", rtsp)
+	}
+	if cam["capture_type"] != "hls" {
+		t.Errorf("expected capture_type=hls, got %v", cam["capture_type"])
+	}
+	if cam["record_video_mode"] != "copy" {
+		t.Errorf("expected record_video_mode=copy, got %v", cam["record_video_mode"])
+	}
+	if cam["hls_video_mode"] != "copy" {
+		t.Errorf("expected hls_video_mode=copy, got %v", cam["hls_video_mode"])
+	}
+	if cam["live_enabled"] != false {
+		t.Errorf("expected live_enabled=false, got %v", cam["live_enabled"])
+	}
+	if cam["hls_segment_seconds"] != float64(4) {
+		t.Errorf("expected hls_segment_seconds=4, got %v", cam["hls_segment_seconds"])
+	}
+	if cam["chunk_duration"] == nil || cam["chunk_duration"] == "" {
+		t.Errorf("expected non-empty chunk_duration, got %v", cam["chunk_duration"])
+	}
+	if cam["reconnect_interval"] == nil || cam["reconnect_interval"] == "" {
+		t.Errorf("expected non-empty reconnect_interval, got %v", cam["reconnect_interval"])
+	}
+}
+
 func TestGetCamerasRequiresAuth(t *testing.T) {
 	cfg := config.ServerConfig{}
 	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{}, discardLogger(), nil)

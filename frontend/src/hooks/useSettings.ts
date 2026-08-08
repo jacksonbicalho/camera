@@ -16,6 +16,7 @@ export interface CameraSettings {
   id: string
   name: string
   rtsp_url: string
+  capture_type: string
   chunk_duration: string
   reconnect_interval: string
   video_codec: string
@@ -24,9 +25,11 @@ export interface CameraSettings {
   height: number
   hls_video_mode: string
   record_video_mode: string
+  live_enabled: boolean
   live_transport: string
   hls_segment_seconds: number | null
   hls_list_size: number | null
+  hls_dvr_seconds: number | null
   recording_enabled: boolean
   motion: MotionSettings | null
 }
