@@ -12,6 +12,7 @@ import (
 
 	"camera/internal/capture/rtsp"
 	"camera/internal/config"
+	"camera/internal/core"
 	"camera/internal/exec"
 	"camera/internal/ffprobe"
 )
@@ -51,12 +52,12 @@ func (s *HLSStreamer) Start() error {
 		"-analyzeduration", "500000",
 		"-probesize", "32768",
 	)
-	args = append(args, rtsp.InputArgs(s.camera.RTSPURL)...)
+	args = append(args, core.InputArgs(s.camera.RTSPURL)...)
 	needsTranscode := s.needsTranscode()
 	if needsTranscode {
 		s.log.Warn("transcoding video to h264", "camera", s.camera.ID, "source_codec", s.stream.VideoCodec, "mode", s.camera.HLSVideoMode)
 	}
-	args = append(args, rtsp.TranscodeArgs(needsTranscode, s.stream.HasAudio)...)
+	args = append(args, core.TranscodeArgs(needsTranscode, s.stream.HasAudio)...)
 
 	segmentSeconds := s.camera.HLSSegmentSecondsOrDefault()
 	listSize, hlsFlags := hlsListSizeAndFlags(s.camera.HLSDVRSecondsOrDefault(), segmentSeconds, s.camera.HLSListSizeOrDefault())
@@ -112,7 +113,7 @@ func (s *HLSStreamer) Stop() {
 }
 
 func (s *HLSStreamer) needsTranscode() bool {
-	return rtsp.NeedsTranscode(s.camera.HLSVideoMode, s.stream.VideoCodec)
+	return core.NeedsTranscode(s.camera.HLSVideoMode, s.stream.VideoCodec)
 }
 
 func hlsListSizeAndFlags(dvrSeconds, segmentSeconds, defaultListSize int) (listSize int, flags string) {
