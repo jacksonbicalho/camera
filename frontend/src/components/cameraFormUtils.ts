@@ -14,6 +14,7 @@ export interface Camera {
   id: string
   rtsp_url: string
   motion_rtsp_url?: string
+  capture_type?: string
   chunk_duration: string
   reconnect_interval: string
   video_codec: string
@@ -35,6 +36,7 @@ export interface CameraFormData {
   name: string
   rtsp_url: string
   motion_rtsp_url: string
+  capture_type: string
   chunk_duration: string
   reconnect_interval: string
   video_codec: string
@@ -92,6 +94,7 @@ export function emptyForm(cam?: Camera): CameraFormData {
       name: '',
       rtsp_url: '',
       motion_rtsp_url: '',
+      capture_type: 'rtsp',
       chunk_duration: '5m',
       reconnect_interval: '30s',
       video_codec: '',
@@ -122,6 +125,7 @@ export function emptyForm(cam?: Camera): CameraFormData {
     name: cam.name ?? '',
     rtsp_url: cam.rtsp_url,
     motion_rtsp_url: cam.motion_rtsp_url ?? '',
+    capture_type: cam.capture_type || 'rtsp',
     chunk_duration: cam.chunk_duration,
     reconnect_interval: cam.reconnect_interval,
     video_codec: cam.video_codec ?? '',
@@ -153,6 +157,7 @@ export function formToPayload(f: CameraFormData) {
     name: f.name,
     rtsp_url: f.rtsp_url,
     motion_rtsp_url: f.motion_rtsp_url.trim(),
+    capture_type: f.capture_type || 'rtsp',
     chunk_duration: f.chunk_duration || '5m',
     reconnect_interval: f.reconnect_interval || '30s',
     video_codec: f.video_codec,

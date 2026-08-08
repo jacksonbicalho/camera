@@ -202,6 +202,79 @@ export default function CameraForm({
         </div>
       </div>
 
+      {/* Tipo de captura — sempre visível: define quais campos abaixo fazem sentido */}
+      <div className="border-t border-border pt-3">
+        <p className="text-xs font-medium text-muted-foreground mb-3">Tipo de captura</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="camera-capture-type" className={labelClass}>
+              Protocolo
+            </Label>
+            <select
+              id="camera-capture-type"
+              value={form.capture_type}
+              onChange={(e) => set('capture_type', e.target.value)}
+              className={selectClass}
+            >
+              <option value="rtsp">RTSP</option>
+              <option value="hls">HLS</option>
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="camera-form-video-codec" className={labelClass}>
+              Codec de vídeo
+            </Label>
+            <select
+              id="camera-form-video-codec"
+              value={form.video_codec}
+              onChange={(e) => set('video_codec', e.target.value)}
+              className={selectClass}
+            >
+              <option value="">Auto (ffprobe detecta)</option>
+              <option value="h264">H.264 / AVC</option>
+              <option value="hevc">HEVC / H.265</option>
+              <option value="mjpeg">MJPEG</option>
+              <option value="mpeg4">MPEG-4</option>
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="camera-form-has-audio" className={labelClass}>
+              Áudio
+            </Label>
+            <select
+              id="camera-form-has-audio"
+              value={form.has_audio}
+              onChange={(e) => set('has_audio', e.target.value)}
+              className={selectClass}
+            >
+              <option value="">Auto</option>
+              <option value="true">Sim</option>
+              <option value="false">Não</option>
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="camera-form-resolution" className={labelClass}>
+              Resolução
+            </Label>
+            <select
+              id="camera-form-resolution"
+              value={form.resolution}
+              onChange={(e) => set('resolution', e.target.value)}
+              className={selectClass}
+            >
+              {RESOLUTIONS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+              {!RESOLUTIONS.find((r) => r.value === form.resolution) && (
+                <option value={form.resolution}>{form.resolution.replace('x', ' × ')}</option>
+              )}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* Configurações avançadas — recolhidas por padrão */}
       <div className="border-t border-border pt-3">
         <button
@@ -220,42 +293,44 @@ export default function CameraForm({
         </button>
         {showAdvanced && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-            <div className="sm:col-span-2">
-              <Label htmlFor="camera-motion-rtsp-url" className={labelClass}>
-                RTSP URL da detecção de movimento (substream)
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="camera-motion-rtsp-url"
-                  value={form.motion_rtsp_url}
-                  onChange={(e) => set('motion_rtsp_url', e.target.value)}
-                  placeholder="rtsp://usuario:senha@ip:554/stream (subtype=1)"
-                />
-                <Button
-                  id="camera-motion-rtsp-detect"
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={!form.rtsp_url.trim() || detecting}
-                  onClick={handleDetectSubstream}
-                  className="shrink-0"
-                >
-                  {detecting ? 'Detectando...' : 'Detectar'}
-                </Button>
-              </div>
-              {detectMsg && (
-                <p
-                  className={`text-xs mt-0.5 ${detectMsg.ok ? 'text-green-500' : 'text-amber-500'}`}
-                >
-                  {detectMsg.text}
+            {form.capture_type === 'rtsp' && (
+              <div className="sm:col-span-2">
+                <Label htmlFor="camera-motion-rtsp-url" className={labelClass}>
+                  RTSP URL da detecção de movimento (substream)
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="camera-motion-rtsp-url"
+                    value={form.motion_rtsp_url}
+                    onChange={(e) => set('motion_rtsp_url', e.target.value)}
+                    placeholder="rtsp://usuario:senha@ip:554/stream (subtype=1)"
+                  />
+                  <Button
+                    id="camera-motion-rtsp-detect"
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!form.rtsp_url.trim() || detecting}
+                    onClick={handleDetectSubstream}
+                    className="shrink-0"
+                  >
+                    {detecting ? 'Detectando...' : 'Detectar'}
+                  </Button>
+                </div>
+                {detectMsg && (
+                  <p
+                    className={`text-xs mt-0.5 ${detectMsg.ok ? 'text-green-500' : 'text-amber-500'}`}
+                  >
+                    {detectMsg.text}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Opcional. Vazio = usa o stream principal. "Detectar" tenta descobrir o substream a
+                  partir da URL principal (menor resolução) — reduz muito o custo de CPU da
+                  detecção; o snapshot do evento sai nessa resolução.
                 </p>
-              )}
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Opcional. Vazio = usa o stream principal. "Detectar" tenta descobrir o substream a
-                partir da URL principal (menor resolução) — reduz muito o custo de CPU da detecção;
-                o snapshot do evento sai nessa resolução.
-              </p>
-            </div>
+              </div>
+            )}
             <div>
               <Label htmlFor="camera-form-chunk-duration" className={labelClass}>
                 Duração do chunk
@@ -279,58 +354,6 @@ export default function CameraForm({
                 placeholder="30s"
               />
               <p className="text-xs text-muted-foreground mt-0.5">ex: 10s, 1m, 5m</p>
-            </div>
-            <div>
-              <Label htmlFor="camera-form-video-codec" className={labelClass}>
-                Codec de vídeo
-              </Label>
-              <select
-                id="camera-form-video-codec"
-                value={form.video_codec}
-                onChange={(e) => set('video_codec', e.target.value)}
-                className={selectClass}
-              >
-                <option value="">Auto (ffprobe detecta)</option>
-                <option value="h264">H.264 / AVC</option>
-                <option value="hevc">HEVC / H.265</option>
-                <option value="mjpeg">MJPEG</option>
-                <option value="mpeg4">MPEG-4</option>
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="camera-form-has-audio" className={labelClass}>
-                Áudio
-              </Label>
-              <select
-                id="camera-form-has-audio"
-                value={form.has_audio}
-                onChange={(e) => set('has_audio', e.target.value)}
-                className={selectClass}
-              >
-                <option value="">Auto</option>
-                <option value="true">Sim</option>
-                <option value="false">Não</option>
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="camera-form-resolution" className={labelClass}>
-                Resolução
-              </Label>
-              <select
-                id="camera-form-resolution"
-                value={form.resolution}
-                onChange={(e) => set('resolution', e.target.value)}
-                className={selectClass}
-              >
-                {RESOLUTIONS.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-                {!RESOLUTIONS.find((r) => r.value === form.resolution) && (
-                  <option value={form.resolution}>{form.resolution.replace('x', ' × ')}</option>
-                )}
-              </select>
             </div>
             <div>
               <Label htmlFor="camera-form-record-video-mode" className={labelClass}>
