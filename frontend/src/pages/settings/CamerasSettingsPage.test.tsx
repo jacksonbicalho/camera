@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import CamerasSettingsPage from './CamerasSettingsPage'
 
@@ -91,5 +91,54 @@ describe('CA5: CamerasSettingsPage (admin) — Card com badges e ações com tex
     // rótulos antigos não devem mais existir.
     expect(screen.queryByText('motion')).toBeNull()
     expect(screen.queryByText('rec off')).toBeNull()
+  })
+})
+
+describe('CA2: botão "Nova câmera" navega de verdade pra /settings/cameras/new; lista some nessa rota', () => {
+  function renderWithNewRoute() {
+    return render(
+      <MemoryRouter initialEntries={['/settings/cameras']}>
+        <Routes>
+          <Route path="/settings/cameras" element={<CamerasSettingsPage />} />
+          <Route path="/settings/cameras/new" element={<CamerasSettingsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('clicar em "Nova câmera" muda a URL pra /settings/cameras/new (navegação real, não só estado local)', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ id: 'cam1', name: 'Corredor', recording_enabled: true, motion: null }],
+    })
+    renderWithNewRoute()
+
+    await waitFor(() => expect(screen.getByText('Corredor')).toBeTruthy())
+    fireEvent.click(document.getElementById('camera-create')!)
+
+    await waitFor(() => {
+      expect(document.getElementById('camera-form-name')).toBeTruthy()
+    })
+  })
+
+  it('em /settings/cameras/new, a lista de câmeras já cadastradas não aparece', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ id: 'cam1', name: 'Corredor', recording_enabled: true, motion: null }],
+    })
+    render(
+      <MemoryRouter initialEntries={['/settings/cameras/new']}>
+        <Routes>
+          <Route path="/settings/cameras/new" element={<CamerasSettingsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(document.getElementById('camera-form-name')).toBeTruthy()
+    })
+    expect(screen.queryByText('Corredor')).toBeNull()
   })
 })
