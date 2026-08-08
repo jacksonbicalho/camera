@@ -1,4 +1,4 @@
-package streaming_test
+package hls_test
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"camera/internal/config"
 	"camera/internal/exec"
 	"camera/internal/ffprobe"
-	"camera/internal/streaming"
+	"camera/internal/transmission/hls"
 )
 
 func discardLogger() *slog.Logger {
@@ -101,7 +101,7 @@ func TestHLSStreamerStartsFFmpegWithCorrectArguments(t *testing.T) {
 	server := config.ServerConfig{SegmentsPath: tmpDir}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestHLSStreamerUsesStreamCopy(t *testing.T) {
 	server := config.ServerConfig{SegmentsPath: tmpDir}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestHLSStreamerUsesIndependentSegments(t *testing.T) {
 	server := config.ServerConfig{SegmentsPath: tmpDir}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestHLSStreamerStopFinalizesStream(t *testing.T) {
 	proc := &trackingProcess{}
 	cmd := &fakeCommander{process: proc}
 
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestHLSStreamerCreatesOutputDirectory(t *testing.T) {
 	camera := config.CameraConfig{ID: "entrada", RTSPURL: "rtsp://192.168.1.10:554/stream"}
 	server := config.ServerConfig{SegmentsPath: tmpDir}
 
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, &fakeCommander{}, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, &fakeCommander{}, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -258,7 +258,7 @@ func TestHLSStreamerUsesWideSegmentPattern(t *testing.T) {
 	server := config.ServerConfig{SegmentsPath: tmpDir}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -275,7 +275,7 @@ func TestHLSStreamerDVRDisabledUsesListSizeFiveWithDeleteSegments(t *testing.T) 
 	server := config.ServerConfig{SegmentsPath: tmpDir}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestHLSStreamerDVREnabledUsesCalculatedListSizeAndNoDeleteSegments(t *testi
 	server := config.ServerConfig{SegmentsPath: tmpDir}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestHLSStreamerTranscodesNonH264VideoToH264(t *testing.T) {
 	stream := ffprobe.StreamInfo{VideoCodec: "hevc", HasAudio: true}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -358,7 +358,7 @@ func TestHLSStreamerAddsAnFlagWhenNoAudio(t *testing.T) {
 	stream := ffprobe.StreamInfo{HasAudio: false}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -375,7 +375,7 @@ func TestHLSStreamerDoesNotAddAnFlagWhenHasAudio(t *testing.T) {
 	stream := ffprobe.StreamInfo{HasAudio: true}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestHLSStreamerModeH264AlwaysTranscodes(t *testing.T) {
 	stream := ffprobe.StreamInfo{VideoCodec: "h264", HasAudio: false}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -413,7 +413,7 @@ func TestHLSStreamerModeCopyNeverTranscodes(t *testing.T) {
 	stream := ffprobe.StreamInfo{VideoCodec: "hevc", HasAudio: false}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -434,7 +434,7 @@ func TestHLSStreamerModeAutoTranscodesNonH264(t *testing.T) {
 	stream := ffprobe.StreamInfo{VideoCodec: "hevc", HasAudio: false}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -451,7 +451,7 @@ func TestHLSStreamerModeAutoUsesStreamCopyForH264(t *testing.T) {
 	stream := ffprobe.StreamInfo{VideoCodec: "h264", HasAudio: false}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, stream, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -472,7 +472,7 @@ func TestHLSStreamerCustomSegmentSeconds(t *testing.T) {
 	server := config.ServerConfig{SegmentsPath: tmpDir}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -489,7 +489,7 @@ func TestHLSStreamerCustomListSize(t *testing.T) {
 	server := config.ServerConfig{SegmentsPath: tmpDir}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -505,7 +505,7 @@ func TestHLSStreamerNilFieldsUseDefaults(t *testing.T) {
 	server := config.ServerConfig{SegmentsPath: tmpDir}
 
 	cmd := &fakeCommander{}
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 	if err := s.Start(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -527,7 +527,7 @@ func TestHLSStreamerRunRestartsAfterUnexpectedExit(t *testing.T) {
 	// fakeProcess.Wait() returns immediately — simulates ffmpeg dying right away.
 	cmd := newCountingCommander(3, func(n int) exec.Process { return &fakeProcess{} })
 
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -553,7 +553,7 @@ func TestHLSStreamerRunStopsOnContextCancel(t *testing.T) {
 	proc := newBlockingProcess()
 	cmd := &fakeCommander{process: proc}
 
-	s := streaming.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+	s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})

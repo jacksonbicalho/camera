@@ -35,7 +35,7 @@ import (
 	"camera/internal/stateclass"
 	"camera/internal/stateengine"
 	"camera/internal/storage"
-	"camera/internal/streaming"
+	"camera/internal/transmission/hls"
 	"camera/internal/transmission/webrtc"
 	"camera/internal/updater"
 	"camera/internal/zones"
@@ -282,7 +282,7 @@ func main() {
 			// The HLS pipeline runs unless the camera is set to WebRTC-only and can
 			// actually use it (H.264) — that camera stops writing .ts entirely.
 			if webrtc.ShouldRunHLS(stream.VideoCodec, cam.EffectiveLiveTransport()) {
-				str := streaming.NewHLSStreamer(cam, cfg.Server, stream, commander, slog)
+				str := hls.NewHLSStreamer(cam, cfg.Server, stream, commander, slog)
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
