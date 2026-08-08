@@ -28,6 +28,7 @@ export interface Camera {
   hls_list_size: number | null
   hls_dvr_seconds: number | null
   recording_enabled: boolean
+  live_enabled?: boolean
   motion: MotionConfig | null
   analysis_enabled?: boolean
 }
@@ -51,6 +52,7 @@ export interface CameraFormData {
   hls_list_size: string
   hls_dvr_seconds: string
   recording_enabled: boolean
+  live_enabled: boolean
   motion_enabled: boolean
   motion_threshold: string
   motion_fps: string
@@ -109,6 +111,7 @@ export function emptyForm(cam?: Camera): CameraFormData {
       hls_list_size: '5',
       hls_dvr_seconds: '0',
       recording_enabled: true,
+      live_enabled: true,
       motion_enabled: false,
       motion_threshold: '0.02',
       motion_fps: '2',
@@ -140,6 +143,7 @@ export function emptyForm(cam?: Camera): CameraFormData {
     hls_list_size: String(cam.hls_list_size ?? 5),
     hls_dvr_seconds: String(cam.hls_dvr_seconds ?? 0),
     recording_enabled: cam.recording_enabled ?? true,
+    live_enabled: cam.live_enabled ?? true,
     motion_enabled: cam.motion?.enabled ?? false,
     motion_threshold: String(cam.motion?.threshold ?? 0.02),
     motion_fps: String(cam.motion?.fps ?? 2),
@@ -173,6 +177,7 @@ export function formToPayload(f: CameraFormData) {
     hls_list_size: f.hls_list_size_default ? null : parseInt(f.hls_list_size) || 5,
     hls_dvr_seconds: parseInt(f.hls_dvr_seconds) || null,
     recording_enabled: f.recording_enabled,
+    live_enabled: f.live_enabled,
     motion: {
       enabled: f.motion_enabled,
       threshold: parseFloat(f.motion_threshold) || 0.02,

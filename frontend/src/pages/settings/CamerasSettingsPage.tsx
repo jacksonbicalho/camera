@@ -174,6 +174,7 @@ export default function CamerasSettingsPage() {
     <SettingsLayout id="cameras-settings-page" footerId="cameras-settings-footer">
       <PageHeader
         title="Câmeras"
+        subtitle={creating ? 'Nova câmera' : undefined}
         actions={
           !creating &&
           !noDb && (
@@ -205,7 +206,6 @@ export default function CamerasSettingsPage() {
 
       {creating && (
         <div className="mb-4 bg-surface border border-border rounded-lg p-4">
-          <p className="text-xs font-medium text-muted-foreground mb-3">Nova câmera</p>
           <CameraForm
             onSave={handleCreate}
             onCancel={() => {

@@ -120,6 +120,8 @@ describe('CA2: botão "Nova câmera" navega de verdade pra /settings/cameras/new
     await waitFor(() => {
       expect(document.getElementById('camera-form-name')).toBeTruthy()
     })
+    // "Nova câmera" é subtítulo da página (PageHeader), não texto solto dentro da sessão.
+    expect(screen.getByText('Nova câmera')).toBeTruthy()
   })
 
   it('em /settings/cameras/new, a lista de câmeras já cadastradas não aparece', async () => {
