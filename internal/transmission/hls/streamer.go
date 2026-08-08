@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	capturehls "camera/internal/capture/hls"
 	"camera/internal/capture/rtsp"
 	"camera/internal/config"
 	"camera/internal/core"
@@ -45,14 +46,22 @@ func (s *HLSStreamer) Start() error {
 	playlist := filepath.Join(dir, "index.m3u8")
 	segmentPattern := filepath.Join(dir, "%06d.ts")
 	s.log.Debug("starting hls ffmpeg", "camera", s.camera.ID, "playlist", playlist)
-	args := rtsp.TransportArgs()
+	isHLSCapture := s.camera.EffectiveCaptureType() == "hls"
+	var args []string
+	if !isHLSCapture {
+		args = rtsp.TransportArgs()
+	}
 	args = append(args,
 		"-fflags", "+nobuffer",
 		"-flags", "+low_delay",
 		"-analyzeduration", "500000",
 		"-probesize", "32768",
 	)
-	args = append(args, core.InputArgs(s.camera.RTSPURL)...)
+	if isHLSCapture {
+		args = append(args, capturehls.ConnectArgs(s.camera.RTSPURL)...)
+	} else {
+		args = append(args, core.InputArgs(s.camera.RTSPURL)...)
+	}
 	needsTranscode := s.needsTranscode()
 	if needsTranscode {
 		s.log.Warn("transcoding video to h264", "camera", s.camera.ID, "source_codec", s.stream.VideoCodec, "mode", s.camera.HLSVideoMode)
