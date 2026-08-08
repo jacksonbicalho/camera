@@ -7,8 +7,8 @@ import (
 	"os/exec"
 )
 
-func (c *ffmpegFrameCommander) Start(url string, width, height, fps int) (frameProcess, error) {
-	cmd := exec.Command("ffmpeg", ffmpegArgs(url, width, height, fps)...)
+func (c *ffmpegFrameCommander) Start(url string, width, height, fps int, captureType string) (frameProcess, error) {
+	cmd := exec.Command("ffmpeg", ffmpegArgs(url, width, height, fps, captureType)...)
 	cmd.Stderr = io.Discard
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
