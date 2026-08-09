@@ -89,6 +89,11 @@ if [ -z "$cluster" ]; then
             fail=1
         fi
     done
+    # README.md (público, GitHub) não repete a tabela — só aponta pro índice.
+    if ! grep -q "docs/go-modules/README.md" README.md; then
+        echo "❌ README.md não referencia docs/go-modules/README.md"
+        fail=1
+    fi
 fi
 
 if [ "$fail" -eq 0 ]; then
