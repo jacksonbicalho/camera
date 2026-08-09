@@ -5,6 +5,8 @@ import (
 
 	"camera/internal/config"
 	"camera/internal/db"
+	"camera/internal/notifications"
+	"camera/internal/notifications/application"
 	"camera/internal/release"
 	"camera/internal/server"
 )
@@ -13,6 +15,7 @@ func updateNotifyServer(t *testing.T) (*server.Server, *db.DB) {
 	t.Helper()
 	database := openServerTestDB(t)
 	srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
+	srv.WithNotifications(notifications.NewDispatcher(discardLogger(), application.New(database, srv)))
 	return srv, database
 }
 

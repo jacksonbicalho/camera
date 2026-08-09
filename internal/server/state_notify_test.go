@@ -7,9 +7,19 @@ import (
 
 	"camera/internal/config"
 	"camera/internal/db"
+	"camera/internal/notifications"
+	"camera/internal/notifications/application"
 	"camera/internal/server"
 	"camera/internal/stateclass"
 )
+
+// stateNotifyDispatcher wires the default "application" sender (persist +
+// live push) onto srv — mirrors what main.go does in production, so tests
+// exercising notifyStateTransition's recipient logic keep asserting against
+// db.ListUserNotifications like before the migration to Dispatcher.
+func stateNotifyDispatcher(database *db.DB, srv *server.Server) *notifications.Dispatcher {
+	return notifications.NewDispatcher(discardLogger(), application.New(database, srv))
+}
 
 func TestPublishClassifierStateNotifiesAccessOnly(t *testing.T) {
 	database := openServerTestDB(t)
@@ -29,6 +39,7 @@ func TestPublishClassifierStateNotifiesAccessOnly(t *testing.T) {
 	}
 
 	srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{cam}, discardLogger(), nil).WithDB(database)
+	srv.WithNotifications(stateNotifyDispatcher(database, srv))
 	srv.PublishClassifierState(stateclass.Classifier{
 		ID: 1, CameraID: "cam1", Name: "Portão",
 		NotifyEnabled: true, NotifyUserIDs: []int64{adminID, v1ID, v2ID},
@@ -72,6 +83,7 @@ func TestPublishClassifierStateConditional(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{cam}, discardLogger(), nil).WithDB(database)
+	srv.WithNotifications(stateNotifyDispatcher(database, srv))
 	count := func(uid int64) int {
 		ns, _ := db.ListUserNotifications(database, uid)
 		return len(ns)
@@ -151,6 +163,7 @@ func TestPublishClassifierStateReloadsRecipients(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{cam}, discardLogger(), nil).WithDB(database)
+	srv.WithNotifications(stateNotifyDispatcher(database, srv))
 
 	// c defasado (notify off, sem destinatários) — deve recarregar do banco e notificar u1.
 	srv.PublishClassifierState(stateclass.Classifier{ID: id, CameraID: "cam1", Name: "Portão"}, "aberto", 0.9)

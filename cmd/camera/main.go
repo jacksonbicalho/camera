@@ -29,6 +29,9 @@ import (
 	"camera/internal/ffprobe"
 	"camera/internal/logger"
 	"camera/internal/motion"
+	"camera/internal/notifications"
+	"camera/internal/notifications/application"
+	notifyemail "camera/internal/notifications/email"
 	"camera/internal/recorder"
 	"camera/internal/release"
 	"camera/internal/server"
@@ -226,6 +229,10 @@ func main() {
 
 	// srv is assigned after NewServer; callbacks close over this variable.
 	var srv *server.Server
+	// dispatcher fans every notification (update available, state transition,
+	// disk usage) out to every configured sender — shared by srv and the
+	// storage.Cleaner below, built once database is known.
+	var dispatcher *notifications.Dispatcher
 
 	onMotionEvent := func(cameraID string, t time.Time, score float64, frame, label, color string, bbox motion.BBox) {
 		ev := db.MotionEvent{
@@ -407,8 +414,18 @@ func main() {
 			WithCameraCallbacks(startCameraProcs, stopCameraProcs).
 			WithDB(database).
 			WithProber(prober)
+		var smtpSender *email.SMTPSender
 		if cfg.SMTP.Host != "" {
-			srv.WithEmailSender(email.NewSMTPSender(cfg.SMTP))
+			smtpSender = email.NewSMTPSender(cfg.SMTP)
+			srv.WithEmailSender(smtpSender)
+		}
+		if database != nil {
+			senders := []notifications.Sender{application.New(database, srv)}
+			if smtpSender != nil {
+				senders = append(senders, notifyemail.New(database, smtpSender))
+			}
+			dispatcher = notifications.NewDispatcher(slog, senders...)
+			srv.WithNotifications(dispatcher)
 		}
 
 		camMu.Lock()
@@ -483,6 +500,12 @@ func main() {
 	if cleanInterval == 0 {
 		cleanInterval = time.Hour
 	}
+	// A câmera pode subir sem HTTP server (cfg.Server.Port<=0), caso em que o
+	// dispatcher acima nunca foi construído — o Cleaner ainda precisa de um
+	// (sem live push, já que não há srv/notifHub pra isso).
+	if dispatcher == nil && database != nil {
+		dispatcher = notifications.NewDispatcher(slog, application.New(database, nil))
+	}
 	cleaner := storage.New(
 		cfg.Storage.Path,
 		storageCfg.WithMotionMinutes,
@@ -492,7 +515,7 @@ func main() {
 		storageCfg.WarnPercent,
 		database,
 		slog,
-	)
+	).WithNotifications(dispatcher)
 	if srv != nil {
 		srv.WithCleaner(cleaner)
 

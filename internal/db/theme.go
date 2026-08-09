@@ -54,3 +54,19 @@ func GetUserAccentColor(db *DB, userID int64) (string, error) {
 func SetUserAccentColor(db *DB, userID int64, accent string) error {
 	return setUserSetting(db, userID, "accent", accent)
 }
+
+// GetUserNotifyEmail returns whether the user opted in to receive
+// notifications by e-mail (default false — opt-in, not opt-out).
+func GetUserNotifyEmail(db *DB, userID int64) (bool, error) {
+	v, err := getUserSetting(db, userID, "notify:email_enabled", "0")
+	return v == "1", err
+}
+
+// SetUserNotifyEmail persists the user's e-mail notification preference.
+func SetUserNotifyEmail(db *DB, userID int64, enabled bool) error {
+	v := "0"
+	if enabled {
+		v = "1"
+	}
+	return setUserSetting(db, userID, "notify:email_enabled", v)
+}

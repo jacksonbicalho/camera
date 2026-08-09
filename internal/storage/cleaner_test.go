@@ -20,6 +20,8 @@ import (
 	"camera/internal/config"
 	"camera/internal/db"
 	"camera/internal/detector"
+	"camera/internal/notifications"
+	"camera/internal/notifications/application"
 	"camera/internal/stateclass"
 	"camera/internal/storage"
 )
@@ -2129,7 +2131,8 @@ func TestCheckSize_NotifiesAdminsOnThresholdCrossing(t *testing.T) {
 	// maxSizeGB ~107 bytes, 70% ~74 bytes; 200-byte file is above the warn threshold.
 	writeFileWithSize(t, filepath.Join(dir, "cam1", "big.mp4"), 200)
 
-	c := storage.New(dir, 0, 0, 5*time.Minute, 1e-7, 70, database, discardLogger())
+	c := storage.New(dir, 0, 0, 5*time.Minute, 1e-7, 70, database, discardLogger()).
+		WithNotifications(notifications.NewDispatcher(discardLogger(), application.New(database, nil)))
 	c.CheckSize()
 
 	if n, _ := db.CountUnreadNotifications(database, admin); n != 1 {

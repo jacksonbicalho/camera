@@ -26,6 +26,7 @@ import (
 	"camera/internal/deviceinfo"
 	"camera/internal/ffprobe"
 	"camera/internal/motion"
+	"camera/internal/notifications"
 	"camera/internal/release"
 	"camera/internal/storage"
 	"camera/internal/zones"
@@ -133,6 +134,7 @@ type Server struct {
 	updateNotifyMu      sync.Mutex
 	updateNotified      string // última versão latest já notificada (dedup)
 	emailSender         emailSender
+	notifications       *notifications.Dispatcher
 }
 
 // emailSender envia e-mail (esqueci-a-senha hoje). Definido aqui no
@@ -201,6 +203,23 @@ func (s *Server) WithDB(database *db.DB) *Server {
 func (s *Server) WithEmailSender(sender emailSender) *Server {
 	s.emailSender = sender
 	return s
+}
+
+// WithNotifications wires the Dispatcher used by NotifyUpdateAvailable and
+// PublishClassifierState to fan a notification out to every configured
+// sender (application, e-mail, ...). Without it, both are no-ops beyond
+// their own recipient-resolution logic — nobody is actually notified.
+func (s *Server) WithNotifications(d *notifications.Dispatcher) *Server {
+	s.notifications = d
+	return s
+}
+
+// Push implements notifications/application.LivePush, delegating to the
+// private SSE hub — lets the "application" sender push a live update to a
+// connected client's bell without internal/notifications importing
+// internal/server.
+func (s *Server) Push(userID int64) {
+	s.notifHub.publish(userID, notifEvent{Type: "notification"})
 }
 
 func (s *Server) WithCameraCallbacks(start func(config.CameraConfig), stop func(string)) *Server {

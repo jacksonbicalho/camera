@@ -4,13 +4,14 @@ import (
 	"fmt"
 
 	"camera/internal/db"
+	"camera/internal/notifications"
 	"camera/internal/release"
 )
 
-// NotifyUpdateAvailable cria, para cada admin, uma notificação persistida de
-// que há uma nova versão — no máximo uma vez por versão latest (dedup em
-// memória). É um no-op quando não há update disponível, sem banco, ou quando a
-// versão já foi notificada. Pensado para ser ligado ao Checker via OnCheck.
+// NotifyUpdateAvailable notifica todos os admins de que há uma nova versão —
+// no máximo uma vez por versão latest (dedup em memória). É um no-op quando
+// não há update disponível, sem banco, ou quando a versão já foi notificada.
+// Pensado para ser ligado ao Checker via OnCheck.
 func (s *Server) NotifyUpdateAvailable(st release.Status) {
 	if s.db == nil || !st.UpdateAvailable || st.Latest == "" {
 		return
@@ -30,21 +31,20 @@ func (s *Server) NotifyUpdateAvailable(st release.Status) {
 		return
 	}
 
-	n := db.UserNotification{
+	var adminIDs []int64
+	for _, u := range users {
+		if u.Role == "admin" {
+			adminIDs = append(adminIDs, u.ID)
+		}
+	}
+	if len(adminIDs) == 0 || s.notifications == nil {
+		return
+	}
+	s.notifications.Notify(notifications.Notification{
+		UserIDs: adminIDs,
 		Type:    "info",
 		Title:   "Atualização disponível",
 		Message: fmt.Sprintf("Nova versão %s disponível.", st.Latest),
 		Link:    "/settings/about",
-	}
-	for _, u := range users {
-		if u.Role != "admin" {
-			continue
-		}
-		n.UserID = u.ID
-		if _, err := db.InsertUserNotification(s.db, n); err != nil {
-			s.log.Warn("notify update: insert notification failed", "user_id", u.ID, "error", err)
-			continue
-		}
-		s.notifHub.publish(u.ID, notifEvent{Type: "notification"})
-	}
+	})
 }
