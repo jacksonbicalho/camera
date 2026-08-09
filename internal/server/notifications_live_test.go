@@ -10,6 +10,8 @@ import (
 
 	"camera/internal/config"
 	"camera/internal/db"
+	"camera/internal/notifications"
+	"camera/internal/notifications/application"
 	"camera/internal/release"
 	"camera/internal/server"
 	"camera/internal/stateclass"
@@ -53,6 +55,7 @@ func TestNotificationsLiveStreamsOnUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
+	srv.WithNotifications(notifications.NewDispatcher(discardLogger(), application.New(database, srv)))
 	token := loginAndGetToken(t, srv, "adm", "pw")
 
 	body := streamAndTrigger(t, srv, token, func() {
@@ -71,6 +74,7 @@ func TestNotificationsLiveStreamsOnStateTransition(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{cam}, discardLogger(), nil).WithDB(database)
+	srv.WithNotifications(notifications.NewDispatcher(discardLogger(), application.New(database, srv)))
 	token := loginAndGetToken(t, srv, "adm", "pw")
 
 	body := streamAndTrigger(t, srv, token, func() {

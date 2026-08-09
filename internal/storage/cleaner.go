@@ -20,6 +20,7 @@ import (
 	"camera/internal/analysis"
 	"camera/internal/db"
 	"camera/internal/detector"
+	"camera/internal/notifications"
 )
 
 type Cleaner struct {
@@ -43,6 +44,7 @@ type Cleaner struct {
 	detectorFactory func(detectorType string, config map[string]string) (detector.Detector, error)
 	analyzeMu       sync.Mutex
 	diskWarned      bool // edge-trigger state for the disk-usage notification
+	notifications   *notifications.Dispatcher
 }
 
 func (c *Cleaner) WithAnalyzer(a analysis.Analyzer) *Cleaner {
@@ -52,6 +54,14 @@ func (c *Cleaner) WithAnalyzer(a analysis.Analyzer) *Cleaner {
 
 func (c *Cleaner) WithDetectorFactory(f func(detectorType string, config map[string]string) (detector.Detector, error)) *Cleaner {
 	c.detectorFactory = f
+	return c
+}
+
+// WithNotifications wires the Dispatcher used by notifyDiskHigh to fan a
+// warning out to every configured sender. Without it, the warning is still
+// logged (CheckSize) but nobody is notified.
+func (c *Cleaner) WithNotifications(d *notifications.Dispatcher) *Cleaner {
+	c.notifications = d
 	return c
 }
 
@@ -1220,25 +1230,27 @@ func (c *Cleaner) notifyDiskHigh(usedGB, maxGB float64) {
 		c.log.Warn("disk notification: failed to list users", "err", err)
 		return
 	}
+	var adminIDs []int64
+	for _, u := range users {
+		if u.Role == "admin" {
+			adminIDs = append(adminIDs, u.ID)
+		}
+	}
+	if len(adminIDs) == 0 || c.notifications == nil {
+		return
+	}
 	pct := 0.0
 	if maxGB > 0 {
 		pct = usedGB / maxGB * 100
 	}
 	msg := fmt.Sprintf("Armazenamento em %.0f%% do limite (%.1f de %.1f GB). Gravações antigas podem ser removidas em breve.", pct, usedGB, maxGB)
-	for _, u := range users {
-		if u.Role != "admin" {
-			continue
-		}
-		if _, err := db.InsertUserNotification(c.db, db.UserNotification{
-			UserID:  u.ID,
-			Type:    "warning",
-			Title:   "Disco quase cheio",
-			Message: msg,
-			Link:    "/settings/storage",
-		}); err != nil {
-			c.log.Warn("disk notification: failed to insert", "user", u.ID, "err", err)
-		}
-	}
+	c.notifications.Notify(notifications.Notification{
+		UserIDs: adminIDs,
+		Type:    "warning",
+		Title:   "Disco quase cheio",
+		Message: msg,
+		Link:    "/settings/storage",
+	})
 }
 
 // effectiveInterval returns the clean interval from the DB if set, falling back
