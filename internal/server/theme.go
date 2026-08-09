@@ -30,8 +30,13 @@ func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load preferences", http.StatusInternalServerError)
 		return
 	}
+	notifyEmail, err := db.GetUserNotifyEmail(s.db, s.currentUserID(r))
+	if err != nil {
+		http.Error(w, "failed to load preferences", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"theme": theme, "accent": accent})
+	json.NewEncoder(w).Encode(map[string]any{"theme": theme, "accent": accent, "notify_email": notifyEmail})
 }
 
 func (s *Server) handleUpdatePreferences(w http.ResponseWriter, r *http.Request) {
@@ -40,8 +45,9 @@ func (s *Server) handleUpdatePreferences(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var body struct {
-		Theme  string `json:"theme"`
-		Accent string `json:"accent"`
+		Theme       string `json:"theme"`
+		Accent      string `json:"accent"`
+		NotifyEmail *bool  `json:"notify_email"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
@@ -67,6 +73,12 @@ func (s *Server) handleUpdatePreferences(w http.ResponseWriter, r *http.Request)
 	}
 	if body.Accent != "" {
 		if err := db.SetUserAccentColor(s.db, s.currentUserID(r), body.Accent); err != nil {
+			http.Error(w, "failed to save preferences", http.StatusInternalServerError)
+			return
+		}
+	}
+	if body.NotifyEmail != nil {
+		if err := db.SetUserNotifyEmail(s.db, s.currentUserID(r), *body.NotifyEmail); err != nil {
 			http.Error(w, "failed to save preferences", http.StatusInternalServerError)
 			return
 		}

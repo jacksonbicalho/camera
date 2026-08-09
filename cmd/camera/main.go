@@ -31,6 +31,7 @@ import (
 	"camera/internal/motion"
 	"camera/internal/notifications"
 	"camera/internal/notifications/application"
+	notifyemail "camera/internal/notifications/email"
 	"camera/internal/recorder"
 	"camera/internal/release"
 	"camera/internal/server"
@@ -413,12 +414,18 @@ func main() {
 			WithCameraCallbacks(startCameraProcs, stopCameraProcs).
 			WithDB(database).
 			WithProber(prober)
-		if database != nil {
-			dispatcher = notifications.NewDispatcher(slog, application.New(database, srv))
-			srv.WithNotifications(dispatcher)
-		}
+		var smtpSender *email.SMTPSender
 		if cfg.SMTP.Host != "" {
-			srv.WithEmailSender(email.NewSMTPSender(cfg.SMTP))
+			smtpSender = email.NewSMTPSender(cfg.SMTP)
+			srv.WithEmailSender(smtpSender)
+		}
+		if database != nil {
+			senders := []notifications.Sender{application.New(database, srv)}
+			if smtpSender != nil {
+				senders = append(senders, notifyemail.New(database, smtpSender))
+			}
+			dispatcher = notifications.NewDispatcher(slog, senders...)
+			srv.WithNotifications(dispatcher)
 		}
 
 		camMu.Lock()
