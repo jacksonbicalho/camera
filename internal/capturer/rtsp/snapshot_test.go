@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"camera/internal/capture/rtsp"
+	"camera/internal/capturer/rtsp"
 )
 
 type fakeExecutor struct {

@@ -1,6 +1,6 @@
 // Package hls centraliza a captura de câmeras cuja fonte é um stream HLS
 // (playlist .m3u8 servida via HTTP/HTTPS) — protocolo irmão de
-// internal/capture/rtsp, mesmo padrão: o núcleo protocolo-agnóstico
+// internal/capturer/rtsp, mesmo padrão: o núcleo protocolo-agnóstico
 // (decisão de transcode, args de input, execução de comando) vive em
 // internal/core, aqui só o que é específico de HLS. Ver
 // work_progress/analysis (história feat/hls-capture-fundacao).

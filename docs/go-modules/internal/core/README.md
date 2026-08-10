@@ -1,10 +1,10 @@
 # internal/core
 
 Utilitários de captura genéricos o bastante pra serem compartilhados por mais de
-um protocolo (não específicos de RTSP, HLS, etc.) — irmão de `internal/capture/`,
+um protocolo (não específicos de RTSP, HLS, etc.) — irmão de `internal/capturer/`,
 nunca aninhado dentro dele (`internal/exec` e `internal/ffprobe` já seguem esse
 mesmo padrão: topo, não aninhados em nada de protocolo). Nasceu quando
-`internal/capture/rtsp` deixou de ser o único consumidor real desses símbolos
+`internal/capturer/rtsp` deixou de ser o único consumidor real desses símbolos
 (história `feat/capture-hls-dominio`).
 
 Também define `Executor`, a interface injetável usada por chamadas ffmpeg
@@ -20,5 +20,5 @@ avulsas (ex. snapshot) que só precisam do stdout capturado — diferente de
   `os/exec`, usada pra comandos ffmpeg de execução única como snapshot).
 
 ## Ver também
-- [internal/capture](../capture/README.md) e seus subpacotes (`rtsp`/`hls`) — consumidores primários.
+- [internal/capturer](../capturer/README.md) e seus subpacotes (`rtsp`/`hls`) — consumidores primários.
 - [internal/exec](../exec/README.md) — irmão pra processos de longa duração (em vez de execução única).

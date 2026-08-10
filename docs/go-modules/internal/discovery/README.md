@@ -22,4 +22,4 @@ WS-Discovery e uma varredura de porta 554 em paralelo, deduplicando por IP
 - `result.go` — `Result` (IP, porta, se é ONVIF, nome, URLs RTSP resolvidas).
 
 ## Ver também
-- [internal/capture/rtsp](../capture/rtsp/README.md) — o protocolo que as URLs descobertas aqui alimentam.
+- [internal/capturer/rtsp](../capturer/rtsp/README.md) — o protocolo que as URLs descobertas aqui alimentam.

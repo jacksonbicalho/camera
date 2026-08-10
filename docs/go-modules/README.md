@@ -22,9 +22,9 @@ completo, o conteúdo chega por cluster.
 - [internal/logger](internal/logger/README.md)
 
 ## Captura, gravação, transmissão e movimento
-- [internal/capture](internal/capture/README.md)
-  - [internal/capture/rtsp](internal/capture/rtsp/README.md)
-  - [internal/capture/hls](internal/capture/hls/README.md)
+- [internal/capturer](internal/capturer/README.md)
+  - [internal/capturer/rtsp](internal/capturer/rtsp/README.md)
+  - [internal/capturer/hls](internal/capturer/hls/README.md)
 - [internal/recorder](internal/recorder/README.md)
 - [internal/transmission](internal/transmission/README.md)
   - [internal/transmission/hls](internal/transmission/hls/README.md)

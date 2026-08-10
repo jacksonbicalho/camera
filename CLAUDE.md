@@ -197,9 +197,9 @@ Suíte Playwright ponta-a-ponta, **independente do resto do projeto**: pacote pr
 | Pacote | Responsabilidade |
 |---|---|
 | `internal/core` | Utilitários de captura genéricos compartilhados por mais de um protocolo. Doc completa: [docs/go-modules/internal/core/README.md](docs/go-modules/internal/core/README.md). |
-| `internal/capture` | Builders de argumentos ffmpeg por protocolo de captura (rtsp/hls). Doc completa: [docs/go-modules/internal/capture/README.md](docs/go-modules/internal/capture/README.md). |
-| `internal/capture/rtsp` | Args de conexão/snapshot RTSP. Doc completa: [docs/go-modules/internal/capture/rtsp/README.md](docs/go-modules/internal/capture/rtsp/README.md). |
-| `internal/capture/hls` | Args de conexão pra câmeras cuja fonte já é HLS. Doc completa: [docs/go-modules/internal/capture/hls/README.md](docs/go-modules/internal/capture/hls/README.md). |
+| `internal/capturer` | Builders de argumentos ffmpeg por protocolo de captura (rtsp/hls). Doc completa: [docs/go-modules/internal/capturer/README.md](docs/go-modules/internal/capturer/README.md). |
+| `internal/capturer/rtsp` | Args de conexão/snapshot RTSP. Doc completa: [docs/go-modules/internal/capturer/rtsp/README.md](docs/go-modules/internal/capturer/rtsp/README.md). |
+| `internal/capturer/hls` | Args de conexão pra câmeras cuja fonte já é HLS. Doc completa: [docs/go-modules/internal/capturer/hls/README.md](docs/go-modules/internal/capturer/hls/README.md). |
 | `internal/exec` | Interfaces `Commander`/`Process` (processo ffmpeg de longa duração) sobre `os/exec`, injetadas nos pacotes de captura pra permitir testes sem ffmpeg. Doc completa: [docs/go-modules/internal/exec/README.md](docs/go-modules/internal/exec/README.md). |
 | `internal/recorder` | Grava RTSP/HLS em chunks MP4 não fragmentados. Doc completa: [docs/go-modules/internal/recorder/README.md](docs/go-modules/internal/recorder/README.md). |
 | `internal/transmission/hls` | Gera playlist HLS ao vivo (modo padrão ou DVR). Doc completa: [docs/go-modules/internal/transmission/hls/README.md](docs/go-modules/internal/transmission/hls/README.md). |

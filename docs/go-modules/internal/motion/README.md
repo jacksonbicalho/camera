@@ -1,7 +1,7 @@
 # internal/motion
 
 Detecta movimento via um pipe ffmpeg contínuo de frames raw — mecanismo de
-captura genuinamente diferente de `internal/capture` (por isso fica fora
+captura genuinamente diferente de `internal/capturer` (por isso fica fora
 daquele domínio, história `feat/capture-rtsp-dominio`). O pipe entrega frames
 **RGB full-res**; cada frame é reduzido a cinza na resolução de diff
 (`downscaleRGBToGray`, default 1/4) em memória, enquanto o frame full-res

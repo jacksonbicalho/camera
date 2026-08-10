@@ -1,4 +1,4 @@
-# internal/capture/rtsp
+# internal/capturer/rtsp
 
 Centraliza a captura de câmeras via RTSP — o protocolo de captura mais comum
 do projeto (único até `capture_type` existir). Args/decisões que antes
@@ -18,6 +18,6 @@ snapshot avulso de `cmd/camera` agora vivem aqui.
   `internal/core`).
 
 ## Ver também
-- [internal/capture](../README.md) — visão geral do domínio de captura.
-- [internal/capture/hls](../hls/README.md) — protocolo irmão.
+- [internal/capturer](../README.md) — visão geral do domínio de captura.
+- [internal/capturer/hls](../hls/README.md) — protocolo irmão.
 - [internal/core](../../core/README.md) — `TranscodeArgs`/`InputArgs`/`Executor`, a parte protocolo-agnóstica.

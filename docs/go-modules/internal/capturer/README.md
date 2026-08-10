@@ -1,4 +1,4 @@
-# internal/capture
+# internal/capturer
 
 Domínio de captura de câmera: builders de argumentos ffmpeg específicos por
 protocolo, compartilhados por qualquer consumidor que precise se conectar a
@@ -9,7 +9,7 @@ subpacotes abaixo, um por protocolo.
 Os pedaços protocolo-agnósticos (decisão de transcode, args de input, execução
 de comando) vivem em `internal/core` — irmão, nunca aninhado aqui — porque
 deixaram de ser exclusividade de um protocolo (nasceu quando
-`internal/capture/rtsp` deixou de ser o único consumidor real desses
+`internal/capturer/rtsp` deixou de ser o único consumidor real desses
 símbolos).
 
 `internal/motion` (pipe contínuo de frames) e `internal/transmission/webrtc`

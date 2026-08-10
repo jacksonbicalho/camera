@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"camera/internal/capture/hls"
-	"camera/internal/capture/rtsp"
+	"camera/internal/capturer/hls"
+	"camera/internal/capturer/rtsp"
 	"camera/internal/config"
 	"camera/internal/core"
 	"camera/internal/exec"
