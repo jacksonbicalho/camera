@@ -28,6 +28,7 @@ import (
 	"camera/internal/motion"
 	"camera/internal/notifications"
 	"camera/internal/release"
+	"camera/internal/stateclass"
 	"camera/internal/storage"
 	"camera/internal/zones"
 )
@@ -92,50 +93,52 @@ func (b *broadcaster) run(src <-chan motion.Event) {
 }
 
 type Server struct {
-	cfg                 config.ServerConfig
-	storageCfg          config.StorageConfig
-	logCfg              config.LogConfig
-	extensionsCfg       config.ExtensionsConfig
-	debug               bool
-	timezone            string
-	version             string
-	commit              string
-	builtAt             string
-	startTime           time.Time
-	cameras             []config.CameraConfig
-	log                 *slog.Logger
-	secret              []byte
-	frontend            fs.FS
-	mux                 *http.ServeMux
-	mu                  sync.Mutex
-	streamSeen          map[string]time.Time
-	motionBroadcasters  map[string]*broadcaster
-	rawBroadcasters     map[string]*broadcaster
-	notifHub            *notifHub
-	peakMu              sync.RWMutex
-	dailyPeakRaw        map[string]float64
-	dailyPeakDate       map[string]string
-	snapFn              func(ctx context.Context, rtspURL string) ([]byte, error)
-	frameFn             func(ctx context.Context, path string, offsetSeconds float64) ([]byte, error)
-	probedStreams       map[string]ffprobe.StreamInfo
-	db                  *db.DB
-	prober              *ffprobe.Prober
-	onCameraStart       func(config.CameraConfig)
-	onCameraStop        func(string)
-	monitors            map[string]*motion.Monitor
-	livePublishers      map[string]livePublisher
-	cpu                 cpuTracker
-	net                 netTracker
-	cleaner             interface{ ForceClean() }
-	deviceCollectors    []deviceinfo.Collector
-	updateChecker       updateStatuser
-	releaseNotesFetcher releaseNotesFetcher
-	applyMode           string
-	applier             applyRunner
-	updateNotifyMu      sync.Mutex
-	updateNotified      string // última versão latest já notificada (dedup)
-	emailSender         emailSender
-	notifications       *notifications.Dispatcher
+	cfg                    config.ServerConfig
+	storageCfg             config.StorageConfig
+	logCfg                 config.LogConfig
+	extensionsCfg          config.ExtensionsConfig
+	debug                  bool
+	timezone               string
+	version                string
+	commit                 string
+	builtAt                string
+	startTime              time.Time
+	cameras                []config.CameraConfig
+	log                    *slog.Logger
+	secret                 []byte
+	frontend               fs.FS
+	mux                    *http.ServeMux
+	mu                     sync.Mutex
+	streamSeen             map[string]time.Time
+	motionBroadcasters     map[string]*broadcaster
+	rawBroadcasters        map[string]*broadcaster
+	notifHub               *notifHub
+	peakMu                 sync.RWMutex
+	dailyPeakRaw           map[string]float64
+	dailyPeakDate          map[string]string
+	snapFn                 func(ctx context.Context, rtspURL string) ([]byte, error)
+	frameFn                func(ctx context.Context, path string, offsetSeconds float64) ([]byte, error)
+	probedStreams          map[string]ffprobe.StreamInfo
+	db                     *db.DB
+	prober                 *ffprobe.Prober
+	onCameraStart          func(config.CameraConfig)
+	onCameraStop           func(string)
+	onStateClassifierStart func(stateclass.Classifier)
+	onStateClassifierStop  func(int64)
+	monitors               map[string]*motion.Monitor
+	livePublishers         map[string]livePublisher
+	cpu                    cpuTracker
+	net                    netTracker
+	cleaner                interface{ ForceClean() }
+	deviceCollectors       []deviceinfo.Collector
+	updateChecker          updateStatuser
+	releaseNotesFetcher    releaseNotesFetcher
+	applyMode              string
+	applier                applyRunner
+	updateNotifyMu         sync.Mutex
+	updateNotified         string // última versão latest já notificada (dedup)
+	emailSender            emailSender
+	notifications          *notifications.Dispatcher
 }
 
 // emailSender envia e-mail (esqueci-a-senha hoje). Definido aqui no
@@ -226,6 +229,16 @@ func (s *Server) Push(userID int64) {
 func (s *Server) WithCameraCallbacks(start func(config.CameraConfig), stop func(string)) *Server {
 	s.onCameraStart = start
 	s.onCameraStop = stop
+	return s
+}
+
+// WithStateClassifierCallbacks wires the hooks that start/stop a
+// stateengine.Runner for a single classifier at runtime — mirrors
+// WithCameraCallbacks, so create/update/delete take effect immediately
+// instead of only on the next application restart.
+func (s *Server) WithStateClassifierCallbacks(start func(stateclass.Classifier), stop func(int64)) *Server {
+	s.onStateClassifierStart = start
+	s.onStateClassifierStop = stop
 	return s
 }
 
