@@ -27,7 +27,7 @@ interface ObjectDetectorFormProps {
 
 // ObjectDetectorForm — a primeira escolha é o tipo (yolo/hugging face); cada
 // tipo expõe seus próprios campos de config. O limiar de confiança não é mais
-// cadastrado aqui — é definido por câmera (CameraAnalysisSettingsPage) ou
+// cadastrado aqui — é definido por câmera (CameraAnalysisSection) ou
 // avulso na tela de teste (ObjectDetectorTestPage). O cadastro em si é
 // chave/valor no backend (object_detector_config), então um campo novo no
 // futuro não exige migration — só um novo input aqui.

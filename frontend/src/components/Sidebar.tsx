@@ -15,7 +15,6 @@ import {
   Gauge,
   HardDrive,
   History,
-  LayoutGrid,
   Menu,
   Network,
   Pencil,
@@ -276,15 +275,6 @@ export default function Sidebar() {
                   to: '/settings/trainers',
                   label: 'Treinadores',
                   icon: <Gauge className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-analyses',
-                  to: '/settings/analyses',
-                  label: 'Análise por câmera',
-                  icon: <LayoutGrid className="h-5 w-5 shrink-0" />,
                 }}
                 showLabel={showLabel}
               />

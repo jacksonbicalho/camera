@@ -230,7 +230,7 @@ describe('CA7: "Re-analisar tudo" exige ao menos 1 câmera com análise habilita
 })
 
 // CA6 (história feat/detector-por-camera): a análise por gravação passou a
-// ser ativada por câmera (CameraAnalysisSettingsPage), não mais por um
+// ser ativada por câmera (CameraAnalysisSection, no cadastro de câmera), não mais por um
 // toggle global aqui — e o limiar de confiança também virou por câmera.
 describe('CA6: tela de análise global não mostra mais toggle de ativação nem limiar de confiança', () => {
   it('não renderiza "Ativar análise" nem o slider de limiar de confiança', async () => {

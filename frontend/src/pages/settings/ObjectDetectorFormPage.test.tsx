@@ -55,7 +55,7 @@ describe('CA6: formulário de edição pré-carrega os dados do detector existen
 })
 
 // CA7 (história feat/detector-por-camera): o detector deixou de ter limiar
-// próprio — quem define o limiar agora é cada câmera (CameraAnalysisSettingsPage)
+// próprio — quem define o limiar agora é cada câmera (CameraAnalysisSection)
 // ou, pontualmente, a própria tela de teste (ObjectDetectorTestPage).
 describe('CA7: cadastro/edição de detector não pede mais limiar de confiança', () => {
   it('não renderiza um campo "Limiar de confiança" no form de edição', async () => {
