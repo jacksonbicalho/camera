@@ -16,6 +16,8 @@ vi.mock('../../components/SettingsLayout', () => ({
 function mockRetentionExtensionsFetch(
   existing: Array<Record<string, string>>,
   spy?: (method: string, url: string, body: unknown) => void,
+  s3Active = false,
+  s3Available = true,
 ) {
   vi.stubGlobal(
     'fetch',
@@ -24,6 +26,21 @@ function mockRetentionExtensionsFetch(
       const method = init?.method ?? 'GET'
       if (u === '/api/retention-extensions' && method === 'GET') {
         return new Response(JSON.stringify(existing), { status: 200 })
+      }
+      if (u === '/api/settings/extensions' && method === 'GET') {
+        return new Response(
+          JSON.stringify([
+            {
+              id: 's3',
+              name: 'S3',
+              category: 'Retenção',
+              description: 'Envia gravações expiradas para um destino S3 externo.',
+              available: s3Available,
+              active: s3Active,
+            },
+          ]),
+          { status: 200 },
+        )
       }
       const body = init?.body ? JSON.parse(String(init.body)) : null
       spy?.(method, u, body)
@@ -63,7 +80,7 @@ describe('CA7: tela "Configurar" do S3 cria ou edita a config singleton via /api
     fireEvent.change(screen.getByLabelText(/access key/i), { target: { value: 'AK' } })
     fireEvent.change(screen.getByLabelText(/secret key/i), { target: { value: 'SK' } })
 
-    fireEvent.click(screen.getByRole('button', { name: /aplicar/i }))
+    fireEvent.click(document.getElementById('s3-config-apply')!)
 
     await waitFor(() => {
       expect(calledMethod).toBe('POST')
@@ -96,7 +113,7 @@ describe('CA7: tela "Configurar" do S3 cria ou edita a config singleton via /api
     const nameInput = (await screen.findByLabelText(/^nome/i)) as HTMLInputElement
     await waitFor(() => expect(nameInput.value).toBe('destino-atual'))
 
-    fireEvent.click(screen.getByRole('button', { name: /aplicar/i }))
+    fireEvent.click(document.getElementById('s3-config-apply')!)
 
     await waitFor(() => {
       expect(calledMethod).toBe('PUT')
@@ -137,6 +154,14 @@ describe('CA8: "Excluir configuração" só aparece com uma config existente, e 
             { status: 200 },
           )
         }
+        if (u === '/api/settings/extensions' && method === 'GET') {
+          return new Response(
+            JSON.stringify([
+              { id: 's3', name: 'S3', category: 'Retenção', available: true, active: true },
+            ]),
+            { status: 200 },
+          )
+        }
         calledMethod = method
         calledUrl = u
         return new Response(null, { status: 204 })
@@ -152,5 +177,54 @@ describe('CA8: "Excluir configuração" só aparece com uma config existente, e 
       expect(calledMethod).toBe('DELETE')
       expect(calledUrl).toBe('/api/retention-extensions/ext1')
     })
+  })
+})
+
+// CA8 (história refactor/preferencias-submenu-lateral-storage): removida a
+// PreferencesExtensionsPage (lista de cards), o toggle "Ativado" do S3 não
+// tinha mais nenhum lugar pra viver — passa a fazer parte desta própria
+// página, independente do formulário/Aplicar/Excluir do destino S3.
+describe('CA8: checkbox "Ativado" do S3 reflete o estado atual e persiste via PUT /api/settings/extensions/s3', () => {
+  it('mostra o checkbox refletindo active=true vindo da API', async () => {
+    mockRetentionExtensionsFetch([], undefined, true)
+    renderPage()
+
+    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
+    await waitFor(() => expect(checkbox.checked).toBe(true))
+  })
+
+  it('alterar o checkbox e aplicar dispara PUT /api/settings/extensions/s3 com o novo valor, sem afetar o formulário de destino', async () => {
+    let putBody: unknown = null
+    let putUrl = ''
+    mockRetentionExtensionsFetch(
+      [],
+      (method, url, body) => {
+        if (method === 'PUT' && url === '/api/settings/extensions/s3') {
+          putUrl = url
+          putBody = body
+        }
+      },
+      false,
+    )
+    renderPage()
+
+    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
+    fireEvent.click(checkbox)
+    fireEvent.click(document.getElementById('s3-active-apply')!)
+
+    await waitFor(() => {
+      expect(putUrl).toBe('/api/settings/extensions/s3')
+      expect(putBody).toEqual({ active: true })
+    })
+  })
+
+  it('quando a extensão não está disponível, não mostra checkbox, form nem Excluir', async () => {
+    mockRetentionExtensionsFetch([], undefined, false, false)
+    renderPage()
+
+    await screen.findByText('Extensão não permitida nesta instância.')
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.queryByLabelText(/^nome/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /excluir configuração/i })).toBeNull()
   })
 })
