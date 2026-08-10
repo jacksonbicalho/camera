@@ -104,6 +104,21 @@ describe('CameraDetailSettingsPage', () => {
     })
   })
 
+  describe('CA2: "Análise por câmera" vira sessão dentro da página, logo abaixo de "Detecção de movimento" (rota /settings/analyses/:id removida)', () => {
+    it('a sessão de análise aparece na mesma página, depois da sessão de movimento', async () => {
+      renderAt('/settings/cameras/cam-1')
+      await waitFor(() => {
+        expect(document.getElementById('motion_enabled')).toBeTruthy()
+      })
+      const motion = document.getElementById('motion_enabled')!
+      const analysis = document.getElementById('camera-analysis-enabled')!
+      expect(analysis).toBeTruthy()
+      expect(
+        motion.compareDocumentPosition(analysis) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+    })
+  })
+
   describe('visualização espelha as mesmas sessões do form (Captura/Gravação/Transmissão), fechadas', () => {
     it('mostra as 3 sessões com os dados reais da câmera, em vez do agrupamento antigo Vídeo/Transmissão ao vivo', async () => {
       renderAt('/settings/cameras/cam-1')

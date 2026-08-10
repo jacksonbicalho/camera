@@ -89,6 +89,15 @@ describe('routes', () => {
     expect(paths).not.toContain('/events')
     expect(paths).not.toContain('/users')
   })
+
+  it('CA3: /settings/analyses e /settings/analyses/:id não estão mais registradas (Análise por câmera migrou pro cadastro de câmera)', () => {
+    const children = (routes as ReactElement<{ children: ReactNode }>).props.children
+    const paths = (Array.isArray(children) ? children : [children])
+      .filter(Boolean)
+      .map((el) => (el as ReactElement<{ path?: string }>).props?.path)
+    expect(paths).not.toContain('/settings/analyses')
+    expect(paths).not.toContain('/settings/analyses/:id')
+  })
 })
 
 describe('routes: auth', () => {

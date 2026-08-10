@@ -307,6 +307,21 @@ describe('CA3: item "Aparência" sai do Sidebar (migrou pra dentro de Preferênc
   })
 })
 
+// CA3 (história refactor/mover-analise-para-cadastro-camera): "Análise por
+// câmera" deixou de ser item próprio do Sidebar/rota — virou uma sessão
+// dentro do cadastro de câmera (CameraAnalysisSection).
+describe('CA3: item "Análise por câmera" sai do Sidebar (migrou pro cadastro de câmera)', () => {
+  it('nem admin nem viewer veem mais o item "Análise por câmera" no Sidebar', () => {
+    renderAt('/')
+    expect(document.getElementById('sidebar-analyses')).toBeNull()
+
+    cleanup()
+    vi.mocked(getRole).mockReturnValue('viewer')
+    renderAt('/')
+    expect(document.getElementById('sidebar-analyses')).toBeNull()
+  })
+})
+
 describe('Sidebar tem o item "Preferências" (→ /settings/preferences/extensions) dentro de Administração', () => {
   it('admin vê o item Preferências dentro de Administração', () => {
     renderAt('/')

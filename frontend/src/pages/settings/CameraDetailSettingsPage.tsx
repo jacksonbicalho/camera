@@ -8,6 +8,7 @@ import CameraSettingsTabs from '../../components/CameraSettingsTabs'
 import EntitySubtitle from '../../components/EntitySubtitle'
 import DeviceInfoPanel from '../../components/DeviceInfoPanel'
 import { MotionFormContent, MotionReadOnly } from '../../components/CameraMotionSection'
+import CameraAnalysisSection from '../../components/CameraAnalysisSection'
 import { type CameraFormData, type Camera, formToPayload } from '../../components/cameraFormUtils'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { useMotionPeak } from '../../hooks/useMotionPeak'
@@ -280,6 +281,7 @@ export default function CameraDetailSettingsPage() {
             </>
           )}
           <MotionFormContent cam={cam} id={id!} peak={peak} reload={reload} />
+          <CameraAnalysisSection id={id!} />
           <DeviceInfoPanel cameraId={id!} isAdmin={isAdmin} />
         </div>
       )}
