@@ -22,6 +22,11 @@ mapfile -t leaf_pkgs < <(find internal -type f -name '*.go' ! -name '*_test.go' 
 # atualizada manualmente quando um novo agrupamento desse tipo nascer.
 parent_pkgs=(capture transmission detector trainer notifications db)
 
+# Diretórios com README próprio mas sem nenhum .go (ex.: só .sql) — não
+# descobertos por `find` nem são um "pai" de subpacotes Go. Lista curta,
+# manual.
+non_go_pkgs=(db/migrations)
+
 # Clusters da história — usados só pelo modo --cluster.
 cluster_infra=(core config exec ffprobe logger)
 cluster_captura=(capture capture/rtsp capture/hls recorder transmission transmission/hls transmission/webrtc motion zones discovery)
@@ -42,8 +47,9 @@ case "$cluster" in
     ia) pkgs=("${cluster_ia[@]}") ;;
     aplicacao) pkgs=("${cluster_aplicacao[@]}") ;;
     "")
-        # Árvore completa: todo pacote-folha real + os pais conhecidos.
-        pkgs=("${leaf_pkgs[@]}" "${parent_pkgs[@]}")
+        # Árvore completa: todo pacote-folha real + os pais conhecidos + os
+        # diretórios sem .go que ainda assim têm README (ex.: migrations).
+        pkgs=("${leaf_pkgs[@]}" "${parent_pkgs[@]}" "${non_go_pkgs[@]}")
         ;;
     *)
         echo "❌ cluster desconhecido: $cluster"
