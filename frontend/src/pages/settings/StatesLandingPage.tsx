@@ -12,7 +12,7 @@ interface CameraOption {
 // StatesLandingPage — rota "/settings/states" (sem :id): Estados é por
 // câmera (CameraStatesSettingsPage.tsx, /settings/states/:id), então esta
 // página só existe pra resolver QUAL câmera abrir antes de entrar de fato —
-// mesmo padrão de HistoryLandingPage/AnalysesLandingPage (nunca mostra um
+// mesmo padrão de HistoryLandingPage (nunca mostra um
 // picker, navega direto pra 1ª câmera assim que a lista carrega). Trocar de
 // câmera depois é via o <select> dentro da própria CameraStatesSettingsPage.
 // `replace: true` pra não empilhar "/settings/states" no histórico.
