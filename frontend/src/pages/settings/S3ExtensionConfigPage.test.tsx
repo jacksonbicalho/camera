@@ -104,3 +104,53 @@ describe('CA7: tela "Configurar" do S3 cria ou edita a config singleton via /api
     })
   })
 })
+
+describe('CA8: "Excluir configuração" só aparece com uma config existente, e chama DELETE ao confirmar', () => {
+  it('sem nenhuma config existente, o botão "Excluir configuração" não aparece', async () => {
+    mockRetentionExtensionsFetch([])
+    renderPage()
+
+    await screen.findByLabelText(/nome/i)
+    expect(screen.queryByRole('button', { name: /excluir configuração/i })).toBeNull()
+  })
+
+  it('com uma config existente, confirmar a exclusão chama DELETE e volta pra lista de extensões', async () => {
+    let calledMethod = ''
+    let calledUrl = ''
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown, init?: RequestInit) => {
+        const u = String(url)
+        const method = init?.method ?? 'GET'
+        if (u === '/api/retention-extensions' && method === 'GET') {
+          return new Response(
+            JSON.stringify([
+              {
+                id: 'ext1',
+                name: 'destino-atual',
+                endpoint: '',
+                bucket: 'bucket-atual',
+                region: 'us-east-1',
+                prefix: '',
+              },
+            ]),
+            { status: 200 },
+          )
+        }
+        calledMethod = method
+        calledUrl = u
+        return new Response(null, { status: 204 })
+      }),
+    )
+    renderPage()
+
+    await screen.findByDisplayValue('destino-atual')
+    fireEvent.click(screen.getByRole('button', { name: /excluir configuração/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^excluir$/i }))
+
+    await waitFor(() => {
+      expect(calledMethod).toBe('DELETE')
+      expect(calledUrl).toBe('/api/retention-extensions/ext1')
+    })
+  })
+})

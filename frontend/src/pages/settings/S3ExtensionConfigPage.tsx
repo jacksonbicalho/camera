@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { authHeaders } from '../../auth'
 import { Button } from '@/components/ui/button'
 
@@ -36,6 +37,7 @@ export default function S3ExtensionConfigPage() {
   const [loaded, setLoaded] = useState(false)
   const [form, setForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     fetch('/api/retention-extensions', { headers: authHeaders() })
@@ -83,6 +85,16 @@ export default function S3ExtensionConfigPage() {
       })
       .catch(() => {})
       .finally(() => setSaving(false))
+  }
+
+  function handleDelete() {
+    if (!existing) return
+    fetch(`/api/retention-extensions/${existing.id}`, { method: 'DELETE', headers: authHeaders() })
+      .then((res) => {
+        if (res.ok) navigate('/settings/preferences/extensions')
+      })
+      .catch(() => {})
+      .finally(() => setConfirmDelete(false))
   }
 
   const fields: Array<{
@@ -144,29 +156,53 @@ export default function S3ExtensionConfigPage() {
               </div>
             ))}
           </div>
-          <div className="flex justify-end gap-2 mt-5">
-            <Button
-              id="s3-config-cancel"
-              variant="ghost"
-              onClick={() => navigate('/settings/preferences/extensions')}
-            >
-              Cancelar
-            </Button>
-            <Button
-              id="s3-config-apply"
-              onClick={handleApply}
-              disabled={
-                saving ||
-                !form.name ||
-                !form.bucket ||
-                (!existing && (!form.access_key || !form.secret_key))
-              }
-            >
-              {saving ? 'Aplicando...' : 'Aplicar'}
-            </Button>
+          <div className="flex justify-between gap-2 mt-5">
+            {existing ? (
+              <Button
+                id="s3-config-delete"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={() => setConfirmDelete(true)}
+              >
+                Excluir configuração
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button
+                id="s3-config-cancel"
+                variant="ghost"
+                onClick={() => navigate('/settings/preferences/extensions')}
+              >
+                Cancelar
+              </Button>
+              <Button
+                id="s3-config-apply"
+                onClick={handleApply}
+                disabled={
+                  saving ||
+                  !form.name ||
+                  !form.bucket ||
+                  (!existing && (!form.access_key || !form.secret_key))
+                }
+              >
+                {saving ? 'Aplicando...' : 'Aplicar'}
+              </Button>
+            </div>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Excluir configuração"
+        message="Excluir a configuração do S3? Gravações que apontam pra ela como destino de retenção voltarão a ser apagadas."
+        confirmLabel="Excluir"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+        danger
+      />
     </SettingsLayout>
   )
 }
