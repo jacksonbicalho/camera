@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import AppearanceSettingsPage from './AppearanceSettingsPage'
@@ -10,10 +10,22 @@ vi.mock('../../contexts/ThemeContext', () => ({
   useTheme: () => ({ mode: 'dark', setMode: vi.fn(), theme: 'default' }),
 }))
 
-afterEach(cleanup)
+// PreferencesLayout busca /api/settings/extensions — sem esse stub, o fetch
+// real tentaria conectar de verdade (ECONNREFUSED barulhento no stderr).
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.resolve(new Response('[]', { status: 200 }))),
+  )
+})
 
-// PreferencesTabs (renderizado dentro de AppearanceSettingsPage desde a
-// história refactor/mover-appearance-preferencias) usa <Link> do
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
+
+// PreferencesLayout (renderizado dentro de AppearanceSettingsPage desde a
+// história refactor/preferencias-submenu-lateral-storage) usa <Link> do
 // react-router-dom — precisa de um Router ao redor.
 function renderPage() {
   return render(
