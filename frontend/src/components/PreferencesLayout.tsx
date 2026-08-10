@@ -28,7 +28,7 @@ export default function PreferencesLayout({ active, children }: Props) {
   useEffect(() => {
     fetch('/api/settings/extensions', { headers: authHeaders() })
       .then((r) => r.json())
-      .then((list: Extension[]) => setExtensions(list ?? []))
+      .then((list: Extension[]) => setExtensions(Array.isArray(list) ? list : []))
       .catch(() => {})
   }, [])
 

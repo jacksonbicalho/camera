@@ -187,7 +187,7 @@ export const routes = (
       }
     />
     <Route
-      path="/settings/storage"
+      path="/settings/preferences/storage"
       element={
         <Lazy>
           <StorageSettingsPage />
@@ -195,7 +195,7 @@ export const routes = (
       }
     />
     <Route
-      path="/settings/storage/edit"
+      path="/settings/preferences/storage/edit"
       element={
         <Lazy>
           <StorageSettingsPage />

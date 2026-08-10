@@ -65,6 +65,8 @@ function stubFetch() {
     vi.fn((url: string, init?: RequestInit) => {
       if (url === '/api/settings/storage' && init?.method === 'PUT')
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) })
+      if (url === '/api/settings/extensions')
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
       if (url.startsWith('/api/settings'))
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(settings) })
       if (url.startsWith('/api/drives'))
@@ -87,7 +89,7 @@ describe('StorageSettingsPage', () => {
   it('renderiza o título dentro do SettingsLayout', async () => {
     stubFetch()
     render(
-      <MemoryRouter initialEntries={['/settings/storage']}>
+      <MemoryRouter initialEntries={['/settings/preferences/storage']}>
         <StorageSettingsPage />
       </MemoryRouter>,
     )
@@ -100,7 +102,7 @@ describe('StorageSettingsPage', () => {
     it('modo visualização: sem inputs de configuração, mostra o botão Editar', async () => {
       stubFetch()
       render(
-        <MemoryRouter initialEntries={['/settings/storage']}>
+        <MemoryRouter initialEntries={['/settings/preferences/storage']}>
           <StorageSettingsPage />
         </MemoryRouter>,
       )
@@ -111,10 +113,10 @@ describe('StorageSettingsPage', () => {
       expect(document.body.textContent).toContain('/data')
     })
 
-    it('/settings/storage/edit (deep-link direto): abre já em modo edição, sem precisar clicar', async () => {
+    it('/settings/preferences/storage/edit (deep-link direto): abre já em modo edição, sem precisar clicar', async () => {
       stubFetch()
       render(
-        <MemoryRouter initialEntries={['/settings/storage/edit']}>
+        <MemoryRouter initialEntries={['/settings/preferences/storage/edit']}>
           <StorageSettingsPage />
         </MemoryRouter>,
       )
@@ -127,7 +129,7 @@ describe('StorageSettingsPage', () => {
     it('clicar em Editar revela o formulário (botão Salvar aparece)', async () => {
       stubFetch()
       render(
-        <MemoryRouter initialEntries={['/settings/storage']}>
+        <MemoryRouter initialEntries={['/settings/preferences/storage']}>
           <StorageSettingsPage />
         </MemoryRouter>,
       )
@@ -143,7 +145,7 @@ describe('StorageSettingsPage', () => {
     it('salvar com sucesso volta ao modo visualização', async () => {
       stubFetch()
       render(
-        <MemoryRouter initialEntries={['/settings/storage']}>
+        <MemoryRouter initialEntries={['/settings/preferences/storage']}>
           <StorageSettingsPage />
         </MemoryRouter>,
       )
@@ -164,7 +166,7 @@ describe('StorageSettingsPage', () => {
     it('cancelar descarta a edição sem chamar a API e volta ao modo visualização', async () => {
       stubFetch()
       render(
-        <MemoryRouter initialEntries={['/settings/storage']}>
+        <MemoryRouter initialEntries={['/settings/preferences/storage']}>
           <StorageSettingsPage />
         </MemoryRouter>,
       )
@@ -202,13 +204,54 @@ describe('StorageSettingsPage', () => {
   it('mostra o card "Uso de disco" (Total/Gravações/Disponível), migrado de StatsPage', async () => {
     stubFetch()
     render(
-      <MemoryRouter initialEntries={['/settings/storage']}>
+      <MemoryRouter initialEntries={['/settings/preferences/storage']}>
         <StorageSettingsPage />
       </MemoryRouter>,
     )
     await waitFor(() => {
       expect(document.body.textContent).toContain('Uso de disco')
       expect(document.body.textContent).toContain('Disponível')
+    })
+  })
+
+  // CA6/CA7 (história refactor/preferencias-submenu-lateral-storage): Armazenamento
+  // vira parte de Preferências — botão "Editar" migra pro card "Configuração" e as
+  // rotas passam a ser /settings/preferences/storage(/edit).
+  describe('CA6: o botão "Editar" fica dentro do card "Configuração", não solto no cabeçalho', () => {
+    it('storage-edit é descendente do card que contém o título "Configuração"', async () => {
+      stubFetch()
+      render(
+        <MemoryRouter initialEntries={['/settings/preferences/storage']}>
+          <StorageSettingsPage />
+        </MemoryRouter>,
+      )
+      const editBtn = await waitFor(() => {
+        const btn = document.getElementById('storage-edit')
+        expect(btn).toBeTruthy()
+        return btn!
+      })
+
+      const configTitle = Array.from(document.querySelectorAll('p')).find(
+        (p) => p.textContent === 'Configuração',
+      )
+      expect(configTitle).toBeTruthy()
+      const configCard = configTitle!.closest('div, section') as HTMLElement
+      expect(configCard.contains(editBtn)).toBe(true)
+    })
+  })
+
+  describe('CA7: rotas migram pra /settings/preferences/storage(/edit)', () => {
+    it('/settings/preferences/storage/edit (deep-link direto) abre já em modo edição', async () => {
+      stubFetch()
+      render(
+        <MemoryRouter initialEntries={['/settings/preferences/storage/edit']}>
+          <StorageSettingsPage />
+        </MemoryRouter>,
+      )
+      await waitFor(() => {
+        expect(document.getElementById('storage-save')).toBeTruthy()
+      })
+      expect(document.getElementById('storage-edit')).toBeNull()
     })
   })
 })
