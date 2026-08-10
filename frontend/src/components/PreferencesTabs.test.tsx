@@ -17,3 +17,30 @@ describe('CA7: PreferencesTabs mostra "Extensões" como sub-item de "Preferênci
     expect(tab.getAttribute('href')).toBe('/settings/preferences/extensions')
   })
 })
+
+describe('CA2: PreferencesTabs mostra "Aparência" como 2ª aba, depois de "Extensões"', () => {
+  it('renderiza a aba "Aparência" apontando pra /settings/preferences/appearance', () => {
+    render(
+      <MemoryRouter>
+        <PreferencesTabs active="appearance" />
+      </MemoryRouter>,
+    )
+
+    const tab = screen.getByText('Aparência')
+    expect(tab.getAttribute('href')).toBe('/settings/preferences/appearance')
+  })
+
+  it('"Aparência" vem depois de "Extensões" na ordem das abas', () => {
+    render(
+      <MemoryRouter>
+        <PreferencesTabs active="appearance" />
+      </MemoryRouter>,
+    )
+
+    const extensions = screen.getByText('Extensões')
+    const appearance = screen.getByText('Aparência')
+    expect(
+      extensions.compareDocumentPosition(appearance) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+})
