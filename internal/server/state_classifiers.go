@@ -109,6 +109,12 @@ func (s *Server) handleStateClassifierCreate(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	c.ID = newID
+
+	if s.onStateClassifierStart != nil {
+		snap := c
+		go s.onStateClassifierStart(snap)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(c)
@@ -140,6 +146,19 @@ func (s *Server) handleStateClassifierUpdate(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+
+	if s.onStateClassifierStop != nil || s.onStateClassifierStart != nil {
+		snap := c
+		go func() {
+			if s.onStateClassifierStop != nil {
+				s.onStateClassifierStop(snap.ID)
+			}
+			if s.onStateClassifierStart != nil {
+				s.onStateClassifierStart(snap)
+			}
+		}()
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(c)
 }
@@ -155,6 +174,9 @@ func (s *Server) handleStateClassifierDelete(w http.ResponseWriter, r *http.Requ
 		if err := db.DeleteStateClassifier(s.db, cid); err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
+		}
+		if s.onStateClassifierStop != nil {
+			s.onStateClassifierStop(cid)
 		}
 		if s.storageCfg.Path != "" {
 			cidStr := strconv.FormatInt(cid, 10)

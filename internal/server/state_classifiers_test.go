@@ -366,6 +366,103 @@ func TestHandleStateClassifierDelete_RemovesDiskDirs(t *testing.T) {
 	})
 }
 
+// --- callbacks de ciclo de vida (fix/state-classifier-enabled-sem-restart) ---
+//
+// Mesmo padrão de TestCreateCamera_CallsOnCameraStart/TestDeleteCamera_CallsOnCameraStop
+// em cameras_test.go: injeta WithStateClassifierCallbacks com closures fake que só
+// registram a chamada, sem subir runner de verdade — a fiação real (main.go) fica
+// fora do alcance de um teste de internal/server.
+
+func TestCreateStateClassifier_CallsOnStateClassifierStart(t *testing.T) {
+	t.Run("CA3: criar um classificador chama start com o classificador recém-criado (id incluído)", func(t *testing.T) {
+		srv, token, camID := setupClassifierServer(t)
+
+		var started []stateclass.Classifier
+		srv = srv.WithStateClassifierCallbacks(
+			func(c stateclass.Classifier) { started = append(started, c) },
+			nil,
+		)
+
+		w := doJSON(t, srv, http.MethodPost, "/api/settings/cameras/"+camID+"/classifiers", token, validClassifierBody())
+		if w.Code != http.StatusCreated {
+			t.Fatalf("create: expected 201, got %d: %s", w.Code, w.Body.String())
+		}
+		var created struct {
+			ID int64 `json:"id"`
+		}
+		json.Unmarshal(w.Body.Bytes(), &created)
+		time.Sleep(50 * time.Millisecond)
+
+		if len(started) != 1 || started[0].ID != created.ID || started[0].Name != "Portão" {
+			t.Fatalf("expected onStateClassifierStart with the created classifier, got %+v", started)
+		}
+	})
+}
+
+func TestUpdateStateClassifier_CallsStopThenStart(t *testing.T) {
+	t.Run("CA2: atualizar um classificador chama stop seguido de start com a config nova", func(t *testing.T) {
+		srv, token, camID := setupClassifierServer(t)
+		base := "/api/settings/cameras/" + camID + "/classifiers"
+
+		w := doJSON(t, srv, http.MethodPost, base, token, validClassifierBody())
+		var created struct {
+			ID int64 `json:"id"`
+		}
+		json.Unmarshal(w.Body.Bytes(), &created)
+
+		var calls []string
+		var stopped []int64
+		var started []stateclass.Classifier
+		srv = srv.WithStateClassifierCallbacks(
+			func(c stateclass.Classifier) { calls = append(calls, "start"); started = append(started, c) },
+			func(id int64) { calls = append(calls, "stop"); stopped = append(stopped, id) },
+		)
+
+		upd := validClassifierBody()
+		upd["name"] = "Portão lateral"
+		w = doJSON(t, srv, http.MethodPut, base+"/"+strconv.FormatInt(created.ID, 10), token, upd)
+		if w.Code != http.StatusOK {
+			t.Fatalf("update: expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		time.Sleep(50 * time.Millisecond)
+
+		if len(stopped) != 1 || stopped[0] != created.ID {
+			t.Fatalf("expected onStateClassifierStop(%d), got %v", created.ID, stopped)
+		}
+		if len(started) != 1 || started[0].ID != created.ID || started[0].Name != "Portão lateral" {
+			t.Fatalf("expected onStateClassifierStart with updated classifier, got %+v", started)
+		}
+		if len(calls) != 2 || calls[0] != "stop" || calls[1] != "start" {
+			t.Fatalf("expected stop before start, got %v", calls)
+		}
+	})
+}
+
+func TestDeleteStateClassifier_CallsOnStateClassifierStop(t *testing.T) {
+	t.Run("CA4: excluir um classificador chama stop com o id excluído", func(t *testing.T) {
+		srv, token, camID := setupClassifierServer(t)
+		base := "/api/settings/cameras/" + camID + "/classifiers"
+
+		w := doJSON(t, srv, http.MethodPost, base, token, validClassifierBody())
+		var created struct {
+			ID int64 `json:"id"`
+		}
+		json.Unmarshal(w.Body.Bytes(), &created)
+
+		var stopped []int64
+		srv = srv.WithStateClassifierCallbacks(nil, func(id int64) { stopped = append(stopped, id) })
+
+		w = doJSON(t, srv, http.MethodDelete, base+"/"+strconv.FormatInt(created.ID, 10), token, nil)
+		if w.Code != http.StatusNoContent {
+			t.Fatalf("delete: expected 204, got %d: %s", w.Code, w.Body.String())
+		}
+
+		if len(stopped) != 1 || stopped[0] != created.ID {
+			t.Fatalf("expected onStateClassifierStop(%d), got %v", created.ID, stopped)
+		}
+	})
+}
+
 func writeTestFile(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {

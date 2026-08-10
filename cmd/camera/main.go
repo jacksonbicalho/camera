@@ -219,12 +219,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var (
-		camMu          sync.Mutex
-		cancelsByID    = make(map[string]context.CancelFunc)
-		motionMonsByID = make(map[string]*motion.Monitor)
-		streamsByID    = make(map[string]ffprobe.StreamInfo)
-		livePubsByID   = make(map[string]*webrtc.Publisher)
-		wg             sync.WaitGroup
+		camMu                 sync.Mutex
+		cancelsByID           = make(map[string]context.CancelFunc)
+		motionMonsByID        = make(map[string]*motion.Monitor)
+		streamsByID           = make(map[string]ffprobe.StreamInfo)
+		livePubsByID          = make(map[string]*webrtc.Publisher)
+		classifierCancelsByID = make(map[int64]context.CancelFunc)
+		wg                    sync.WaitGroup
 	)
 
 	// srv is assigned after NewServer; callbacks close over this variable.
@@ -482,16 +483,52 @@ func main() {
 				StoragePath: cfg.Storage.Path,
 				Log:         slog,
 			}
-			var all []stateclass.Classifier
+
+			// startClassifierRunner/stopClassifierRunner mantêm um runner por
+			// classificador reiniciável em tempo real (sem reiniciar a aplicação) —
+			// mesmo padrão de startCameraProcs/stopCameraProcs acima, com o registro
+			// de cancelFuncs protegido pelo mesmo camMu. StartRunners já filtra por
+			// habilitado+intervalo>0 (SelectIntervalRunners); reaproveitá-lo aqui
+			// evita duplicar esse critério.
+			startClassifierRunner := func(c stateclass.Classifier) bool {
+				cctx, ccancel := context.WithCancel(ctx)
+				if stateengine.StartRunners(cctx, []stateclass.Classifier{c}, deps) == 0 {
+					ccancel()
+					return false
+				}
+				camMu.Lock()
+				classifierCancelsByID[c.ID] = ccancel
+				camMu.Unlock()
+				return true
+			}
+			stopClassifierRunner := func(id int64) {
+				camMu.Lock()
+				cancel := classifierCancelsByID[id]
+				delete(classifierCancelsByID, id)
+				camMu.Unlock()
+				if cancel != nil {
+					cancel()
+				}
+			}
+
+			n := 0
 			for _, cam := range cameras {
 				cs, err := db.ListStateClassifiers(database, cam.ID)
 				if err != nil {
 					continue
 				}
-				all = append(all, cs...)
+				for _, c := range cs {
+					if startClassifierRunner(c) {
+						n++
+					}
+				}
 			}
-			if n := stateengine.StartRunners(context.Background(), all, deps); n > 0 {
+			if n > 0 {
 				slog.Info("state classifiers running", "count", n)
+			}
+
+			if srv != nil {
+				srv.WithStateClassifierCallbacks(func(c stateclass.Classifier) { startClassifierRunner(c) }, stopClassifierRunner)
 			}
 		}
 	}
