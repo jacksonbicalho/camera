@@ -7,7 +7,7 @@ import (
 	"camera/internal/db"
 )
 
-type driveDTO struct {
+type retentionExtensionDTO struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Type     string `json:"type"`
@@ -18,36 +18,39 @@ type driveDTO struct {
 	Prefix string `json:"prefix"`
 }
 
-func driveToDTO(dr db.Drive) driveDTO {
-	return driveDTO{
-		ID:       dr.ID,
-		Name:     dr.Name,
-		Type:     dr.Type,
-		Endpoint: dr.Endpoint,
-		Bucket:   dr.Bucket,
-		Region:   dr.Region,
-		Prefix:   dr.Prefix,
+func retentionExtensionToDTO(re db.RetentionExtension) retentionExtensionDTO {
+	return retentionExtensionDTO{
+		ID:       re.ID,
+		Name:     re.Name,
+		Type:     re.Type,
+		Endpoint: re.Endpoint,
+		Bucket:   re.Bucket,
+		Region:   re.Region,
+		Prefix:   re.Prefix,
 	}
 }
 
-func (s *Server) handleListDrives(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListRetentionExtensions(w http.ResponseWriter, r *http.Request) {
 	if !s.requireDB(w) {
 		return
 	}
-	drives, err := db.ListDrives(s.db)
+	list, err := db.ListRetentionExtensions(s.db)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	list := make([]driveDTO, len(drives))
-	for i, dr := range drives {
-		list[i] = driveToDTO(dr)
+	out := make([]retentionExtensionDTO, len(list))
+	for i, re := range list {
+		out[i] = retentionExtensionToDTO(re)
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(list)
+	json.NewEncoder(w).Encode(out)
 }
 
-func (s *Server) handleCreateDrive(w http.ResponseWriter, r *http.Request) {
+// handleCreateRetentionExtension rejeita (409) uma 2ª criação — S3 é
+// singleton (decisão do navigator, ver work_progress/analysis): só 1
+// retention_extension pode existir por vez.
+func (s *Server) handleCreateRetentionExtension(w http.ResponseWriter, r *http.Request) {
 	if !s.requireDB(w) {
 		return
 	}
@@ -69,17 +72,24 @@ func (s *Server) handleCreateDrive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name, bucket, access_key and secret_key are required", http.StatusBadRequest)
 		return
 	}
-	driveType := input.Type
-	if driveType == "" {
-		driveType = "s3"
+	extType := input.Type
+	if extType == "" {
+		extType = "s3"
 	}
-	if driveType != "s3" {
-		http.Error(w, "unsupported drive type", http.StatusBadRequest)
+	if extType != "s3" {
+		http.Error(w, "unsupported retention extension type", http.StatusBadRequest)
 		return
 	}
-	dr := db.Drive{
+	if has, err := db.HasRetentionExtension(s.db); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	} else if has {
+		http.Error(w, "já existe uma extensão de retenção configurada", http.StatusConflict)
+		return
+	}
+	re := db.RetentionExtension{
 		Name:      input.Name,
-		Type:      driveType,
+		Type:      extType,
 		Endpoint:  input.Endpoint,
 		Bucket:    input.Bucket,
 		Region:    input.Region,
@@ -87,24 +97,24 @@ func (s *Server) handleCreateDrive(w http.ResponseWriter, r *http.Request) {
 		SecretKey: input.SecretKey,
 		Prefix:    input.Prefix,
 	}
-	created, err := db.InsertDrive(s.db, dr)
+	created, err := db.InsertRetentionExtension(s.db, re)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(driveToDTO(created))
+	json.NewEncoder(w).Encode(retentionExtensionToDTO(created))
 }
 
-func (s *Server) handleUpdateDrive(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUpdateRetentionExtension(w http.ResponseWriter, r *http.Request) {
 	if !s.requireDB(w) {
 		return
 	}
 	id := r.PathValue("id")
-	existing, err := db.GetDrive(s.db, id)
+	existing, err := db.GetRetentionExtension(s.db, id)
 	if err != nil {
-		http.Error(w, "drive not found", http.StatusNotFound)
+		http.Error(w, "retention extension not found", http.StatusNotFound)
 		return
 	}
 	var input struct {
@@ -134,20 +144,20 @@ func (s *Server) handleUpdateDrive(w http.ResponseWriter, r *http.Request) {
 	if input.SecretKey != "" {
 		existing.SecretKey = input.SecretKey
 	}
-	if err := db.UpdateDrive(s.db, existing); err != nil {
+	if err := db.UpdateRetentionExtension(s.db, existing); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(driveToDTO(existing))
+	json.NewEncoder(w).Encode(retentionExtensionToDTO(existing))
 }
 
-func (s *Server) handleDeleteDrive(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleDeleteRetentionExtension(w http.ResponseWriter, r *http.Request) {
 	if !s.requireDB(w) {
 		return
 	}
 	id := r.PathValue("id")
-	if err := db.DeleteDrive(s.db, id); err != nil {
+	if err := db.DeleteRetentionExtension(s.db, id); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -177,8 +187,8 @@ func (s *Server) handleUpdateRetentionConfig(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	var input struct {
-		Action  string `json:"action"`
-		DriveID string `json:"drive_id"`
+		Action               string `json:"action"`
+		RetentionExtensionID string `json:"retention_extension_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
@@ -188,14 +198,14 @@ func (s *Server) handleUpdateRetentionConfig(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "action must be 'delete' or 'send_to_drive'", http.StatusBadRequest)
 		return
 	}
-	if input.Action == "send_to_drive" && input.DriveID == "" {
-		http.Error(w, "drive_id required for send_to_drive action", http.StatusBadRequest)
+	if input.Action == "send_to_drive" && input.RetentionExtensionID == "" {
+		http.Error(w, "retention_extension_id required for send_to_drive action", http.StatusBadRequest)
 		return
 	}
 	rc := db.RetentionConfig{
-		Category: category,
-		Action:   input.Action,
-		DriveID:  input.DriveID,
+		Category:             category,
+		Action:               input.Action,
+		RetentionExtensionID: input.RetentionExtensionID,
 	}
 	if err := db.UpdateRetentionConfig(s.db, rc); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)

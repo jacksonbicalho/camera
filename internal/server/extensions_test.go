@@ -158,3 +158,36 @@ func TestExtensionsListed(t *testing.T) {
 		}
 	})
 }
+
+func TestExtensionsListed_S3(t *testing.T) {
+	t.Run("CA5: a extensão s3 aparece na lista com category=retention e available conforme extensions.s3.enabled", func(t *testing.T) {
+		t.Run("available=false quando extensions.s3.enabled=false", func(t *testing.T) {
+			srv, token := setupExtensionsServer(t, config.ExtensionsConfig{})
+			list := getExtensions(t, srv, token)
+			s3ext, ok := findExtension(list, "s3")
+			if !ok {
+				t.Fatalf("esperava a extensão s3 na lista, got %+v", list)
+			}
+			if s3ext.Category != "Retenção" {
+				t.Errorf("category = %q, want Retenção", s3ext.Category)
+			}
+			if s3ext.Available {
+				t.Error("expected available=false with extensions.s3.enabled=false")
+			}
+		})
+
+		t.Run("available=true quando extensions.s3.enabled=true", func(t *testing.T) {
+			srv, token := setupExtensionsServer(t, config.ExtensionsConfig{
+				S3: config.S3ExtensionConfig{Enabled: true},
+			})
+			list := getExtensions(t, srv, token)
+			s3ext, ok := findExtension(list, "s3")
+			if !ok {
+				t.Fatalf("esperava a extensão s3 na lista, got %+v", list)
+			}
+			if !s3ext.Available {
+				t.Error("expected available=true with extensions.s3.enabled=true")
+			}
+		})
+	})
+}

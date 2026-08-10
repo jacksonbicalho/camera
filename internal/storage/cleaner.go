@@ -328,12 +328,12 @@ func (c *Cleaner) loadDrives() (drives map[string]s3.Uploader, withMotionAction,
 	withMotionAction = "delete"
 	withoutMotionAction = "delete"
 
-	dbDrives, err := db.ListDrives(c.db)
+	dbExtensions, err := db.ListRetentionExtensions(c.db)
 	if err != nil {
-		c.log.Warn("failed to load drives from db", "err", err)
+		c.log.Warn("failed to load retention extensions from db", "err", err)
 		return
 	}
-	for _, dr := range dbDrives {
+	for _, dr := range dbExtensions {
 		if dr.Type == "s3" {
 			drives[dr.ID] = s3.NewClient(s3.Config{
 				Endpoint:  dr.Endpoint,
@@ -355,10 +355,10 @@ func (c *Cleaner) loadDrives() (drives map[string]s3.Uploader, withMotionAction,
 		switch rc.Category {
 		case "with_motion":
 			withMotionAction = rc.Action
-			withMotionDriveID = rc.DriveID
+			withMotionDriveID = rc.RetentionExtensionID
 		case "without_motion":
 			withoutMotionAction = rc.Action
-			withoutMotionDriveID = rc.DriveID
+			withoutMotionDriveID = rc.RetentionExtensionID
 		}
 	}
 	return

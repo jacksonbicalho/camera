@@ -35,6 +35,13 @@ func (s *Server) extensionsMeta() []extensionDTO {
 			Description: "Envia notificações de movimento via Telegram.",
 			Available:   s.extensionsCfg.Telegram.Enabled && s.extensionsCfg.Telegram.BotToken != "",
 		},
+		{
+			ID:          "s3",
+			Name:        "S3",
+			Category:    "Retenção",
+			Description: "Envia gravações expiradas para um destino S3 externo antes de apagá-las.",
+			Available:   s.extensionsCfg.S3.Enabled,
+		},
 	}
 }
 

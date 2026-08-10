@@ -113,10 +113,10 @@ func (s *Server) routeTable() []route {
 		{"GET", "/api/settings/extensions", authAdmin, s.handleGetExtensionsConfig},
 		{"PUT", "/api/settings/extensions/{id}", authAdmin, s.handleUpdateExtensionConfig},
 
-		{"GET", "/api/drives", authAdmin, s.handleListDrives},
-		{"POST", "/api/drives", authAdmin, s.handleCreateDrive},
-		{"PUT", "/api/drives/{id}", authAdmin, s.handleUpdateDrive},
-		{"DELETE", "/api/drives/{id}", authAdmin, s.handleDeleteDrive},
+		{"GET", "/api/retention-extensions", authAdmin, s.handleListRetentionExtensions},
+		{"POST", "/api/retention-extensions", authAdmin, s.handleCreateRetentionExtension},
+		{"PUT", "/api/retention-extensions/{id}", authAdmin, s.handleUpdateRetentionExtension},
+		{"DELETE", "/api/retention-extensions/{id}", authAdmin, s.handleDeleteRetentionExtension},
 		{"GET", "/api/retention", authAdmin, s.handleListRetentionConfigs},
 		{"PUT", "/api/retention/{category}", authAdmin, s.handleUpdateRetentionConfig},
 
