@@ -32,25 +32,17 @@ vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
-vi.mock('../../components/ConfirmDialog', () => ({
-  default: () => null,
-}))
-
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
-const drive1 = {
-  id: 'drive-1',
+// S3 é singleton (história feat/extensoes-generalizadas-s3-extensao) — no
+// máximo 1 retention_extension existe; cadastrá-la/editá-la não é mais
+// responsabilidade desta página (vive em Preferências > Extensões >
+// Configurar). Esta página só CONSOME a lista (0 ou 1 item) pro select "Ao
+// expirar".
+const extension = {
+  id: 'ext-1',
   name: 'Backup S3',
-  type: 's3',
-  endpoint: 'https://s3.example.com',
-  bucket: 'cam',
-  region: 'us-east-1',
-  prefix: '',
-}
-const drive2 = {
-  id: 'drive-2',
-  name: 'Offsite',
   type: 's3',
   endpoint: 'https://s3.example.com',
   bucket: 'cam',
@@ -65,11 +57,11 @@ function putCalls() {
   )
 }
 
-describe('retention destination — unified dropdown (Apagar + drives)', () => {
-  it('lists "Apagar" plus every registered drive as options', async () => {
+describe('retention destination — select alimentado por /api/retention-extensions (singleton)', () => {
+  it('lista "Apagar" + a extensão de retenção configurada', async () => {
     mockFetch.mockImplementation((url: string) => {
-      if (url === '/api/drives')
-        return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
+      if (url === '/api/retention-extensions')
+        return Promise.resolve({ ok: true, json: async () => [extension] })
       if (url === '/api/retention') return Promise.resolve({ ok: true, json: async () => [] })
       return Promise.resolve({ ok: true, json: async () => ({}) })
     })
@@ -95,13 +87,12 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
       .map((o) => o.textContent)
     expect(opts).toContain('Apagar')
     expect(opts).toContain('Backup S3')
-    expect(opts).toContain('Offsite')
   })
 
-  it('selecting a drive sends send_to_drive + drive_id', async () => {
+  it('selecionar a extensão envia send_to_drive + retention_extension_id', async () => {
     mockFetch.mockImplementation((url: string) => {
-      if (url === '/api/drives')
-        return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
+      if (url === '/api/retention-extensions')
+        return Promise.resolve({ ok: true, json: async () => [extension] })
       if (url === '/api/retention') return Promise.resolve({ ok: true, json: async () => [] })
       return Promise.resolve({ ok: true, json: async () => ({}) })
     })
@@ -114,8 +105,8 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
     await waitFor(() => expect(document.getElementById('storage-edit')).toBeTruthy())
     fireEvent.click(document.getElementById('storage-edit')!)
 
-    // Wait until the dropdown exists AND the drive options have loaded, otherwise
-    // changing to a not-yet-rendered option yields an empty value (flaky).
+    // Wait until the dropdown exists AND the extension option has loaded,
+    // otherwise changing to a not-yet-rendered option yields an empty value (flaky).
     const destSelect = await waitFor(() => {
       const s = screen
         .getAllByRole('combobox')
@@ -127,26 +118,26 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
 
     mockFetch.mockClear()
     mockFetch.mockResolvedValue({ ok: true, json: async () => [] })
-    fireEvent.change(destSelect, { target: { value: 'drive:drive-1' } })
+    fireEvent.change(destSelect, { target: { value: 'ext:ext-1' } })
 
     await waitFor(() => {
       const calls = putCalls()
       expect(calls.length).toBe(1)
       const body = JSON.parse((calls[0][1] as RequestInit).body as string)
       expect(body.action).toBe('send_to_drive')
-      expect(body.drive_id).toBe('drive-1')
+      expect(body.retention_extension_id).toBe('ext-1')
     })
   })
 
-  it('selecting "Apagar" sends action delete', async () => {
+  it('selecionar "Apagar" envia action delete', async () => {
     mockFetch.mockImplementation((url: string) => {
-      if (url === '/api/drives')
-        return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
+      if (url === '/api/retention-extensions')
+        return Promise.resolve({ ok: true, json: async () => [extension] })
       if (url === '/api/retention')
         return Promise.resolve({
           ok: true,
           json: async () => [
-            { category: 'with_motion', action: 'send_to_drive', drive_id: 'drive-2' },
+            { category: 'with_motion', action: 'send_to_drive', retention_extension_id: 'ext-1' },
           ],
         })
       return Promise.resolve({ ok: true, json: async () => ({}) })
@@ -160,17 +151,17 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
     await waitFor(() => expect(document.getElementById('storage-edit')).toBeTruthy())
     fireEvent.click(document.getElementById('storage-edit')!)
 
-    const driveSelect = await waitFor(() => {
+    const extSelect = await waitFor(() => {
       const s = screen
         .getAllByRole('combobox')
-        .find((el) => (el as HTMLSelectElement).value === 'drive:drive-2')
+        .find((el) => (el as HTMLSelectElement).value === 'ext:ext-1')
       expect(s).toBeTruthy()
       return s as HTMLSelectElement
     })
 
     mockFetch.mockClear()
     mockFetch.mockResolvedValue({ ok: true, json: async () => [] })
-    fireEvent.change(driveSelect, { target: { value: 'delete' } })
+    fireEvent.change(extSelect, { target: { value: 'delete' } })
 
     await waitFor(() => {
       const calls = putCalls()
@@ -180,15 +171,15 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
     })
   })
 
-  it('pre-selects the configured drive (value drive:<id>)', async () => {
+  it('pré-seleciona a extensão configurada (value ext:<id>)', async () => {
     mockFetch.mockImplementation((url: string) => {
-      if (url === '/api/drives')
-        return Promise.resolve({ ok: true, json: async () => [drive1, drive2] })
+      if (url === '/api/retention-extensions')
+        return Promise.resolve({ ok: true, json: async () => [extension] })
       if (url === '/api/retention')
         return Promise.resolve({
           ok: true,
           json: async () => [
-            { category: 'with_motion', action: 'send_to_drive', drive_id: 'drive-2' },
+            { category: 'with_motion', action: 'send_to_drive', retention_extension_id: 'ext-1' },
           ],
         })
       return Promise.resolve({ ok: true, json: async () => ({}) })
@@ -205,8 +196,37 @@ describe('retention destination — unified dropdown (Apagar + drives)', () => {
     await waitFor(() => {
       const s = screen
         .getAllByRole('combobox')
-        .find((el) => (el as HTMLSelectElement).value === 'drive:drive-2')
+        .find((el) => (el as HTMLSelectElement).value === 'ext:ext-1')
       expect(s).toBeTruthy()
     })
+  })
+
+  it('sem nenhuma extensão configurada, o select só lista "Apagar"', async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url === '/api/retention-extensions')
+        return Promise.resolve({ ok: true, json: async () => [] })
+      if (url === '/api/retention') return Promise.resolve({ ok: true, json: async () => [] })
+      return Promise.resolve({ ok: true, json: async () => ({}) })
+    })
+
+    render(
+      <MemoryRouter>
+        <StorageSettingsPage />
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(document.getElementById('storage-edit')).toBeTruthy())
+    fireEvent.click(document.getElementById('storage-edit')!)
+
+    const destSelect = await waitFor(() => {
+      const s = screen
+        .getAllByRole('combobox')
+        .find((el) => (el as HTMLSelectElement).value === 'delete')
+      expect(s).toBeTruthy()
+      return s as HTMLSelectElement
+    })
+    const opts = within(destSelect)
+      .getAllByRole('option')
+      .map((o) => o.textContent)
+    expect(opts).toEqual(['Apagar'])
   })
 })
