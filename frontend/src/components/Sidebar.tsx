@@ -18,7 +18,6 @@ import {
   LayoutGrid,
   Menu,
   Network,
-  Palette,
   Pencil,
   Search,
   Server,
@@ -336,15 +335,6 @@ export default function Sidebar() {
                   to: '/settings/users',
                   label: 'Usuários',
                   icon: <Users className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-appearance',
-                  to: '/settings/appearance',
-                  label: 'Aparência',
-                  icon: <Palette className="h-5 w-5 shrink-0" />,
                 }}
                 showLabel={showLabel}
               />

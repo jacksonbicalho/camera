@@ -1,5 +1,6 @@
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
+import PreferencesTabs from '../../components/PreferencesTabs'
 import { Check } from '../../components/Icons'
 import { useTheme, type Mode, type AccentColor } from '../../contexts/ThemeContext'
 import { ACCENT_OPTIONS } from '../../components/accentOptions'
@@ -47,9 +48,10 @@ export default function AppearanceSettingsPage() {
   return (
     <SettingsLayout id="appearance-settings-page" footerId="appearance-settings-footer">
       <PageHeader
-        title="Aparência"
+        title="Preferências"
         subtitle="Controla como botões e rótulos são exibidos na interface."
       />
+      <PreferencesTabs active="appearance" />
 
       <div className="flex flex-col gap-6">
         <div className="bg-surface border border-border rounded-lg p-5 flex flex-col gap-3">

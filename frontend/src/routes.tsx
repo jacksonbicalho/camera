@@ -305,18 +305,18 @@ export const routes = (
       }
     />
     <Route
-      path="/settings/appearance"
-      element={
-        <Lazy>
-          <AppearanceSettingsPage />
-        </Lazy>
-      }
-    />
-    <Route
       path="/settings/preferences/extensions"
       element={
         <Lazy>
           <PreferencesExtensionsPage />
+        </Lazy>
+      }
+    />
+    <Route
+      path="/settings/preferences/appearance"
+      element={
+        <Lazy>
+          <AppearanceSettingsPage />
         </Lazy>
       }
     />

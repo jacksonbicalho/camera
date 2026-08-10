@@ -291,31 +291,28 @@ describe('regressão: "Rastrear câmeras" migrou pra "Administração", depois d
   })
 })
 
-describe('CA3: seção "Administração" ganha o item "Aparência" (→ /settings/appearance)', () => {
-  it('admin vê o item Aparência dentro de Administração', () => {
+// CA3 (história refactor/mover-appearance-preferencias): "Aparência" deixou
+// de ser item próprio do Sidebar — virou a 2ª aba de Preferências
+// (PreferencesTabs). Substitui o describe anterior que testava
+// sidebar-appearance como item independente.
+describe('CA3: item "Aparência" sai do Sidebar (migrou pra dentro de Preferências)', () => {
+  it('nem admin nem viewer veem mais o item "Aparência" no Sidebar', () => {
     renderAt('/')
-    expect(document.getElementById('sidebar-appearance')?.getAttribute('href')).toBe(
-      '/settings/appearance',
-    )
-  })
+    expect(document.getElementById('sidebar-appearance')).toBeNull()
 
-  it('viewer não vê o item Aparência (seção Administração inteira é admin-only)', () => {
+    cleanup()
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
     expect(document.getElementById('sidebar-appearance')).toBeNull()
   })
 })
 
-describe('Sidebar ganha o item "Preferências" (→ /settings/preferences/extensions), logo depois de "Aparência"', () => {
-  it('admin vê o item Preferências dentro de Administração, depois de Aparência', () => {
+describe('Sidebar tem o item "Preferências" (→ /settings/preferences/extensions) dentro de Administração', () => {
+  it('admin vê o item Preferências dentro de Administração', () => {
     renderAt('/')
-    const appearance = document.getElementById('sidebar-appearance')!
     const preferences = document.getElementById('sidebar-preferences')!
 
     expect(preferences.getAttribute('href')).toBe('/settings/preferences/extensions')
-    expect(
-      appearance.compareDocumentPosition(preferences) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
   })
 
   it('viewer não vê o item Preferências (seção Administração inteira é admin-only)', () => {

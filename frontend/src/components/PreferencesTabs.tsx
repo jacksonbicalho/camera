@@ -1,17 +1,17 @@
 import { Link } from 'react-router-dom'
 
-type Tab = 'extensions'
+type Tab = 'extensions' | 'appearance'
 
 interface Props {
   active: Tab
 }
 
-// Só 1 aba hoje ("Extensões") — a lista existe pra deixar explícito que
-// "Preferências" é um pai com sub-itens (mais virão: cor de destaque,
-// notificações, etc.), não um link solto. Adicionar uma aba nova é só uma
-// entrada a mais aqui, mesmo padrão de CameraSettingsTabs (Câmera/Zonas).
+// A lista existe pra deixar explícito que "Preferências" é um pai com
+// sub-itens, não um link solto. Adicionar uma aba nova é só uma entrada a
+// mais aqui, mesmo padrão de CameraSettingsTabs (Câmera/Zonas).
 const TABS: { key: Tab; label: string; path: string }[] = [
   { key: 'extensions', label: 'Extensões', path: '/settings/preferences/extensions' },
+  { key: 'appearance', label: 'Aparência', path: '/settings/preferences/appearance' },
 ]
 
 export default function PreferencesTabs({ active }: Props) {
