@@ -306,6 +306,25 @@ describe('CA3: seção "Administração" ganha o item "Aparência" (→ /setting
   })
 })
 
+describe('Sidebar ganha o item "Preferências" (→ /settings/preferences/extensions), logo depois de "Aparência"', () => {
+  it('admin vê o item Preferências dentro de Administração, depois de Aparência', () => {
+    renderAt('/')
+    const appearance = document.getElementById('sidebar-appearance')!
+    const preferences = document.getElementById('sidebar-preferences')!
+
+    expect(preferences.getAttribute('href')).toBe('/settings/preferences/extensions')
+    expect(
+      appearance.compareDocumentPosition(preferences) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('viewer não vê o item Preferências (seção Administração inteira é admin-only)', () => {
+    vi.mocked(getRole).mockReturnValue('viewer')
+    renderAt('/')
+    expect(document.getElementById('sidebar-preferences')).toBeNull()
+  })
+})
+
 describe('regressão: "Estatísticas" e "Governança" seguem fora do Sidebar (histórias anteriores)', () => {
   it('link "Estatísticas" não existe mais no sidebar', () => {
     renderAt('/')

@@ -95,6 +95,7 @@ type Server struct {
 	cfg                 config.ServerConfig
 	storageCfg          config.StorageConfig
 	logCfg              config.LogConfig
+	extensionsCfg       config.ExtensionsConfig
 	debug               bool
 	timezone            string
 	version             string
@@ -282,6 +283,11 @@ func (s *Server) WithApplier(a applyRunner) *Server {
 func (s *Server) WithSystemConfig(debug bool, logCfg config.LogConfig) *Server {
 	s.debug = debug
 	s.logCfg = logCfg
+	return s
+}
+
+func (s *Server) WithExtensionsConfig(cfg config.ExtensionsConfig) *Server {
+	s.extensionsCfg = cfg
 	return s
 }
 

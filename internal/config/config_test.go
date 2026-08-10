@@ -462,6 +462,50 @@ func TestLoadSMTPPortInvalidEnvVarIgnored(t *testing.T) {
 	}
 }
 
+func TestExtensionsConfig(t *testing.T) {
+	t.Run("CA4: OS_CAMERA_EXT_TELEGRAM_BOT_TOKEN sobrescreve cfg.Extensions.Telegram.BotToken", func(t *testing.T) {
+		t.Setenv("OS_CAMERA_EXT_TELEGRAM_BOT_TOKEN", "env-token")
+
+		path := writeTempYAML(t, `storage:
+  path: /tmp`)
+
+		cfg, err := config.Load(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Extensions.Telegram.BotToken != "env-token" {
+			t.Errorf("expected BotToken from env var, got %q", cfg.Extensions.Telegram.BotToken)
+		}
+	})
+
+	t.Run("BotToken vem do YAML quando a env var não está setada", func(t *testing.T) {
+		path := writeTempYAML(t, `extensions:
+  telegram:
+    bot_token: yaml-token`)
+
+		cfg, err := config.Load(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Extensions.Telegram.BotToken != "yaml-token" {
+			t.Errorf("expected BotToken from YAML, got %q", cfg.Extensions.Telegram.BotToken)
+		}
+	})
+
+	t.Run("BotToken vazio por padrão quando não configurado", func(t *testing.T) {
+		path := writeTempYAML(t, `storage:
+  path: /tmp`)
+
+		cfg, err := config.Load(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Extensions.Telegram.BotToken != "" {
+			t.Errorf("expected empty BotToken by default, got %q", cfg.Extensions.Telegram.BotToken)
+		}
+	})
+}
+
 func TestLoadSMTPFromYAML(t *testing.T) {
 	path := writeTempYAML(t, `smtp:
   host: mail.internal

@@ -409,6 +409,7 @@ func main() {
 			WithVersion(version).
 			WithBuildInfo(commit, builtAt).
 			WithSystemConfig(cfg.Debug, cfg.Log).
+			WithExtensionsConfig(cfg.Extensions).
 			WithSnapshotter(takeSnapshot).
 			WithFrameExtractor(extractFrame).
 			WithCameraCallbacks(startCameraProcs, stopCameraProcs).
