@@ -6,40 +6,53 @@ import (
 	"camera/internal/db"
 )
 
-func TestTelegramExtension(t *testing.T) {
+func TestExtensionActive(t *testing.T) {
 	database := openTestDB(t)
 
 	t.Run("desabilitada por padrão quando nunca configurada", func(t *testing.T) {
-		enabled, err := db.GetTelegramExtensionEnabled(database)
+		active, err := db.GetExtensionActive(database, "telegram")
 		if err != nil {
-			t.Fatalf("GetTelegramExtensionEnabled: %v", err)
+			t.Fatalf("GetExtensionActive: %v", err)
 		}
-		if enabled {
+		if active {
 			t.Error("expected disabled by default")
 		}
 	})
 
 	t.Run("Set/Get round-trip", func(t *testing.T) {
-		if err := db.SetTelegramExtensionEnabled(database, true); err != nil {
-			t.Fatalf("SetTelegramExtensionEnabled(true): %v", err)
+		if err := db.SetExtensionActive(database, "telegram", true); err != nil {
+			t.Fatalf("SetExtensionActive(true): %v", err)
 		}
-		enabled, err := db.GetTelegramExtensionEnabled(database)
+		active, err := db.GetExtensionActive(database, "telegram")
 		if err != nil {
-			t.Fatalf("GetTelegramExtensionEnabled: %v", err)
+			t.Fatalf("GetExtensionActive: %v", err)
 		}
-		if !enabled {
-			t.Error("expected enabled after SetTelegramExtensionEnabled(true)")
+		if !active {
+			t.Error("expected active after SetExtensionActive(true)")
 		}
 
-		if err := db.SetTelegramExtensionEnabled(database, false); err != nil {
-			t.Fatalf("SetTelegramExtensionEnabled(false): %v", err)
+		if err := db.SetExtensionActive(database, "telegram", false); err != nil {
+			t.Fatalf("SetExtensionActive(false): %v", err)
 		}
-		enabled, err = db.GetTelegramExtensionEnabled(database)
+		active, err = db.GetExtensionActive(database, "telegram")
 		if err != nil {
-			t.Fatalf("GetTelegramExtensionEnabled: %v", err)
+			t.Fatalf("GetExtensionActive: %v", err)
 		}
-		if enabled {
-			t.Error("expected disabled after SetTelegramExtensionEnabled(false)")
+		if active {
+			t.Error("expected disabled after SetExtensionActive(false)")
+		}
+	})
+
+	t.Run("cada extensão tem sua própria chave — ativar uma não afeta a outra", func(t *testing.T) {
+		if err := db.SetExtensionActive(database, "s3", true); err != nil {
+			t.Fatalf("SetExtensionActive(s3, true): %v", err)
+		}
+		telegramActive, err := db.GetExtensionActive(database, "telegram")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if telegramActive {
+			t.Error("ativar s3 não deveria afetar telegram")
 		}
 	})
 }

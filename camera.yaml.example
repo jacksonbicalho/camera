@@ -39,7 +39,10 @@ storage:
 
 # extensions:                       # opcional — integrações extras (ver Preferências > Extensões na UI)
 #   telegram:
+#     enabled: false                # permite a extensão no sistema — o admin ainda precisa marcá-la como ativa na UI
 #     bot_token: ""                 # env: OS_CAMERA_EXT_TELEGRAM_BOT_TOKEN
+#   s3:
+#     enabled: false                # permite a extensão de retenção via S3 — configuração do destino (bucket/credenciais) é feita na UI
 
 admin:
   username: admin                  # usuário administrador criado na primeira inicialização

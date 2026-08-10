@@ -3,12 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import SettingsSection from '../../components/SettingsSection'
-import ConfirmDialog from '../../components/ConfirmDialog'
 import { useSettings } from '../../hooks/useSettings'
 import { useStats } from '../../hooks/useStats'
 import { formatBytes, formatDuration } from '../statsUtils'
 import { authHeaders, getRole } from '../../auth'
-import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { Button } from '@/components/ui/button'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -65,20 +63,20 @@ function DurationInput({ value, unit, onValueChange, onUnitChange }: DurationInp
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
-interface Drive {
+// RetentionExtension é o destino S3 (0 ou 1 linha — singleton, história
+// feat/extensoes-generalizadas-s3-extensao). Cadastrar/editar esse destino
+// não é mais feito aqui: vive na tela "Configurar" da extensão S3 em
+// Preferências > Extensões (`S3ExtensionConfigPage`). Esta página só
+// CONSOME o estado pra popular o select "Ao expirar".
+interface RetentionExtension {
   id: string
   name: string
-  type: string
-  endpoint: string
-  bucket: string
-  region: string
-  prefix: string
 }
 
 interface RetentionConfig {
   category: string
   action: string
-  drive_id: string
+  retention_extension_id: string
 }
 
 interface StorageOverrides {
@@ -93,16 +91,6 @@ interface StorageOverrides {
   stateHistoryValue?: number
   stateHistoryUnit?: 'min' | 'h' | 'd'
 }
-
-const emptyDriveForm = () => ({
-  name: '',
-  endpoint: '',
-  bucket: '',
-  region: '',
-  access_key: '',
-  secret_key: '',
-  prefix: '',
-})
 
 // ── component ────────────────────────────────────────────────────────────────
 
@@ -131,24 +119,17 @@ export default function StorageSettingsPage() {
       ? 'bg-gradient-to-r from-yellow-600 to-yellow-400'
       : 'bg-gradient-to-r from-blue-700 to-blue-400'
 
-  const [drives, setDrives] = useState<Drive[]>([])
+  const [retentionExtensions, setRetentionExtensions] = useState<RetentionExtension[]>([])
   const [retention, setRetention] = useState<RetentionConfig[]>([])
   // Local user edits overlay the server-provided values.
   const [overrides, setOverrides] = useState<StorageOverrides>({})
   const [storageSaving, setStorageSaving] = useState(false)
   const [storageSaved, setStorageSaved] = useState(false)
 
-  const [showDriveForm, setShowDriveForm] = useState(false)
-  const [editDrive, setEditDrive] = useState<Drive | null>(null)
-  useEscapeKey(() => setShowDriveForm(false), showDriveForm)
-  const [driveForm, setDriveForm] = useState(emptyDriveForm())
-  const [driveSaving, setDriveSaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState<Drive | null>(null)
-
-  const loadDrives = () =>
-    fetch('/api/drives', { headers: authHeaders() })
+  const loadRetentionExtensions = () =>
+    fetch('/api/retention-extensions', { headers: authHeaders() })
       .then((r) => r.json())
-      .then((d) => setDrives(d ?? []))
+      .then((d) => setRetentionExtensions(d ?? []))
       .catch(() => {})
 
   const loadRetention = () =>
@@ -159,7 +140,7 @@ export default function StorageSettingsPage() {
 
   useEffect(() => {
     if (!isAdmin) return
-    loadDrives()
+    loadRetentionExtensions()
     loadRetention()
   }, [isAdmin])
 
@@ -191,13 +172,17 @@ export default function StorageSettingsPage() {
   }
 
   const retentionFor = (category: string): RetentionConfig =>
-    retention.find((r) => r.category === category) ?? { category, action: 'delete', drive_id: '' }
+    retention.find((r) => r.category === category) ?? {
+      category,
+      action: 'delete',
+      retention_extension_id: '',
+    }
 
-  const handleRetentionChange = (category: string, action: string, driveId: string) =>
+  const handleRetentionChange = (category: string, action: string, extensionId: string) =>
     fetch(`/api/retention/${category}`, {
       method: 'PUT',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, drive_id: driveId }),
+      body: JSON.stringify({ action, retention_extension_id: extensionId }),
     })
       .then(() => loadRetention())
       .catch(() => {})
@@ -235,74 +220,9 @@ export default function StorageSettingsPage() {
 
   const retentionLabel = (category: string): string => {
     const rc = retentionFor(category)
-    if (rc.action !== 'send_to_drive' || !rc.drive_id) return 'Apagar'
-    return drives.find((dr) => dr.id === rc.drive_id)?.name ?? 'Apagar'
+    if (rc.action !== 'send_to_drive' || !rc.retention_extension_id) return 'Apagar'
+    return retentionExtensions.find((ext) => ext.id === rc.retention_extension_id)?.name ?? 'Apagar'
   }
-
-  // ── drive CRUD ──────────────────────────────────────────────────────────────
-
-  const openCreateDrive = () => {
-    setEditDrive(null)
-    setDriveForm(emptyDriveForm())
-    setShowDriveForm(true)
-  }
-  const openEditDrive = (dr: Drive) => {
-    setEditDrive(dr)
-    setDriveForm({
-      name: dr.name,
-      endpoint: dr.endpoint,
-      bucket: dr.bucket,
-      region: dr.region,
-      access_key: '',
-      secret_key: '',
-      prefix: dr.prefix,
-    })
-    setShowDriveForm(true)
-  }
-
-  const handleDriveSave = () => {
-    setDriveSaving(true)
-    const method = editDrive ? 'PUT' : 'POST'
-    const url = editDrive ? `/api/drives/${editDrive.id}` : '/api/drives'
-    const body: Record<string, string> = {
-      name: driveForm.name,
-      type: 's3',
-      endpoint: driveForm.endpoint,
-      bucket: driveForm.bucket,
-      region: driveForm.region,
-      prefix: driveForm.prefix,
-    }
-    if (driveForm.access_key) body.access_key = driveForm.access_key
-    if (driveForm.secret_key) body.secret_key = driveForm.secret_key
-    if (!editDrive) {
-      body.access_key = driveForm.access_key
-      body.secret_key = driveForm.secret_key
-    }
-    fetch(url, {
-      method,
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-      .then((res) => {
-        if (res.ok) {
-          setShowDriveForm(false)
-          loadDrives()
-        }
-      })
-      .catch(() => {})
-      .finally(() => setDriveSaving(false))
-  }
-
-  const handleDriveDelete = (dr: Drive) =>
-    fetch(`/api/drives/${dr.id}`, { method: 'DELETE', headers: authHeaders() })
-      .then((res) => {
-        if (res.ok) {
-          setConfirmDelete(null)
-          loadDrives()
-          loadRetention()
-        }
-      })
-      .catch(() => {})
 
   // ── render ──────────────────────────────────────────────────────────────────
 
@@ -524,26 +444,25 @@ export default function StorageSettingsPage() {
                 </div>
                 <div>
                   <span className="block text-xs text-muted-foreground mb-1">Ao expirar</span>
-                  {/* Destino unificado: "Apagar" + cada drive cadastrado numa única lista.
-                      Drives recém-criados aparecem aqui na hora (mapeiam o estado `drives`,
-                      recarregado após salvar um drive). */}
+                  {/* "Apagar" + a extensão de retenção configurada (0 ou 1 — S3 é
+                      singleton, cadastrado em Preferências > Extensões > Configurar). */}
                   <select
                     className="bg-surface-2 text-foreground text-sm rounded px-2 py-1 border border-border"
                     value={
-                      rc.action === 'send_to_drive' && rc.drive_id
-                        ? `drive:${rc.drive_id}`
+                      rc.action === 'send_to_drive' && rc.retention_extension_id
+                        ? `ext:${rc.retention_extension_id}`
                         : 'delete'
                     }
                     onChange={(e) => {
                       const v = e.target.value
                       if (v === 'delete') handleRetentionChange(cat, 'delete', '')
-                      else handleRetentionChange(cat, 'send_to_drive', v.slice('drive:'.length))
+                      else handleRetentionChange(cat, 'send_to_drive', v.slice('ext:'.length))
                     }}
                   >
                     <option value="delete">Apagar</option>
-                    {drives.map((dr) => (
-                      <option key={dr.id} value={`drive:${dr.id}`}>
-                        {dr.name}
+                    {retentionExtensions.map((ext) => (
+                      <option key={ext.id} value={`ext:${ext.id}`}>
+                        {ext.name}
                       </option>
                     ))}
                   </select>
@@ -566,147 +485,12 @@ export default function StorageSettingsPage() {
         !form && <p className="text-muted-foreground text-sm mb-4">Carregando...</p>
       )}
 
-      {drives.length === 0 && retention.some((r) => r.action === 'send_to_drive') && (
+      {retentionExtensions.length === 0 && retention.some((r) => r.action === 'send_to_drive') && (
         <p className="text-xs text-amber-400 mb-4">
-          Nenhum drive configurado — gravações com essa ação serão ignoradas pelo cleaner.
+          Nenhuma extensão de retenção configurada — gravações com essa ação serão ignoradas pelo
+          cleaner. Configure em Preferências &gt; Extensões.
         </p>
       )}
-
-      {/* Drives section */}
-      <div className="mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold text-foreground">Drives</h4>
-          <Button id="drive-add" onClick={openCreateDrive} size="sm">
-            + Adicionar drive
-          </Button>
-        </div>
-
-        {drives.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum drive configurado.</p>
-        ) : (
-          <div className="space-y-2">
-            {drives.map((dr) => (
-              <div
-                key={dr.id}
-                className="flex items-center justify-between bg-surface-2 rounded-lg px-4 py-3"
-              >
-                <div>
-                  <span className="text-sm font-medium text-foreground">{dr.name}</span>
-                  <span className="ml-2 text-xs text-muted-foreground uppercase">{dr.type}</span>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {dr.bucket}
-                    {dr.endpoint ? ` · ${dr.endpoint}` : ''}
-                    {dr.prefix ? ` · /${dr.prefix}` : ''}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => openEditDrive(dr)}>
-                    Editar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setConfirmDelete(dr)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    Excluir
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Drive form modal */}
-      {showDriveForm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface rounded-xl p-5 w-full max-w-md border border-border shadow-xl">
-            <h3 className="text-base font-semibold text-foreground mb-4">
-              {editDrive ? 'Editar drive' : 'Novo drive S3'}
-            </h3>
-            <div className="space-y-3">
-              {(
-                [
-                  { label: 'Nome', field: 'name', required: true },
-                  {
-                    label: 'Endpoint (opcional)',
-                    field: 'endpoint',
-                    placeholder: 'https://s3.amazonaws.com',
-                  },
-                  { label: 'Bucket', field: 'bucket', required: true },
-                  { label: 'Região', field: 'region', placeholder: 'us-east-1' },
-                  {
-                    label: 'Access Key',
-                    field: 'access_key',
-                    required: !editDrive,
-                    placeholder: editDrive ? '(manter atual)' : '',
-                  },
-                  {
-                    label: 'Secret Key',
-                    field: 'secret_key',
-                    required: !editDrive,
-                    placeholder: editDrive ? '(manter atual)' : '',
-                    password: true,
-                  },
-                  { label: 'Prefixo (opcional)', field: 'prefix' },
-                ] as Array<{
-                  label: string
-                  field: keyof typeof driveForm
-                  required?: boolean
-                  placeholder?: string
-                  password?: boolean
-                }>
-              ).map(({ label, field, required, placeholder, password }) => (
-                <div key={field}>
-                  <label className="block text-xs text-muted-foreground mb-1">
-                    {label}
-                    {required && <span className="text-red-400 ml-0.5">*</span>}
-                  </label>
-                  <input
-                    type={password ? 'password' : 'text'}
-                    autoComplete={password ? 'new-password' : 'off'}
-                    className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-1.5 border border-border focus:outline-none focus:border-ring"
-                    value={driveForm[field]}
-                    placeholder={placeholder}
-                    onChange={(e) => setDriveForm((f) => ({ ...f, [field]: e.target.value }))}
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2 mt-5">
-              <Button id="drive-cancel" variant="ghost" onClick={() => setShowDriveForm(false)}>
-                Cancelar
-              </Button>
-              <Button
-                id="drive-save"
-                onClick={handleDriveSave}
-                disabled={
-                  driveSaving ||
-                  !driveForm.name ||
-                  !driveForm.bucket ||
-                  (!editDrive && (!driveForm.access_key || !driveForm.secret_key))
-                }
-              >
-                {driveSaving ? 'Salvando...' : 'Salvar'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ConfirmDialog
-        open={confirmDelete !== null}
-        title="Excluir drive"
-        message={
-          confirmDelete
-            ? `Excluir o drive "${confirmDelete.name}"? Gravações associadas voltarão a ser apagadas.`
-            : ''
-        }
-        onConfirm={() => confirmDelete && handleDriveDelete(confirmDelete)}
-        onCancel={() => setConfirmDelete(null)}
-        danger
-      />
     </SettingsLayout>
   )
 }

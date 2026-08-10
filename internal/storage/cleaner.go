@@ -20,6 +20,7 @@ import (
 	"camera/internal/analysis"
 	"camera/internal/db"
 	"camera/internal/detector"
+	"camera/internal/extensions/s3"
 	"camera/internal/notifications"
 )
 
@@ -322,19 +323,26 @@ func (c *Cleaner) effectiveRetentionMinutes() (withMotion, withoutMotion int) {
 	return
 }
 
-func (c *Cleaner) loadDrives() (drives map[string]Drive, withMotionAction, withoutMotionAction string, withMotionDriveID, withoutMotionDriveID string) {
-	drives = make(map[string]Drive)
+func (c *Cleaner) loadDrives() (drives map[string]s3.Uploader, withMotionAction, withoutMotionAction string, withMotionDriveID, withoutMotionDriveID string) {
+	drives = make(map[string]s3.Uploader)
 	withMotionAction = "delete"
 	withoutMotionAction = "delete"
 
-	dbDrives, err := db.ListDrives(c.db)
+	dbExtensions, err := db.ListRetentionExtensions(c.db)
 	if err != nil {
-		c.log.Warn("failed to load drives from db", "err", err)
+		c.log.Warn("failed to load retention extensions from db", "err", err)
 		return
 	}
-	for _, dr := range dbDrives {
+	for _, dr := range dbExtensions {
 		if dr.Type == "s3" {
-			drives[dr.ID] = NewS3Drive(dr)
+			drives[dr.ID] = s3.NewClient(s3.Config{
+				Endpoint:  dr.Endpoint,
+				Bucket:    dr.Bucket,
+				Region:    dr.Region,
+				AccessKey: dr.AccessKey,
+				SecretKey: dr.SecretKey,
+				Prefix:    dr.Prefix,
+			})
 		}
 	}
 
@@ -347,10 +355,10 @@ func (c *Cleaner) loadDrives() (drives map[string]Drive, withMotionAction, witho
 		switch rc.Category {
 		case "with_motion":
 			withMotionAction = rc.Action
-			withMotionDriveID = rc.DriveID
+			withMotionDriveID = rc.RetentionExtensionID
 		case "without_motion":
 			withoutMotionAction = rc.Action
-			withoutMotionDriveID = rc.DriveID
+			withoutMotionDriveID = rc.RetentionExtensionID
 		}
 	}
 	return
@@ -550,7 +558,7 @@ func (c *Cleaner) purgeOrphanEvents() {
 
 // uploadAndPurge uploads the MP4 file to the given drive, then removes the
 // local file and all DB references. On upload failure nothing is deleted.
-func (c *Cleaner) uploadAndPurge(drive Drive, path string, startedAt, endedAt time.Time) error {
+func (c *Cleaner) uploadAndPurge(drive s3.Uploader, path string, startedAt, endedAt time.Time) error {
 	key := filepath.Base(filepath.Dir(path)) + "/" + filepath.Base(path)
 	// Build key using camera name as first segment: "camera-name/YYYY/MM/DD/file.mp4"
 	rel, err := filepath.Rel(c.storagePath, path)
