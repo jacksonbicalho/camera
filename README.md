@@ -206,18 +206,11 @@ O servidor emite dois endpoints SSE por câmera:
 
 ### Pacotes internos
 
-| Pacote | Responsabilidade |
-|---|---|
-| `internal/recorder` | Grava RTSP → MP4 em chunks |
-| `internal/transmission/hls` | Gera playlist HLS ao vivo |
-| `internal/transmission/webrtc` | Entrega o ao-vivo de baixa latência via WebRTC |
-| `internal/motion` | Detecta movimento via ffmpeg pipe raw; persiste eventos no banco e em NDJSON; salva snapshot JPEG anotado por evento |
-| `internal/storage` | Sincroniza MP4s do disco para o banco (`recordings`) e apaga chunks com retenção diferenciada por categoria via SQL |
-| `internal/db` | Acesso ao SQLite; executa migrations na inicialização; tabelas: cameras, users, recordings, motion_events, settings |
-| `internal/server` | HTTP + JWT + API REST + SPA embarcada; bloqueia endpoints se `must_change_password=true` |
-| `internal/config` | Lê o bootstrap `camera.yaml` e aplica overrides de env vars |
-| `internal/ffprobe` | Detecta codec, áudio e resolução via ffprobe |
-| `cmd/mcp-ffprobe` | Servidor MCP (stdio) para inspeção de câmeras via ferramentas de IA |
+Documentação completa de cada pacote Go em
+[docs/go-modules/](docs/go-modules/README.md) — um README por pacote, fonte
+de verdade sobre responsabilidade, arquivos principais e como eles se
+relacionam. `cmd/mcp-ffprobe` é o servidor MCP (stdio) pra inspeção de
+câmeras via ferramentas de IA.
 
 ---
 
