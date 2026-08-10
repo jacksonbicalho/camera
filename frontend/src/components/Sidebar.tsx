@@ -22,6 +22,7 @@ import {
   Pencil,
   Search,
   Server,
+  Settings,
   Users,
   Zap,
 } from './Icons'
@@ -344,6 +345,15 @@ export default function Sidebar() {
                   to: '/settings/appearance',
                   label: 'Aparência',
                   icon: <Palette className="h-5 w-5 shrink-0" />,
+                }}
+                showLabel={showLabel}
+              />
+              <SidebarNavLink
+                item={{
+                  id: 'sidebar-preferences',
+                  to: '/settings/preferences/extensions',
+                  label: 'Preferências',
+                  icon: <Settings className="h-5 w-5 shrink-0" />,
                 }}
                 showLabel={showLabel}
               />
