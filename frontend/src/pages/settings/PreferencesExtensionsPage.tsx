@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
+import PreferencesTabs from '../../components/PreferencesTabs'
 import { authHeaders } from '../../auth'
 
 interface ExtensionsConfig {
@@ -34,6 +35,7 @@ export default function PreferencesExtensionsPage() {
         title="Preferências"
         subtitle="Integrações opcionais disponíveis para esta instância."
       />
+      <PreferencesTabs active="extensions" />
       <div className="bg-surface border border-border rounded-lg p-5 flex flex-col gap-3">
         <div>
           <p className="text-sm font-medium text-foreground">Extensões</p>
