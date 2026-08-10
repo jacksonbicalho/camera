@@ -37,6 +37,10 @@ storage:
 #   from_name: "os-camera"          # opcional — nome de exibição do remetente; env: OS_CAMERA_SMTP_FROM_NAME
 #   from_email: ""                  # opcional — e-mail do remetente/envelope; default = username; env: OS_CAMERA_SMTP_FROM_EMAIL
 
+# extensions:                       # opcional — integrações extras (ver Preferências > Extensões na UI)
+#   telegram:
+#     bot_token: ""                 # env: OS_CAMERA_EXT_TELEGRAM_BOT_TOKEN
+
 admin:
   username: admin                  # usuário administrador criado na primeira inicialização
   password: changeme               # senha inicial — troca obrigatória no primeiro login

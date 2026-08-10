@@ -26,14 +26,29 @@ const DefaultReconnectInterval = 2 * time.Second
 // Config holds the minimal bootstrap configuration read from the YAML file.
 // All camera settings, motion config and user data live in the SQLite database.
 type Config struct {
-	Debug    bool          `yaml:"debug"`
-	Timezone string        `yaml:"timezone"`
-	DBPath   string        `yaml:"db_path"`
-	Log      LogConfig     `yaml:"log"`
-	Server   ServerConfig  `yaml:"server"`
-	Storage  StorageConfig `yaml:"storage"`
-	Admin    AdminConfig   `yaml:"admin"`
-	SMTP     SMTPConfig    `yaml:"smtp"`
+	Debug      bool             `yaml:"debug"`
+	Timezone   string           `yaml:"timezone"`
+	DBPath     string           `yaml:"db_path"`
+	Log        LogConfig        `yaml:"log"`
+	Server     ServerConfig     `yaml:"server"`
+	Storage    StorageConfig    `yaml:"storage"`
+	Admin      AdminConfig      `yaml:"admin"`
+	SMTP       SMTPConfig       `yaml:"smtp"`
+	Extensions ExtensionsConfig `yaml:"extensions"`
+}
+
+// ExtensionsConfig holds settings for optional integrations ("extensions").
+// Each extension gets its own nested config; presence of its required field
+// (e.g. Telegram.BotToken) is what "available" means — same idiom as
+// SMTPConfig.Host for e-mail.
+type ExtensionsConfig struct {
+	Telegram TelegramConfig `yaml:"telegram"`
+}
+
+// TelegramConfig holds the Telegram Bot API token used by
+// internal/extensions/telegram.
+type TelegramConfig struct {
+	BotToken string `yaml:"bot_token"`
 }
 
 // SMTPConfig holds outbound e-mail server settings (connection config only;
@@ -261,6 +276,9 @@ func Load(path string) (Config, error) {
 	}
 	if v := os.Getenv("OS_CAMERA_STORAGE_PATH"); v != "" {
 		cfg.Storage.Path = v
+	}
+	if v := os.Getenv("OS_CAMERA_EXT_TELEGRAM_BOT_TOKEN"); v != "" {
+		cfg.Extensions.Telegram.BotToken = v
 	}
 	if cfg.Timezone == "" {
 		cfg.Timezone = "UTC"

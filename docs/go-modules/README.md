@@ -57,3 +57,7 @@ completo, o conteúdo chega por cluster.
 - [internal/email](internal/email/README.md)
 - [internal/release](internal/release/README.md)
 - [internal/updater](internal/updater/README.md)
+
+## Extensões
+- [internal/extensions](internal/extensions/README.md)
+  - [internal/extensions/telegram](internal/extensions/telegram/README.md)

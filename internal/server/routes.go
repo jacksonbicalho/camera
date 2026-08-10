@@ -110,6 +110,9 @@ func (s *Server) routeTable() []route {
 
 		{"PUT", "/api/settings/storage", authAdmin, s.handleUpdateStorageSettings},
 
+		{"GET", "/api/settings/extensions", authAdmin, s.handleGetExtensionsConfig},
+		{"PUT", "/api/settings/extensions", authAdmin, s.handleUpdateExtensionsConfig},
+
 		{"GET", "/api/drives", authAdmin, s.handleListDrives},
 		{"POST", "/api/drives", authAdmin, s.handleCreateDrive},
 		{"PUT", "/api/drives/{id}", authAdmin, s.handleUpdateDrive},
