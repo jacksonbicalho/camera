@@ -175,8 +175,7 @@ export default function CameraStatesSettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Câmeras pra popular o <select> de troca — fetch direto, mesmo padrão de
-  // report-camera-select em ReportsPage / analysis-camera-select em
-  // CameraAnalysisSettingsPage.
+  // report-camera-select em ReportsPage.
   const [cameras, setCameras] = useState<{ id: string; name: string }[]>([])
   useEffect(() => {
     fetch('/api/cameras', { headers: authHeaders() })

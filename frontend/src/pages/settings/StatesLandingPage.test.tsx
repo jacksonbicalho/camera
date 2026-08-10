@@ -32,8 +32,8 @@ afterEach(() => {
 })
 
 // CA6 (história refactor/camera-tabs-para-sidebar-ia): mesmo padrão de
-// HistoryLandingPage/AnalysesLandingPage — /settings/states nunca mostra um
-// picker, navega direto pra a 1ª câmera assim que a lista carrega.
+// HistoryLandingPage — /settings/states nunca mostra um picker, navega
+// direto pra a 1ª câmera assim que a lista carrega.
 describe('CA6: /settings/states nunca mostra um picker — navega direto pra a 1ª câmera assim que a lista carrega', () => {
   it('com várias câmeras, navega pra /settings/states/<1ª>', async () => {
     vi.stubGlobal(
