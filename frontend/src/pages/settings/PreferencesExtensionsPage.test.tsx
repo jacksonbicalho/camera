@@ -99,3 +99,13 @@ describe('CA6: card Telegram só aparece quando disponível e alterna telegram_e
     })
   })
 })
+
+describe('CA8: card do Telegram não repete o cabeçalho/descrição genéricos de "Extensões"', () => {
+  it('não mostra mais o parágrafo "Integrações que podem ser ativadas para esta instância." dentro do card', async () => {
+    mockFetch({ telegramAvailable: true })
+    renderPage()
+
+    await screen.findByText(/telegram/i)
+    expect(screen.queryByText(/integrações que podem ser ativadas/i)).toBeNull()
+  })
+})

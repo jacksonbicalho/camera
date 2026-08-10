@@ -36,24 +36,20 @@ export default function PreferencesExtensionsPage() {
         subtitle="Integrações opcionais disponíveis para esta instância."
       />
       <PreferencesTabs active="extensions" />
-      <div className="bg-surface border border-border rounded-lg p-5 flex flex-col gap-3">
-        <div>
-          <p className="text-sm font-medium text-foreground">Extensões</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Integrações que podem ser ativadas para esta instância.
-          </p>
-        </div>
+      <div className="flex flex-col gap-4">
         {config?.telegram_available && (
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              id="extension-telegram-enabled"
-              checked={config.telegram_enabled}
-              onChange={(e) => toggleTelegram(e.target.checked)}
-              className="accent-primary"
-            />
-            <span className="text-sm text-foreground">Telegram</span>
-          </label>
+          <div className="bg-surface border border-border rounded-lg p-5">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                id="extension-telegram-enabled"
+                checked={config.telegram_enabled}
+                onChange={(e) => toggleTelegram(e.target.checked)}
+                className="accent-primary"
+              />
+              <span className="text-sm text-foreground">Telegram</span>
+            </label>
+          </div>
         )}
         {config && !config.telegram_available && (
           <p className="text-xs text-muted-foreground">Nenhuma extensão configurada.</p>
