@@ -151,9 +151,9 @@ export default function VideoPlayer({
   // 100% mesmo com o controle de zoom marcando um valor maior. Com `activeEl` na dependência,
   // toda troca de elemento ativo reroda o efeito de `usePlayerZoom` e reaplica o zoom atual —
   // permite `resetToStart`/`advance` pararem de resetar o zoom pra "resolver" esse mismatch.
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- `activeEl` não é lido no corpo (só
-  // `activeRef.current`, sempre fresco por closure) — está aqui só pra FORÇAR uma referência
-  // nova a cada troca de elemento ativo, ver comentário acima.
+  // `activeEl` não é lido no corpo (só `activeRef.current`, sempre fresco por closure) — está
+  // aqui só pra FORÇAR uma referência nova a cada troca de elemento ativo, ver comentário acima.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const getActiveVideoEl = useCallback(() => elsRef.current[activeRef.current], [activeEl])
   const zoom = usePlayerZoom(getActiveVideoEl)
   const { takeSnapshot } = usePlayerSnapshot(getActiveVideoEl)
@@ -497,6 +497,7 @@ export default function VideoPlayer({
     // `zoom.setContainer` estável — objeto `zoom` inteiro faria esse ref callback trocar de
     // referência a cada zoom, forçando React a desmontar/remontar o ref (chama com `null`
     // depois com o node de novo) e reatar o listener de wheel à toa a cada clique no Zoom.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [zoomEnabled, zoom.setContainer],
   )
 
@@ -545,6 +546,7 @@ export default function VideoPlayer({
     // rodava de novo → vídeo reiniciava do zero, em vez de só aplicar o zoom (bug real,
     // reportado pelo navigator testando o pré-push desta história: "ao invés de funcionar,
     // reinicia a reprodução do vídeo").
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       autoPlay,
       zoomEnabled,
