@@ -20,81 +20,141 @@ func setupExtensionsServer(t *testing.T, ext config.ExtensionsConfig) (http.Hand
 	return srv, token
 }
 
-type extensionsConfigDTO struct {
-	TelegramEnabled   bool `json:"telegram_enabled"`
-	TelegramAvailable bool `json:"telegram_available"`
+// extensionDTO é o formato-alvo (T1 desta história): GET /api/settings/extensions
+// passa a devolver uma LISTA em vez do objeto plano {telegram_enabled,
+// telegram_available} — cada entrada descreve uma extensão (id/categoria/
+// descrição/disponível-no-config/ativada-pelo-usuário). Definido aqui, no
+// teste, porque ainda não existe produção nenhuma que o gere (T1 red phase).
+type extensionDTO struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Category    string `json:"category"`
+	Description string `json:"description"`
+	Available   bool   `json:"available"`
+	Active      bool   `json:"active"`
 }
 
-func TestExtensionsConfig(t *testing.T) {
-	t.Run("CA5: GET/PUT /api/settings/extensions persistem telegram_enabled e refletem telegram_available", func(t *testing.T) {
-		t.Run("telegram_available é false sem BotToken configurado", func(t *testing.T) {
+func getExtensions(t *testing.T, srv http.Handler, token string) []extensionDTO {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/api/settings/extensions", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/settings/extensions: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var got []extensionDTO
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v (body: %s)", err, w.Body.String())
+	}
+	return got
+}
+
+func findExtension(list []extensionDTO, id string) (extensionDTO, bool) {
+	for _, e := range list {
+		if e.ID == id {
+			return e, true
+		}
+	}
+	return extensionDTO{}, false
+}
+
+func TestExtensionsListed(t *testing.T) {
+	t.Run("CA2: GET /api/settings/extensions devolve uma lista incluindo telegram (id/category/description/available/active)", func(t *testing.T) {
+		t.Run("telegram vem com available=false sem BotToken configurado", func(t *testing.T) {
 			srv, token := setupExtensionsServer(t, config.ExtensionsConfig{})
-
-			req := httptest.NewRequest(http.MethodGet, "/api/settings/extensions", nil)
-			req.Header.Set("Authorization", "Bearer "+token)
-			w := httptest.NewRecorder()
-			srv.ServeHTTP(w, req)
-
-			if w.Code != http.StatusOK {
-				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+			list := getExtensions(t, srv, token)
+			tg, ok := findExtension(list, "telegram")
+			if !ok {
+				t.Fatalf("esperava a extensão telegram na lista, got %+v", list)
 			}
-			var got extensionsConfigDTO
-			if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
-				t.Fatalf("unmarshal: %v", err)
+			if tg.Available {
+				t.Error("expected available=false without BotToken")
 			}
-			if got.TelegramAvailable {
-				t.Error("expected telegram_available=false without BotToken")
+			if tg.Active {
+				t.Error("expected active=false by default")
 			}
-			if got.TelegramEnabled {
-				t.Error("expected telegram_enabled=false by default")
+			if tg.Category == "" || tg.Description == "" {
+				t.Errorf("esperava category e description preenchidos, got %+v", tg)
 			}
 		})
 
-		t.Run("telegram_available é true quando BotToken está configurado", func(t *testing.T) {
+		t.Run("telegram vem com available=true quando Enabled+BotToken estão configurados", func(t *testing.T) {
 			srv, token := setupExtensionsServer(t, config.ExtensionsConfig{
-				Telegram: config.TelegramConfig{BotToken: "some-token"},
+				Telegram: config.TelegramConfig{Enabled: true, BotToken: "some-token"},
 			})
-
-			req := httptest.NewRequest(http.MethodGet, "/api/settings/extensions", nil)
-			req.Header.Set("Authorization", "Bearer "+token)
-			w := httptest.NewRecorder()
-			srv.ServeHTTP(w, req)
-
-			var got extensionsConfigDTO
-			if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
-				t.Fatalf("unmarshal: %v", err)
+			list := getExtensions(t, srv, token)
+			tg, ok := findExtension(list, "telegram")
+			if !ok {
+				t.Fatalf("esperava a extensão telegram na lista, got %+v", list)
 			}
-			if !got.TelegramAvailable {
-				t.Error("expected telegram_available=true with BotToken configured")
+			if !tg.Available {
+				t.Error("expected available=true with Enabled=true and BotToken configured")
 			}
 		})
 
-		t.Run("PUT persiste telegram_enabled, refletido no GET seguinte", func(t *testing.T) {
+		t.Run("telegram vem com available=false com BotToken mas Enabled=false", func(t *testing.T) {
 			srv, token := setupExtensionsServer(t, config.ExtensionsConfig{
-				Telegram: config.TelegramConfig{BotToken: "some-token"},
+				Telegram: config.TelegramConfig{Enabled: false, BotToken: "some-token"},
 			})
-
-			body, _ := json.Marshal(extensionsConfigDTO{TelegramEnabled: true})
-			putReq := httptest.NewRequest(http.MethodPut, "/api/settings/extensions", bytes.NewReader(body))
-			putReq.Header.Set("Authorization", "Bearer "+token)
-			putReq.Header.Set("Content-Type", "application/json")
-			putW := httptest.NewRecorder()
-			srv.ServeHTTP(putW, putReq)
-			if putW.Code != http.StatusOK {
-				t.Fatalf("PUT: expected 200, got %d: %s", putW.Code, putW.Body.String())
+			list := getExtensions(t, srv, token)
+			tg, ok := findExtension(list, "telegram")
+			if !ok {
+				t.Fatalf("esperava a extensão telegram na lista, got %+v", list)
 			}
-
-			getReq := httptest.NewRequest(http.MethodGet, "/api/settings/extensions", nil)
-			getReq.Header.Set("Authorization", "Bearer "+token)
-			getW := httptest.NewRecorder()
-			srv.ServeHTTP(getW, getReq)
-			var got extensionsConfigDTO
-			if err := json.Unmarshal(getW.Body.Bytes(), &got); err != nil {
-				t.Fatalf("unmarshal: %v", err)
-			}
-			if !got.TelegramEnabled {
-				t.Error("expected telegram_enabled=true after PUT")
+			if tg.Available {
+				t.Error("expected available=false when Enabled=false, mesmo com BotToken")
 			}
 		})
+	})
+
+	t.Run("CA3: PUT /api/settings/extensions/{id} altera só a extensão indicada", func(t *testing.T) {
+		srv, token := setupExtensionsServer(t, config.ExtensionsConfig{
+			Telegram: config.TelegramConfig{Enabled: true, BotToken: "some-token"},
+		})
+
+		body, _ := json.Marshal(map[string]bool{"active": true})
+		req := httptest.NewRequest(http.MethodPut, "/api/settings/extensions/telegram", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("PUT: expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		list := getExtensions(t, srv, token)
+		tg, ok := findExtension(list, "telegram")
+		if !ok || !tg.Active {
+			t.Fatalf("esperava telegram.active=true após o PUT, got %+v", list)
+		}
+		for _, e := range list {
+			if e.ID != "telegram" && e.Active {
+				t.Errorf("PUT em telegram não deveria ativar outra extensão, mas %s veio active=true", e.ID)
+			}
+		}
+	})
+
+	t.Run("CA3: PUT /api/settings/extensions/{id} com id inexistente devolve 404 sem gravar nada", func(t *testing.T) {
+		srv, token := setupExtensionsServer(t, config.ExtensionsConfig{
+			Telegram: config.TelegramConfig{Enabled: true, BotToken: "some-token"},
+		})
+
+		body, _ := json.Marshal(map[string]bool{"active": true})
+		req := httptest.NewRequest(http.MethodPut, "/api/settings/extensions/inexistente", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+		}
+
+		list := getExtensions(t, srv, token)
+		for _, e := range list {
+			if e.Active {
+				t.Errorf("PUT em id inexistente não deveria ativar nenhuma extensão, mas %s veio active=true", e.ID)
+			}
+		}
 	})
 }

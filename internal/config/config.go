@@ -38,17 +38,31 @@ type Config struct {
 }
 
 // ExtensionsConfig holds settings for optional integrations ("extensions").
-// Each extension gets its own nested config; presence of its required field
-// (e.g. Telegram.BotToken) is what "available" means — same idiom as
-// SMTPConfig.Host for e-mail.
+// Each extension gets its own nested config; Enabled means "permitida no
+// sistema" (distinct from the per-instance "active" toggle in system_config,
+// which the admin flips in Preferências > Extensões — see
+// internal/db.GetExtensionActive/SetExtensionActive). Category/description
+// are NOT config fields: they're intrinsic to each extension and hardcoded
+// in Go (internal/server/extensions.go), never something an admin reconfigures.
 type ExtensionsConfig struct {
-	Telegram TelegramConfig `yaml:"telegram"`
+	Telegram TelegramConfig    `yaml:"telegram"`
+	S3       S3ExtensionConfig `yaml:"s3"`
 }
 
 // TelegramConfig holds the Telegram Bot API token used by
-// internal/extensions/telegram.
+// internal/extensions/telegram. Available (in the generalized extensions
+// list) requires both Enabled and a non-empty BotToken.
 type TelegramConfig struct {
+	Enabled  bool   `yaml:"enabled"`
 	BotToken string `yaml:"bot_token"`
+}
+
+// S3ExtensionConfig gates the S3 retention extension (internal/extensions/s3).
+// Unlike Telegram, it has no other YAML fields — the actual destination
+// (bucket/credentials) is user-configured via the API/UI and lives in the
+// retention_extensions table (internal/db), not in this bootstrap file.
+type S3ExtensionConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 // SMTPConfig holds outbound e-mail server settings (connection config only;

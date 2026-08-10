@@ -1,27 +1,34 @@
 package db
 
-// telegramExtensionEnabledKey is the system_config key holding whether the
-// Telegram extension (internal/extensions/telegram) is turned on for this
-// instance. Instance-wide, not per-user — same idiom as
-// analysis.state_trainer_id (internal/db/analysis.go).
-const telegramExtensionEnabledKey = "extensions.telegram.enabled"
+// extensionActiveKey builds the system_config key holding whether an
+// extension (internal/extensions/<id>) is turned on for this instance.
+// Instance-wide, not per-user — same idiom as analysis.state_trainer_id
+// (internal/db/analysis.go). The literal suffix is kept as "enabled" for
+// backward compatibility with data already persisted by earlier releases
+// (e.g. "extensions.telegram.enabled") — only the Go-level name says
+// "Active", to disambiguate from config.ExtensionsConfig's own Enabled
+// field ("permitida no sistema", a different concept read from the YAML
+// bootstrap file, not from this table).
+func extensionActiveKey(id string) string {
+	return "extensions." + id + ".enabled"
+}
 
-// GetTelegramExtensionEnabled returns whether the Telegram extension is
-// enabled, defaulting to false when never configured.
-func GetTelegramExtensionEnabled(d *DB) (bool, error) {
+// GetExtensionActive returns whether the extension identified by id is
+// active for this instance, defaulting to false when never configured.
+func GetExtensionActive(d *DB, id string) (bool, error) {
 	all, err := GetAllConfig(d)
 	if err != nil {
 		return false, err
 	}
-	return all[telegramExtensionEnabledKey] == "1", nil
+	return all[extensionActiveKey(id)] == "1", nil
 }
 
-// SetTelegramExtensionEnabled persists whether the Telegram extension is
-// enabled for this instance.
-func SetTelegramExtensionEnabled(d *DB, enabled bool) error {
+// SetExtensionActive persists whether the extension identified by id is
+// active for this instance.
+func SetExtensionActive(d *DB, id string, active bool) error {
 	v := "0"
-	if enabled {
+	if active {
 		v = "1"
 	}
-	return SetConfig(d, telegramExtensionEnabledKey, v)
+	return SetConfig(d, extensionActiveKey(id), v)
 }
