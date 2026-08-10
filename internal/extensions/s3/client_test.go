@@ -1,4 +1,4 @@
-package storage
+package s3
 
 import (
 	"io"
@@ -6,11 +6,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"camera/internal/db"
 )
 
-func TestS3Drive_Upload(t *testing.T) {
+func TestClient_Upload(t *testing.T) {
 	var receivedKey string
 	var receivedAuth string
 	var receivedBody string
@@ -24,9 +22,7 @@ func TestS3Drive_Upload(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	drive := NewS3Drive(db.Drive{
-		Name:      "test",
-		Type:      "s3",
+	client := NewClient(Config{
 		Endpoint:  srv.URL,
 		Bucket:    "my-bucket",
 		Region:    "us-east-1",
@@ -35,7 +31,7 @@ func TestS3Drive_Upload(t *testing.T) {
 	})
 
 	content := "hello s3"
-	err := drive.Upload(t.Context(), "recordings/test.mp4", strings.NewReader(content), int64(len(content)))
+	err := client.Upload(t.Context(), "recordings/test.mp4", strings.NewReader(content), int64(len(content)))
 	if err != nil {
 		t.Fatalf("Upload: %v", err)
 	}
@@ -51,7 +47,7 @@ func TestS3Drive_Upload(t *testing.T) {
 	}
 }
 
-func TestS3Drive_UploadWithPrefix(t *testing.T) {
+func TestClient_UploadWithPrefix(t *testing.T) {
 	var receivedKey string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedKey = r.URL.Path
@@ -59,8 +55,7 @@ func TestS3Drive_UploadWithPrefix(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	drive := NewS3Drive(db.Drive{
-		Type:      "s3",
+	client := NewClient(Config{
 		Endpoint:  srv.URL,
 		Bucket:    "bucket",
 		Region:    "eu-west-1",
@@ -69,13 +64,13 @@ func TestS3Drive_UploadWithPrefix(t *testing.T) {
 		Prefix:    "archive",
 	})
 
-	_ = drive.Upload(t.Context(), "cam1/2025/01/15/file.mp4", strings.NewReader("x"), 1)
+	_ = client.Upload(t.Context(), "cam1/2025/01/15/file.mp4", strings.NewReader("x"), 1)
 	if !strings.Contains(receivedKey, "archive") {
 		t.Errorf("prefix not in key: %s", receivedKey)
 	}
 }
 
-func TestS3Drive_PlusInPrefixEncodedAsPct2B(t *testing.T) {
+func TestClient_PlusInPrefixEncodedAsPct2B(t *testing.T) {
 	var rawPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rawPath = r.URL.RawPath
@@ -86,8 +81,7 @@ func TestS3Drive_PlusInPrefixEncodedAsPct2B(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	drive := NewS3Drive(db.Drive{
-		Type:      "s3",
+	client := NewClient(Config{
 		Endpoint:  srv.URL,
 		Bucket:    "bucket",
 		Region:    "us-east-1",
@@ -96,7 +90,7 @@ func TestS3Drive_PlusInPrefixEncodedAsPct2B(t *testing.T) {
 		Prefix:    "my+prefix/sub",
 	})
 
-	_ = drive.Upload(t.Context(), "cam/file.mp4", strings.NewReader("x"), 1)
+	_ = client.Upload(t.Context(), "cam/file.mp4", strings.NewReader("x"), 1)
 
 	if strings.Contains(rawPath, "+") {
 		t.Errorf("'+' must be encoded as %%2B in URL path, got: %s", rawPath)
@@ -109,28 +103,7 @@ func TestS3Drive_PlusInPrefixEncodedAsPct2B(t *testing.T) {
 	}
 }
 
-func TestSlugify(t *testing.T) {
-	cases := []struct {
-		in   string
-		want string
-	}{
-		{"Corredor da Frente", "corredor-da-frente"},
-		{"corredor-da-frente", "corredor-da-frente"},
-		{"Câmera 01", "camera-01"},
-		{"portão de entrada", "portao-de-entrada"},
-		{"Câmera Garagem Nº1", "camera-garagem-n-1"},
-		{"  spaces  ", "spaces"},
-		{"cam/1", "cam-1"},
-	}
-	for _, tc := range cases {
-		got := slugify(tc.in)
-		if got != tc.want {
-			t.Errorf("slugify(%q) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
-}
-
-func TestS3Drive_BucketInCanonicalURI(t *testing.T) {
+func TestClient_BucketInCanonicalURI(t *testing.T) {
 	var receivedPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedPath = r.URL.Path
@@ -138,8 +111,7 @@ func TestS3Drive_BucketInCanonicalURI(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	drive := NewS3Drive(db.Drive{
-		Type:      "s3",
+	client := NewClient(Config{
 		Endpoint:  srv.URL,
 		Bucket:    "my-bucket",
 		Region:    "us-east-1",
@@ -147,7 +119,7 @@ func TestS3Drive_BucketInCanonicalURI(t *testing.T) {
 		SecretKey: "SK",
 	})
 
-	_ = drive.Upload(t.Context(), "cam/file.mp4", strings.NewReader("x"), 1)
+	_ = client.Upload(t.Context(), "cam/file.mp4", strings.NewReader("x"), 1)
 
 	if !strings.HasPrefix(receivedPath, "/my-bucket/") {
 		t.Errorf("bucket must appear as first path segment, got: %s", receivedPath)
@@ -171,21 +143,20 @@ func TestHostFromURL(t *testing.T) {
 	}
 }
 
-func TestS3Drive_ServerError(t *testing.T) {
+func TestClient_ServerError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "NoSuchBucket", http.StatusNotFound)
 	}))
 	defer srv.Close()
 
-	drive := NewS3Drive(db.Drive{
-		Type:      "s3",
+	client := NewClient(Config{
 		Endpoint:  srv.URL,
 		Bucket:    "bucket",
 		Region:    "us-east-1",
 		AccessKey: "AK",
 		SecretKey: "SK",
 	})
-	err := drive.Upload(t.Context(), "file.mp4", strings.NewReader("x"), 1)
+	err := client.Upload(t.Context(), "file.mp4", strings.NewReader("x"), 1)
 	if err == nil {
 		t.Fatal("expected error on 404, got nil")
 	}

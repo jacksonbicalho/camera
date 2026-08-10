@@ -1,4 +1,4 @@
-package storage
+package s3
 
 import (
 	"bytes"
@@ -12,12 +12,23 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"camera/internal/db"
 )
 
-// S3Drive uploads objects to an S3-compatible bucket using AWS Signature V4.
-type S3Drive struct {
+// Config holds the primitive fields needed to reach an S3-compatible bucket
+// — deliberately decoupled from any internal/db type (same low-coupling
+// idiom as internal/extensions/telegram.NewClient(botToken string)), so the
+// caller maps whatever storage shape it has (e.g. db.Drive) into this struct.
+type Config struct {
+	Endpoint  string
+	Bucket    string
+	Region    string
+	AccessKey string
+	SecretKey string
+	Prefix    string
+}
+
+// Client uploads objects to an S3-compatible bucket using AWS Signature V4.
+type Client struct {
 	endpoint  string
 	bucket    string
 	region    string
@@ -26,26 +37,26 @@ type S3Drive struct {
 	prefix    string
 }
 
-func NewS3Drive(dr db.Drive) *S3Drive {
-	endpoint := dr.Endpoint
+func NewClient(cfg Config) *Client {
+	endpoint := cfg.Endpoint
 	if endpoint == "" {
-		endpoint = fmt.Sprintf("https://s3.%s.amazonaws.com", dr.Region)
+		endpoint = fmt.Sprintf("https://s3.%s.amazonaws.com", cfg.Region)
 	}
 	// Normalise: no trailing slash.
 	endpoint = strings.TrimRight(endpoint, "/")
-	return &S3Drive{
+	return &Client{
 		endpoint:  endpoint,
-		bucket:    dr.Bucket,
-		region:    dr.Region,
-		accessKey: dr.AccessKey,
-		secretKey: dr.SecretKey,
-		prefix:    strings.TrimRight(dr.Prefix, "/"),
+		bucket:    cfg.Bucket,
+		region:    cfg.Region,
+		accessKey: cfg.AccessKey,
+		secretKey: cfg.SecretKey,
+		prefix:    strings.TrimRight(cfg.Prefix, "/"),
 	}
 }
 
-func (s *S3Drive) Upload(ctx context.Context, key string, r io.Reader, size int64) error {
-	if s.prefix != "" {
-		key = s.prefix + "/" + key
+func (c *Client) Upload(ctx context.Context, key string, r io.Reader, size int64) error {
+	if c.prefix != "" {
+		key = c.prefix + "/" + key
 	}
 
 	body, err := io.ReadAll(r)
@@ -58,15 +69,15 @@ func (s *S3Drive) Upload(ctx context.Context, key string, r io.Reader, size int6
 	amzDate := now.Format("20060102T150405Z")
 
 	encodedKey := awsEncodeKey(key)
-	objectURL := fmt.Sprintf("%s/%s/%s", s.endpoint, s.bucket, encodedKey)
+	objectURL := fmt.Sprintf("%s/%s/%s", c.endpoint, c.bucket, encodedKey)
 
 	contentHash := hashHex(body)
 
 	headers := map[string]string{
-		"host":                 hostFromURL(s.endpoint),
-		"x-amz-date":          amzDate,
+		"host":                 hostFromURL(c.endpoint),
+		"x-amz-date":           amzDate,
 		"x-amz-content-sha256": contentHash,
-		"content-type":        "application/octet-stream",
+		"content-type":         "application/octet-stream",
 	}
 
 	signedHeaders := "content-type;host;x-amz-content-sha256;x-amz-date"
@@ -81,21 +92,21 @@ func (s *S3Drive) Upload(ctx context.Context, key string, r io.Reader, size int6
 
 	canonicalRequest := strings.Join([]string{
 		"PUT",
-		"/" + s.bucket + "/" + encodedKey,
+		"/" + c.bucket + "/" + encodedKey,
 		"",
 		canonicalHeaders,
 		signedHeaders,
 		contentHash,
 	}, "\n")
 
-	credentialScope := dateStamp + "/" + s.region + "/s3/aws4_request"
+	credentialScope := dateStamp + "/" + c.region + "/s3/aws4_request"
 	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + credentialScope + "\n" + hashHex([]byte(canonicalRequest))
 
 	signingKey := hmacSHA256(
 		hmacSHA256(
 			hmacSHA256(
-				hmacSHA256([]byte("AWS4"+s.secretKey), []byte(dateStamp)),
-				[]byte(s.region),
+				hmacSHA256([]byte("AWS4"+c.secretKey), []byte(dateStamp)),
+				[]byte(c.region),
 			),
 			[]byte("s3"),
 		),
@@ -105,7 +116,7 @@ func (s *S3Drive) Upload(ctx context.Context, key string, r io.Reader, size int6
 
 	authHeader := fmt.Sprintf(
 		"AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-		s.accessKey, credentialScope, signedHeaders, signature,
+		c.accessKey, credentialScope, signedHeaders, signature,
 	)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, objectURL, bytes.NewReader(body))

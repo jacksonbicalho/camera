@@ -20,6 +20,7 @@ import (
 	"camera/internal/analysis"
 	"camera/internal/db"
 	"camera/internal/detector"
+	"camera/internal/extensions/s3"
 	"camera/internal/notifications"
 )
 
@@ -322,8 +323,8 @@ func (c *Cleaner) effectiveRetentionMinutes() (withMotion, withoutMotion int) {
 	return
 }
 
-func (c *Cleaner) loadDrives() (drives map[string]Drive, withMotionAction, withoutMotionAction string, withMotionDriveID, withoutMotionDriveID string) {
-	drives = make(map[string]Drive)
+func (c *Cleaner) loadDrives() (drives map[string]s3.Uploader, withMotionAction, withoutMotionAction string, withMotionDriveID, withoutMotionDriveID string) {
+	drives = make(map[string]s3.Uploader)
 	withMotionAction = "delete"
 	withoutMotionAction = "delete"
 
@@ -334,7 +335,14 @@ func (c *Cleaner) loadDrives() (drives map[string]Drive, withMotionAction, witho
 	}
 	for _, dr := range dbDrives {
 		if dr.Type == "s3" {
-			drives[dr.ID] = NewS3Drive(dr)
+			drives[dr.ID] = s3.NewClient(s3.Config{
+				Endpoint:  dr.Endpoint,
+				Bucket:    dr.Bucket,
+				Region:    dr.Region,
+				AccessKey: dr.AccessKey,
+				SecretKey: dr.SecretKey,
+				Prefix:    dr.Prefix,
+			})
 		}
 	}
 
@@ -550,7 +558,7 @@ func (c *Cleaner) purgeOrphanEvents() {
 
 // uploadAndPurge uploads the MP4 file to the given drive, then removes the
 // local file and all DB references. On upload failure nothing is deleted.
-func (c *Cleaner) uploadAndPurge(drive Drive, path string, startedAt, endedAt time.Time) error {
+func (c *Cleaner) uploadAndPurge(drive s3.Uploader, path string, startedAt, endedAt time.Time) error {
 	key := filepath.Base(filepath.Dir(path)) + "/" + filepath.Base(path)
 	// Build key using camera name as first segment: "camera-name/YYYY/MM/DD/file.mp4"
 	rel, err := filepath.Rel(c.storagePath, path)
