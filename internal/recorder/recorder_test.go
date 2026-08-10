@@ -464,7 +464,7 @@ func TestRecorderCaptureType(t *testing.T) {
 	ts := time.Date(2026, 4, 30, 14, 30, 0, 0, time.UTC)
 	storage := config.StorageConfig{Path: tmpDir}
 
-	t.Run("CA4: capture_type=hls usa internal/capture/hls (sem -rtsp_transport tcp)", func(t *testing.T) {
+	t.Run("CA4: capture_type=hls usa internal/capturer/hls (sem -rtsp_transport tcp)", func(t *testing.T) {
 		camera := config.CameraConfig{
 			ID:          "cam-hls",
 			RTSPURL:     "https://cam.example.com/stream/playlist.m3u8",

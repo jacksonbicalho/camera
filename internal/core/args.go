@@ -1,8 +1,8 @@
 // Package core reúne utilitários de captura genéricos o bastante pra serem
 // compartilhados por mais de um protocolo (não específicos de RTSP, HLS,
-// etc.) — irmão de internal/capture/, nunca aninhado dentro dele
+// etc.) — irmão de internal/capturer/, nunca aninhado dentro dele
 // (internal/exec e internal/ffprobe já seguem esse mesmo padrão: topo, não
-// aninhados em nada de protocolo). Nasceu quando internal/capture/rtsp
+// aninhados em nada de protocolo). Nasceu quando internal/capturer/rtsp
 // deixou de ser o único consumidor real desses símbolos — ver
 // work_progress/analysis (história feat/capture-hls-dominio).
 package core

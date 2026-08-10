@@ -575,7 +575,7 @@ func TestHLSStreamerRunStopsOnContextCancel(t *testing.T) {
 func TestHLSStreamerCaptureType(t *testing.T) {
 	server := config.ServerConfig{SegmentsPath: t.TempDir()}
 
-	t.Run("CA5: capture_type=hls usa internal/capture/hls (sem -rtsp_transport tcp)", func(t *testing.T) {
+	t.Run("CA5: capture_type=hls usa internal/capturer/hls (sem -rtsp_transport tcp)", func(t *testing.T) {
 		camera := config.CameraConfig{
 			ID:          "cam-hls",
 			RTSPURL:     "https://cam.example.com/stream/playlist.m3u8",

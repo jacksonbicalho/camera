@@ -23,4 +23,4 @@ Transporte universal (qualquer browser toca HLS), com piso de latência de
 ## Ver também
 - [internal/transmission](../README.md) — visão geral do domínio de entrega ao vivo.
 - [internal/transmission/webrtc](../webrtc/README.md) — transporte irmão, baixa latência.
-- [internal/capture](../../capture/README.md) — builders de args por protocolo de captura.
+- [internal/capturer](../../capturer/README.md) — builders de args por protocolo de captura.

@@ -19,7 +19,7 @@ import (
 
 	"camera/frontend"
 	"camera/internal/analysis"
-	"camera/internal/capture/rtsp"
+	"camera/internal/capturer/rtsp"
 	"camera/internal/config"
 	"camera/internal/core"
 	"camera/internal/db"

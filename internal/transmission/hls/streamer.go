@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	capturehls "camera/internal/capture/hls"
-	"camera/internal/capture/rtsp"
+	capturehls "camera/internal/capturer/hls"
+	"camera/internal/capturer/rtsp"
 	"camera/internal/config"
 	"camera/internal/core"
 	"camera/internal/exec"

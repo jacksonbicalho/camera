@@ -24,6 +24,6 @@ decisão.
   antes de matar).
 
 ## Ver também
-- [internal/capture](../capture/README.md) — builders de args por protocolo.
+- [internal/capturer](../capturer/README.md) — builders de args por protocolo.
 - [internal/exec](../exec/README.md) — gerência do processo ffmpeg de longa duração.
 - [internal/storage](../storage/README.md) — retenção/limpeza dos chunks gravados aqui.

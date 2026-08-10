@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"camera/internal/capture/hls"
+	"camera/internal/capturer/hls"
 )
 
 func TestConnectArgs(t *testing.T) {

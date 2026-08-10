@@ -1,7 +1,7 @@
-# internal/capture/hls
+# internal/capturer/hls
 
 Centraliza a captura de câmeras cuja fonte é um stream HLS (playlist `.m3u8`
-servida via HTTP/HTTPS) — protocolo irmão de `internal/capture/rtsp`, mesmo
+servida via HTTP/HTTPS) — protocolo irmão de `internal/capturer/rtsp`, mesmo
 padrão: o núcleo protocolo-agnóstico vive em `internal/core`, aqui só o que é
 específico de HLS.
 
@@ -11,6 +11,6 @@ específico de HLS.
   `-rtsp_transport tcp` pra forçar — `core.InputArgs` (`-i <url>`) já basta.
 
 ## Ver também
-- [internal/capture](../README.md) — visão geral do domínio de captura.
-- [internal/capture/rtsp](../rtsp/README.md) — protocolo irmão.
+- [internal/capturer](../README.md) — visão geral do domínio de captura.
+- [internal/capturer/rtsp](../rtsp/README.md) — protocolo irmão.
 - [internal/core](../../core/README.md) — a parte protocolo-agnóstica.
