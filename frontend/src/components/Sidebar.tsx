@@ -13,7 +13,6 @@ import {
   Eye,
   Film,
   Gauge,
-  HardDrive,
   History,
   Menu,
   Network,
@@ -298,15 +297,6 @@ export default function Sidebar() {
                   to: '/settings/server',
                   label: 'Servidor',
                   icon: <Server className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-storage',
-                  to: '/settings/storage',
-                  label: 'Armazenamento',
-                  icon: <HardDrive className="h-5 w-5 shrink-0" />,
                 }}
                 showLabel={showLabel}
               />

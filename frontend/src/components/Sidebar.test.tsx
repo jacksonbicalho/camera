@@ -248,20 +248,25 @@ describe('CA3: seção "Movimentos" renomeada para "Inteligência Artificial" �
   })
 })
 
-describe('CA4/CA9: seção "Administração" (admin) — Servidor, Armazenamento, Usuários', () => {
-  it('admin vê os 3 itens', () => {
+describe('CA4/CA9: seção "Administração" (admin) — Servidor, Usuários', () => {
+  it('admin vê os itens', () => {
     renderAt('/')
-    expect(document.getElementById('sidebar-storage')?.getAttribute('href')).toBe(
-      '/settings/storage',
-    )
     expect(document.getElementById('sidebar-server')?.getAttribute('href')).toBe('/settings/server')
     expect(document.getElementById('sidebar-users')?.getAttribute('href')).toBe('/settings/users')
+  })
+
+  // CA (história refactor/preferencias-submenu-lateral-storage): Armazenamento
+  // deixou de ser item solo do rail — migrou pra dentro de Preferências
+  // (/settings/preferences/storage, item do PreferencesLayout), mesmo
+  // precedente de quando Aparência saiu do rail.
+  it('não mostra mais o item solo "Armazenamento" (migrou pra dentro de Preferências)', () => {
+    renderAt('/')
+    expect(document.getElementById('sidebar-storage')).toBeNull()
   })
 
   it('viewer não vê a seção Administração', () => {
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
-    expect(document.getElementById('sidebar-storage')).toBeNull()
     expect(document.getElementById('sidebar-server')).toBeNull()
     expect(document.getElementById('sidebar-users')).toBeNull()
   })
@@ -269,18 +274,18 @@ describe('CA4/CA9: seção "Administração" (admin) — Servidor, Armazenamento
 
 // Regressão (feedback do navigator testando a branch de
 // refactor/camera-tabs-para-sidebar-ia): "Rastrear câmeras" saiu de "Câmeras
-// e Gravações" e foi pra "Administração", logo depois de "Armazenamento".
-describe('regressão: "Rastrear câmeras" migrou pra "Administração", depois de "Armazenamento"', () => {
-  it('admin vê "Rastrear câmeras" dentro de Administração, entre Armazenamento e Usuários', () => {
+// e Gravações" e foi pra "Administração", logo depois de "Servidor" (antes:
+// depois de "Armazenamento", item removido do rail na história
+// refactor/preferencias-submenu-lateral-storage).
+describe('regressão: "Rastrear câmeras" migrou pra "Administração", depois de "Servidor"', () => {
+  it('admin vê "Rastrear câmeras" dentro de Administração, entre Servidor e Usuários', () => {
     renderAt('/')
-    const storage = document.getElementById('sidebar-storage')!
+    const server = document.getElementById('sidebar-server')!
     const discover = document.getElementById('sidebar-discover')!
     const users = document.getElementById('sidebar-users')!
 
     expect(discover.getAttribute('href')).toBe('/settings/discover')
-    expect(
-      storage.compareDocumentPosition(discover) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
+    expect(server.compareDocumentPosition(discover) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(discover.compareDocumentPosition(users) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
@@ -292,8 +297,8 @@ describe('regressão: "Rastrear câmeras" migrou pra "Administração", depois d
 })
 
 // CA3 (história refactor/mover-appearance-preferencias): "Aparência" deixou
-// de ser item próprio do Sidebar — virou a 2ª aba de Preferências
-// (PreferencesTabs). Substitui o describe anterior que testava
+// de ser item próprio do Sidebar — virou item do submenu de Preferências
+// (PreferencesLayout). Substitui o describe anterior que testava
 // sidebar-appearance como item independente.
 describe('CA3: item "Aparência" sai do Sidebar (migrou pra dentro de Preferências)', () => {
   it('nem admin nem viewer veem mais o item "Aparência" no Sidebar', () => {

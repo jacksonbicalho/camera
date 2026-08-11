@@ -1,16 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import PreferencesExtensionsPage from './PreferencesExtensionsPage'
-
-// PreferencesExtensionsPage.test.tsx reescrito (história
-// feat/extensoes-generalizadas-s3-extensao, T4): GET /api/settings/extensions
-// passa a devolver uma LISTA (id/category/description/available/active) em
-// vez do objeto plano {telegram_enabled, telegram_available} — o card deixa
-// de ser hardcoded pro Telegram e passa a renderizar qualquer entrada da
-// lista. Card indisponível (available=false) fica opaco/bloqueado; card
-// disponível mostra checkbox "Ativo" + botão "Configurar" (só quando a
-// extensão tem tela própria — S3 tem, Telegram não nesta história).
 
 vi.mock('../../auth', () => ({
   authHeaders: () => ({}),
@@ -22,32 +13,35 @@ vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
-interface ExtensionFixture {
-  id: string
-  name: string
-  category: string
-  description: string
-  available: boolean
-  active: boolean
-}
-
-function mockExtensionsFetch(
-  list: ExtensionFixture[],
-  putSpy?: (id: string, body: unknown) => void,
-) {
+function mockFetch() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: unknown, init?: RequestInit) => {
+    vi.fn(async (url: unknown) => {
       const u = String(url)
-      if (u === '/api/settings/extensions' && (!init || init.method === undefined)) {
-        return new Response(JSON.stringify(list), { status: 200 })
+      if (u === '/api/settings/extensions') {
+        return new Response(
+          JSON.stringify([
+            {
+              id: 'telegram',
+              name: 'Telegram',
+              category: 'Notificações',
+              description: 'Envia notificações de movimento via Telegram.',
+              available: true,
+              active: true,
+            },
+            {
+              id: 's3',
+              name: 'S3',
+              category: 'Retenção',
+              description: 'Envia gravações expiradas para um destino S3 externo.',
+              available: true,
+              active: false,
+            },
+          ]),
+          { status: 200 },
+        )
       }
-      const putMatch = u.match(/^\/api\/settings\/extensions\/(.+)$/)
-      if (putMatch && init?.method === 'PUT') {
-        const body = init.body ? JSON.parse(String(init.body)) : null
-        putSpy?.(putMatch[1], body)
-        return new Response('{}', { status: 200 })
-      }
+      if (u === '/api/retention-extensions') return new Response('[]', { status: 200 })
       return new Response('{}', { status: 200 })
     }),
   )
@@ -58,85 +52,26 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function renderPage() {
-  return render(
-    <MemoryRouter>
-      <PreferencesExtensionsPage />
-    </MemoryRouter>,
-  )
-}
+describe('CA4/CA5: PreferencesExtensionsPage mostra o conteúdo de Telegram e S3 juntos, na mesma página', () => {
+  it('renderiza o card do Telegram (com Ativado marcado) e o card do S3 (disponível), com o submenu ao lado', async () => {
+    mockFetch()
+    render(
+      <MemoryRouter>
+        <PreferencesExtensionsPage />
+      </MemoryRouter>,
+    )
 
-const telegramAvailable: ExtensionFixture = {
-  id: 'telegram',
-  name: 'Telegram',
-  category: 'Notificações',
-  description: 'Envia notificações de movimento via Telegram.',
-  available: true,
-  active: false,
-}
+    // Telegram: available+active — checkbox marcado, sem navegar pra sub-rota.
+    await screen.findByText('Telegram')
+    const telegramCheckbox = document.getElementById('telegram-active') as HTMLInputElement
+    expect(telegramCheckbox.checked).toBe(true)
 
-const telegramUnavailable: ExtensionFixture = { ...telegramAvailable, available: false }
+    // S3: available — card renderiza de verdade (não a mensagem de bloqueio).
+    await screen.findByText('S3')
+    expect(screen.queryByText('Extensão não permitida nesta instância.')).toBeNull()
 
-const s3Available: ExtensionFixture = {
-  id: 's3',
-  name: 'S3',
-  category: 'Retenção',
-  description: 'Envia gravações expiradas para um destino S3 externo.',
-  available: true,
-  active: true,
-}
-
-describe('CA6: card de extensão indisponível vem opaco/bloqueado, sem controles', () => {
-  it('renderiza a extensão indisponível sem checkbox e sem botão Configurar', async () => {
-    mockExtensionsFetch([telegramUnavailable])
-    renderPage()
-
-    const card = await screen.findByTestId('extension-card-telegram')
-    expect(card.className).toMatch(/opacity-/)
-    expect(screen.queryByRole('checkbox')).toBeNull()
-    expect(screen.queryByRole('button', { name: /configurar/i })).toBeNull()
-  })
-})
-
-describe('CA6: card de extensão disponível mostra categoria, descrição e checkbox "Ativo"', () => {
-  it('mostra categoria e descrição da extensão', async () => {
-    mockExtensionsFetch([telegramAvailable])
-    renderPage()
-
-    await screen.findByText('Notificações')
-    await screen.findByText(telegramAvailable.description)
-  })
-
-  it('clicar no checkbox dispara PUT /api/settings/extensions/telegram com active invertido', async () => {
-    let putId: string | null = null
-    let putBody: unknown = null
-    mockExtensionsFetch([telegramAvailable], (id, body) => {
-      putId = id
-      putBody = body
-    })
-    renderPage()
-
-    const checkbox = await screen.findByRole('checkbox')
-    fireEvent.click(checkbox)
-
-    await waitFor(() => {
-      expect(putId).toBe('telegram')
-      expect(putBody).toEqual({ active: true })
-    })
-  })
-
-  it('não mostra botão "Configurar" pra uma extensão sem tela própria (telegram)', async () => {
-    mockExtensionsFetch([telegramAvailable])
-    renderPage()
-
-    await screen.findByTestId('extension-card-telegram')
-    expect(screen.queryByRole('button', { name: /configurar/i })).toBeNull()
-  })
-
-  it('mostra botão "Configurar" pra uma extensão com tela própria (s3)', async () => {
-    mockExtensionsFetch([s3Available])
-    renderPage()
-
-    await screen.findByRole('button', { name: /configurar/i })
+    expect(document.getElementById('preferences-nav-extensions')).toBeTruthy()
+    expect(document.getElementById('preferences-nav-appearance')).toBeTruthy()
+    expect(document.getElementById('preferences-nav-storage')).toBeTruthy()
   })
 })

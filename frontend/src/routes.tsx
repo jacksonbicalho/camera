@@ -17,7 +17,6 @@ const UsersSettingsPage = lazy(() => import('./pages/settings/UsersSettingsPage'
 const UserDetailSettingsPage = lazy(() => import('./pages/settings/UserDetailSettingsPage'))
 const AppearanceSettingsPage = lazy(() => import('./pages/settings/AppearanceSettingsPage'))
 const PreferencesExtensionsPage = lazy(() => import('./pages/settings/PreferencesExtensionsPage'))
-const S3ExtensionConfigPage = lazy(() => import('./pages/settings/S3ExtensionConfigPage'))
 const AboutPage = lazy(() => import('./pages/settings/AboutPage'))
 const CamerasSettingsPage = lazy(() => import('./pages/settings/CamerasSettingsPage'))
 const CameraDetailSettingsPage = lazy(() => import('./pages/settings/CameraDetailSettingsPage'))
@@ -184,7 +183,7 @@ export const routes = (
       }
     />
     <Route
-      path="/settings/storage"
+      path="/settings/preferences/storage"
       element={
         <Lazy>
           <StorageSettingsPage />
@@ -192,7 +191,7 @@ export const routes = (
       }
     />
     <Route
-      path="/settings/storage/edit"
+      path="/settings/preferences/storage/edit"
       element={
         <Lazy>
           <StorageSettingsPage />
@@ -308,14 +307,6 @@ export const routes = (
       element={
         <Lazy>
           <PreferencesExtensionsPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/preferences/extensions/s3"
-      element={
-        <Lazy>
-          <S3ExtensionConfigPage />
         </Lazy>
       }
     />

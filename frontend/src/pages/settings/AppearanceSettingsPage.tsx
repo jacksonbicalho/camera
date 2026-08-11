@@ -1,6 +1,6 @@
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
-import PreferencesTabs from '../../components/PreferencesTabs'
+import PreferencesLayout from '../../components/PreferencesLayout'
 import { Check } from '../../components/Icons'
 import { useTheme, type Mode, type AccentColor } from '../../contexts/ThemeContext'
 import { ACCENT_OPTIONS } from '../../components/accentOptions'
@@ -51,44 +51,44 @@ export default function AppearanceSettingsPage() {
         title="Preferências"
         subtitle="Controla como botões e rótulos são exibidos na interface."
       />
-      <PreferencesTabs active="appearance" />
-
-      <div className="flex flex-col gap-6">
-        <div className="bg-surface border border-border rounded-lg p-5 flex flex-col gap-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">Estilo</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Esquema de cores da interface.</p>
+      <PreferencesLayout active="appearance">
+        <div className="flex flex-col gap-6">
+          <div className="bg-surface border border-border rounded-lg p-5 flex flex-col gap-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Estilo</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Esquema de cores da interface.</p>
+            </div>
+            <div className="flex gap-3 flex-wrap">
+              {THEME_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  className="flex items-center gap-2 cursor-pointer select-none group"
+                >
+                  <input
+                    type="radio"
+                    checked={colorMode === opt.value}
+                    onChange={() => setMode(opt.value)}
+                    className="accent-primary cursor-pointer"
+                  />
+                  <span className="text-sm text-foreground group-hover:text-white transition-colors">
+                    {opt.label}
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-3 flex-wrap">
-            {THEME_OPTIONS.map((opt) => (
-              <label
-                key={opt.value}
-                className="flex items-center gap-2 cursor-pointer select-none group"
-              >
-                <input
-                  type="radio"
-                  checked={colorMode === opt.value}
-                  onChange={() => setMode(opt.value)}
-                  className="accent-primary cursor-pointer"
-                />
-                <span className="text-sm text-foreground group-hover:text-white transition-colors">
-                  {opt.label}
-                </span>
-              </label>
-            ))}
+
+          <div className="bg-surface border border-border rounded-lg p-5 flex flex-col gap-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Cor de destaque</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Cor dos botões, links e foco de campos.
+              </p>
+            </div>
+            <AccentSwatchGroup value={accent} onChange={setAccent} />
           </div>
         </div>
-
-        <div className="bg-surface border border-border rounded-lg p-5 flex flex-col gap-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">Cor de destaque</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Cor dos botões, links e foco de campos.
-            </p>
-          </div>
-          <AccentSwatchGroup value={accent} onChange={setAccent} />
-        </div>
-      </div>
+      </PreferencesLayout>
     </SettingsLayout>
   )
 }
