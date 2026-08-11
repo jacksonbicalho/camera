@@ -1,44 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import PreferencesLayout from './PreferencesLayout'
 
-const telegramFixture = {
-  id: 'telegram',
-  name: 'Telegram',
-  category: 'Notificações',
-  description: 'Envia notificações de movimento via Telegram.',
-  available: true,
-  active: false,
-}
-
-const s3Fixture = {
-  id: 's3',
-  name: 'S3',
-  category: 'Retenção',
-  description: 'Envia gravações expiradas para um destino S3 externo.',
-  available: true,
-  active: true,
-}
-
-function mockExtensionsFetch(list: unknown[] = [telegramFixture, s3Fixture]) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: unknown) => {
-      if (String(url) === '/api/settings/extensions') {
-        return new Response(JSON.stringify(list), { status: 200 })
-      }
-      return new Response('{}', { status: 200 })
-    }),
-  )
-}
-
 afterEach(() => {
   cleanup()
-  vi.unstubAllGlobals()
 })
 
-function renderLayout(active: string) {
+function renderLayout(active: 'extensions' | 'appearance' | 'storage') {
   return render(
     <MemoryRouter>
       <PreferencesLayout active={active}>
@@ -48,85 +17,49 @@ function renderLayout(active: string) {
   )
 }
 
-describe('CA2: PreferencesLayout agrupa as extensões por categoria e mostra Aparência/Armazenamento', () => {
-  it('mostra as categorias Notificações e Retenção, cada uma com sua extensão', async () => {
-    mockExtensionsFetch()
-    renderLayout('telegram')
+describe('CA2: PreferencesLayout mostra só 3 links fixos — Extensões, Aparência, Armazenamento', () => {
+  it('mostra exatamente os 3 links, sem categorias/sub-itens por extensão', () => {
+    renderLayout('extensions')
 
-    await screen.findByText('Notificações')
-    await screen.findByText('Telegram')
-    await screen.findByText('Retenção')
-    await screen.findByText('S3')
+    const submenu = document.getElementById('preferences-submenu')!
+    const links = Array.from(submenu.querySelectorAll('a')).map((a) => a.textContent)
+    expect(links).toEqual(['Extensões', 'Aparência', 'Armazenamento'])
   })
 
-  it('Notificações (com Telegram) vem antes de Retenção (com S3), refletindo a ordem da API', async () => {
-    mockExtensionsFetch()
-    renderLayout('telegram')
-
-    const notif = await screen.findByText('Notificações')
-    const retencao = await screen.findByText('Retenção')
-    expect(notif.compareDocumentPosition(retencao) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it('preserva a ordem de CHEGADA da API, não ordena alfabeticamente — com S3 vindo antes na resposta, Retenção aparece antes de Notificações', async () => {
-    mockExtensionsFetch([s3Fixture, telegramFixture])
-    renderLayout('s3')
-
-    const retencao = await screen.findByText('Retenção')
-    const notif = await screen.findByText('Notificações')
-    expect(retencao.compareDocumentPosition(notif) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it('sem nenhuma extensão disponível (ex.: fetch falhou ou 403 pra um viewer), não mostra o cabeçalho "Extensões" vazio', async () => {
-    mockExtensionsFetch([])
-    renderLayout('appearance')
-
-    await screen.findByText('Aparência')
-    expect(screen.queryByText('Extensões')).toBeNull()
-  })
-
-  it('mostra os itens Aparência e Armazenamento', async () => {
-    mockExtensionsFetch()
-    renderLayout('telegram')
-
-    await screen.findByText('Aparência')
-    await screen.findByText('Armazenamento')
-  })
-
-  it('renderiza o conteúdo (children)', async () => {
-    mockExtensionsFetch()
-    renderLayout('telegram')
-
-    await screen.findByText('conteúdo')
-  })
-
-  it('destaca o item ativo', async () => {
-    mockExtensionsFetch()
-    renderLayout('s3')
-
-    const s3Link = await screen.findByText('S3')
-    await waitFor(() => {
-      expect(s3Link.getAttribute('aria-current')).toBe('page')
-    })
-    const telegramLink = screen.getByText('Telegram')
-    expect(telegramLink.getAttribute('aria-current')).toBeNull()
+  it('renderiza o conteúdo (children)', () => {
+    renderLayout('extensions')
+    expect(screen.getByText('conteúdo')).toBeTruthy()
   })
 })
 
-describe('CA3: cada item do submenu aponta pra sua própria rota', () => {
-  it('links corretos pra cada item', async () => {
-    mockExtensionsFetch()
-    renderLayout('telegram')
+describe('CA3: cada um dos 3 links do submenu aponta pra sua própria rota, com o ativo destacado', () => {
+  it('links corretos pra cada item', () => {
+    renderLayout('extensions')
 
-    expect((await screen.findByText('Telegram')).getAttribute('href')).toBe(
-      '/settings/preferences/extensions/telegram',
+    expect(document.getElementById('preferences-nav-extensions')?.getAttribute('href')).toBe(
+      '/settings/preferences/extensions',
     )
-    expect(screen.getByText('S3').getAttribute('href')).toBe('/settings/preferences/extensions/s3')
-    expect(screen.getByText('Aparência').getAttribute('href')).toBe(
+    expect(document.getElementById('preferences-nav-appearance')?.getAttribute('href')).toBe(
       '/settings/preferences/appearance',
     )
-    expect(screen.getByText('Armazenamento').getAttribute('href')).toBe(
+    expect(document.getElementById('preferences-nav-storage')?.getAttribute('href')).toBe(
       '/settings/preferences/storage',
     )
+  })
+
+  it('destaca o item ativo via aria-current', async () => {
+    renderLayout('storage')
+
+    await waitFor(() => {
+      expect(document.getElementById('preferences-nav-storage')?.getAttribute('aria-current')).toBe(
+        'page',
+      )
+    })
+    expect(
+      document.getElementById('preferences-nav-extensions')?.getAttribute('aria-current'),
+    ).toBeNull()
+    expect(
+      document.getElementById('preferences-nav-appearance')?.getAttribute('aria-current'),
+    ).toBeNull()
   })
 })

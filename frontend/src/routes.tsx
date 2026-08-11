@@ -16,11 +16,7 @@ const StorageSettingsPage = lazy(() => import('./pages/settings/StorageSettingsP
 const UsersSettingsPage = lazy(() => import('./pages/settings/UsersSettingsPage'))
 const UserDetailSettingsPage = lazy(() => import('./pages/settings/UserDetailSettingsPage'))
 const AppearanceSettingsPage = lazy(() => import('./pages/settings/AppearanceSettingsPage'))
-const PreferencesExtensionsLandingPage = lazy(
-  () => import('./pages/settings/PreferencesExtensionsLandingPage'),
-)
-const TelegramExtensionPage = lazy(() => import('./pages/settings/TelegramExtensionPage'))
-const S3ExtensionConfigPage = lazy(() => import('./pages/settings/S3ExtensionConfigPage'))
+const PreferencesExtensionsPage = lazy(() => import('./pages/settings/PreferencesExtensionsPage'))
 const AboutPage = lazy(() => import('./pages/settings/AboutPage'))
 const CamerasSettingsPage = lazy(() => import('./pages/settings/CamerasSettingsPage'))
 const CameraDetailSettingsPage = lazy(() => import('./pages/settings/CameraDetailSettingsPage'))
@@ -310,23 +306,7 @@ export const routes = (
       path="/settings/preferences/extensions"
       element={
         <Lazy>
-          <PreferencesExtensionsLandingPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/preferences/extensions/telegram"
-      element={
-        <Lazy>
-          <TelegramExtensionPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/preferences/extensions/s3"
-      element={
-        <Lazy>
-          <S3ExtensionConfigPage />
+          <PreferencesExtensionsPage />
         </Lazy>
       }
     />

@@ -66,9 +66,9 @@ function DurationInput({ value, unit, onValueChange, onUnitChange }: DurationInp
 
 // RetentionExtension é o destino S3 (0 ou 1 linha — singleton, história
 // feat/extensoes-generalizadas-s3-extensao). Cadastrar/editar esse destino
-// não é mais feito aqui: vive na tela "Configurar" da extensão S3 em
-// Preferências > Extensões (`S3ExtensionConfigPage`). Esta página só
-// CONSOME o estado pra popular o select "Ao expirar".
+// não é mais feito aqui: vive no card da extensão S3 em Preferências >
+// Extensões (`S3ExtensionCard`). Esta página só CONSOME o estado pra popular
+// o select "Ao expirar".
 interface RetentionExtension {
   id: string
   name: string

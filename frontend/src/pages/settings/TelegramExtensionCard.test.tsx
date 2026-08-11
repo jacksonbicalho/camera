@@ -1,16 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
-import TelegramExtensionPage from './TelegramExtensionPage'
+import TelegramExtensionCard from './TelegramExtensionCard'
 
 vi.mock('../../auth', () => ({
   authHeaders: () => ({}),
   getToken: () => 'fake',
   onUnauthorized: vi.fn(),
-}))
-
-vi.mock('../../components/SettingsLayout', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
 function mockFetch(
@@ -51,18 +46,10 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function renderPage() {
-  return render(
-    <MemoryRouter>
-      <TelegramExtensionPage />
-    </MemoryRouter>,
-  )
-}
-
-describe('CA4: TelegramExtensionPage mostra o estado atual de "Ativado" e "Aplicar" persiste via PUT', () => {
+describe('CA4: a página Extensões mostra o conteúdo do Telegram diretamente, sem sub-rota própria', () => {
   it('mostra o checkbox refletindo active=true vindo da API', async () => {
     mockFetch({ available: true, active: true })
-    renderPage()
+    render(<TelegramExtensionCard />)
 
     const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
     await waitFor(() => expect(checkbox.checked).toBe(true))
@@ -73,7 +60,7 @@ describe('CA4: TelegramExtensionPage mostra o estado atual de "Ativado" e "Aplic
     mockFetch({ available: true, active: false }, (body) => {
       putBody = body
     })
-    renderPage()
+    render(<TelegramExtensionCard />)
 
     const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
     fireEvent.click(checkbox)
@@ -86,7 +73,7 @@ describe('CA4: TelegramExtensionPage mostra o estado atual de "Ativado" e "Aplic
 
   it('quando a extensão não está disponível, não mostra checkbox nem Aplicar', async () => {
     mockFetch({ available: false, active: false })
-    renderPage()
+    render(<TelegramExtensionCard />)
 
     await screen.findByText('Extensão não permitida nesta instância.')
     expect(screen.queryByRole('checkbox')).toBeNull()
