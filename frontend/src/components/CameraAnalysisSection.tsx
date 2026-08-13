@@ -151,16 +151,15 @@ export default function CameraAnalysisSection({ id }: { id: string }) {
           </>
         )}
 
-        <div className="p-4 flex items-center justify-between">
+        <div className="p-4 flex items-center gap-3">
+          <Button id="camera-analysis-save" onClick={handleSave} disabled={saving || needsDetector}>
+            {saving ? 'Aplicando...' : 'Aplicar'}
+          </Button>
           {error && <p className="text-sm text-red-400">{error}</p>}
           {!error && saved && <p className="text-sm text-green-400">Salvo</p>}
           {!error && !saved && needsDetector && (
             <p className="text-xs text-amber-400">Selecione um detector pra habilitar a análise.</p>
           )}
-          {!error && !saved && !needsDetector && <span />}
-          <Button id="camera-analysis-save" onClick={handleSave} disabled={saving || needsDetector}>
-            {saving ? 'Salvando...' : 'Salvar'}
-          </Button>
         </div>
       </div>
     </div>

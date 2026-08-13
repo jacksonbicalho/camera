@@ -48,4 +48,18 @@ describe('CameraSettingsTabs', () => {
       expect(screen.queryByText('Detecção de movimento')).toBeNull()
     })
   })
+
+  describe('CA7: o botão "+ Nova câmera" assenta na mesma linha de base das abas, sem sobrepor a borda inferior', () => {
+    it('o container da linha usa items-end (alinhamento pela base) em vez de mb-1 no botão', () => {
+      render(
+        <MemoryRouter>
+          <CameraSettingsTabs id="cam-1" active="zones" />
+        </MemoryRouter>,
+      )
+      const row = screen.getByText('Zonas').closest('.border-b')
+      expect(row?.className).toContain('items-end')
+      const button = screen.getByText('Nova câmera').closest('a')
+      expect(button?.className ?? '').not.toContain('mb-1')
+    })
+  })
 })

@@ -19,7 +19,7 @@ export default function CameraSettingsTabs({ id, active }: Props) {
   const isAdmin = getRole() === 'admin'
   return (
     <div className="mb-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border">
+      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-border">
         <div className="flex flex-wrap gap-1">
           {TABS.map((tab) => (
             <Link
@@ -36,7 +36,7 @@ export default function CameraSettingsTabs({ id, active }: Props) {
           ))}
         </div>
         {isAdmin && (
-          <Button asChild className="mb-1">
+          <Button asChild>
             <Link to="/settings/cameras/new">
               <Plus className="w-3.5 h-3.5" /> Nova câmera
             </Link>

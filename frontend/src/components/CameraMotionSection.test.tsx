@@ -93,7 +93,7 @@ describe('salvar não reverte edições feitas em outras sessões (MotionFormCon
     )
 
     const callsBefore = mockFetch.mock.calls.length
-    fireEvent.click(screen.getByText('Salvar'))
+    fireEvent.click(screen.getByText('Aplicar'))
     await vi.waitFor(() => expect(mockFetch.mock.calls.length).toBeGreaterThan(callsBefore))
 
     const body = JSON.parse(mockFetch.mock.calls.at(-1)![1].body)
@@ -124,7 +124,7 @@ describe('salvar não reverte edições feitas em outras sessões (MotionFormCon
     )
 
     const callsBefore = mockFetch.mock.calls.length
-    fireEvent.click(screen.getByText('Salvar'))
+    fireEvent.click(screen.getByText('Aplicar'))
     await vi.waitFor(() => expect(mockFetch.mock.calls.length).toBeGreaterThan(callsBefore))
 
     const body = JSON.parse(mockFetch.mock.calls.at(-1)![1].body)

@@ -10,8 +10,9 @@ import type { CameraSettings } from '../hooks/useSettings'
 // CameraMotionSection — sessão "Detecção de movimento" de CameraDetailSettingsPage,
 // migrada de CameraMotionSettingsPage.tsx (história feat/camera-form-reshape, T4) —
 // "Detecção de movimento" deixou de ser aba/rota própria. Mantém seu próprio
-// <form>/botão motion-save, independente do camera-form-save (decisão registrada
-// na story: não fundir os dois submits).
+// <form>/botão motion-save, independente das demais sessões da página (cada
+// uma com seu próprio "Aplicar" — mesmo padrão generalizado na história
+// refactor/camera-detail-secoes-aplicar).
 
 function formatScore(v: number): string {
   if (v <= 0) return '—'
@@ -558,7 +559,7 @@ export function MotionFormContent({ cam, id, peak, reload }: MotionFormContentPr
 
         <div className="flex items-center gap-3">
           <Button id="motion-save" type="submit" size="sm" disabled={saving}>
-            {saving ? 'Salvando...' : 'Salvar'}
+            {saving ? 'Aplicando...' : 'Aplicar'}
           </Button>
           {saved && <span className="text-xs text-green-400">Salvo</span>}
         </div>
