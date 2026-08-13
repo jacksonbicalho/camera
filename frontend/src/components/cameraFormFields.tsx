@@ -61,11 +61,16 @@ export function CaptureFields({
         >
           <option value="rtsp">RTSP</option>
           <option value="hls">HLS</option>
+          <option value="mjpeg">MJPEG</option>
         </select>
       </div>
       <div>
         <Label htmlFor="camera-form-rtsp-url" className={labelClass}>
-          {form.capture_type === 'hls' ? 'URL HLS' : 'RTSP URL'}
+          {form.capture_type === 'hls'
+            ? 'URL HLS'
+            : form.capture_type === 'mjpeg'
+              ? 'URL MJPEG'
+              : 'RTSP URL'}
         </Label>
         <Input
           id="camera-form-rtsp-url"
@@ -75,7 +80,9 @@ export function CaptureFields({
           placeholder={
             form.capture_type === 'hls'
               ? 'https://exemplo.com/stream/playlist.m3u8'
-              : 'rtsp://usuario:senha@ip:554/stream'
+              : form.capture_type === 'mjpeg'
+                ? 'https://exemplo.com/mjpg/video.mjpg'
+                : 'rtsp://usuario:senha@ip:554/stream'
           }
         />
       </div>

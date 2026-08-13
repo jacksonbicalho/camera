@@ -80,6 +80,35 @@ describe('CA3: sessão "Captura" — seletor capture_type com campos condicionai
   })
 })
 
+// --- capture_type=mjpeg (história feat/capture-mjpeg) ---
+
+describe('CA4: sessão "Captura" — capture_type=mjpeg', () => {
+  it('capture_type=mjpeg: troca o rótulo/placeholder da URL', () => {
+    renderForm()
+    fireEvent.change(document.getElementById('camera-capture-type')!, {
+      target: { value: 'mjpeg' },
+    })
+    expect(screen.getByText('URL MJPEG')).toBeTruthy()
+    expect(screen.queryByText('RTSP URL')).toBeNull()
+    expect(screen.queryByText('URL HLS')).toBeNull()
+  })
+
+  it('submete capture_type=mjpeg junto com o resto do form', () => {
+    const { onSave } = renderForm()
+    fireEvent.change(document.getElementById('camera-capture-type')!, {
+      target: { value: 'mjpeg' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Sala, Garagem, Entrada'), {
+      target: { value: 'Portão' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('https://exemplo.com/mjpg/video.mjpg'), {
+      target: { value: 'https://195.196.36.242/mjpg/video.mjpg' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^salvar$/i }))
+    expect(onSave.mock.calls[0][0].capture_type).toBe('mjpeg')
+  })
+})
+
 describe('CA4: sessão "Gravação" esconde campos quando desligada; sessão "Transmissão" (live_enabled) esconde campos quando desligada', () => {
   it('desmarcar "Gravar em disco" esconde duração do chunk / modo de gravação (intervalo de reconexão é da sessão Captura, continua visível)', () => {
     renderForm()

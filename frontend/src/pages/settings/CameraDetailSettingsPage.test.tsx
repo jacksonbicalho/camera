@@ -2,9 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import CameraDetailSettingsPage from './CameraDetailSettingsPage'
+import { getRole } from '../../auth'
 
 vi.mock('../../auth', () => ({
-  getRole: () => 'admin',
+  getRole: vi.fn(() => 'admin'),
   authHeaders: () => ({}),
 }))
 vi.mock('../../components/SettingsLayout', () => ({
@@ -52,7 +53,10 @@ vi.mock('../../hooks/useSettings', () => ({
 }))
 vi.mock('../../hooks/useMotionPeak', () => ({ useMotionPeak: () => null }))
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.mocked(getRole).mockReturnValue('admin')
+})
 
 function renderAt(path: string) {
   vi.stubGlobal(
@@ -141,6 +145,58 @@ describe('CameraDetailSettingsPage', () => {
       expect(
         motion.compareDocumentPosition(analysis) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy()
+    })
+  })
+
+  // --- capture_type=mjpeg (história feat/capture-mjpeg) ---
+
+  describe('CA4: viewer — visualização somente-leitura mostra o Protocolo/URL corretos pra um 3º capture_type', () => {
+    it('capture_type=mjpeg mostra "MJPEG" e "URL MJPEG", não o fallback "RTSP"', async () => {
+      vi.mocked(getRole).mockReturnValue('viewer')
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve([
+                {
+                  id: 'cam-1',
+                  name: 'Portão',
+                  rtsp_url: 'https://195.196.36.242/mjpg/video.mjpg',
+                  capture_type: 'mjpeg',
+                  video_codec: '',
+                  has_audio: null,
+                  width: 0,
+                  height: 0,
+                  reconnect_interval: '30s',
+                  recording_enabled: true,
+                  chunk_duration: '5m',
+                  record_video_mode: 'auto',
+                  live_enabled: true,
+                  live_transport: 'auto',
+                  hls_video_mode: 'auto',
+                  hls_segment_seconds: null,
+                  hls_list_size: null,
+                  hls_dvr_seconds: null,
+                  motion: null,
+                },
+              ]),
+          }),
+        ),
+      )
+
+      render(
+        <MemoryRouter initialEntries={['/settings/cameras/cam-1']}>
+          <Routes>
+            <Route path="/settings/cameras/:id" element={<CameraDetailSettingsPage />} />
+          </Routes>
+        </MemoryRouter>,
+      )
+
+      await waitFor(() => expect(screen.getByText('MJPEG')).toBeTruthy())
+      expect(screen.getByText('URL MJPEG')).toBeTruthy()
+      expect(screen.queryByText('RTSP')).toBeNull()
     })
   })
 })

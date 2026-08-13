@@ -27,6 +27,12 @@ function fmtResolution(w: number, h: number): string {
   return `${w} × ${h}`
 }
 
+function captureTypeLabel(v: string): string {
+  if (v === 'hls') return 'HLS'
+  if (v === 'mjpeg') return 'MJPEG'
+  return 'RTSP'
+}
+
 function fmtVideoMode(v: string): string {
   if (v === 'h264') return 'H.264 (sempre transcodifica)'
   if (v === 'copy') return 'Cópia (sem transcodificação)'
@@ -76,8 +82,8 @@ function CameraCaptureView({ cam }: { cam: CameraViewFields }) {
         title="Captura"
         groups={[
           [
-            { label: 'Protocolo', value: captureType === 'hls' ? 'HLS' : 'RTSP' },
-            { label: captureType === 'hls' ? 'URL HLS' : 'URL RTSP', value: cam.rtsp_url },
+            { label: 'Protocolo', value: captureTypeLabel(captureType) },
+            { label: `URL ${captureTypeLabel(captureType)}`, value: cam.rtsp_url },
           ],
           [
             { label: 'Codec de vídeo', value: cam.video_codec || 'auto' },
