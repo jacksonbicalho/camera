@@ -12,6 +12,14 @@ func InputArgs(url string) []string {
 	return []string{"-i", url}
 }
 
+// NeedsRTSPTransport reporta se o capture_type exige a flag
+// "-rtsp_transport tcp" do ffmpeg/ffprobe — só o protocolo RTSP precisa
+// (default quando capture_type está vazio); HLS e MJPEG são servidos sobre
+// HTTP puro, onde essa flag é erro fatal do ffmpeg, não um no-op.
+func NeedsRTSPTransport(captureType string) bool {
+	return captureType == "" || captureType == "rtsp"
+}
+
 // NeedsTranscode decide se o stream precisa ser transcodificado pra H.264,
 // dada a preferência de modo do consumidor ("h264" sempre transcodifica,
 // "copy" nunca, "auto"/vazio só quando o codec detectado não é h264).

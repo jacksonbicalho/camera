@@ -83,3 +83,22 @@ func TestShouldPublishAndShouldRunHLS_CaptureTypeAndLiveEnabled(t *testing.T) {
 		}
 	})
 }
+
+// --- capture_type=mjpeg (história feat/capture-mjpeg) ---
+
+func TestShouldPublishAndShouldRunHLS_CaptureTypeMJPEG(t *testing.T) {
+	t.Run("CA3: capture_type=mjpeg nunca publica WebRTC, mesmo com video_codec forçado pra h264", func(t *testing.T) {
+		if got := ShouldPublish("h264", "auto", "mjpeg", true); got != false {
+			t.Errorf("ShouldPublish(h264, auto, mjpeg, true) = %v, want false", got)
+		}
+		if got := ShouldPublish("h264", "webrtc", "mjpeg", true); got != false {
+			t.Errorf("ShouldPublish(h264, webrtc, mjpeg, true) = %v, want false", got)
+		}
+	})
+
+	t.Run("CA3: capture_type=mjpeg sempre roda o pipeline HLS quando live_enabled=true", func(t *testing.T) {
+		if got := ShouldRunHLS("h264", "webrtc", "mjpeg", true); got != true {
+			t.Errorf("ShouldRunHLS(h264, webrtc, mjpeg, true) = %v, want true", got)
+		}
+	})
+}

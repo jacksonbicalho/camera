@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+
+	"camera/internal/core"
 )
 
 type ffmpegFrameCommander struct{}
@@ -30,7 +32,7 @@ func ffmpegArgs(url string, width, height, fps int, captureType string) []string
 	// process, while the original full-res frame is kept for the event snapshot.
 	vf := fmt.Sprintf("fps=%d,scale=%d:%d,format=rgb24", fps, width, height)
 	var args []string
-	if captureType != "hls" {
+	if core.NeedsRTSPTransport(captureType) {
 		args = append(args, "-rtsp_transport", "tcp")
 	}
 	args = append(args, "-i", url,

@@ -48,7 +48,7 @@ export default function CameraForm({
       const res = await fetch('/api/settings/cameras/detect-streams', {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rtsp_url: main, id: initial?.id }),
+        body: JSON.stringify({ rtsp_url: main, id: initial?.id, capture_type: form.capture_type }),
       })
       if (!res.ok) throw new Error('request failed')
       const data = (await res.json()) as {

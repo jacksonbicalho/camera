@@ -19,7 +19,6 @@ import (
 
 	"camera/frontend"
 	"camera/internal/analysis"
-	"camera/internal/capturer/rtsp"
 	"camera/internal/config"
 	"camera/internal/core"
 	"camera/internal/db"
@@ -466,11 +465,16 @@ func main() {
 	if database != nil {
 		if serviceURL, err := db.GetStateClassificationServiceURL(database); err == nil && serviceURL != "" {
 			rtspByID := make(map[string]string, len(cameras))
+			captureTypeByID := make(map[string]string, len(cameras))
 			for _, cam := range cameras {
 				rtspByID[cam.ID] = cam.RTSPURL
+				captureTypeByID[cam.ID] = cam.EffectiveCaptureType()
 			}
 			deps := stateengine.Deps{
-				Grabber:    stateengine.NewSnapshotGrabber(takeSnapshot, func(camID string) string { return rtspByID[camID] }, cfg.Storage.Path),
+				Grabber: stateengine.NewSnapshotGrabber(takeSnapshot,
+					func(camID string) string { return rtspByID[camID] },
+					func(camID string) string { return captureTypeByID[camID] },
+					cfg.Storage.Path),
 				Classifier: analysis.NewClient(serviceURL),
 				Persist: func(cid int64, state string, conf float64, framePath string) error {
 					return db.RecordStateTransition(database, cid, state, conf, framePath)
@@ -640,8 +644,8 @@ func printStartupURLs(port int) {
 	fmt.Println()
 }
 
-func takeSnapshot(ctx context.Context, rtspURL string) ([]byte, error) {
-	return rtsp.Snapshot(ctx, rtspURL, core.OSExecutor{})
+func takeSnapshot(ctx context.Context, rtspURL, captureType string) ([]byte, error) {
+	return core.Snapshot(ctx, rtspURL, captureType, core.OSExecutor{})
 }
 
 // extractFrame extrai um frame LIMPO (JPEG) de um MP4 no offset dado — a gravação

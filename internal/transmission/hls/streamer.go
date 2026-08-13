@@ -48,7 +48,7 @@ func (s *HLSStreamer) Start() error {
 	s.log.Debug("starting hls ffmpeg", "camera", s.camera.ID, "playlist", playlist)
 	isHLSCapture := s.camera.EffectiveCaptureType() == "hls"
 	var args []string
-	if !isHLSCapture {
+	if core.NeedsRTSPTransport(s.camera.EffectiveCaptureType()) {
 		args = rtsp.TransportArgs()
 	}
 	args = append(args,

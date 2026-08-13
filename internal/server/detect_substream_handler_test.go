@@ -15,10 +15,15 @@ import (
 )
 
 // fakeSubExecutor returns canned ffprobe JSON for any URL, so the first derived
-// substream candidate probes successfully.
-type fakeSubExecutor struct{ out []byte }
+// substream candidate probes successfully. capturedArgs records the last args
+// passed to Execute, used to assert on flags like -rtsp_transport.
+type fakeSubExecutor struct {
+	out          []byte
+	capturedArgs []string
+}
 
-func (f *fakeSubExecutor) Execute(_ context.Context, _ string, _ ...string) ([]byte, error) {
+func (f *fakeSubExecutor) Execute(_ context.Context, _ string, args ...string) ([]byte, error) {
+	f.capturedArgs = args
 	return f.out, nil
 }
 

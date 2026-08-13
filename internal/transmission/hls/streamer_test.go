@@ -610,4 +610,26 @@ func TestHLSStreamerCaptureType(t *testing.T) {
 			t.Error("capture_type default deve continuar forçando -rtsp_transport tcp")
 		}
 	})
+
+	// --- capture_type=mjpeg (história feat/capture-mjpeg) ---
+
+	t.Run("CA2: capture_type=mjpeg usa -i puro (sem -rtsp_transport tcp), mesmo tratamento que hls", func(t *testing.T) {
+		camera := config.CameraConfig{
+			ID:          "cam-mjpeg",
+			RTSPURL:     "https://195.196.36.242/mjpg/video.mjpg",
+			CaptureType: "mjpeg",
+		}
+		cmd := &fakeCommander{}
+		s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger())
+		if err := s.Start(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		args := cmd.calls[0]
+		if containsSequence(args, "-rtsp_transport", "tcp") {
+			t.Error("capture_type=mjpeg não deve emitir -rtsp_transport tcp")
+		}
+		if !containsSequence(args, "-i", "https://195.196.36.242/mjpg/video.mjpg") {
+			t.Error("expected -i <url> in args")
+		}
+	})
 }

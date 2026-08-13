@@ -168,6 +168,23 @@ func TestProberCaptureType(t *testing.T) {
 			t.Errorf("capture_type default deve continuar forçando -rtsp_transport tcp, got %v", exec.capturedArgs)
 		}
 	})
+
+	// --- capture_type=mjpeg (história feat/capture-mjpeg) ---
+
+	t.Run("CA2: capture_type=mjpeg omite -rtsp_transport tcp, mesmo tratamento que hls", func(t *testing.T) {
+		exec := &fakeExecutor{output: []byte(`{}`)}
+		p := ffprobe.NewProber(exec)
+
+		if _, err := p.Probe(context.Background(), "https://195.196.36.242/mjpg/video.mjpg", "mjpeg"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if containsSeq(exec.capturedArgs, "-rtsp_transport", "tcp") {
+			t.Errorf("capture_type=mjpeg não deve emitir -rtsp_transport tcp, got %v", exec.capturedArgs)
+		}
+		if exec.capturedArgs[len(exec.capturedArgs)-1] != "https://195.196.36.242/mjpg/video.mjpg" {
+			t.Errorf("expected URL as last arg, got %q", exec.capturedArgs[len(exec.capturedArgs)-1])
+		}
+	})
 }
 
 func containsSeq(args []string, key, value string) bool {
