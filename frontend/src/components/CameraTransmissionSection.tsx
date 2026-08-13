@@ -55,7 +55,7 @@ export default function CameraTransmissionSection({ cam, id, reload }: Props) {
       const res = await fetch('/api/settings/cameras/detect-streams', {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rtsp_url: main, id: cam.id }),
+        body: JSON.stringify({ rtsp_url: main, id: cam.id, capture_type: cam.capture_type }),
       })
       if (!res.ok) throw new Error('request failed')
       const data = (await res.json()) as {

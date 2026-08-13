@@ -54,3 +54,49 @@ func TestDetectStreams_RecommendsHLSForH265(t *testing.T) {
 		t.Errorf("recommended = %v, want hls", resp["recommended"])
 	}
 }
+
+// --- capture_type propagado pro /detect-streams (história feat/capture-mjpeg) ---
+
+func TestDetectStreams_CaptureType(t *testing.T) {
+	t.Run("CA5: capture_type=mjpeg não emite -rtsp_transport tcp (bug pré-existente, também afetava hls)", func(t *testing.T) {
+		exec := &fakeSubExecutor{out: []byte(`{"streams":[{"codec_type":"video","codec_name":"mjpeg","width":3072,"height":1728}]}`)}
+		srv, token := newDetectServer(t, ffprobe.NewProber(exec))
+
+		body := `{"rtsp_url":"https://195.196.36.242/mjpg/video.mjpg","capture_type":"mjpeg"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/cameras/detect-streams", bytes.NewBufferString(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+
+		var resp map[string]any
+		json.NewDecoder(w.Body).Decode(&resp)
+		if resp["codec"] != "mjpeg" {
+			t.Fatalf("codec = %v, want mjpeg (probe deve ter funcionado, sem flag fatal)", resp["codec"])
+		}
+		for _, a := range exec.capturedArgs {
+			if a == "-rtsp_transport" {
+				t.Errorf("capture_type=mjpeg não deve emitir -rtsp_transport, got args %v", exec.capturedArgs)
+			}
+		}
+	})
+
+	t.Run("CA5: capture_type default (rtsp) preserva -rtsp_transport tcp", func(t *testing.T) {
+		exec := &fakeSubExecutor{out: []byte(`{"streams":[{"codec_type":"video","codec_name":"h264","width":1920,"height":1080}]}`)}
+		srv, token := newDetectServer(t, ffprobe.NewProber(exec))
+
+		w, _ := postDetectStreams(t, srv, token, "rtsp://cam/main")
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		found := false
+		for _, a := range exec.capturedArgs {
+			if a == "-rtsp_transport" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("capture_type default deveria continuar forçando -rtsp_transport tcp, got args %v", exec.capturedArgs)
+		}
+	})
+}

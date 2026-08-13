@@ -1,8 +1,11 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
-import { cleanup, render, screen, fireEvent } from '@testing-library/react'
+import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import CameraForm from './CameraForm'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 function renderForm() {
   const onSave = vi.fn().mockResolvedValue(undefined)
@@ -106,6 +109,31 @@ describe('CA4: sessão "Captura" — capture_type=mjpeg', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: /^salvar$/i }))
     expect(onSave.mock.calls[0][0].capture_type).toBe('mjpeg')
+  })
+})
+
+describe('CA5: "Detectar" propaga capture_type pro backend', () => {
+  it('envia capture_type junto com rtsp_url (bug pré-existente: endpoint sempre assumia RTSP)', async () => {
+    let sentBody: Record<string, unknown> | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        sentBody = JSON.parse(String(init?.body))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ codec: 'mjpeg' }) })
+      }),
+    )
+    renderForm()
+    fireEvent.change(document.getElementById('camera-capture-type')!, {
+      target: { value: 'mjpeg' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('https://exemplo.com/mjpg/video.mjpg'), {
+      target: { value: 'https://195.196.36.242/mjpg/video.mjpg' },
+    })
+
+    fireEvent.click(document.getElementById('camera-live-transport-detect')!)
+
+    await waitFor(() => expect(sentBody).not.toBeNull())
+    expect(sentBody!.capture_type).toBe('mjpeg')
   })
 })
 

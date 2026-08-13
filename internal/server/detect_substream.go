@@ -67,8 +67,9 @@ func recommendedTransport(codec string) string {
 // empty result (200, not an error) so the user can still choose manually.
 func (s *Server) handleDetectStreams(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		RTSPURL string `json:"rtsp_url"`
-		ID      string `json:"id"`
+		RTSPURL     string `json:"rtsp_url"`
+		ID          string `json:"id"`
+		CaptureType string `json:"capture_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.RTSPURL) == "" {
 		http.Error(w, "rtsp_url is required", http.StatusBadRequest)
@@ -84,7 +85,7 @@ func (s *Server) handleDetectStreams(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if s.prober != nil {
-		info := ffprobe.Resolve(r.Context(), ffprobe.Resolver{RTSPURL: rtsp}, s.prober, s.log)
+		info := ffprobe.Resolve(r.Context(), ffprobe.Resolver{RTSPURL: rtsp, CaptureType: req.CaptureType}, s.prober, s.log)
 		if info.Width > 0 && info.VideoCodec != "" {
 			json.NewEncoder(w).Encode(detectStreamsResponse{
 				Codec:       info.VideoCodec,
