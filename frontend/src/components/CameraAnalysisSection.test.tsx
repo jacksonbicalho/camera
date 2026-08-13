@@ -43,4 +43,12 @@ describe('CA8: o botão de Detector de objetos fica alinhado à esquerda e rotul
       expect(footer?.className).not.toContain('justify-between')
     })
   })
+
+  it('o botão usa size="sm" (h-8), mesmo tamanho do Aplicar de Movimento/Captura/Gravação/Transmissão', async () => {
+    stubFetch()
+    render(<CameraAnalysisSection id="cam-1" />)
+    await waitFor(() => {
+      expect(document.getElementById('camera-analysis-save')?.className).toContain('h-8')
+    })
+  })
 })

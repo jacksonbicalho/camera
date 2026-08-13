@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type HlsType from 'hls.js'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
@@ -12,6 +12,7 @@ import { useSettings } from '../../hooks/useSettings'
 import { useEventSource } from '../../hooks/useEventSource'
 import { zoneThresholdLabel } from './zoneThreshold'
 import { Button } from '@/components/ui/button'
+import { Plus } from '../../components/Icons'
 
 interface Zone {
   x: number
@@ -815,6 +816,16 @@ export default function CameraZonesSettingsPage() {
             parent={{ label: cam?.name ?? '...', to: `/settings/cameras/${id}` }}
             current="Zonas"
           />
+        }
+        actions={
+          isAdmin && (
+            <Button id="camera-create" asChild>
+              <Link to="/settings/cameras/new">
+                <Plus className="w-3.5 h-3.5" />
+                Nova câmera
+              </Link>
+            </Button>
+          )
         }
       />
       <CameraSettingsTabs id={id!} active="zones" />

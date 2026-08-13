@@ -74,30 +74,25 @@ export default function CameraCaptureSection({ cam, id, reload }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <form onSubmit={handleSave} className="flex flex-col gap-4">
+    <div className="bg-surface border border-border rounded-lg overflow-hidden">
+      <p className="text-h4 text-muted-foreground uppercase tracking-wider font-medium px-5 pt-4 pb-3 border-b border-border">
+        Nome e Captura
+      </p>
+      <form onSubmit={handleSave} className="p-5 flex flex-col gap-4">
         <NameField form={form} set={set} />
+        <CaptureFields form={form} set={set} codecDisabled={codecDisabled} />
 
-        <div className="bg-surface border border-border rounded-lg overflow-hidden">
-          <p className="text-h4 text-muted-foreground uppercase tracking-wider font-medium px-5 pt-4 pb-3 border-b border-border">
-            Captura
-          </p>
-          <div className="p-5 flex flex-col gap-4">
-            <CaptureFields form={form} set={set} codecDisabled={codecDisabled} />
-
-            {error && (
-              <div className="px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
-                {error}
-              </div>
-            )}
-
-            <div className="flex items-center gap-3">
-              <Button id="camera-capture-save" type="submit" size="sm" disabled={saving}>
-                {saving ? 'Aplicando...' : 'Aplicar'}
-              </Button>
-              {saved && <span className="text-xs text-green-400">Salvo</span>}
-            </div>
+        {error && (
+          <div className="px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
+            {error}
           </div>
+        )}
+
+        <div className="flex items-center gap-3">
+          <Button id="camera-capture-save" type="submit" size="sm" disabled={saving}>
+            {saving ? 'Aplicando...' : 'Aplicar'}
+          </Button>
+          {saved && <span className="text-xs text-green-400">Salvo</span>}
         </div>
       </form>
     </div>

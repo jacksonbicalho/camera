@@ -96,6 +96,18 @@ describe('CameraDetailSettingsPage', () => {
     })
   })
 
+  describe('CA9: o botão "+ Nova câmera" aparece no PageHeader (mesma posição/estilo da lista /settings/cameras), não mais na linha das abas', () => {
+    it('link "Nova câmera" presente, apontando pra /settings/cameras/new', async () => {
+      renderAt('/settings/cameras/cam-1')
+      await waitFor(() => {
+        expect(document.getElementById('camera-create')).toBeTruthy()
+      })
+      expect(document.getElementById('camera-create')?.getAttribute('href')).toBe(
+        '/settings/cameras/new',
+      )
+    })
+  })
+
   describe('CA6: não mostra mais a seção "Estatísticas" (migrada pra ServerSettingsPage)', () => {
     it('visualizando: "Estatísticas" não aparece', async () => {
       renderAt('/settings/cameras/cam-1')

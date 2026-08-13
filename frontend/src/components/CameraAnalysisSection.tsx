@@ -152,7 +152,12 @@ export default function CameraAnalysisSection({ id }: { id: string }) {
         )}
 
         <div className="p-4 flex items-center gap-3">
-          <Button id="camera-analysis-save" onClick={handleSave} disabled={saving || needsDetector}>
+          <Button
+            id="camera-analysis-save"
+            size="sm"
+            onClick={handleSave}
+            disabled={saving || needsDetector}
+          >
             {saving ? 'Aplicando...' : 'Aplicar'}
           </Button>
           {error && <p className="text-sm text-red-400">{error}</p>}

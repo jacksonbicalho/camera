@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import SettingsSection from '../../components/SettingsSection'
@@ -14,6 +14,8 @@ import { type Camera } from '../../components/cameraFormUtils'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { useMotionPeak } from '../../hooks/useMotionPeak'
 import { authHeaders, getRole } from '../../auth'
+import { Button } from '@/components/ui/button'
+import { Plus } from '../../components/Icons'
 
 function fmtHasAudio(v: boolean | null): string {
   if (v === null) return 'auto'
@@ -189,7 +191,18 @@ export default function CameraDetailSettingsPage() {
 
   return (
     <SettingsLayout id="camera-detail-page" footerId="camera-detail-footer">
-      <PageHeader title="Câmeras" subtitle={cam?.name ?? '...'} />
+      <PageHeader
+        title="Câmeras"
+        subtitle={cam?.name ?? '...'}
+        actions={
+          <Button id="camera-create" asChild>
+            <Link to="/settings/cameras/new">
+              <Plus className="w-3.5 h-3.5" />
+              Nova câmera
+            </Link>
+          </Button>
+        }
+      />
       <CameraSettingsTabs id={id!} active="detail" />
 
       {!settings ? (

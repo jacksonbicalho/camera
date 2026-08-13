@@ -1,7 +1,4 @@
 import { Link } from 'react-router-dom'
-import { getRole } from '../auth'
-import { Button } from '@/components/ui/button'
-import { Plus } from './Icons'
 
 type Tab = 'detail' | 'zones'
 
@@ -16,32 +13,22 @@ const TABS: { key: Tab; label: string; path: (id: string) => string }[] = [
 ]
 
 export default function CameraSettingsTabs({ id, active }: Props) {
-  const isAdmin = getRole() === 'admin'
   return (
     <div className="mb-6">
-      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-border">
-        <div className="flex flex-wrap gap-1">
-          {TABS.map((tab) => (
-            <Link
-              key={tab.key}
-              to={tab.path(id)}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                active === tab.key
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-faint'
-              }`}
-            >
-              {tab.label}
-            </Link>
-          ))}
-        </div>
-        {isAdmin && (
-          <Button asChild>
-            <Link to="/settings/cameras/new">
-              <Plus className="w-3.5 h-3.5" /> Nova câmera
-            </Link>
-          </Button>
-        )}
+      <div className="flex flex-wrap gap-1 border-b border-border">
+        {TABS.map((tab) => (
+          <Link
+            key={tab.key}
+            to={tab.path(id)}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              active === tab.key
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-faint'
+            }`}
+          >
+            {tab.label}
+          </Link>
+        ))}
       </div>
     </div>
   )
