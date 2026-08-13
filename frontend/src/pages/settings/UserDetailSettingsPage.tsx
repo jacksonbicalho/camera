@@ -163,7 +163,9 @@ export default function UserDetailSettingsPage() {
                     ? 'todas'
                     : user.cameras.length === 0
                       ? 'nenhuma'
-                      : user.cameras.join(', '),
+                      : user.cameras
+                          .map((camId) => cameras.find((c) => c.id === camId)?.name || camId)
+                          .join(', '),
               },
               { label: 'Criado em', value: new Date(user.created_at).toLocaleString('pt-BR') },
             ]}

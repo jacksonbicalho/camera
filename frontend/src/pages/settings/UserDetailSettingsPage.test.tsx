@@ -75,4 +75,42 @@ describe('UserDetailSettingsPage', () => {
       expect(document.getElementById('user-form-username')).toBeTruthy()
     })
   })
+
+  describe('CA3: o detalhe do usuário mostra o NOME da câmera, não o ID, no campo "Câmeras"', () => {
+    it('usuário viewer com câmeras mostra o nome resolvido via /api/cameras, não o id cru', async () => {
+      const viewerUsers = [
+        {
+          id: 2,
+          username: 'ana',
+          role: 'viewer',
+          cameras: ['cam1'],
+          created_at: '2026-01-02T00:00:00Z',
+        },
+      ]
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/users'))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve(viewerUsers),
+            })
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve([{ id: 'cam1', name: 'Garagem' }]),
+            })
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+      renderAt('/settings/users/2')
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('Garagem')
+      })
+      expect(document.body.textContent).not.toContain('cam1')
+    })
+  })
 })

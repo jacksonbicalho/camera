@@ -159,40 +159,70 @@ export default function UsersSettingsPage() {
         <p className="text-muted-foreground text-sm">Nenhum usuário.</p>
       ) : (
         <div className="flex flex-col gap-2">
-          {users.map((user) => (
-            <div key={user.id} className="bg-surface border border-border rounded-lg px-4 py-3">
-              <div className="flex flex-wrap items-center gap-3 min-w-0">
-                <Link
-                  to={`/settings/users/${user.id}`}
-                  className="text-sm font-mono text-foreground hover:text-primary transition-colors truncate min-w-0"
+          {users.map((user) => {
+            const camerasText =
+              user.role === 'admin'
+                ? 'todas'
+                : user.cameras.length === 0
+                  ? 'sem câmeras'
+                  : user.cameras
+                      .map((camId) => cameras.find((c) => c.id === camId)?.name || camId)
+                      .join(', ')
+            return (
+              <div key={user.id} className="bg-surface border border-border rounded-lg px-4 py-3">
+                {/* Grid de colunas fixas (username/nome/role/câmeras/ações) — as 5
+                    células são SEMPRE renderizadas (mesmo vazias, fallback '—') pra
+                    manter o alinhamento entre linhas; um item de grid ausente faria
+                    os seguintes ocuparem a coluna errada. */}
+                <div
+                  id={`user-row-${user.id}`}
+                  className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[10rem_10rem_5rem_1fr_auto] sm:gap-3"
                 >
-                  {user.username}
-                </Link>
-                {user.name && (
-                  <span className="text-xs text-muted-foreground truncate">{user.name}</span>
-                )}
-                <RoleBadge role={user.role} />
-                {user.role === 'viewer' && (
-                  <span className="text-xs text-muted-foreground truncate">
-                    {user.cameras.length === 0 ? 'sem câmeras' : user.cameras.join(', ')}
-                  </span>
-                )}
-                <div className="ml-auto flex items-center gap-1 pl-3 shrink-0">
-                  <Button asChild variant="outline" size="sm">
-                    <Link to={`/settings/users/edit/${user.id}`}>Editar</Link>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => setDeleteId(user.id)}
+                  <Link
+                    id={`user-row-${user.id}-username`}
+                    to={`/settings/users/${user.id}`}
+                    title={user.username}
+                    className="min-w-0 truncate text-sm font-mono text-foreground transition-colors hover:text-primary"
                   >
-                    Remover
-                  </Button>
+                    {user.username}
+                  </Link>
+                  <span
+                    id={`user-row-${user.id}-name`}
+                    title={user.name || undefined}
+                    className="min-w-0 truncate text-xs text-muted-foreground"
+                  >
+                    {user.name || '—'}
+                  </span>
+                  <div id={`user-row-${user.id}-role`} className="min-w-0">
+                    <RoleBadge role={user.role} />
+                  </div>
+                  <span
+                    id={`user-row-${user.id}-cameras`}
+                    title={camerasText}
+                    className="min-w-0 truncate text-xs text-muted-foreground"
+                  >
+                    {camerasText}
+                  </span>
+                  <div
+                    id={`user-row-${user.id}-actions`}
+                    className="flex items-center gap-1 sm:justify-end"
+                  >
+                    <Button asChild variant="outline" size="sm">
+                      <Link to={`/settings/users/edit/${user.id}`}>Editar</Link>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setDeleteId(user.id)}
+                    >
+                      Remover
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
