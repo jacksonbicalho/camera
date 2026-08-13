@@ -50,9 +50,12 @@ func (r *Recorder) Start(now time.Time) error {
 		r.log.Warn("transcoding video to h264", "camera", r.camera.ID, "source_codec", r.stream.VideoCodec, "mode", r.camera.RecordVideoMode)
 	}
 	var args []string
-	if r.camera.EffectiveCaptureType() == "hls" {
+	switch r.camera.EffectiveCaptureType() {
+	case "hls":
 		args = hls.ConnectArgs(r.camera.RTSPURL)
-	} else {
+	case "mjpeg":
+		args = core.InputArgs(r.camera.RTSPURL)
+	default:
 		args = rtsp.ConnectArgs(r.camera.RTSPURL)
 	}
 	args = append(args, core.TranscodeArgs(needsTranscode, r.stream.HasAudio)...)

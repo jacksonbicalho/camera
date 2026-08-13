@@ -712,6 +712,28 @@ func TestCameraCaptureType(t *testing.T) {
 			t.Errorf("expected capture_type=hls after update, got %v", resp["capture_type"])
 		}
 	})
+
+	// --- capture_type=mjpeg (história feat/capture-mjpeg) ---
+
+	t.Run("CA3: POST com capture_type=mjpeg persiste e retorna mjpeg", func(t *testing.T) {
+		srv, adminToken, _, _, _ := setupCamerasServer(t)
+
+		body := `{"name":"cam-mjpeg","rtsp_url":"https://195.196.36.242/mjpg/video.mjpg","capture_type":"mjpeg"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/cameras", bytes.NewBufferString(body))
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+
+		if w.Code != http.StatusCreated {
+			t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]any
+		json.NewDecoder(w.Body).Decode(&resp)
+		if resp["capture_type"] != "mjpeg" {
+			t.Errorf("expected capture_type=mjpeg, got %v", resp["capture_type"])
+		}
+	})
 }
 
 // --- live_enabled (história feat/hls-capture-backend-completo) ---

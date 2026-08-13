@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+
+	"camera/internal/core"
 )
 
 type StreamInfo struct {
@@ -58,7 +60,7 @@ func NewProber(exec Executor) *Prober {
 
 func (p *Prober) Probe(ctx context.Context, url, captureType string) ([]byte, error) {
 	args := []string{}
-	if captureType != "hls" {
+	if core.NeedsRTSPTransport(captureType) {
 		args = append(args, "-rtsp_transport", "tcp")
 	}
 	args = append(args,
