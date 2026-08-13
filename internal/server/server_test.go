@@ -3043,7 +3043,7 @@ func TestMotionZonesUnknownCameraReturns404(t *testing.T) {
 
 func TestSnapshotReturnsJPEG(t *testing.T) {
 	fakeJPEG := []byte{0xFF, 0xD8, 0xFF, 0xD9} // JPEG mínimo válido
-	snapFn := func(_ context.Context, _ string) ([]byte, error) { return fakeJPEG, nil }
+	snapFn := func(_ context.Context, _, _ string) ([]byte, error) { return fakeJPEG, nil }
 
 	cfg := config.ServerConfig{}
 	cameras := []config.CameraConfig{{ID: "cam1", RTSPURL: "rtsp://fake"}}
@@ -3069,7 +3069,7 @@ func TestSnapshotReturnsJPEG(t *testing.T) {
 }
 
 func TestSnapshotUnknownCameraReturns404(t *testing.T) {
-	snapFn := func(_ context.Context, _ string) ([]byte, error) { return nil, nil }
+	snapFn := func(_ context.Context, _, _ string) ([]byte, error) { return nil, nil }
 	cfg := config.ServerConfig{}
 	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{{ID: "cam1"}}, discardLogger(), nil).
 		WithSnapshotter(snapFn)
@@ -3094,6 +3094,38 @@ func TestSnapshotRequiresAuth(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", w.Code)
 	}
+}
+
+// --- capture_type=mjpeg (história feat/capture-mjpeg, T4) ---
+
+func TestSnapshotPassesCameraCaptureType(t *testing.T) {
+	t.Run("CA6: repassa o capture_type real da câmera pro snapFn (mjpeg, não hardcoded)", func(t *testing.T) {
+		fakeJPEG := []byte{0xFF, 0xD8, 0xFF, 0xD9}
+		var gotCaptureType string
+		snapFn := func(_ context.Context, _, captureType string) ([]byte, error) {
+			gotCaptureType = captureType
+			return fakeJPEG, nil
+		}
+
+		cfg := config.ServerConfig{}
+		cameras := []config.CameraConfig{{ID: "cam-mjpeg", RTSPURL: "https://195.196.36.242/mjpg/video.mjpg", CaptureType: "mjpeg"}}
+		srv := server.NewServer(cfg, "UTC", cameras, discardLogger(), nil).
+			WithSnapshotter(snapFn)
+		srv = withTestUsers(t, srv)
+		token := loginAndGetToken(t, srv, "u", "p")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/cameras/cam-mjpeg/snapshot", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+		if gotCaptureType != "mjpeg" {
+			t.Errorf("capture_type repassado ao snapFn = %q, want mjpeg", gotCaptureType)
+		}
+	})
 }
 
 // --- DELETE /api/cameras/{id}/recordings/{filename} ---

@@ -16,25 +16,27 @@ import (
 	"camera/internal/stateclass"
 )
 
-// SnapFunc captura um JPEG a partir de uma URL RTSP (é o snapFn que o server já usa).
-type SnapFunc func(ctx context.Context, rtsp string) ([]byte, error)
+// SnapFunc captura um JPEG a partir de uma URL de câmera, dado o seu
+// capture_type (é o snapFn que o server já usa).
+type SnapFunc func(ctx context.Context, rtsp, captureType string) ([]byte, error)
 
 // SnapshotGrabber implementa Grabber: snapshot via SnapFunc → crop da região →
 // grava o JPEG sob storagePath/tmp. Como o serviço YOLO monta o mesmo `./storage`
 // em `/data` que a câmera, o path gravado é o mesmo que o `/classify` lê — sem
 // tradução (igual ao que o `/analyze` já faz com as gravações).
 type SnapshotGrabber struct {
-	snap        SnapFunc
-	rtspOf      func(cameraID string) string
-	storagePath string
+	snap          SnapFunc
+	rtspOf        func(cameraID string) string
+	captureTypeOf func(cameraID string) string
+	storagePath   string
 }
 
-func NewSnapshotGrabber(snap SnapFunc, rtspOf func(string) string, storagePath string) *SnapshotGrabber {
-	return &SnapshotGrabber{snap: snap, rtspOf: rtspOf, storagePath: storagePath}
+func NewSnapshotGrabber(snap SnapFunc, rtspOf func(string) string, captureTypeOf func(string) string, storagePath string) *SnapshotGrabber {
+	return &SnapshotGrabber{snap: snap, rtspOf: rtspOf, captureTypeOf: captureTypeOf, storagePath: storagePath}
 }
 
 func (g *SnapshotGrabber) Grab(ctx context.Context, c stateclass.Classifier) (string, func(), error) {
-	data, err := g.snap(ctx, g.rtspOf(c.CameraID))
+	data, err := g.snap(ctx, g.rtspOf(c.CameraID), g.captureTypeOf(c.CameraID))
 	if err != nil {
 		return "", nil, err
 	}

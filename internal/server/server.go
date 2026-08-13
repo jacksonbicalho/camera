@@ -116,7 +116,7 @@ type Server struct {
 	peakMu                 sync.RWMutex
 	dailyPeakRaw           map[string]float64
 	dailyPeakDate          map[string]string
-	snapFn                 func(ctx context.Context, rtspURL string) ([]byte, error)
+	snapFn                 func(ctx context.Context, rtspURL, captureType string) ([]byte, error)
 	frameFn                func(ctx context.Context, path string, offsetSeconds float64) ([]byte, error)
 	probedStreams          map[string]ffprobe.StreamInfo
 	db                     *db.DB
@@ -316,7 +316,7 @@ func (s *Server) WithMotionFeed(cameraID string, events <-chan motion.Event) *Se
 	return s
 }
 
-func (s *Server) WithSnapshotter(fn func(ctx context.Context, rtspURL string) ([]byte, error)) *Server {
+func (s *Server) WithSnapshotter(fn func(ctx context.Context, rtspURL, captureType string) ([]byte, error)) *Server {
 	s.snapFn = fn
 	return s
 }
@@ -1938,13 +1938,15 @@ func (s *Server) cameraExists(id string) bool {
 	return false
 }
 
-func (s *Server) cameraRTSP(id string) string {
+// cameraSnapshotSource retorna a URL de captura e o capture_type da câmera,
+// usados pra montar os args corretos do ffmpeg (ver internal/core.Snapshot).
+func (s *Server) cameraSnapshotSource(id string) (rtspURL, captureType string) {
 	for _, c := range s.cameras {
 		if c.ID == id {
-			return c.RTSPURL
+			return c.RTSPURL, c.EffectiveCaptureType()
 		}
 	}
-	return ""
+	return "", ""
 }
 
 func (s *Server) handleMotionZonesGet(w http.ResponseWriter, r *http.Request) {
@@ -2007,7 +2009,7 @@ func (s *Server) handleMotionZonesPut(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	rtsp := s.cameraRTSP(id)
+	rtsp, captureType := s.cameraSnapshotSource(id)
 	if rtsp == "" {
 		http.NotFound(w, r)
 		return
@@ -2018,7 +2020,7 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	data, err := s.snapFn(ctx, rtsp)
+	data, err := s.snapFn(ctx, rtsp, captureType)
 	if err != nil || len(data) == 0 {
 		http.Error(w, "snapshot failed", http.StatusBadGateway)
 		return
