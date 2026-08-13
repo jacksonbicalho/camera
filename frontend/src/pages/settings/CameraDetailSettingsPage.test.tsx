@@ -12,7 +12,15 @@ vi.mock('../../components/SettingsLayout', () => ({
 }))
 vi.mock('../../components/CameraSettingsTabs', () => ({ default: () => <div /> }))
 vi.mock('../../components/DeviceInfoPanel', () => ({ default: () => <div /> }))
-vi.mock('../../components/CameraForm', () => ({ default: () => <div>form de edição</div> }))
+vi.mock('../../components/CameraCaptureSection', () => ({
+  default: () => <div>seção captura</div>,
+}))
+vi.mock('../../components/CameraRecordingSection', () => ({
+  default: () => <div>seção gravação</div>,
+}))
+vi.mock('../../components/CameraTransmissionSection', () => ({
+  default: () => <div>seção transmissão</div>,
+}))
 vi.mock('../../hooks/useSettings', () => ({
   useSettings: () => ({
     settings: {
@@ -55,31 +63,36 @@ function renderAt(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/settings/cameras/:id" element={<CameraDetailSettingsPage />} />
-        <Route path="/settings/cameras/edit/:id" element={<CameraDetailSettingsPage />} />
       </Routes>
     </MemoryRouter>,
   )
 }
 
 describe('CameraDetailSettingsPage', () => {
-  describe('CA4: mostra só o nome da câmera no subtítulo quando visualizando, e "nome / Editar" quando editando', () => {
-    it('visualizando: subtítulo é só o nome da câmera, sem link', async () => {
+  describe('CA6 (refactor/camera-detail-secoes-aplicar): câmera fica sempre editável pro admin, sem botão Editar nem alternância de rota', () => {
+    it('subtítulo é só o nome da câmera — nunca "nome / Editar"', async () => {
       renderAt('/settings/cameras/cam-1')
       await waitFor(() => {
         const h3 = screen.getByRole('heading', { level: 3 })
         expect(h3.textContent).toBe('Corredor de entrada')
       })
-      expect(screen.queryByRole('link', { name: 'Corredor de entrada' })).toBeNull()
     })
 
-    it('editando: subtítulo é "nome da câmera / Editar", nome é link de volta pra câmera', async () => {
-      renderAt('/settings/cameras/edit/cam-1')
+    it('não existe botão "Editar" — a página já mostra tudo editável', async () => {
+      renderAt('/settings/cameras/cam-1')
       await waitFor(() => {
-        const h3 = screen.getByRole('heading', { level: 3 })
-        expect(h3.textContent).toBe('Corredor de entradaEditar')
+        expect(screen.getByRole('heading', { level: 3 })).toBeTruthy()
       })
-      const link = screen.getByRole('link', { name: 'Corredor de entrada' })
-      expect(link.getAttribute('href')).toBe('/settings/cameras/cam-1')
+      expect(document.getElementById('camera-edit')).toBeNull()
+    })
+
+    it('as 3 seções sempre-editáveis (Captura, Gravação, Transmissão) aparecem juntas, sem precisar de nenhuma interação', async () => {
+      renderAt('/settings/cameras/cam-1')
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('seção captura')
+      })
+      expect(document.body.textContent).toContain('seção gravação')
+      expect(document.body.textContent).toContain('seção transmissão')
     })
   })
 
@@ -116,20 +129,6 @@ describe('CameraDetailSettingsPage', () => {
       expect(
         motion.compareDocumentPosition(analysis) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy()
-    })
-  })
-
-  describe('visualização espelha as mesmas sessões do form (Captura/Gravação/Transmissão), fechadas', () => {
-    it('mostra as 3 sessões com os dados reais da câmera, em vez do agrupamento antigo Vídeo/Transmissão ao vivo', async () => {
-      renderAt('/settings/cameras/cam-1')
-      await waitFor(() => {
-        expect(screen.getByText('Captura')).toBeTruthy()
-      })
-      expect(screen.getByText('Gravação')).toBeTruthy()
-      expect(screen.getByText('Transmissão')).toBeTruthy()
-      expect(screen.queryByText('Vídeo')).toBeNull()
-      expect(screen.queryByText('Transmissão ao vivo')).toBeNull()
-      expect(screen.getByText('rtsp://cam/stream')).toBeTruthy()
     })
   })
 })

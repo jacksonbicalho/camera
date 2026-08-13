@@ -268,7 +268,7 @@ export default function CamerasSettingsPage() {
                   {/* ações: sempre visíveis, fora do link */}
                   <div className="flex items-center gap-2 shrink-0 ml-auto">
                     <Button asChild variant="outline" size="sm">
-                      <Link to={`/settings/cameras/edit/${cam.id}`}>
+                      <Link to={`/settings/cameras/${cam.id}`}>
                         <Pencil className="w-3.5 h-3.5" />
                         Editar
                       </Link>
