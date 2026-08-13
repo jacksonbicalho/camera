@@ -63,3 +63,25 @@ describe('CA3: cada um dos 3 links do submenu aponta pra sua própria rota, com 
     ).toBeNull()
   })
 })
+
+describe('CA2: os links do submenu de Preferências usam o mesmo estilo/espaçamento do Sidebar', () => {
+  it('envolve os links num wrapper com gap entre eles (mesmo padrão do SidebarSection)', () => {
+    renderLayout('extensions')
+
+    const submenu = document.getElementById('preferences-submenu')!
+    const wrapper = submenu.querySelector('nav')
+    expect(wrapper).toBeTruthy()
+    expect(wrapper?.className).toContain('gap-1')
+  })
+
+  it('destaca o item ativo com o mesmo fundo sólido usado pelo item ativo do Sidebar (bg-primary)', async () => {
+    renderLayout('storage')
+
+    await waitFor(() => {
+      expect(document.getElementById('preferences-nav-storage')?.className).toContain('bg-primary')
+    })
+    expect(document.getElementById('preferences-nav-extensions')?.className).not.toContain(
+      'bg-primary',
+    )
+  })
+})
