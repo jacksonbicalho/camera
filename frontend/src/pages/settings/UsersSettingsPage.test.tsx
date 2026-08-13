@@ -93,4 +93,54 @@ describe('UsersSettingsPage', () => {
       expect(link).toBeTruthy()
     })
   })
+
+  describe('CA2: a lista de usuários mostra o NOME da câmera, não o ID', () => {
+    it('usuário viewer com câmeras mostra o nome resolvido via /api/cameras, não o id cru', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/users'))
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(users) })
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve([{ id: 'cam1', name: 'Garagem' }]),
+            })
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+      renderAt('/settings/users')
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('Garagem')
+      })
+      expect(document.body.textContent).not.toContain('cam1')
+    })
+  })
+
+  describe('CA4: cada linha da lista de usuários usa um grid de colunas fixas alinhadas', () => {
+    it('o wrapper de cada linha tem classe de grid e as 5 células (username/nome/role/câmeras/ações) sempre existem', async () => {
+      stubFetch()
+      renderAt('/settings/users')
+
+      await waitFor(() => {
+        expect(document.getElementById('user-row-1')).toBeTruthy()
+      })
+      const row1 = document.getElementById('user-row-1')!
+      expect(row1.className).toContain('grid')
+      expect(document.getElementById('user-row-1-username')).toBeTruthy()
+      expect(document.getElementById('user-row-1-name')).toBeTruthy()
+      expect(document.getElementById('user-row-1-role')).toBeTruthy()
+      expect(document.getElementById('user-row-1-cameras')).toBeTruthy()
+      expect(document.getElementById('user-row-1-actions')).toBeTruthy()
+
+      // admin sem câmeras associadas (role admin) mostra 'todas' — a célula
+      // "câmeras" nunca fica ausente, senão o item seguinte do grid ocuparia
+      // a coluna errada.
+      expect(document.getElementById('user-row-1-cameras')?.textContent).toBe('todas')
+      // usuário sem `name` — célula existe mesmo vazia (fallback '—').
+      expect(document.getElementById('user-row-1-name')?.textContent).toBe('—')
+    })
+  })
 })

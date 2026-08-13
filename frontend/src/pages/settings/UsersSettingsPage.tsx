@@ -174,7 +174,11 @@ export default function UsersSettingsPage() {
                 <RoleBadge role={user.role} />
                 {user.role === 'viewer' && (
                   <span className="text-xs text-muted-foreground truncate">
-                    {user.cameras.length === 0 ? 'sem câmeras' : user.cameras.join(', ')}
+                    {user.cameras.length === 0
+                      ? 'sem câmeras'
+                      : user.cameras
+                          .map((camId) => cameras.find((c) => c.id === camId)?.name || camId)
+                          .join(', ')}
                   </span>
                 )}
                 <div className="ml-auto flex items-center gap-1 pl-3 shrink-0">
