@@ -1,17 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import CameraSettingsTabs from './CameraSettingsTabs'
 
-vi.mock('../auth', () => ({
-  getRole: () => 'admin',
-}))
-
 afterEach(cleanup)
 
 describe('CameraSettingsTabs', () => {
-  describe('CA3: não renderiza mais breadcrumb próprio — só abas e o botão "Nova câmera"', () => {
-    it('sem nav de breadcrumb; abas e botão "Nova câmera" presentes', () => {
+  describe('CA3: não renderiza mais breadcrumb próprio — só as abas', () => {
+    it('sem nav de breadcrumb; abas presentes', () => {
       render(
         <MemoryRouter>
           <CameraSettingsTabs id="cam-1" active="zones" />
@@ -20,7 +16,6 @@ describe('CameraSettingsTabs', () => {
       expect(screen.queryByRole('navigation')).toBeNull()
       expect(screen.queryByText('Câmeras')).toBeNull()
       expect(screen.getByText('Zonas')).toBeTruthy()
-      expect(screen.getByText('Nova câmera')).toBeTruthy()
     })
   })
 
@@ -46,6 +41,17 @@ describe('CameraSettingsTabs', () => {
       expect(screen.queryByText('Análise')).toBeNull()
       expect(screen.queryByText('Estados')).toBeNull()
       expect(screen.queryByText('Detecção de movimento')).toBeNull()
+    })
+  })
+
+  describe('CA9: o botão "+ Nova câmera" não vive mais aqui — migrou pro PageHeader de cada página (mesma posição/estilo da lista)', () => {
+    it('CameraSettingsTabs não renderiza nenhum botão "Nova câmera"', () => {
+      render(
+        <MemoryRouter>
+          <CameraSettingsTabs id="cam-1" active="zones" />
+        </MemoryRouter>,
+      )
+      expect(screen.queryByText('Nova câmera')).toBeNull()
     })
   })
 })

@@ -72,7 +72,9 @@ describe('CA5: CamerasSettingsPage (admin) — Card com badges e ações com tex
     const deleteButtons = screen.getAllByRole('button', { name: /Excluir/i })
     expect(editLinks).toHaveLength(2)
     expect(deleteButtons).toHaveLength(2)
-    expect(editLinks[0].getAttribute('href')).toBe('/settings/cameras/edit/cam1')
+    // desde refactor/camera-detail-secoes-aplicar (T4): sem rota de edição
+    // própria — a página de detalhe já mostra tudo editável.
+    expect(editLinks[0].getAttribute('href')).toBe('/settings/cameras/cam1')
   })
 
   it('CA5: sem nenhum badge quando motion/gravação/análise estão desabilitados', async () => {

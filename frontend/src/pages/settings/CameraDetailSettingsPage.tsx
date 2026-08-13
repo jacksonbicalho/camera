@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react'
-import { useParams, useLocation, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import SettingsSection from '../../components/SettingsSection'
-import CameraForm from '../../components/CameraForm'
 import CameraSettingsTabs from '../../components/CameraSettingsTabs'
-import EntitySubtitle from '../../components/EntitySubtitle'
 import DeviceInfoPanel from '../../components/DeviceInfoPanel'
+import CameraCaptureSection from '../../components/CameraCaptureSection'
+import CameraRecordingSection from '../../components/CameraRecordingSection'
+import CameraTransmissionSection from '../../components/CameraTransmissionSection'
 import { MotionFormContent, MotionReadOnly } from '../../components/CameraMotionSection'
 import CameraAnalysisSection from '../../components/CameraAnalysisSection'
-import { type CameraFormData, type Camera, formToPayload } from '../../components/cameraFormUtils'
+import { type Camera } from '../../components/cameraFormUtils'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { useMotionPeak } from '../../hooks/useMotionPeak'
 import { authHeaders, getRole } from '../../auth'
 import { Button } from '@/components/ui/button'
+import { Plus } from '../../components/Icons'
 
 function fmtHasAudio(v: boolean | null): string {
   if (v === null) return 'auto'
@@ -59,10 +61,11 @@ interface CameraViewFields {
   hls_dvr_seconds: number | null
 }
 
-// CameraCaptureView — espelha as sessões Captura/Gravação/Transmissão de
-// CameraForm.tsx, só que "fechadas" (read-only, mesmos campos/condicionais que
-// o form usa, em vez do agrupamento antigo Vídeo/Transmissão ao vivo/Gravação
-// que não correspondia mais à configuração real — feedback do navigator).
+// CameraCaptureView — espelha as sessões Captura/Gravação/Transmissão,
+// "fechadas" (read-only) — usado SÓ pelo papel viewer (branch admin usa as
+// seções sempre-editáveis CameraCaptureSection/CameraRecordingSection/
+// CameraTransmissionSection, ver abaixo — história refactor/camera-detail-
+// secoes-aplicar removeu o toggle visualização/edição pro admin).
 function CameraCaptureView({ cam }: { cam: CameraViewFields }) {
   const captureType = cam.capture_type ?? 'rtsp'
   const liveEnabled = cam.live_enabled ?? true
@@ -143,22 +146,9 @@ function CameraCaptureView({ cam }: { cam: CameraViewFields }) {
 export default function CameraDetailSettingsPage() {
   const { id } = useParams<{ id: string }>()
   const isAdmin = getRole() === 'admin'
-  const location = useLocation()
-  const navigate = useNavigate()
-  // Edição tem URL própria (/settings/cameras/edit/:id). `editing` é DERIVADO da
-  // rota — navegar p/ a URL de edição não remonta o componente, então não pode
-  // depender de useState inicial; deriva direto da location.
-  const editing = isAdmin && location.pathname.startsWith('/settings/cameras/edit/')
   const { settings, reload } = useSettings()
   const cam = settings?.cameras.find((c) => c.id === id) as Camera | undefined
   const peak = useMotionPeak(id)
-
-  const stopEditing = () => {
-    setError(null)
-    navigate(`/settings/cameras/${id}`)
-  }
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const [viewerCam, setViewerCam] = useState<CameraSettings | null>(null)
   const [viewerLoading, setViewerLoading] = useState(!isAdmin)
@@ -171,27 +161,6 @@ export default function CameraDetailSettingsPage() {
       .catch(() => {})
       .finally(() => setViewerLoading(false))
   }, [isAdmin, id])
-
-  const handleUpdate = async (data: CameraFormData) => {
-    if (!id) return
-    setSaving(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/settings/cameras/${id}`, {
-        method: 'PUT',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(formToPayload(data)),
-      })
-      if (!res.ok) {
-        setError((await res.text()).trim() || 'Erro ao atualizar câmera')
-        return
-      }
-      reload()
-      stopEditing()
-    } finally {
-      setSaving(false)
-    }
-  }
 
   if (!isAdmin) {
     return (
@@ -224,36 +193,17 @@ export default function CameraDetailSettingsPage() {
     <SettingsLayout id="camera-detail-page" footerId="camera-detail-footer">
       <PageHeader
         title="Câmeras"
-        subtitle={
-          editing ? (
-            <EntitySubtitle
-              parent={{ label: cam?.name ?? '...', to: `/settings/cameras/${id}` }}
-              current="Editar"
-            />
-          ) : (
-            (cam?.name ?? '...')
-          )
-        }
+        subtitle={cam?.name ?? '...'}
         actions={
-          settings && cam && !editing ? (
-            <Button
-              id="camera-edit"
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/settings/cameras/edit/${id}`)}
-            >
-              Editar
-            </Button>
-          ) : undefined
+          <Button id="camera-create" asChild>
+            <Link to="/settings/cameras/new">
+              <Plus className="w-3.5 h-3.5" />
+              Nova câmera
+            </Link>
+          </Button>
         }
       />
       <CameraSettingsTabs id={id!} active="detail" />
-
-      {error && (
-        <div className="mb-4 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
-          {error}
-        </div>
-      )}
 
       {!settings ? (
         <p className="text-muted-foreground text-sm">Carregando...</p>
@@ -261,25 +211,10 @@ export default function CameraDetailSettingsPage() {
         <p className="text-muted-foreground text-sm">Câmera não encontrada.</p>
       ) : (
         <div className="flex flex-col gap-4">
-          {editing ? (
-            <CameraForm
-              initial={cam}
-              onSave={handleUpdate}
-              onCancel={stopEditing}
-              saving={saving}
-            />
-          ) : (
-            <>
-              <SettingsSection
-                title="Identificação"
-                fields={[
-                  { label: 'Nome', value: cam.name },
-                  { label: 'ID', value: cam.id },
-                ]}
-              />
-              <CameraCaptureView cam={cam} />
-            </>
-          )}
+          <SettingsSection title="Identificação" fields={[{ label: 'ID', value: cam.id }]} />
+          <CameraCaptureSection cam={cam} id={id!} reload={reload} />
+          <CameraRecordingSection cam={cam} id={id!} reload={reload} />
+          <CameraTransmissionSection cam={cam} id={id!} reload={reload} />
           <MotionFormContent cam={cam} id={id!} peak={peak} reload={reload} />
           <CameraAnalysisSection id={id!} />
           <DeviceInfoPanel cameraId={id!} isAdmin={isAdmin} />

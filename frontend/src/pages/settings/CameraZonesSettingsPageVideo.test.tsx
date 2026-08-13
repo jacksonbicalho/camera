@@ -122,3 +122,13 @@ describe('CameraZonesSettingsPage — fonte do vídeo ao vivo (WebRTC-first + fa
     expect(hlsInstances).toHaveLength(1)
   })
 })
+
+describe('CA9: o botão "+ Nova câmera" aparece no PageHeader (mesma posição/estilo da lista /settings/cameras)', () => {
+  it('link "Nova câmera" presente, apontando pra /settings/cameras/new', async () => {
+    renderPage()
+    await flush()
+    expect(document.getElementById('camera-create')?.getAttribute('href')).toBe(
+      '/settings/cameras/new',
+    )
+  })
+})

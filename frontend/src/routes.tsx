@@ -343,14 +343,6 @@ export const routes = (
       }
     />
     <Route
-      path="/settings/cameras/edit/:id"
-      element={
-        <Lazy>
-          <CameraDetailSettingsPage />
-        </Lazy>
-      }
-    />
-    <Route
       path="/settings/cameras/zones/:id"
       element={
         <Lazy>
