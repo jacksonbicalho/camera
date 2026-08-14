@@ -129,6 +129,8 @@ type Server struct {
 	onStateClassifierStop  func(int64)
 	monitors               map[string]*motion.Monitor
 	livePublishers         map[string]livePublisher
+	telegramBotUsername    string // cached lazily — GetMe() resolved once, never changes for a given bot_token
+	telegramBotUsernameMu  sync.Mutex
 	cpu                    cpuTracker
 	net                    netTracker
 	cleaner                interface{ ForceClean() }

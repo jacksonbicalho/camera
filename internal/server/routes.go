@@ -96,6 +96,8 @@ func (s *Server) routeTable() []route {
 		{"GET", "/api/me/footer-states", authFull, s.handleFooterStates},
 		{"GET", "/api/me/preferences", authFull, s.handleGetPreferences},
 		{"PUT", "/api/me/preferences", authFull, s.handleUpdatePreferences},
+		{"POST", "/api/me/telegram/link", authFull, s.handleTelegramLink},
+		{"POST", "/api/me/telegram/unlink", authFull, s.handleTelegramUnlink},
 
 		// Perfil: dados do usuário + troca de e-mail com código de confirmação.
 		{"GET", "/api/me", authFull, s.handleGetMe},
