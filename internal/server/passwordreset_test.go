@@ -65,6 +65,28 @@ func TestForgotPassword_SendsEmail(t *testing.T) {
 	}
 }
 
+// --- requestOrigin atrás de reverse proxy (história feat/meta-tags-compartilhamento) ---
+
+func TestForgotPassword_LinkUsesHTTPSBehindReverseProxy(t *testing.T) {
+	t.Run("CA4: X-Forwarded-Proto: https gera link https:// mesmo com r.TLS nil (conexão HTTP até o proxy)", func(t *testing.T) {
+		srv, fake, _ := passwordResetServer(t)
+
+		body := `{"email":"sam@example.com"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/forgot-password", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Forwarded-Proto", "https")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		if !strings.Contains(fake.body, "https://") {
+			t.Errorf("expected https:// link atrás de proxy, got: %s", fake.body)
+		}
+	})
+}
+
 func TestForgotPassword_UnknownEmailStill200(t *testing.T) {
 	srv, fake, _ := passwordResetServer(t)
 

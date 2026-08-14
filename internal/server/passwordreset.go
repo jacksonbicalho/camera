@@ -98,9 +98,17 @@ func findUserIDByEmail(database *db.DB, email string) (int64, error) {
 	return u.ID, nil
 }
 
+// requestOrigin monta scheme://host a partir da request. Checa
+// X-Forwarded-Proto antes de r.TLS: o app é tipicamente exposto atrás de um
+// reverse proxy que termina TLS (nginx/Caddy/Cloudflare) — nesse caso r.TLS
+// é sempre nil no Go (a conexão até ele é HTTP puro), mas o proxy já seta
+// esse header padrão de fato informando o scheme original do cliente. Sem
+// isso, links/tags que dependem da origem (reset de senha, og:url) saíam
+// como http:// mesmo num site https:// de verdade (achado real, reportado
+// pelo navigator testando o compartilhamento numa instância atrás de proxy).
 func requestOrigin(r *http.Request) string {
 	scheme := "http"
-	if r.TLS != nil {
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
 	return fmt.Sprintf("%s://%s", scheme, r.Host)

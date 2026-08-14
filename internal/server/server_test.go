@@ -1713,6 +1713,18 @@ func TestSPAIndexSubstitutesOGOrigin(t *testing.T) {
 		}
 	})
 
+	t.Run("CA4: atrás de reverse proxy (X-Forwarded-Proto: https), og:url sai https:// mesmo com r.TLS nil", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Host = "camera.luango.com.br"
+		req.Header.Set("X-Forwarded-Proto", "https")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		body := w.Body.String()
+		if !strings.Contains(body, `content="https://camera.luango.com.br/"`) {
+			t.Errorf("esperava og:url https:// atrás do proxy, got %q", body)
+		}
+	})
+
 	t.Run("CA2: escapa o Host antes de substituir (Host controlado pelo cliente não injeta markup)", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Host = `evil.com"><script>alert(1)</script>`
