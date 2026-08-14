@@ -1,8 +1,9 @@
-// Package telegram is a minimal client for the Telegram Bot API. It is a
-// standalone building block for the future "extensions" system — not wired
-// into internal/notifications and not started automatically by
-// cmd/camera/main.go yet (see work_progress/analysis, história futura liga
-// isso a um listener de vínculo de conta e ao envio de notificações reais).
+// Package telegram is a minimal client for the Telegram Bot API, plus the
+// account-linking poller (Poller, história feat/telegram-vinculo-conta) —
+// started by cmd/camera/main.go whenever a bot token is configured. Not yet
+// wired into internal/notifications (sending real motion/state notification
+// messages is a separate, future história — this package only resolves
+// which Telegram chat belongs to which system user).
 package telegram
 
 import (

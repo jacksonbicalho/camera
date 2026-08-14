@@ -25,6 +25,7 @@ import (
 	"camera/internal/dbbackup"
 	"camera/internal/email"
 	"camera/internal/exec"
+	"camera/internal/extensions/telegram"
 	"camera/internal/ffprobe"
 	"camera/internal/logger"
 	"camera/internal/motion"
@@ -429,6 +430,21 @@ func main() {
 			srv.WithNotifications(dispatcher)
 		}
 
+		// Telegram account-linking poller — independent of the runtime "Active"
+		// toggle (Preferências > Extensões, only gates the UI): it just needs
+		// the bot token configured to be able to resolve /start <code> from
+		// anyone who opens the deep-link. Long-polling (not a webhook) since
+		// this instance typically runs self-hosted behind NAT, without a
+		// guaranteed public HTTPS endpoint.
+		if database != nil && cfg.Extensions.Telegram.Enabled && cfg.Extensions.Telegram.BotToken != "" {
+			poller := telegram.NewPoller(telegram.NewClient(cfg.Extensions.Telegram.BotToken), telegramLinkResolver{database})
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				poller.Run(ctx, slog, 5*time.Second)
+			}()
+		}
+
 		camMu.Lock()
 		for id, si := range streamsByID {
 			srv.WithStreamInfo(id, si)
@@ -607,6 +623,30 @@ func main() {
 	slog.Info("shutting down, finalizing chunks...")
 	wg.Wait()
 	slog.Info("done")
+}
+
+// telegramLinkResolver adapts internal/db's telegram.go functions to
+// telegram.LinkResolver (interface defined consumer-side, in the telegram
+// package itself — this is just the db-backed implementation main.go wires
+// in).
+type telegramLinkResolver struct {
+	db *db.DB
+}
+
+func (r telegramLinkResolver) ResolveLinkCode(code string) (int64, bool) {
+	userID, err := db.FindUserByTelegramLinkCode(r.db, code)
+	if err != nil {
+		return 0, false
+	}
+	return userID, true
+}
+
+func (r telegramLinkResolver) SetChatID(userID int64, chatID string) error {
+	return db.SetUserTelegramChatID(r.db, userID, chatID)
+}
+
+func (r telegramLinkResolver) ClearLinkCode(userID int64) error {
+	return db.ClearTelegramLinkCode(r.db, userID)
 }
 
 func printStartupURLs(port int) {
