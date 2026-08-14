@@ -2,10 +2,12 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -422,6 +424,12 @@ func (s *Server) routes() {
 
 }
 
+// ogOriginPlaceholder marca onde as meta tags Open Graph/Twitter Card de
+// index.html (og:url/og:image/twitter:image) esperam a origem absoluta da
+// instância — preenchida em request-time (spaHandler), já que o sistema é
+// auto-hospedado, sem domínio fixo conhecido em build-time.
+const ogOriginPlaceholder = "%%OG_ORIGIN%%"
+
 func (s *Server) spaHandler() http.Handler {
 	fileServer := http.FileServer(http.FS(s.frontend))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -430,16 +438,28 @@ func (s *Server) spaHandler() http.Handler {
 		if name == "" {
 			name = "index.html"
 		}
-		if _, err := fs.Stat(s.frontend, name); err == nil {
-			fileServer.ServeHTTP(w, r)
-			return
+		// index.html nunca vai pro FileServer (mesmo na raiz) — precisa
+		// sempre passar pela substituição do placeholder abaixo. Qualquer
+		// outro arquivo estático conhecido (JS/CSS/ícones) continua servido
+		// cru pelo FileServer.
+		if name != "index.html" {
+			if _, err := fs.Stat(s.frontend, name); err == nil {
+				fileServer.ServeHTTP(w, r)
+				return
+			}
 		}
-		// Unknown path: serve index.html for client-side routing
+		// Raiz ("/") ou rota desconhecida da SPA: serve index.html com o
+		// placeholder de origem substituído pela origem real da request.
 		data, err := fs.ReadFile(s.frontend, "index.html")
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
+		// html.EscapeString: requestOrigin deriva de r.Host, controlado pelo
+		// cliente — sem escapar, um Host malicioso injetaria markup
+		// arbitrário na própria resposta (reflected HTML injection).
+		origin := html.EscapeString(requestOrigin(r))
+		data = bytes.ReplaceAll(data, []byte(ogOriginPlaceholder), []byte(origin))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(data)
 	})
