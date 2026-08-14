@@ -128,6 +128,78 @@ describe('VideoPlayer', () => {
     })
   })
 
+  // --- fromSeconds além da duração real do arquivo (história
+  // fix/player-piscando-segmento-alem-duracao-real) ---
+
+  it('CA2: pula automaticamente um segmento cujo fromSeconds excede a duração real do arquivo, sem nunca setar um seek inalcançável', async () => {
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('bad.mp4', 180, Infinity), seg('good.mp4', 0, Infinity)]}
+      />,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('p-video')).not.toBeNull()
+    })
+    const a = document.getElementById('p-video') as HTMLVideoElement
+    expect(a.getAttribute('src')).toBe('bad.mp4')
+
+    // "bad.mp4" tem duração real de só 20s — bem menor que fromSeconds=180 (mesmo
+    // cenário do repro real: ended_at inferido no banco além do conteúdo de fato).
+    fireLoadedMetadata(a, 20)
+
+    // Sem nenhum avanço manual (sem timeupdate/toSeconds cruzado) — o pulo é
+    // automático, disparado só pela metadata revelar que o segmento é inalcançável.
+    await waitFor(() => {
+      expect(a.getAttribute('src')).toBe('good.mp4')
+    })
+    // currentTime nunca deveria ter sido empurrado pro valor inalcançável (180) —
+    // é justamente esse seek que faz o browser mostrar um frame corrompido/congelado
+    // ("piscando", achado real reproduzido isoladamente fora do app).
+    expect(a.currentTime).not.toBe(180)
+  })
+
+  it('CA2: pulo no elemento ativo mantém curSeg/onSegmentChange sincronizados com o segmento de fato carregado (achado de review — sem isso, HistoryPage mapeava pro índice antigo/errado)', async () => {
+    const onSegmentChange = vi.fn()
+    render(
+      <VideoPlayer
+        idPrefix="p"
+        segments={[seg('bad.mp4', 180, Infinity), seg('good.mp4', 0, Infinity)]}
+        onSegmentChange={onSegmentChange}
+      />,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('p-video')).not.toBeNull()
+    })
+    const a = document.getElementById('p-video') as HTMLVideoElement
+    fireLoadedMetadata(a, 20) // dispara o pulo automático (0 → 1)
+
+    await waitFor(() => {
+      expect(onSegmentChange).toHaveBeenCalledWith(1)
+    })
+    expect(document.getElementById('p-segment')?.textContent).toBe('2 / 2')
+    expect((document.getElementById('p-download') as HTMLAnchorElement | null)?.href).toContain(
+      'good.mp4',
+    )
+  })
+
+  it('CA2: quando TODOS os segmentos do clipe são inalcançáveis, avisa via onError em vez de deixar o loading preso pra sempre (achado de review)', async () => {
+    const onError = vi.fn()
+    render(
+      <VideoPlayer idPrefix="p" segments={[seg('bad.mp4', 180, Infinity)]} onError={onError} />,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('p-video')).not.toBeNull()
+    })
+    const a = document.getElementById('p-video') as HTMLVideoElement
+    fireLoadedMetadata(a, 20) // único segmento, inalcançável — cadeia esgota de imediato
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalled()
+    })
+    expect(a.getAttribute('src')).toBeNull()
+  })
+
   it('troca de playlist reinicia o índice — onSegmentChange dispara com 0 de novo', async () => {
     const onSegmentChange = vi.fn()
     const { rerender } = render(

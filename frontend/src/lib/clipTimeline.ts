@@ -27,8 +27,10 @@ export function segmentDuration(seg: TimedSegment, realDuration?: number): numbe
 }
 
 // Margem (s) pra considerar "chegou no fim real do arquivo" — currentTime raramente bate
-// exatamente em `duration` (passo de frame, arredondamento do decoder).
-const END_EPSILON_SEC = 0.25
+// exatamente em `duration` (passo de frame, arredondamento do decoder). Exportada: também
+// usada por VideoPlayer.tsx (onMeta) pra decidir se um seek alvo é alcançável antes de
+// aplicá-lo — mesma margem, mesmo motivo.
+export const END_EPSILON_SEC = 0.25
 
 // shouldAdvance decide se o segmento ativo terminou e o player deve avançar pro próximo.
 // Dois critérios independentes, o que disparar primeiro vale: (1) cruzou `toSeconds` — o

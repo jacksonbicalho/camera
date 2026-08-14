@@ -21,6 +21,7 @@ import {
   locate,
   formatClock,
   shouldAdvance,
+  END_EPSILON_SEC,
 } from '../lib/clipTimeline'
 
 export interface VideoPlayerSegment {
@@ -213,7 +214,36 @@ export default function VideoPlayer({
         recomputeDurations()
       }
       const pending = pendingSeekRef.current[elIdx]
-      el.currentTime = pending != null ? pending : seg.fromSeconds
+      const target = pending != null ? pending : seg.fromSeconds
+      // Segmento sem conteúdo real na janela pedida (ended_at inferido no banco além do
+      // arquivo de fato, ver work_progress/analysis/...player-piscando...) — um seek pra um
+      // alvo inalcançável faz o <video> mostrar um frame congelado/corrompido ("piscando",
+      // achado isolado fora do app, confirmado pelo navigator). Pula pro próximo segmento
+      // SEM nunca setar currentTime/tocar este — a checagem seguinte roda de novo quando o
+      // onMeta do próximo segmento disparar (cadeia de pulo, termina quando loadInto fica
+      // sem próximo segmento — ver seu próprio guard de fora-de-faixa).
+      if (Number.isFinite(el.duration) && target >= el.duration - END_EPSILON_SEC) {
+        pendingSeekRef.current[elIdx] = null
+        loadInto(elIdx, segIdx + 1)
+        // Só o elemento ATIVO importa pra fora: é ele quem dirige `curSeg`/`onSegmentChange`
+        // (achado do code review — sem isso, `curSeg` ficava preso no segmento inválido
+        // enquanto `heldSegRef` já tinha avançado, e páginas consumidoras como HistoryPage,
+        // que mapeiam o índice de volta pra uma gravação via `onSegmentChange`, ficavam
+        // apontando pra gravação errada). Se a cadeia esgotou (sem próximo segmento válido —
+        // caso comum: clipe de evento com um único segmento, exatamente o cenário relatado
+        // via notificação → "Ver no histórico"), `heldSegRef` volta a -1 e `onError` avisa
+        // quem consome (ex.: HistoryPage's `videoLoading`) em vez de deixar o loading preso
+        // pra sempre, já que nenhum `loadedmetadata`/`loadeddata`/`error` nativo dispara de
+        // novo pra um elemento sem `src`.
+        if (elIdx === activeRef.current) {
+          // -1 (cadeia esgotada) é um sentinel interno de `heldSegRef` — não é um índice de
+          // segmento real, não deve vazar pra `onSegmentChange` (contrato público da prop).
+          if (heldSegRef.current[elIdx] === -1) onError?.()
+          else setCurSegTracked(heldSegRef.current[elIdx])
+        }
+        return
+      }
+      el.currentTime = target
       pendingSeekRef.current[elIdx] = null
       // `playbackRate` não é preservado de forma confiável por todo browser através de
       // `el.load()` (reseta pro default em alguns) — reaplica a cada metadata carregada,
@@ -222,7 +252,7 @@ export default function VideoPlayer({
       el.playbackRate = rateRef.current
       if (elIdx === activeRef.current && playingRef.current) el.play().catch(() => {})
     },
-    [recomputeDurations],
+    [loadInto, recomputeDurations, setCurSegTracked, onError],
   )
 
   // activate torna o elemento visível e o toca (já pré-carregado no fromSeconds → sem
