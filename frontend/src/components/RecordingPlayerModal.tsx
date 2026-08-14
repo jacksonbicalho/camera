@@ -177,7 +177,7 @@ export default function RecordingPlayerModal({
           <VideoPlayer
             idPrefix="recording-player"
             segments={segments}
-            emptyMessage="Sem gravação cobrindo o evento."
+            emptyMessage={error ?? 'Sem gravação cobrindo o evento.'}
           />
         </div>
         {/* Alças de redimensionar — uma por quina (T3, história

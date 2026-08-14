@@ -10,9 +10,21 @@ import type { VideoPlayerSegment } from '../components/VideoPlayer'
 
 const gateway = new RecordingsGateway()
 
+// Um evento cujo instante cai dentro do chunk ainda sendo gravado nunca tem
+// segmento (clipSegments pula is_recording de propósito — arquivo ainda não é
+// seekável). Em vez de mostrar "sem gravação" (soa permanente), tenta de novo
+// sozinho até o chunk fechar — RETRY_INTERVAL_MS entre tentativas, até
+// MAX_RETRY_MS no total.
+const RETRY_INTERVAL_MS = 5000
+const MAX_RETRY_MS = 120000
+const PENDING_MESSAGE =
+  'Gravação em andamento — a gravação ainda não terminou de ser salva. Atualizando automaticamente…'
+const NO_COVERAGE_MESSAGE = 'Sem gravação cobrindo o evento.'
+
 export interface UseRecordingSegmentsResult {
   segments: VideoPlayerSegment[]
   error: string | null
+  pending: boolean
   anchor: Recording | null
   event: GatewayEvent | null
   timezone: string
@@ -30,6 +42,7 @@ export function useRecordingSegments(
   motionId?: string | number | null,
 ): UseRecordingSegmentsResult {
   const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
   const [anchor, setAnchor] = useState<Recording | null>(null)
   const [event, setEvent] = useState<GatewayEvent | null>(null)
   const [segments, setSegments] = useState<VideoPlayerSegment[]>([])
@@ -50,6 +63,7 @@ export function useRecordingSegments(
       // mesmo disable em VideoPlayer.tsx (startPlayback).
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(null)
+      setPending(false)
       setAnchor(null)
       setEvent(null)
       setSegments([])
@@ -57,6 +71,8 @@ export function useRecordingSegments(
     }
     const controller = new AbortController()
     const { signal } = controller
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    const pendingSince = Date.now()
 
     // Cancela os fetches de verdade no cleanup (AbortSignal) — mesmo motivo documentado
     // originalmente em VideoBrowserPage.tsx: o StrictMode duplica o efeito no mount em dev,
@@ -101,10 +117,23 @@ export function useRecordingSegments(
         setEvent(ev)
         const segs = clipSegments(ev.time, dayRecs, win.lead, win.trail)
         if (segs.length === 0) {
-          setError('Sem gravação cobrindo o evento.')
+          const windowEnd = Date.parse(ev.time) + win.trail * 1000
+          const activeChunkCoversWindow = dayRecs.some(
+            (r) => r.is_recording && Date.parse(r.start) <= windowEnd,
+          )
+          if (activeChunkCoversWindow && Date.now() - pendingSince < MAX_RETRY_MS) {
+            setPending(true)
+            setError(PENDING_MESSAGE)
+            setSegments([])
+            retryTimer = setTimeout(load, RETRY_INTERVAL_MS)
+            return
+          }
+          setPending(false)
+          setError(NO_COVERAGE_MESSAGE)
           setSegments([])
           return
         }
+        setPending(false)
         setSegments(
           segs.map((s) => ({
             src: gateway.playbackURL(s.recording),
@@ -119,8 +148,11 @@ export function useRecordingSegments(
     }
 
     load()
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      if (retryTimer) clearTimeout(retryTimer)
+    }
   }, [cameraId, recordingId, motionId])
 
-  return { segments, error, anchor, event, timezone }
+  return { segments, error, pending, anchor, event, timezone }
 }

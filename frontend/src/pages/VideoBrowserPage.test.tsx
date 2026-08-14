@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StrictMode } from 'react'
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 // A RecordingsGateway captura globalThis.fetch no construtor e a instância nasce no
@@ -126,6 +126,21 @@ describe('VideoBrowserPage — estrutura visual', () => {
     })
     expect(err.className).toContain('border-danger/40')
     expect(err.textContent).toContain('não encontrada')
+  })
+
+  // --- capture_type-independente: mensagem dinâmica na área vazia do player
+  // (história fix/notificacao-gravacao-em-andamento) ---
+
+  it('CA5: gravação não encontrada → o mesmo texto aparece no banner E na área vazia do player', async () => {
+    g.getRecording.mockResolvedValue(null)
+    renderAt('/recording/cam1/1')
+    await waitFor(() => {
+      expect(document.getElementById('video-browser-error')?.textContent).toContain(
+        'não encontrada',
+      )
+    })
+    const matches = screen.getAllByText('Gravação não encontrada.')
+    expect(matches.length).toBeGreaterThanOrEqual(2)
   })
 })
 

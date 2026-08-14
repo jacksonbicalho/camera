@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, fireEvent, waitFor } from '@testing-library/react'
+import { cleanup, render, fireEvent, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 
 const g = vi.hoisted(() => ({
@@ -150,6 +150,27 @@ describe('CA3: RecordingPlayerModal — reproduz uma gravação em modal, sem sa
         'não encontrada',
       )
     })
+  })
+})
+
+// --- capture_type-independente: mensagem dinâmica na área vazia do player
+// (história fix/notificacao-gravacao-em-andamento) ---
+
+describe('CA5: a área vazia do player reflete a mensagem atual do hook, não um texto fixo desatualizado', () => {
+  it('gravação não encontrada → o mesmo texto aparece no banner E na área vazia do player', async () => {
+    g.getRecording.mockResolvedValue(null)
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={999} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.getElementById('recording-player-modal-error')?.textContent).toContain(
+        'não encontrada',
+      )
+    })
+    const matches = screen.getAllByText('Gravação não encontrada.')
+    expect(matches.length).toBeGreaterThanOrEqual(2)
   })
 })
 

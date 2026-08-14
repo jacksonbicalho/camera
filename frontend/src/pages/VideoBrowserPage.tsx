@@ -70,7 +70,7 @@ export default function VideoBrowserPage() {
         <VideoPlayer
           idPrefix="video-browser"
           segments={segments}
-          emptyMessage="Sem gravação cobrindo o evento."
+          emptyMessage={error ?? 'Sem gravação cobrindo o evento.'}
         />
       </div>
     </Layout>
