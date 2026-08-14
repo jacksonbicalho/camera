@@ -1,9 +1,9 @@
 {
   "name": "os-camera",
   "short_name": "os-camera",
-  "description": "Monitoramento residencial via RTSP",
-  "theme_color": "#09090b",
-  "background_color": "#09090b",
+  "description": "Monitoramento residencial",
+  "theme_color": "#0a0e1a",
+  "background_color": "#0a0e1a",
   "display": "standalone",
   "start_url": "/",
   "icons": [

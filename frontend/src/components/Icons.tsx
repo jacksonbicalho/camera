@@ -542,27 +542,32 @@ export function CameraCapture({ className, ...props }: SVGProps<SVGSVGElement>) 
 }
 
 // Logo colors are driven by CSS variables (with dark defaults via the var
-// fallback) so the mark adapts to the theme — see [data-theme="light"] in
-// index.css, which inverts it to a light badge with dark camera lines. The red
-// status dot stays red in every theme.
-export function CameraLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
-  const badge = { fill: 'var(--logo-bg, #18181b)' }
-  const surface = { fill: 'var(--logo-surface, #09090b)', stroke: 'var(--logo-stroke, #ffffff)' }
-  const dot = { fill: 'var(--logo-stroke, #ffffff)' }
+// fallback) so the mark adapts to the theme — see [data-mode="light"] in
+// styles/themes/default.css, which inverts the badge/well to light tones. The
+// cyan ring/core and the red status dot stay fixed in every theme (accent
+// marks, not surface colors — same precedent the red dot already had).
+export function CameraLogo({ className, id = 'camera-logo', ...props }: SVGProps<SVGSVGElement>) {
+  const badge = { fill: 'var(--logo-bg, #0a0e1a)' }
+  const well = { fill: 'var(--logo-well, #161b26)' }
   return (
-    <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
+    <svg
+      id={id}
+      viewBox="0 0 512 512"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      {...props}
+    >
       <rect width="512" height="512" rx="112" style={badge} />
-      <rect x="68" y="172" width="376" height="252" rx="36" style={surface} strokeWidth="20" />
       <path
-        d="M188 172 L188 132 Q188 112 208 112 L304 112 Q324 112 324 132 L324 172"
-        style={surface}
-        strokeWidth="20"
-        strokeLinejoin="round"
+        d="M 401.5 172.0 A 168 168 0 1 1 256.0 88.0"
+        fill="none"
+        stroke="#22d3ee"
+        strokeWidth="34"
+        strokeLinecap="round"
       />
-      <circle cx="256" cy="298" r="90" style={surface} strokeWidth="20" />
-      <circle cx="256" cy="298" r="56" style={surface} strokeWidth="12" />
-      <circle cx="256" cy="298" r="26" style={dot} />
-      <circle cx="394" cy="216" r="18" fill="#ef4444" />
+      <circle cx="360" cy="76" r="22" fill="#f43f5e" />
+      <circle cx="256" cy="256" r="118" style={well} />
+      <circle cx="256" cy="256" r="52" fill="#22d3ee" />
     </svg>
   )
 }

@@ -1668,6 +1668,75 @@ func TestSPARecordingsRouteServesIndex(t *testing.T) {
 	})
 }
 
+// --- placeholder %%OG_ORIGIN%% no index.html (história feat/meta-tags-compartilhamento) ---
+
+func TestSPAIndexSubstitutesOGOrigin(t *testing.T) {
+	frontend := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte(`<meta property="og:url" content="%%OG_ORIGIN%%/"><meta property="og:image" content="%%OG_ORIGIN%%/icon-192.png">`),
+		},
+	}
+	cfg := config.ServerConfig{}
+	srv := server.NewServer(cfg, "UTC", nil, discardLogger(), frontend)
+
+	t.Run("CA2: raiz (\"/\") substitui %%OG_ORIGIN%% pela origem real da request", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Host = "cam.example.com"
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("esperava 200, got %d", w.Code)
+		}
+		body := w.Body.String()
+		if strings.Contains(body, "%%OG_ORIGIN%%") {
+			t.Errorf("placeholder não substituído: %q", body)
+		}
+		if !strings.Contains(body, `content="http://cam.example.com/"`) {
+			t.Errorf("esperava og:url com a origem real, got %q", body)
+		}
+	})
+
+	t.Run("CA2: fallback de rota desconhecida da SPA também substitui", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/live-view", nil)
+		req.Host = "cam.example.com"
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("esperava 200, got %d", w.Code)
+		}
+		body := w.Body.String()
+		if strings.Contains(body, "%%OG_ORIGIN%%") {
+			t.Errorf("placeholder não substituído: %q", body)
+		}
+		if !strings.Contains(body, `content="http://cam.example.com/icon-192.png"`) {
+			t.Errorf("esperava og:image com a origem real, got %q", body)
+		}
+	})
+
+	t.Run("CA4: atrás de reverse proxy (X-Forwarded-Proto: https), og:url sai https:// mesmo com r.TLS nil", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Host = "camera.luango.com.br"
+		req.Header.Set("X-Forwarded-Proto", "https")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		body := w.Body.String()
+		if !strings.Contains(body, `content="https://camera.luango.com.br/"`) {
+			t.Errorf("esperava og:url https:// atrás do proxy, got %q", body)
+		}
+	})
+
+	t.Run("CA2: escapa o Host antes de substituir (Host controlado pelo cliente não injeta markup)", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Host = `evil.com"><script>alert(1)</script>`
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		body := w.Body.String()
+		if strings.Contains(body, "<script>") {
+			t.Errorf("Host malicioso vazou markup sem escapar: %q", body)
+		}
+	})
+}
+
 func TestGlobalRecordings(t *testing.T) {
 	database := openServerTestDB(t)
 	if _, err := db.CreateUser(database, "master", "secret", "admin", false); err != nil {

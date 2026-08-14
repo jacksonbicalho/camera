@@ -124,10 +124,10 @@
   --color-indigo-400: #303f9f;
   --color-indigo-300: #283593;
 
-  /* Logo (CameraLogo): badge claro com a câmera em traço escuro. */
+  /* Logo (CameraLogo): badge claro; anel/núcleo ciano e ponto vermelho ficam
+     fixos em qualquer tema (cores de destaque, não de superfície). */
   --logo-bg: #eeeeee; /* grey 200 — badge */
-  --logo-surface: #ffffff; /* corpo da câmera */
-  --logo-stroke: #212121; /* grey 900 — traços/lente */
+  --logo-well: #f7f7f8; /* levemente mais claro que o badge — mesma relação do escuro (well > bg) */
 }
 /* Exceção: texto branco sobre fundo de destaque (botões/badges) ou sobre vídeo
    (overlay bg-white/10) continua branco. */
