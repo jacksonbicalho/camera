@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import iconsSource from './Icons.tsx?raw'
-import { Play, Settings, X, Minimize } from './Icons'
+import { Play, Settings, X, Minimize, CameraLogo } from './Icons'
 
 afterEach(cleanup)
 
@@ -28,5 +28,19 @@ describe('Icons — sem dependência lucide-react', () => {
       expect(svg.getAttribute('class')).toContain('w-4 h-4')
       cleanup()
     }
+  })
+})
+
+// --- símbolo novo (história feat/meta-tags-compartilhamento) ---
+
+describe('CA6: CameraLogo — símbolo novo (anel + núcleo), id estável', () => {
+  it('tem id="camera-logo" por padrão', () => {
+    const { container } = render(<CameraLogo />)
+    expect(container.querySelector('svg')!.id).toBe('camera-logo')
+  })
+
+  it('aceita um id customizado (evita colisão se precisar renderizar mais de um por página)', () => {
+    const { container } = render(<CameraLogo id="minha-logo" />)
+    expect(container.querySelector('svg')!.id).toBe('minha-logo')
   })
 })

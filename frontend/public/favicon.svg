@@ -1,17 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- Background -->
-  <rect width="512" height="512" rx="112" fill="#09090b"/>
-  <!-- Camera body -->
-  <rect x="68" y="172" width="376" height="252" rx="36" fill="#18181b" stroke="#ffffff" stroke-width="20"/>
-  <!-- Viewfinder bump -->
-  <path d="M188 172 L188 132 Q188 112 208 112 L304 112 Q324 112 324 132 L324 172"
-        fill="#18181b" stroke="#ffffff" stroke-width="20" stroke-linejoin="round"/>
-  <!-- Lens outer ring -->
-  <circle cx="256" cy="298" r="90" fill="#09090b" stroke="#ffffff" stroke-width="20"/>
-  <!-- Lens inner ring -->
-  <circle cx="256" cy="298" r="56" fill="#09090b" stroke="#ffffff" stroke-width="12"/>
-  <!-- Lens center -->
-  <circle cx="256" cy="298" r="26" fill="#ffffff"/>
-  <!-- REC dot -->
-  <circle cx="394" cy="216" r="18" fill="#ef4444"/>
+  <rect width="512" height="512" rx="112" fill="#0a0e1a"/>
+  <!-- Outer ring, aberto entre ~12h e ~1h -->
+  <path d="M 401.5 172.0 A 168 168 0 1 1 256.0 88.0" fill="none"
+        stroke="#22d3ee" stroke-width="34" stroke-linecap="round"/>
+  <!-- Ponto vermelho, flutuando na abertura -->
+  <circle cx="360" cy="76" r="22" fill="#f43f5e"/>
+  <!-- Anel interno escuro -->
+  <circle cx="256" cy="256" r="118" fill="#161b26"/>
+  <!-- Núcleo azul -->
+  <circle cx="256" cy="256" r="52" fill="#22d3ee"/>
 </svg>
