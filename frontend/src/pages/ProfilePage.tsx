@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ProfileLayout from '../components/ProfileLayout'
+import TelegramLinkSection from '../components/TelegramLinkSection'
 import { authHeaders, onUnauthorized } from '../auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -220,6 +221,8 @@ export default function ProfilePage() {
             {profile.role === 'admin' && <Field label="Perfil de acesso" value="Administrador" />}
           </div>
         )}
+
+        {profile && !editing && <TelegramLinkSection />}
 
         {error && (
           <p role="alert" className="text-danger text-sm">
