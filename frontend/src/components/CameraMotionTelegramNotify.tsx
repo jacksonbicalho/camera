@@ -112,7 +112,7 @@ export function MotionTelegramNotify({ cameraId, motionEnabled }: Props) {
   return (
     <div className="mt-4 border-t border-border pt-4 flex flex-col gap-3">
       <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground uppercase tracking-wider">
-        <TelegramIcon className="h-4 w-4 shrink-0" />
+        <TelegramIcon className="h-5 w-5 shrink-0" />
         Notificações via Telegram
       </p>
       <div className="flex items-center gap-2">
