@@ -148,4 +148,68 @@ func TestClient(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("CA9: SendMessageHTML/SendPhotoHTML enviam parse_mode=HTML (link clicável)", func(t *testing.T) {
+		t.Run("SendMessageHTML envia parse_mode=HTML junto de chat_id/text", func(t *testing.T) {
+			var gotParseMode string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_ = r.ParseForm()
+				gotParseMode = r.FormValue("parse_mode")
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+			defer telegram.StubAPIBase(server.URL)()
+
+			c := telegram.NewClient("TESTTOKEN")
+			if err := c.SendMessageHTML("12345", `<a href="http://x">link</a>`); err != nil {
+				t.Fatalf("SendMessageHTML: %v", err)
+			}
+			if gotParseMode != "HTML" {
+				t.Errorf("parse_mode = %q, want HTML", gotParseMode)
+			}
+		})
+
+		t.Run("SendPhotoHTML envia parse_mode=HTML junto do multipart", func(t *testing.T) {
+			var gotParseMode string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if err := r.ParseMultipartForm(10 << 20); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				gotParseMode = r.FormValue("parse_mode")
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+			defer telegram.StubAPIBase(server.URL)()
+
+			c := telegram.NewClient("TESTTOKEN")
+			if err := c.SendPhotoHTML("12345", []byte("x"), `<a href="http://x">link</a>`); err != nil {
+				t.Fatalf("SendPhotoHTML: %v", err)
+			}
+			if gotParseMode != "HTML" {
+				t.Errorf("parse_mode = %q, want HTML", gotParseMode)
+			}
+		})
+
+		t.Run("SendMessage/SendPhoto originais continuam sem parse_mode (não quebram o poller de vínculo)", func(t *testing.T) {
+			var gotParseMode string
+			var sawParseModeKey bool
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_ = r.ParseForm()
+				_, sawParseModeKey = r.Form["parse_mode"]
+				gotParseMode = r.FormValue("parse_mode")
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+			defer telegram.StubAPIBase(server.URL)()
+
+			c := telegram.NewClient("TESTTOKEN")
+			if err := c.SendMessage("12345", "plain text"); err != nil {
+				t.Fatalf("SendMessage: %v", err)
+			}
+			if sawParseModeKey || gotParseMode != "" {
+				t.Errorf("expected no parse_mode field on plain SendMessage, got %q", gotParseMode)
+			}
+		})
+	})
 }

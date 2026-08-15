@@ -236,7 +236,15 @@ func main() {
 	// storage.Cleaner below, built once database is known.
 	var dispatcher *notifications.Dispatcher
 
-	onMotionEvent := func(cameraID string, t time.Time, score float64, frame, label, color string, bbox motion.BBox) {
+	// onMotionEvent's return value gates whether the event is broadcast to
+	// Events()/the SSE motion bell (see motion.New's doc comment) — only
+	// true when a recording actually backs the event, same "sem gravação"
+	// criterion the Momentos badge uses (feat/badge-momento-sem-gravacao,
+	// internal/server/moments.go's recordingCoversWindow): a camera can run
+	// with motion detection on and recording off, in which case its events
+	// never have anything to show and shouldn't notify anyone (sino or
+	// Telegram).
+	onMotionEvent := func(cameraID string, t time.Time, score float64, frame, label, color string, bbox motion.BBox) bool {
 		ev := db.MotionEvent{
 			CameraID:   cameraID,
 			OccurredAt: t,
@@ -249,15 +257,37 @@ func main() {
 			BboxW:      bbox.W,
 			BboxH:      bbox.H,
 		}
-		if err := db.InsertMotionEvent(database, ev); err != nil {
-			slog.Warn("failed to record motion event in DB", "camera", cameraID, "error", err)
+		motionEventID, insertErr := db.InsertMotionEventReturningID(database, ev)
+		if insertErr != nil {
+			slog.Warn("failed to record motion event in DB", "camera", cameraID, "error", insertErr)
 		}
 		if err := db.MarkRecordingHasMotion(database, cameraID, t, t.Add(time.Second)); err != nil {
 			slog.Warn("failed to mark recording has_motion", "camera", cameraID, "error", err)
 		}
-		if srv != nil {
-			srv.NotifyCameraMotion(cameraID, t, score, frame)
+
+		lead, trail := 10, 10
+		if cam, err := db.GetCamera(database, cameraID); err == nil {
+			mc := cam.EffectiveMotionConfig()
+			if mc.PlaybackLeadSeconds > 0 {
+				lead = mc.PlaybackLeadSeconds
+			}
+			if mc.PlaybackTrailSeconds > 0 {
+				trail = mc.PlaybackTrailSeconds
+			}
 		}
+		rec, hasRecording, err := db.FindRecordingCoveringMotion(database, cameraID, t, lead, trail)
+		if err != nil {
+			slog.Warn("failed to check for a covering recording", "camera", cameraID, "error", err)
+		}
+		if !hasRecording {
+			return false
+		}
+		// motionEventID só é confiável quando o insert acima teve sucesso —
+		// sem isso, o link da notificação apontaria pro evento errado (id 0).
+		if srv != nil && insertErr == nil {
+			srv.NotifyCameraMotion(cameraID, t, score, frame, rec.ID, motionEventID)
+		}
+		return true
 	}
 
 	startCameraProcs := func(cam config.CameraConfig) {

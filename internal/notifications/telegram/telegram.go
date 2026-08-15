@@ -11,12 +11,17 @@ import (
 	"camera/internal/notifications"
 )
 
-// messenger sends a single Telegram message or photo. Defined here (consumer
-// side) so this package does not depend on internal/extensions/telegram's
-// concrete type — satisfied structurally by *telegram.Client.
+// messenger sends a single Telegram message or photo, parsed as HTML
+// (parse_mode=HTML) so a <a href="...">...</a> link in n.Message is
+// guaranteed clickable — Telegram's own auto-linkification of plain
+// http(s):// URLs doesn't recognize hosts like "localhost" as a link even
+// with an explicit scheme, which matters for self-hosted instances.
+// Defined here (consumer side) so this package does not depend on
+// internal/extensions/telegram's concrete type — satisfied structurally by
+// *telegram.Client.
 type messenger interface {
-	SendMessage(chatID, text string) error
-	SendPhoto(chatID string, photo []byte, caption string) error
+	SendMessageHTML(chatID, html string) error
+	SendPhotoHTML(chatID string, photo []byte, captionHTML string) error
 }
 
 // Sender is the "telegram" channel: only fires for recipients when the
@@ -46,12 +51,12 @@ func (s *Sender) Send(n notifications.Notification, userID int64) error {
 	}
 	if n.ImagePath != "" {
 		if photo, err := os.ReadFile(n.ImagePath); err == nil {
-			if err := s.client.SendPhoto(chatID, photo, n.Message); err == nil {
+			if err := s.client.SendPhotoHTML(chatID, photo, n.Message); err == nil {
 				return nil
 			}
 		}
 		// Arquivo ausente ou SendPhoto falhou — cai pro texto puro em vez de
 		// perder a notificação inteira por causa da foto.
 	}
-	return s.client.SendMessage(chatID, n.Message)
+	return s.client.SendMessageHTML(chatID, n.Message)
 }

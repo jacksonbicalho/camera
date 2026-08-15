@@ -47,10 +47,24 @@ func (c *Client) endpoint(method string) string {
 
 // SendMessage sends a plain-text message to the given chat.
 func (c *Client) SendMessage(chatID, text string) error {
-	resp, err := c.httpClient.PostForm(c.endpoint("sendMessage"), url.Values{
-		"chat_id": {chatID},
-		"text":    {text},
-	})
+	return c.sendMessage(chatID, text, "")
+}
+
+// SendMessageHTML sends a message parsed as HTML (parse_mode=HTML) — use for
+// text that must contain a real clickable link (<a href="...">...</a>):
+// Telegram's own auto-linkification of plain http(s):// URLs doesn't
+// recognize hosts like "localhost" as a link even with an explicit scheme,
+// so relying on it is not enough for locally-hosted instances.
+func (c *Client) SendMessageHTML(chatID, html string) error {
+	return c.sendMessage(chatID, html, "HTML")
+}
+
+func (c *Client) sendMessage(chatID, text, parseMode string) error {
+	values := url.Values{"chat_id": {chatID}, "text": {text}}
+	if parseMode != "" {
+		values.Set("parse_mode", parseMode)
+	}
+	resp, err := c.httpClient.PostForm(c.endpoint("sendMessage"), values)
 	if err != nil {
 		return fmt.Errorf("telegram: send message: %w", err)
 	}
@@ -65,6 +79,16 @@ func (c *Client) SendMessage(chatID, text string) error {
 // chat, via multipart/form-data (the Bot API's sendMessage-style form
 // encoding doesn't support file uploads).
 func (c *Client) SendPhoto(chatID string, photo []byte, caption string) error {
+	return c.sendPhoto(chatID, photo, caption, "")
+}
+
+// SendPhotoHTML is SendPhoto with the caption parsed as HTML
+// (parse_mode=HTML) — see SendMessageHTML's doc comment for why.
+func (c *Client) SendPhotoHTML(chatID string, photo []byte, captionHTML string) error {
+	return c.sendPhoto(chatID, photo, captionHTML, "HTML")
+}
+
+func (c *Client) sendPhoto(chatID string, photo []byte, caption, parseMode string) error {
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
 	if err := w.WriteField("chat_id", chatID); err != nil {
@@ -72,6 +96,11 @@ func (c *Client) SendPhoto(chatID string, photo []byte, caption string) error {
 	}
 	if err := w.WriteField("caption", caption); err != nil {
 		return fmt.Errorf("telegram: send photo: write caption: %w", err)
+	}
+	if parseMode != "" {
+		if err := w.WriteField("parse_mode", parseMode); err != nil {
+			return fmt.Errorf("telegram: send photo: write parse_mode: %w", err)
+		}
 	}
 	part, err := w.CreateFormFile("photo", "snapshot.jpg")
 	if err != nil {

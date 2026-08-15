@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	htmlpkg "html"
 	"path/filepath"
 	"strings"
 	"time"
@@ -30,16 +31,20 @@ func (s *Server) cameraName(cameraID string) string {
 // (s.telegramSender) — never the shared Dispatcher (s.notifications), which
 // fans out to every registered sender including the always-on in-app bell
 // (see telegramSender's doc comment in server.go for why). Called from
-// cmd/camera/main.go's onMotionEvent right after a motion event is
-// persisted — recipient resolution mirrors resolveStateNotifyRecipients/
-// PublishClassifierState (state_notify.go).
+// cmd/camera/main.go's onMotionEvent AFTER it has already confirmed (via
+// db.FindRecordingCoveringMotion) that a recording backs this event — same
+// "só notifica quando tem gravação" gate as the SSE motion bell and the
+// Momentos badge (feat/badge-momento-sem-gravacao).
 //
 // occurredAt is the event's UTC timestamp (used both for the message's local
 // date/time and to resolve framePath's directory); framePath is the bare
 // snapshot filename produced by internal/motion (empty when no snapshot
 // exists) — resolved here into an absolute path under s.cfg.RecordingsPath,
-// same layout as event_label.go/finetune.go.
-func (s *Server) NotifyCameraMotion(cameraID string, occurredAt time.Time, score float64, framePath string) {
+// same layout as event_label.go/finetune.go. recordingID/motionEventID
+// identify the specific recording/event the caller already resolved, used
+// to build a link straight to that clip (/recording/:cameraId/:recordingId/
+// :motionId) instead of just the camera's history page.
+func (s *Server) NotifyCameraMotion(cameraID string, occurredAt time.Time, score float64, framePath string, recordingID, motionEventID int64) {
 	if s.db == nil || s.telegramSender == nil {
 		return
 	}
@@ -64,10 +69,11 @@ func (s *Server) NotifyCameraMotion(cameraID string, occurredAt time.Time, score
 	if err != nil {
 		loc = time.UTC
 	}
-	message := fmt.Sprintf("📹 Movimento detectado\n🕐 %s\n📍 %s\n📊 Score: %.3f",
-		occurredAt.In(loc).Format("02/01/2006 15:04:05"), s.cameraName(cameraID), score)
+	message := fmt.Sprintf("📹 <b>Movimento detectado</b>\n🕐 %s\n📍 %s\n📊 Score: %.3f",
+		occurredAt.In(loc).Format("02/01/2006 15:04:05"), htmlpkg.EscapeString(s.cameraName(cameraID)), score)
 	if s.cfg.PublicURL != "" {
-		message += "\n" + strings.TrimRight(s.cfg.PublicURL, "/") + "/history/" + cameraID
+		link := fmt.Sprintf("%s/recording/%s/%d/%d", strings.TrimRight(s.cfg.PublicURL, "/"), cameraID, recordingID, motionEventID)
+		message += fmt.Sprintf("\n<a href=\"%s\">Ver gravação</a>", htmlpkg.EscapeString(link))
 	}
 
 	var imagePath string
@@ -80,7 +86,7 @@ func (s *Server) NotifyCameraMotion(cameraID string, occurredAt time.Time, score
 		Type:      "info",
 		Title:     "Movimento detectado",
 		Message:   message,
-		Link:      "/history/" + cameraID,
+		Link:      fmt.Sprintf("/recording/%s/%d/%d", cameraID, recordingID, motionEventID),
 		ImagePath: imagePath,
 	}
 	for _, uid := range recipients {

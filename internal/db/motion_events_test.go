@@ -29,6 +29,32 @@ func insertTestEvent(t *testing.T, database *db.DB, cameraID string, occurredAt 
 	}
 }
 
+func TestInsertMotionEventReturningID(t *testing.T) {
+	t.Run("CA9: devolve o id da linha inserida, distinto entre inserções", func(t *testing.T) {
+		database := openTestDB(t)
+		ensureCamera(t, database, "cam1")
+
+		id1, err := db.InsertMotionEventReturningID(database, db.MotionEvent{
+			CameraID: "cam1", OccurredAt: time.Now(), Score: 0.5,
+		})
+		if err != nil {
+			t.Fatalf("InsertMotionEventReturningID: %v", err)
+		}
+		if id1 <= 0 {
+			t.Fatalf("expected a positive id, got %d", id1)
+		}
+		id2, err := db.InsertMotionEventReturningID(database, db.MotionEvent{
+			CameraID: "cam1", OccurredAt: time.Now(), Score: 0.6,
+		})
+		if err != nil {
+			t.Fatalf("InsertMotionEventReturningID: %v", err)
+		}
+		if id2 == id1 {
+			t.Fatalf("expected distinct ids, got %d twice", id1)
+		}
+	})
+}
+
 func TestListMotionEvents_ReturnsEventsInRange(t *testing.T) {
 	database := openTestDB(t)
 	ensureCamera(t, database, "cam1")

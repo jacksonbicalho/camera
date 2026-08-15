@@ -20,13 +20,13 @@ type fakeMessenger struct {
 	sendPhotoErr              error
 }
 
-func (f *fakeMessenger) SendMessage(chatID, text string) error {
+func (f *fakeMessenger) SendMessageHTML(chatID, text string) error {
 	f.chatID, f.text = chatID, text
 	f.calls++
 	return nil
 }
 
-func (f *fakeMessenger) SendPhoto(chatID string, photo []byte, caption string) error {
+func (f *fakeMessenger) SendPhotoHTML(chatID string, photo []byte, caption string) error {
 	f.photoChatID, f.photoBytes, f.photoCaption = chatID, photo, caption
 	f.photoCalls++
 	return f.sendPhotoErr

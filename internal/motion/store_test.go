@@ -11,18 +11,19 @@ func TestStoreCallsOnEvent(t *testing.T) {
 	var gotFrame, gotLabel, gotColor string
 	var gotBBox BBox
 
-	onEvent := func(cameraID string, ts time.Time, score float64, frame, label, color string, bbox BBox) {
+	onEvent := func(cameraID string, ts time.Time, score float64, frame, label, color string, bbox BBox) bool {
 		called = true
 		gotScore = score
 		gotFrame = frame
 		gotLabel = label
 		gotColor = color
 		gotBBox = bbox
+		return true
 	}
 
 	st := newStore("/tmp", onEvent)
 	ts := time.Date(2026, 5, 3, 14, 30, 0, 0, time.UTC)
-	err := st.record("cam1", ts, 0.42, "20260503143000_motion.jpg", "jardim", "#3b82f6", BBox{X: 0.1, Y: 0.2, W: 0.3, H: 0.4})
+	_, err := st.record("cam1", ts, 0.42, "20260503143000_motion.jpg", "jardim", "#3b82f6", BBox{X: 0.1, Y: 0.2, W: 0.3, H: 0.4})
 	if err != nil {
 		t.Fatalf("record: %v", err)
 	}
@@ -49,7 +50,46 @@ func TestStoreCallsOnEvent(t *testing.T) {
 func TestStoreNoOnEvent(t *testing.T) {
 	st := newStore("/tmp", nil)
 	ts := time.Date(2026, 5, 3, 14, 30, 0, 0, time.UTC)
-	if err := st.record("cam1", ts, 0.5, "", "", "", BBox{}); err != nil {
+	if _, err := st.record("cam1", ts, 0.5, "", "", "", BBox{}); err != nil {
 		t.Fatalf("record with nil onEvent: %v", err)
 	}
+}
+
+func TestStoreRecordPropagatesOnEventReturnValue(t *testing.T) {
+	t.Run("CA9: onEvent ausente devolve notify=true por padrão", func(t *testing.T) {
+		st := newStore("/tmp", nil)
+		notify, err := st.record("cam1", time.Now(), 0.5, "", "", "", BBox{})
+		if err != nil {
+			t.Fatalf("record: %v", err)
+		}
+		if !notify {
+			t.Error("expected notify=true when onEvent is nil")
+		}
+	})
+
+	t.Run("CA9: onEvent devolvendo false propaga notify=false", func(t *testing.T) {
+		st := newStore("/tmp", func(string, time.Time, float64, string, string, string, BBox) bool {
+			return false
+		})
+		notify, err := st.record("cam1", time.Now(), 0.5, "", "", "", BBox{})
+		if err != nil {
+			t.Fatalf("record: %v", err)
+		}
+		if notify {
+			t.Error("expected notify=false when onEvent returns false")
+		}
+	})
+
+	t.Run("CA9: onEvent devolvendo true propaga notify=true", func(t *testing.T) {
+		st := newStore("/tmp", func(string, time.Time, float64, string, string, string, BBox) bool {
+			return true
+		})
+		notify, err := st.record("cam1", time.Now(), 0.5, "", "", "", BBox{})
+		if err != nil {
+			t.Fatalf("record: %v", err)
+		}
+		if !notify {
+			t.Error("expected notify=true when onEvent returns true")
+		}
+	})
 }

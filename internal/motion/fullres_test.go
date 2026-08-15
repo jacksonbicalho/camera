@@ -117,10 +117,11 @@ func TestDetectorSnapshotIsDetectionFrameFullRes(t *testing.T) {
 	}
 	var mu sync.Mutex
 	var recs []rec
-	st := newStore(tmp, func(_ string, ts time.Time, _ float64, frame, _, _ string, bbox BBox) {
+	st := newStore(tmp, func(_ string, ts time.Time, _ float64, frame, _, _ string, bbox BBox) bool {
 		mu.Lock()
 		recs = append(recs, rec{frame: frame, bbox: bbox, ts: ts})
 		mu.Unlock()
+		return true
 	})
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}

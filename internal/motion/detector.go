@@ -259,9 +259,9 @@ func (d *detector) saveSnapshot(ts time.Time, score float64, bbox BBox, drawRect
 	if _, _, err := d.st.saveJPEG(d.cameraID, ts, "_frame.jpg", encodeRGBToJPEG(rgb, fw, fh)); err != nil {
 		d.log.Warn("motion: failed to save clean frame", "camera", d.cameraID, "error", err)
 	}
-	if err := d.st.record(d.cameraID, ts, score, frameName, label, recColor, bbox); err != nil {
+	if notify, err := d.st.record(d.cameraID, ts, score, frameName, label, recColor, bbox); err != nil {
 		d.log.Error("motion: failed to record event", "camera", d.cameraID, "error", err)
-	} else if d.notify != nil {
+	} else if notify && d.notify != nil {
 		d.notify(Event{Time: ts, Score: score, Label: label, Color: recColor})
 	}
 }

@@ -31,6 +31,98 @@ func TestLastRecordingPerCamera_ReturnsLatestPerCamera(t *testing.T) {
 	}
 }
 
+func TestFindRecordingCoveringMotion(t *testing.T) {
+	t.Run("CA9: evento dentro da janela [started_at-lead, ended_at+trail) da gravação em andamento (ended_at NULL) é coberto", func(t *testing.T) {
+		database := openTestDB(t)
+		ensureCamera(t, database, "cam1")
+		started := time.Date(2026, 8, 15, 9, 50, 0, 0, time.UTC)
+		if err := db.InsertRecording(database, db.Recording{CameraID: "cam1", StartedAt: started, Path: "open.mp4"}); err != nil {
+			t.Fatalf("InsertRecording: %v", err)
+		}
+
+		occurred := started.Add(4 * time.Minute) // depois de started_at, gravação ainda aberta
+		rec, ok, err := db.FindRecordingCoveringMotion(database, "cam1", occurred, 10, 10)
+		if err != nil {
+			t.Fatalf("FindRecordingCoveringMotion: %v", err)
+		}
+		if !ok {
+			t.Fatal("expected a covering recording, got none")
+		}
+		if rec.Path != "open.mp4" {
+			t.Errorf("expected open.mp4, got %q", rec.Path)
+		}
+	})
+
+	t.Run("CA9: evento fora de qualquer janela de gravação não é coberto", func(t *testing.T) {
+		database := openTestDB(t)
+		ensureCamera(t, database, "cam1")
+		started := time.Date(2026, 8, 15, 9, 0, 0, 0, time.UTC)
+		ended := started.Add(5 * time.Minute)
+		if err := db.InsertRecording(database, db.Recording{CameraID: "cam1", StartedAt: started, EndedAt: ended, Path: "closed.mp4"}); err != nil {
+			t.Fatalf("InsertRecording: %v", err)
+		}
+
+		occurred := ended.Add(time.Hour) // bem depois, fora de qualquer lead/trail razoável
+		_, ok, err := db.FindRecordingCoveringMotion(database, "cam1", occurred, 10, 10)
+		if err != nil {
+			t.Fatalf("FindRecordingCoveringMotion: %v", err)
+		}
+		if ok {
+			t.Error("expected no covering recording, got one")
+		}
+	})
+
+	t.Run("CA9: câmera sem nenhuma gravação nunca cobre nenhum evento", func(t *testing.T) {
+		database := openTestDB(t)
+		ensureCamera(t, database, "cam-no-recording")
+
+		_, ok, err := db.FindRecordingCoveringMotion(database, "cam-no-recording", time.Now(), 10, 10)
+		if err != nil {
+			t.Fatalf("FindRecordingCoveringMotion: %v", err)
+		}
+		if ok {
+			t.Error("expected no covering recording for a camera with zero recordings")
+		}
+	})
+
+	t.Run("CA9: gravação de outra câmera não cobre o evento", func(t *testing.T) {
+		database := openTestDB(t)
+		ensureCamera(t, database, "cam1")
+		ensureCamera(t, database, "cam2")
+		started := time.Date(2026, 8, 15, 9, 50, 0, 0, time.UTC)
+		if err := db.InsertRecording(database, db.Recording{CameraID: "cam2", StartedAt: started, Path: "other-camera.mp4"}); err != nil {
+			t.Fatalf("InsertRecording: %v", err)
+		}
+
+		_, ok, err := db.FindRecordingCoveringMotion(database, "cam1", started.Add(time.Minute), 10, 10)
+		if err != nil {
+			t.Fatalf("FindRecordingCoveringMotion: %v", err)
+		}
+		if ok {
+			t.Error("expected cam1 to not be covered by cam2's recording")
+		}
+	})
+
+	t.Run("CA9: janela lead/trail estende a cobertura antes do início e depois do fim de uma gravação fechada", func(t *testing.T) {
+		database := openTestDB(t)
+		ensureCamera(t, database, "cam1")
+		started := time.Date(2026, 8, 15, 9, 0, 0, 0, time.UTC)
+		ended := started.Add(time.Minute)
+		if err := db.InsertRecording(database, db.Recording{CameraID: "cam1", StartedAt: started, EndedAt: ended, Path: "closed.mp4"}); err != nil {
+			t.Fatalf("InsertRecording: %v", err)
+		}
+
+		// 5s antes do started_at — dentro do lead de 10s.
+		_, ok, err := db.FindRecordingCoveringMotion(database, "cam1", started.Add(-5*time.Second), 10, 10)
+		if err != nil {
+			t.Fatalf("FindRecordingCoveringMotion: %v", err)
+		}
+		if !ok {
+			t.Error("expected lead window to cover an event just before started_at")
+		}
+	})
+}
+
 func TestLastRecordingPerCamera_ReturnsEmptyMapWhenNoRecordings(t *testing.T) {
 	database := openTestDB(t)
 

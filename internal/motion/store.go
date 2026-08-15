@@ -8,18 +8,23 @@ import (
 
 type store struct {
 	basePath string
-	onEvent  func(cameraID string, t time.Time, score float64, frame, label, color string, bbox BBox)
+	// onEvent, when set, is called for every motion event and returns
+	// whether it should be broadcast/notified (e.g. false when the event has
+	// no recording backing it — see saveSnapshot's caller in detector.go).
+	onEvent func(cameraID string, t time.Time, score float64, frame, label, color string, bbox BBox) bool
 }
 
-func newStore(basePath string, onEvent func(cameraID string, t time.Time, score float64, frame, label, color string, bbox BBox)) *store {
+func newStore(basePath string, onEvent func(cameraID string, t time.Time, score float64, frame, label, color string, bbox BBox) bool) *store {
 	return &store{basePath: basePath, onEvent: onEvent}
 }
 
-func (s *store) record(cameraID string, ts time.Time, score float64, frame, label, color string, bbox BBox) error {
+// record persists the event via onEvent (if set) and returns whether it
+// should be notified/broadcast — true by default when onEvent is nil.
+func (s *store) record(cameraID string, ts time.Time, score float64, frame, label, color string, bbox BBox) (notify bool, err error) {
 	if s.onEvent != nil {
-		s.onEvent(cameraID, ts, score, frame, label, color, bbox)
+		return s.onEvent(cameraID, ts, score, frame, label, color, bbox), nil
 	}
-	return nil
+	return true, nil
 }
 
 func (s *store) saveJPEG(cameraID string, ts time.Time, suffix string, data []byte) (name, fullPath string, err error) {
