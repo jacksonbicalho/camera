@@ -477,3 +477,54 @@ describe('CA6: no celular, o modal abre em largura total, sem corte no rodapé e
     expect(box.style.top).toBe(topBefore)
   })
 })
+
+// --- conteúdo do evento além da duração real do arquivo (história
+// fix/modal-momento-sem-feedback-conteudo-inalcancavel) ---
+
+function fireLoadedMetadata(el: HTMLVideoElement, duration: number) {
+  Object.defineProperty(el, 'duration', { value: duration, configurable: true })
+  el.dispatchEvent(new Event('loadedmetadata'))
+}
+
+describe('CA2: quando o conteúdo do evento está além da duração real do arquivo, mostra uma mensagem em vez de deixar o player em branco', () => {
+  it('VideoPlayer recusa o seek (achado da PR #610) e o modal mostra o banner de erro', async () => {
+    // 1 gravação no dia, começando 12:00:00Z; evento em 12:01:30Z (90s depois) — clipSegments
+    // (lead=5/trail=10 do mock padrão) gera fromSeconds=85, "alcançável" pela janela de
+    // parede (única gravação do dia, sem `end`, toSeconds=Infinity). O arquivo real (simulado
+    // via fireLoadedMetadata abaixo) tem só 5s — bem menos que os 85s pedidos.
+    g.listByDay.mockResolvedValue([
+      {
+        id: 1,
+        filename: 'a.mp4',
+        start: '2026-01-01T12:00:00Z',
+        url: '/r/a.mp4',
+        is_recording: false,
+        has_motion: true,
+      },
+    ])
+    g.getEvent.mockResolvedValue({ id: 42, time: '2026-01-01T12:01:30Z', score: 0.5 })
+
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal
+          open
+          cameraId="cam1"
+          recordingId={1}
+          motionId={42}
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
+    )
+
+    const video = await waitFor(() => {
+      const el = document.getElementById('recording-player-video') as HTMLVideoElement | null
+      if (!el) throw new Error('vídeo não montou')
+      return el
+    })
+    fireLoadedMetadata(video, 5)
+
+    await waitFor(() => {
+      expect(document.getElementById('recording-player-modal-error')).not.toBeNull()
+    })
+  })
+})
