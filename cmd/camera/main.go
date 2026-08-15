@@ -32,6 +32,7 @@ import (
 	"camera/internal/notifications"
 	"camera/internal/notifications/application"
 	notifyemail "camera/internal/notifications/email"
+	telegramnotify "camera/internal/notifications/telegram"
 	"camera/internal/recorder"
 	"camera/internal/release"
 	"camera/internal/server"
@@ -254,6 +255,9 @@ func main() {
 		if err := db.MarkRecordingHasMotion(database, cameraID, t, t.Add(time.Second)); err != nil {
 			slog.Warn("failed to mark recording has_motion", "camera", cameraID, "error", err)
 		}
+		if srv != nil {
+			srv.NotifyCameraMotion(cameraID, score)
+		}
 	}
 
 	startCameraProcs := func(cam config.CameraConfig) {
@@ -421,10 +425,19 @@ func main() {
 			smtpSender = email.NewSMTPSender(cfg.SMTP)
 			srv.WithEmailSender(smtpSender)
 		}
+		// telegramClient is shared by the notifications.Sender below and the
+		// account-linking poller further down — one bot, one set of HTTP calls.
+		var telegramClient *telegram.Client
+		if cfg.Extensions.Telegram.Enabled && cfg.Extensions.Telegram.BotToken != "" {
+			telegramClient = telegram.NewClient(cfg.Extensions.Telegram.BotToken)
+		}
 		if database != nil {
 			senders := []notifications.Sender{application.New(database, srv)}
 			if smtpSender != nil {
 				senders = append(senders, notifyemail.New(database, smtpSender))
+			}
+			if telegramClient != nil {
+				senders = append(senders, telegramnotify.New(database, telegramClient))
 			}
 			dispatcher = notifications.NewDispatcher(slog, senders...)
 			srv.WithNotifications(dispatcher)
@@ -436,8 +449,8 @@ func main() {
 		// anyone who opens the deep-link. Long-polling (not a webhook) since
 		// this instance typically runs self-hosted behind NAT, without a
 		// guaranteed public HTTPS endpoint.
-		if database != nil && cfg.Extensions.Telegram.Enabled && cfg.Extensions.Telegram.BotToken != "" {
-			poller := telegram.NewPoller(telegram.NewClient(cfg.Extensions.Telegram.BotToken), telegramLinkResolver{database})
+		if database != nil && telegramClient != nil {
+			poller := telegram.NewPoller(telegramClient, telegramLinkResolver{database})
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
