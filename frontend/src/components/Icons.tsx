@@ -72,15 +72,15 @@ export function Camera(props: SVGProps<SVGSVGElement>) {
 export function ObjectDetectorTarget(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
-      <line x1="12" x2="12" y1="1" y2="4" />
-      <line x1="12" x2="12" y1="20" y2="23" />
-      <line x1="1" x2="4" y1="12" y2="12" />
-      <line x1="20" x2="23" y1="12" y2="12" />
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="12" cy="12" r="6" />
-      <polygon points="12 6.5 15.5 8.25 12 10 8.5 8.25" />
-      <polygon points="8.5 8.25 12 10 12 13.5 8.5 11.75" />
-      <polygon points="15.5 8.25 15.5 11.75 12 13.5 12 10" />
+      <line x1="12" x2="12" y1="2" y2="4" />
+      <line x1="12" x2="12" y1="20" y2="22" />
+      <line x1="2" x2="4" y1="12" y2="12" />
+      <line x1="20" x2="22" y1="12" y2="12" />
+      <circle cx="12" cy="12" r="7" />
+      <circle cx="12" cy="12" r="5" />
+      <polygon points="12 8.5 15.2 10.25 12 12 8.8 10.25" />
+      <polygon points="8.8 10.25 12 12 12 15.2 8.8 13.75" />
+      <polygon points="15.2 10.25 15.2 13.75 12 15.2 12 12" />
     </Icon>
   )
 }
