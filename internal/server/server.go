@@ -412,7 +412,7 @@ func (s *Server) routes() {
 	streamHandler := http.StripPrefix("/stream/", noCachePlaylist(http.FileServer(http.Dir(s.cfg.SegmentsPath))))
 	s.mux.Handle("/stream/", s.requireStreamAccess(streamHandler))
 
-	recHandler := http.StripPrefix("/recordings/", http.FileServer(http.Dir(s.cfg.RecordingsPath)))
+	recHandler := noCacheRecordings(http.StripPrefix("/recordings/", http.FileServer(http.Dir(s.cfg.RecordingsPath))))
 	s.mux.Handle("/recordings/", s.recordingsOrSPA(recHandler))
 
 	if s.frontend != nil {
@@ -530,6 +530,27 @@ func noCachePlaylist(next http.Handler) http.Handler {
 			w.Header().Set("Pragma", "no-cache")
 			w.Header().Set("Expires", "0")
 		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// noCacheRecordings prevents any proxy/CDN in front of the app from caching
+// recording chunks. A chunk's URL is reachable (via GET /api/recordings)
+// before the recorder finishes writing it — the MP4 is not fragmented, so
+// the moov atom (needed to know the real duration/play the file) is only
+// appended once the chunk closes. A cache that fetches the URL mid-write
+// would keep serving that truncated snapshot long after the file is
+// complete on disk (confirmed: a CDN cached a copy missing moov entirely,
+// see work_progress/analysis/202608142354_recordings-no-store-cache-control.md).
+// Unlike HLS segments (.ts, see noCachePlaylist above — safe to cache
+// because a client only learns a segment's URL from the playlist, which
+// ffmpeg only updates once the segment is fully written), there is no such
+// guarantee for recordings, so every response here is no-store — including
+// finished chunks, which would otherwise be safely cacheable, but this is a
+// residential self-hosted system, not a streaming service at scale.
+func noCacheRecordings(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r)
 	})
 }
