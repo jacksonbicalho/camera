@@ -75,6 +75,7 @@ const moments = [
     category: 'estados:portão:aberto',
     frame: '/recordings/state_history/1/x.jpg',
     score: 0.9,
+    recording_available: true,
   },
   {
     camera_id: 'cam2',
@@ -85,6 +86,7 @@ const moments = [
     category: 'pessoa',
     frame: '20260623070000_motion.jpg',
     score: 0.5,
+    recording_available: true,
   },
 ]
 const recordings = [
@@ -781,6 +783,269 @@ describe('RecordingsPage', () => {
         expect(document.getElementById('recording-player-modal')).toBeNull()
       })
       expect(document.getElementById('test-location')!.textContent).toMatch(/^\/recordings/)
+    })
+  })
+
+  describe('CA4: card de momento sem gravação disponível mostra aviso visual', () => {
+    beforeEach(() => {
+      const momentsWithUnavailable = [
+        { ...moments[0], recording_available: true },
+        { ...moments[1], recording_available: false },
+      ]
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+          if (url.startsWith('/api/content-days'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve({ days: [] }) })
+          if (url.startsWith('/api/moments'))
+            return Promise.resolve({
+              status: 200,
+              json: () =>
+                Promise.resolve({ moments: momentsWithUnavailable, total: 2, hasMore: false }),
+            })
+          return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+    })
+
+    it('card sem gravação (recording_available=false) mostra o overlay "Sem gravação"', async () => {
+      renderRecordings()
+      const unavailable = await waitFor(() => {
+        const el = document.getElementById('moment-1')
+        if (!el) throw new Error('card não renderizou')
+        return el
+      })
+      expect(unavailable.textContent).toContain('Sem gravação')
+      // clicável (T4: abre o lightbox da imagem em vez do player — ver CA6), não mais
+      // desabilitado — só o comportamento do clique mudou, testado em CA6.
+      expect(unavailable).toHaveProperty('disabled', false)
+    })
+
+    it('card com gravação disponível não mostra o aviso e continua clicável', async () => {
+      renderRecordings()
+      const available = await waitFor(() => {
+        const el = document.getElementById('moment-0')
+        if (!el) throw new Error('card não renderizou')
+        return el
+      })
+      expect(available.textContent).not.toContain('Sem gravação')
+      expect(available).toHaveProperty('disabled', false)
+    })
+  })
+
+  describe('CA5: filtro "só com gravação" (client-side, Momentos)', () => {
+    beforeEach(() => {
+      const mixed = [
+        { ...moments[0], recording_available: true },
+        { ...moments[1], recording_available: false },
+      ]
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+          if (url.startsWith('/api/content-days'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve({ days: [] }) })
+          if (url.startsWith('/api/moments'))
+            return Promise.resolve({
+              status: 200,
+              json: () => Promise.resolve({ moments: mixed, total: 2, hasMore: false }),
+            })
+          return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+    })
+
+    it('desativado (default), mostra os 2 cards — disponível e indisponível', async () => {
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+        expect(document.getElementById('moment-1')).not.toBeNull()
+      })
+    })
+
+    it('ativado, esconde os cards sem gravação disponível', async () => {
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      fireEvent.click(document.getElementById('recordings-recording-only')!)
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+        expect(document.getElementById('moment-1')).toBeNull()
+      })
+    })
+
+    it('ativado, ao carregar mais continua escondendo os cards sem gravação (página 2)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve(cameras),
+            })
+          if (url.startsWith('/api/content-days'))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve({ days: [] }),
+            })
+          if (url.startsWith('/api/moments')) {
+            const page = new URL(url, 'http://x').searchParams.get('page')
+            if (page === '2') {
+              return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () =>
+                  Promise.resolve({
+                    moments: [
+                      {
+                        ...moments[1],
+                        time: '2026-06-23T06:00:00Z',
+                        recording_available: false,
+                      },
+                    ],
+                    total: 3,
+                    hasMore: false,
+                  }),
+              })
+            }
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () =>
+                Promise.resolve({
+                  moments: [
+                    { ...moments[0], recording_available: true },
+                    { ...moments[1], recording_available: false },
+                  ],
+                  total: 3,
+                  hasMore: true,
+                }),
+            })
+          }
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-0')).not.toBeNull()
+      })
+      fireEvent.click(document.getElementById('recordings-recording-only')!)
+      await waitFor(() => {
+        expect(document.getElementById('moment-1')).toBeNull()
+      })
+      fireEvent.click(document.getElementById('recordings-load-more')!)
+      await waitFor(() => {
+        const cards = Array.from(document.querySelectorAll('#recordings-grid button'))
+        expect(cards.length).toBeGreaterThan(0)
+        for (const el of cards) {
+          expect(el.textContent).not.toContain('Sem gravação')
+        }
+      })
+    })
+  })
+
+  describe('CA6: clique num card sem gravação abre um lightbox com a imagem', () => {
+    beforeEach(() => {
+      const momentsWithUnavailable = [
+        { ...moments[0], recording_available: true },
+        { ...moments[1], recording_available: false },
+      ]
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          // resolveEventRecordingUrl (clique num momento DISPONÍVEL) busca eventos +
+          // gravações do dia da câmera pra resolver cameraId/recordingId/motionId — mesmo
+          // par de rotas que o beforeEach padrão do arquivo já mocka.
+          if (url.match(/^\/api\/cameras\/(cam\d)\/motion\?/))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve({ events: [] }),
+            })
+          const camMatch = url.match(/^\/api\/cameras\/(cam\d)\/recordings\?/)
+          if (camMatch)
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve({ recordings: camRecordings[camMatch[1]] }),
+            })
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve(cameras),
+            })
+          if (url.startsWith('/api/content-days'))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve({ days: [] }),
+            })
+          if (url.startsWith('/api/moments'))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () =>
+                Promise.resolve({ moments: momentsWithUnavailable, total: 2, hasMore: false }),
+            })
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+    })
+
+    it('clicar num card sem gravação abre o lightbox com a imagem, não o player', async () => {
+      renderRecordings()
+      const unavailable = await waitFor(() => {
+        const el = document.getElementById('moment-1')
+        if (!el) throw new Error('card não renderizou')
+        return el
+      })
+      fireEvent.click(unavailable)
+      await waitFor(() => {
+        expect(document.getElementById('moment-lightbox')).not.toBeNull()
+      })
+      expect(document.getElementById('recording-player-modal')).toBeNull()
+      fireEvent.click(document.getElementById('moment-lightbox-close')!)
+      await waitFor(() => {
+        expect(document.getElementById('moment-lightbox')).toBeNull()
+      })
+    })
+
+    it('clicar num card com gravação continua abrindo o player, não o lightbox', async () => {
+      renderRecordings()
+      const available = await waitFor(() => {
+        const el = document.getElementById('moment-0')
+        if (!el) throw new Error('card não renderizou')
+        return el
+      })
+      fireEvent.click(available)
+      await waitFor(() => {
+        expect(document.getElementById('recording-player-modal')).not.toBeNull()
+      })
+      expect(document.getElementById('moment-lightbox')).toBeNull()
+    })
+
+    it('Esc fecha o lightbox', async () => {
+      renderRecordings()
+      const unavailable = await waitFor(() => {
+        const el = document.getElementById('moment-1')
+        if (!el) throw new Error('card não renderizou')
+        return el
+      })
+      fireEvent.click(unavailable)
+      await waitFor(() => {
+        expect(document.getElementById('moment-lightbox')).not.toBeNull()
+      })
+      fireEvent.keyDown(document, { key: 'Escape' })
+      await waitFor(() => {
+        expect(document.getElementById('moment-lightbox')).toBeNull()
+      })
     })
   })
 })

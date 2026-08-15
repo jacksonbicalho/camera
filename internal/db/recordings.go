@@ -267,11 +267,19 @@ func StatsRecordings(db *DB) (count int64, totalBytes int64, err error) {
 	return c.Int64, b.Int64, err
 }
 
-// UpdateRecordingEndedAt sets ended_at for a recording row where it is currently NULL.
+// UpdateRecordingEndedAt sets ended_at for a recording row when it is
+// currently NULL, or self-corrects it when the stored value is greater than
+// endedAt — never the other way around, so a value already shrunk to the
+// file's real duration (storage.MP4Duration) can't grow back to a stale
+// wall-clock estimate. Callers (storage.Cleaner.syncRecordings) recompute
+// the real duration every sync cycle for every closed chunk regardless, so
+// this only changes whether that already-happening measurement can fix a
+// value written wrong by an earlier cycle.
 func UpdateRecordingEndedAt(database *DB, path string, endedAt time.Time) error {
+	ts := endedAt.UTC().Format(time.RFC3339)
 	_, err := database.Exec(
-		`UPDATE recordings SET ended_at=? WHERE path=? AND ended_at IS NULL`,
-		endedAt.UTC().Format(time.RFC3339), path,
+		`UPDATE recordings SET ended_at=? WHERE path=? AND (ended_at IS NULL OR ended_at > ?)`,
+		ts, path, ts,
 	)
 	return err
 }

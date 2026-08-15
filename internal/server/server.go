@@ -1228,11 +1228,13 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 			// chunkEnd above is wall-clock (next chunk's start) — inflated by any
 			// gap the camera spent disconnected between chunks. Prefer the
 			// file's REAL duration (mvhd atom) when available: db.InsertRecording
-			// below is INSERT OR IGNORE and this is the value that gets
-			// permanently stored (db.UpdateRecordingEndedAt, called later by
-			// storage.Cleaner.syncRecordings, only fills in a NULL ended_at — it
-			// never overwrites a value already set here, wrong or not). Same
-			// clamp as syncRecordings: never let a measured duration exceed what
+			// below is INSERT OR IGNORE, so if this value ends up wrong (e.g.
+			// MP4Duration failing transiently right now), it's not permanent —
+			// storage.Cleaner.syncRecordings recomputes MP4Duration every cycle
+			// for every closed chunk and self-corrects ended_at down whenever it
+			// finds a smaller real duration than what's stored (db.
+			// UpdateRecordingEndedAt never lets it grow back up). Same clamp as
+			// syncRecordings here too: never let a measured duration exceed what
 			// chunkEnd already tells us about the next chunk's start. See
 			// work_progress/analysis/202608150015_ended-at-duracao-real.md.
 			if !chunkEnd.IsZero() {
