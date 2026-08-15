@@ -1048,4 +1048,236 @@ describe('RecordingsPage', () => {
       })
     })
   })
+
+  describe('CA3: "Carregar mais" busca páginas extras automaticamente até preencher a linha da grade', () => {
+    const originalInnerWidth = window.innerWidth
+
+    beforeEach(() => {
+      // base (sem breakpoint sm/md/lg) = 2 colunas na grade de Momentos.
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: 500,
+      })
+    })
+
+    afterEach(() => {
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: originalInnerWidth,
+      })
+    })
+
+    function momentAt(i: number, over: Partial<(typeof moments)[number]> = {}) {
+      return {
+        ...moments[0],
+        time: `2026-06-23T${String(i).padStart(2, '0')}:00:00Z`,
+        camera_id: 'cam1',
+        camera_name: 'Corredor',
+        recording_available: true,
+        ...over,
+      }
+    }
+
+    it('1 clique em "Carregar mais" busca quantas páginas forem necessárias pra fechar a linha (2 colunas), sem exigir cliques extras', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(cameras) })
+          if (url.startsWith('/api/content-days'))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve({ days: [] }),
+            })
+          if (url.startsWith('/api/moments')) {
+            const page = new URL(url, 'http://x').searchParams.get('page')
+            // página 1: 2 momentos (linha completa) — carga inicial, sem auto-continuação.
+            if (page === '1')
+              return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () =>
+                  Promise.resolve({ moments: [momentAt(0), momentAt(1)], total: 5, hasMore: true }),
+              })
+            // página 2 (via clique manual): 1 momento — total 3, ímpar, NÃO fecha a linha de 2.
+            if (page === '2')
+              return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve({ moments: [momentAt(2)], total: 5, hasMore: true }),
+              })
+            // página 3 (auto, sem novo clique): 1 momento — total 4, fecha a linha. Para aqui.
+            if (page === '3')
+              return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve({ moments: [momentAt(3)], total: 5, hasMore: true }),
+              })
+            throw new Error(`página inesperada buscada automaticamente: ${page}`)
+          }
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+      renderRecordings()
+      await waitFor(() => {
+        expect(document.getElementById('moment-1')).not.toBeNull()
+        expect(document.getElementById('moment-2')).toBeNull()
+      })
+
+      fireEvent.click(document.getElementById('recordings-load-more')!)
+
+      // timeout maior que o default (1000ms): esta cadeia encadeia 2 idas-e-voltas
+      // fetch→effect→setPage antes de assentar — sob contenção de CPU (ex. suíte inteira
+      // rodando em paralelo) o default pode não ser suficiente, achado real de flakiness
+      // em code review (3/5 falhas reproduzidas em bash scripts/check.sh).
+      await waitFor(
+        () => {
+          expect(document.getElementById('moment-3')).not.toBeNull()
+        },
+        { timeout: 5000 },
+      )
+      // não deve ter tentado buscar página 4 (a linha já fechou em 4 = 2×2) — espera a
+      // rota da página 3 assentar (já concluída, pelo waitFor acima) e confirma que uma
+      // nova rodada de microtasks não disparou mais nada além disso.
+      await waitFor(() => expect(document.getElementById('moment-3')).not.toBeNull())
+      expect(document.getElementById('moment-4')).toBeNull()
+      // timeout do teste (não só do waitFor interno) maior que o default do Vitest
+      // (5000ms) — achado real de flakiness em code review: o testTimeout global
+      // matava o teste ANTES do waitFor interno (já ajustado) ter chance de resolver
+      // sob contenção de CPU (mesma classe de flakiness já documentada em vite.config.ts,
+      // história chore/limpeza-followups-e-flakiness-testes).
+    }, 10000)
+
+    it('com "Só com gravação" ativo, continua buscando mesmo quando uma página automática não contribui nenhum item visível', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(cameras) })
+          if (url.startsWith('/api/content-days'))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve({ days: [] }),
+            })
+          if (url.startsWith('/api/moments')) {
+            const page = new URL(url, 'http://x').searchParams.get('page')
+            // página 1: 1 momento disponível — exibido=1, ímpar (carga inicial, sem auto-continuação).
+            if (page === '1')
+              return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve({ moments: [momentAt(0)], total: 4, hasMore: true }),
+              })
+            // página 2 (clique manual): 2 momentos, mas SEM gravação disponível — com o
+            // filtro "Só com gravação" ativo, contribuem 0 itens EXIBIDOS (moments.length
+            // bruto cresce de 1→3, mas displayedMoments.length continua em 1, ímpar).
+            if (page === '2')
+              return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () =>
+                  Promise.resolve({
+                    moments: [
+                      momentAt(1, { recording_available: false }),
+                      momentAt(2, { recording_available: false }),
+                    ],
+                    total: 4,
+                    hasMore: true,
+                  }),
+              })
+            // página 3 (auto, sem novo clique — só acontece se o efeito não travou
+            // depois da página 2 sem itens visíveis): 1 momento disponível — exibido
+            // vira 2, fecha a linha de 2 colunas. Para aqui.
+            if (page === '3')
+              return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve({ moments: [momentAt(3)], total: 4, hasMore: true }),
+              })
+            throw new Error(`página inesperada buscada automaticamente: ${page}`)
+          }
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+      renderRecordings()
+      await waitFor(() => expect(document.getElementById('moment-0')).not.toBeNull())
+
+      fireEvent.click(document.getElementById('recordings-recording-only')!)
+      await waitFor(() => expect(document.getElementById('moment-0')).not.toBeNull())
+
+      fireEvent.click(document.getElementById('recordings-load-more')!)
+
+      // só passa se a busca automática ATRAVESSAR a página 2 (0 itens visíveis) até
+      // chegar na página 3 — se o efeito travar por depender da contagem EXIBIDA em vez
+      // da bruta, este momento nunca aparece e o teste expira em timeout. Timeout maior
+      // que o default pelo mesmo motivo do teste anterior (cadeia de 2 idas-e-voltas).
+      await waitFor(
+        () => {
+          const cards = Array.from(document.querySelectorAll('#recordings-grid button'))
+          expect(cards.length).toBe(2)
+        },
+        { timeout: 5000 },
+      )
+      // timeout do teste maior que o default (5000ms) — mesmo motivo do teste anterior.
+    }, 10000)
+
+    it('respeita um teto de páginas extras por clique, mesmo se a linha nunca fechar (evita loop sem fim)', async () => {
+      const requestedPages: string[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(cameras) })
+          if (url.startsWith('/api/content-days'))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve({ days: [] }),
+            })
+          if (url.startsWith('/api/moments')) {
+            const page = Number(new URL(url, 'http://x').searchParams.get('page') ?? '1')
+            requestedPages.push(String(page))
+            // página 1 (inicial): 1 momento — total ímpar (1), não fecha a linha de 2 colunas
+            // (mas a carga inicial nunca auto-continua sozinha, então isso não importa ainda).
+            // página 2 (clique manual) em diante: +2 momentos cada — a contagem total
+            // permanece SEMPRE ímpar (1, 3, 5, 7, ...), nunca fechando um múltiplo de 2 —
+            // só o teto de segurança (GRID_ROW_FILL_MAX_EXTRA_PAGES=5) pode parar isso.
+            const count = page === 1 ? 1 : 2
+            const startIndex = page === 1 ? 0 : 1 + (page - 2) * 2
+            const pageMoments = Array.from({ length: count }, (_, i) => momentAt(startIndex + i))
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve({ moments: pageMoments, total: 999, hasMore: true }),
+            })
+          }
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+      renderRecordings()
+      await waitFor(() => expect(document.getElementById('moment-0')).not.toBeNull())
+
+      fireEvent.click(document.getElementById('recordings-load-more')!)
+
+      // teto = 5 páginas extras automáticas além do clique manual (página 2) + a página
+      // inicial (página 1) = 7 páginas buscadas no total, nunca mais que isso. Timeout
+      // maior que o default: esta é a cadeia mais longa da suíte (6 idas-e-voltas
+      // fetch→effect→setPage) — achado real de flakiness em code review (3/5 falhas
+      // reproduzidas em bash scripts/check.sh sob contenção de CPU com o default de 1000ms).
+      await waitFor(() => expect(requestedPages).toEqual(['1', '2', '3', '4', '5', '6', '7']), {
+        timeout: 8000,
+      })
+      // confirma que realmente parou: nenhuma página 8 é buscada depois que o teto bate.
+      await waitFor(() => expect(document.getElementById(`moment-${1 + 2 * 6 - 1}`)).not.toBeNull())
+      expect(requestedPages).toEqual(['1', '2', '3', '4', '5', '6', '7'])
+      // timeout do teste (não só do waitFor interno) maior que o default do Vitest
+      // (5000ms) — é a cadeia mais longa da suíte (6 idas-e-voltas fetch→effect→
+      // setPage); o testTimeout global matava o teste ANTES do waitFor interno
+      // (8000ms) ter qualquer chance de resolver sob contenção de CPU.
+    }, 15000)
+  })
 })
