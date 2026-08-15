@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useNotifications } from '../contexts/NotificationContext'
@@ -77,6 +77,24 @@ export default function RecordingPlayerModal({
     open ? recordingId : null,
     motionId,
   )
+  // videoError: alimentado pelo onError do VideoPlayer — que dispara tanto quando a cadeia
+  // de segmentos se esgota (clipe pede um fromSeconds além da duração REAL do arquivo, achado
+  // da PR #610) quanto por qualquer erro nativo do <video> (rede, formato não suportado etc.);
+  // sem ouvir esse prop, o modal ficava em branco sem nenhuma mensagem em qualquer um dos dois
+  // casos. Mensagem genérica de propósito — VideoPlayer não distingue a causa pra fora
+  // (HistoryPage.tsx trata o mesmo onError da mesma forma, "Não foi possível carregar a
+  // gravação."); um texto específico ("conteúdo real menor que o esperado") citaria uma causa
+  // que pode não ser a real, achado em teste manual do navigator numa gravação que falhava por
+  // outro motivo. Reset via "ajuste durante o render" (mesmo padrão de CameraViewTabs.tsx) ao
+  // trocar de clipe — sem isso, o erro de um evento anterior vazaria visualmente pro próximo
+  // aberto no mesmo modal já montado.
+  const [videoError, setVideoError] = useState('')
+  const clipKey = `${cameraId ?? ''}:${recordingId ?? ''}:${motionId ?? ''}`
+  const [prevClipKey, setPrevClipKey] = useState(clipKey)
+  if (clipKey !== prevClipKey) {
+    setPrevClipKey(clipKey)
+    setVideoError('')
+  }
   const isMobile = typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT
   const { style, dragHandleProps, resizeHandleProps } = useDraggableResizable({
     aspectRatio: VIDEO_ASPECT_RATIO,
@@ -166,18 +184,19 @@ export default function RecordingPlayerModal({
           </div>
         </div>
         <div className="flex flex-col gap-3 p-3">
-          {error && (
+          {(error || videoError) && (
             <div
               id="recording-player-modal-error"
               className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-body text-danger"
             >
-              {error}
+              {error || videoError}
             </div>
           )}
           <VideoPlayer
             idPrefix="recording-player"
             segments={segments}
-            emptyMessage={error ?? 'Sem gravação cobrindo o evento.'}
+            emptyMessage={error || videoError || 'Sem gravação cobrindo o evento.'}
+            onError={() => setVideoError('Não foi possível carregar a gravação.')}
           />
         </div>
         {/* Alças de redimensionar — uma por quina (T3, história
