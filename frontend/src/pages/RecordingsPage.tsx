@@ -8,8 +8,10 @@ import { Button } from '../components/ui/button'
 import { authHeaders, onUnauthorized } from '../auth'
 import { resolveEventRecordingUrl } from '../lib/eventNavigation'
 import { categoryColor, categoryLabel } from './eventCategory'
-import { useMoments, momentThumb } from '../hooks/useMoments'
+import { useMoments, momentThumb, type Moment } from '../hooks/useMoments'
+import { X } from '../components/Icons'
 import RecordingPlayerModal from '../components/RecordingPlayerModal'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 const WINDOWS = [1, 2, 4, 6, 12, 24] as const
 
@@ -97,6 +99,13 @@ export default function RecordingsPage() {
   const [recLoaded, setRecLoaded] = useState(false)
   const [contentDays, setContentDays] = useState<string[]>([])
   const [modalTarget, setModalTarget] = useState<ModalTarget | null>(null)
+  // T3: filtro client-side (diferente de motionOnly, não afeta paginação do backend —
+  // moments já vem com recording_available por item).
+  const [recordingOnly, setRecordingOnly] = useState(false)
+  // T4: card sem gravação abre este lightbox (imagem em tamanho cheio) em vez do player —
+  // mesmo padrão de CameraStatesSettingsPage.tsx's ClassifierHistory (state-history-lightbox).
+  const [momentLightbox, setMomentLightbox] = useState<Moment | null>(null)
+  useEscapeKey(() => setMomentLightbox(null), momentLightbox != null)
   const { moments, hasMore, loaded, categories } = useMoments({
     date,
     category: category.size > 0 ? [...category].join(',') : 'todos',
@@ -271,6 +280,19 @@ export default function RecordingsPage() {
                 </button>
               </div>
               {view === 'moments' && (
+                <button
+                  id="recordings-recording-only"
+                  onClick={() => setRecordingOnly((v) => !v)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors ${
+                    recordingOnly
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-surface-2 text-muted hover:text-foreground'
+                  }`}
+                >
+                  Só com gravação
+                </button>
+              )}
+              {view === 'moments' && (
                 <input
                   id="recordings-search"
                   type="search"
@@ -434,55 +456,54 @@ export default function RecordingsPage() {
             id="recordings-grid"
             className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
           >
-            {moments.map((m, i) => {
-              const thumb = momentThumb(m)
-              return (
-                <button
-                  key={`${m.camera_id}-${m.time}-${i}`}
-                  id={`moment-${i}`}
-                  disabled={!m.recording_available}
-                  onClick={
-                    m.recording_available ? () => openMoment(m.camera_id, m.time) : undefined
-                  }
-                  className={`bg-surface border border-border rounded-lg overflow-hidden text-left transition-colors ${
-                    m.recording_available ? 'hover:border-primary/50' : 'opacity-60 cursor-default'
-                  }`}
-                >
-                  <div className="relative">
-                    {thumb ? (
-                      <img
-                        src={thumb}
-                        alt={m.category}
-                        className="w-full aspect-video object-cover bg-black"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full aspect-video bg-surface-2 flex items-center justify-center text-[10px] text-faint">
-                        sem prévia
-                      </div>
-                    )}
-                    {!m.recording_available && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                        <span className="text-xs font-medium text-white">Sem gravação</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="px-2 py-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`w-2 h-2 rounded-full shrink-0 ${categoryColor(m.category)}`}
-                      />
-                      <span className="text-xs font-medium text-foreground truncate">
-                        {m.camera_name}
-                      </span>
+            {(recordingOnly ? moments.filter((m) => m.recording_available) : moments).map(
+              (m, i) => {
+                const thumb = momentThumb(m)
+                return (
+                  <button
+                    key={`${m.camera_id}-${m.time}-${i}`}
+                    id={`moment-${i}`}
+                    onClick={() =>
+                      m.recording_available ? openMoment(m.camera_id, m.time) : setMomentLightbox(m)
+                    }
+                    className="bg-surface border border-border rounded-lg overflow-hidden text-left hover:border-primary/50 transition-colors"
+                  >
+                    <div className="relative">
+                      {thumb ? (
+                        <img
+                          src={thumb}
+                          alt={m.category}
+                          className="w-full aspect-video object-cover bg-black"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full aspect-video bg-surface-2 flex items-center justify-center text-[10px] text-faint">
+                          sem prévia
+                        </div>
+                      )}
+                      {!m.recording_available && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                          <span className="text-xs font-medium text-white">Sem gravação</span>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-[10px] text-muted tabular-nums">
-                      {format(new Date(m.time), 'dd/MM HH:mm')}
-                    </p>
-                  </div>
-                </button>
-              )
-            })}
+                    <div className="px-2 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${categoryColor(m.category)}`}
+                        />
+                        <span className="text-xs font-medium text-foreground truncate">
+                          {m.camera_name}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted tabular-nums">
+                        {format(new Date(m.time), 'dd/MM HH:mm')}
+                      </p>
+                    </div>
+                  </button>
+                )
+              },
+            )}
           </div>
         )}
 
@@ -507,6 +528,42 @@ export default function RecordingsPage() {
         motionId={modalTarget?.motionId}
         onClose={() => setModalTarget(null)}
       />
+
+      {momentLightbox && (
+        <div
+          id="moment-lightbox"
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setMomentLightbox(null)}
+        >
+          <div
+            className="bg-surface rounded-lg overflow-hidden max-w-3xl w-full"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+              <div>
+                <p className="text-sm font-medium text-foreground">{momentLightbox.camera_name}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {format(new Date(momentLightbox.time), 'dd/MM/yyyy HH:mm:ss')}
+                </p>
+              </div>
+              <button
+                id="moment-lightbox-close"
+                onClick={() => setMomentLightbox(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {momentThumb(momentLightbox) && (
+              <img
+                src={momentThumb(momentLightbox)!}
+                alt={momentLightbox.category}
+                className="w-full max-h-[70vh] object-contain bg-black"
+              />
+            )}
+          </div>
+        </div>
+      )}
     </Layout>
   )
 }
