@@ -40,12 +40,18 @@ func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load preferences", http.StatusInternalServerError)
 		return
 	}
+	telegramActive, err := db.GetExtensionActive(s.db, "telegram")
+	if err != nil {
+		http.Error(w, "failed to load preferences", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"theme":           theme,
 		"accent":          accent,
 		"notify_email":    notifyEmail,
 		"telegram_linked": chatID != "",
+		"telegram_active": telegramActive,
 	})
 }
 

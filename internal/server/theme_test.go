@@ -160,6 +160,52 @@ func TestPreferences_SetAccentDoesNotClobberTheme(t *testing.T) {
 	}
 }
 
+func TestPreferences_TelegramActiveReflectsExtensionState(t *testing.T) {
+	srv, token := themeServer(t)
+
+	t.Run("CA4: telegram_active é false por padrão", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/me/preferences", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var r struct {
+			TelegramActive bool `json:"telegram_active"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if r.TelegramActive {
+			t.Error("expected telegram_active=false before the extension is activated")
+		}
+	})
+
+	t.Run("CA4: telegram_active reflete db.SetExtensionActive, mesmo pra um viewer", func(t *testing.T) {
+		database := openServerTestDB(t)
+		if _, err := db.CreateUser(database, "u2", "pw", "viewer", false); err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		if err := db.SetExtensionActive(database, "telegram", true); err != nil {
+			t.Fatalf("set extension active: %v", err)
+		}
+		srv2 := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
+		token2 := loginAndGetToken(t, srv2, "u2", "pw")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/me/preferences", nil)
+		req.Header.Set("Authorization", "Bearer "+token2)
+		w := httptest.NewRecorder()
+		srv2.ServeHTTP(w, req)
+		var r struct {
+			TelegramActive bool `json:"telegram_active"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if !r.TelegramActive {
+			t.Error("expected telegram_active=true after SetExtensionActive, even for a non-admin viewer")
+		}
+	})
+}
+
 func TestPreferences_SetThemeDoesNotClobberAccent(t *testing.T) {
 	srv, token := themeServer(t)
 	if code := putAccent(t, srv, token, "amber"); code != http.StatusNoContent && code != http.StatusOK {

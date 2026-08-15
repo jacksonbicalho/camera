@@ -162,6 +162,8 @@ func (s *Server) routeTable() []route {
 		{"GET", "/api/cameras/{id}/motion/daily-peak", authCamera, s.handleMotionDailyPeak},
 		{"GET", "/api/cameras/{id}/motion/zones", authCamera, s.handleMotionZonesGet},
 		{"PUT", "/api/cameras/{id}/motion/zones", authCamera, s.handleMotionZonesPut},
+		{"GET", "/api/cameras/{id}/telegram-notify", authCamera, s.handleGetCameraTelegramNotify},
+		{"PUT", "/api/cameras/{id}/telegram-notify", authCamera, s.handleSetCameraTelegramNotify},
 
 		// State classification: config (admin) + leitura do estado corrente (cameraAccess).
 		// Resolve um classificador só pelo próprio id, sem o id da câmera — usado pelo
