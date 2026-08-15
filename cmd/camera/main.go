@@ -256,7 +256,7 @@ func main() {
 			slog.Warn("failed to mark recording has_motion", "camera", cameraID, "error", err)
 		}
 		if srv != nil {
-			srv.NotifyCameraMotion(cameraID, score)
+			srv.NotifyCameraMotion(cameraID, t, score, frame)
 		}
 	}
 
@@ -436,11 +436,17 @@ func main() {
 			if smtpSender != nil {
 				senders = append(senders, notifyemail.New(database, smtpSender))
 			}
-			if telegramClient != nil {
-				senders = append(senders, telegramnotify.New(database, telegramClient))
-			}
 			dispatcher = notifications.NewDispatcher(slog, senders...)
 			srv.WithNotifications(dispatcher)
+			// Canal Telegram DEDICADO pra NotifyCameraMotion — nunca entra na
+			// lista `senders` acima: o Dispatcher genérico faz fan-out pra
+			// todos os senders, inclusive o sino/página "Notificações" in-app
+			// (application.New, sempre ativo, sem opt-in), o que nunca foi
+			// pedido pra eventos de movimento (ver telegramSender em
+			// internal/server/server.go).
+			if telegramClient != nil {
+				srv.WithTelegramSender(telegramnotify.New(database, telegramClient))
+			}
 		}
 
 		// Telegram account-linking poller — independent of the runtime "Active"

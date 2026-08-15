@@ -1,14 +1,17 @@
 // Package telegram is a minimal client for the Telegram Bot API, plus the
 // account-linking poller (Poller, história feat/telegram-vinculo-conta) —
-// started by cmd/camera/main.go whenever a bot token is configured. Not yet
-// wired into internal/notifications (sending real motion/state notification
-// messages is a separate, future história — this package only resolves
-// which Telegram chat belongs to which system user).
+// started by cmd/camera/main.go whenever a bot token is configured. Wired
+// into internal/notifications/telegram.Sender since história
+// feat/telegram-motion-notify (T2/T6) — this package only talks HTTP to the
+// Bot API; who gets notified and with what content is resolved by the
+// caller.
 package telegram
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 )
@@ -54,6 +57,40 @@ func (c *Client) SendMessage(chatID, text string) error {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("telegram: send message: unexpected status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// SendPhoto sends a photo (JPEG bytes) with an optional caption to the given
+// chat, via multipart/form-data (the Bot API's sendMessage-style form
+// encoding doesn't support file uploads).
+func (c *Client) SendPhoto(chatID string, photo []byte, caption string) error {
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	if err := w.WriteField("chat_id", chatID); err != nil {
+		return fmt.Errorf("telegram: send photo: write chat_id: %w", err)
+	}
+	if err := w.WriteField("caption", caption); err != nil {
+		return fmt.Errorf("telegram: send photo: write caption: %w", err)
+	}
+	part, err := w.CreateFormFile("photo", "snapshot.jpg")
+	if err != nil {
+		return fmt.Errorf("telegram: send photo: create photo part: %w", err)
+	}
+	if _, err := part.Write(photo); err != nil {
+		return fmt.Errorf("telegram: send photo: write photo part: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("telegram: send photo: close writer: %w", err)
+	}
+
+	resp, err := c.httpClient.Post(c.endpoint("sendPhoto"), w.FormDataContentType(), &body)
+	if err != nil {
+		return fmt.Errorf("telegram: send photo: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("telegram: send photo: unexpected status %d", resp.StatusCode)
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package telegram_test
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -79,6 +80,70 @@ func TestClient(t *testing.T) {
 
 			c := telegram.NewClient("TESTTOKEN")
 			if _, err := c.GetMe(); err == nil {
+				t.Fatal("expected error, got nil")
+			}
+		})
+	})
+
+	t.Run("CA7: SendPhoto envia chat_id, caption e o arquivo pro endpoint sendPhoto do bot", func(t *testing.T) {
+		t.Run("envia multipart/form-data com os 3 campos", func(t *testing.T) {
+			var gotPath, gotChatID, gotCaption string
+			var gotPhotoBytes []byte
+			var gotFilename string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotPath = r.URL.Path
+				if err := r.ParseMultipartForm(10 << 20); err != nil {
+					t.Errorf("ParseMultipartForm: %v", err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				gotChatID = r.FormValue("chat_id")
+				gotCaption = r.FormValue("caption")
+				file, header, err := r.FormFile("photo")
+				if err != nil {
+					t.Errorf("FormFile(photo): %v", err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				defer file.Close()
+				gotFilename = header.Filename
+				gotPhotoBytes, _ = io.ReadAll(file)
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+			defer telegram.StubAPIBase(server.URL)()
+
+			c := telegram.NewClient("TESTTOKEN")
+			photoBytes := []byte("fake-jpeg-bytes")
+			if err := c.SendPhoto("12345", photoBytes, "Movimento detectado"); err != nil {
+				t.Fatalf("SendPhoto: %v", err)
+			}
+			if gotPath != "/botTESTTOKEN/sendPhoto" {
+				t.Errorf("path = %q, want /botTESTTOKEN/sendPhoto", gotPath)
+			}
+			if gotChatID != "12345" {
+				t.Errorf("chat_id = %q, want 12345", gotChatID)
+			}
+			if gotCaption != "Movimento detectado" {
+				t.Errorf("caption = %q, want %q", gotCaption, "Movimento detectado")
+			}
+			if string(gotPhotoBytes) != "fake-jpeg-bytes" {
+				t.Errorf("photo bytes = %q, want %q", gotPhotoBytes, "fake-jpeg-bytes")
+			}
+			if gotFilename == "" {
+				t.Error("expected a non-empty filename for the photo part")
+			}
+		})
+
+		t.Run("propaga erro quando a API responde status != 200", func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusForbidden)
+			}))
+			defer server.Close()
+			defer telegram.StubAPIBase(server.URL)()
+
+			c := telegram.NewClient("TESTTOKEN")
+			if err := c.SendPhoto("12345", []byte("x"), "caption"); err == nil {
 				t.Fatal("expected error, got nil")
 			}
 		})
