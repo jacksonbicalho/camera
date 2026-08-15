@@ -466,106 +466,116 @@ export default function RecordingsPage() {
                 : 'Nenhuma gravação nesta janela.'}
             </p>
           ) : (
-            <div
-              id="recordings-list"
-              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
-            >
-              {recordings.map((rec) => (
-                <button
-                  key={rec.id}
-                  id={`recording-${rec.id}`}
-                  onClick={() => openRecording(rec.camera_id, rec.id)}
-                  className="bg-surface border border-border rounded-lg overflow-hidden text-left hover:border-primary/50 transition-colors"
-                >
-                  <div className="w-full aspect-video bg-surface-2 flex items-center justify-center text-faint">
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    >
-                      <rect x="3" y="5" width="18" height="14" rx="2" />
-                      <path d="M10 9l5 3-5 3V9z" fill="currentColor" stroke="none" />
-                    </svg>
-                  </div>
-                  <div className="px-2 py-1.5">
-                    <div className="flex items-center gap-1.5">
-                      {rec.has_motion && (
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0 bg-amber-400"
-                          title="movimento"
-                        />
-                      )}
-                      <span className="text-xs font-medium text-foreground truncate">
-                        {rec.camera_name}
-                      </span>
+            <>
+              <p id="recordings-count" className="text-xs text-muted mb-2">
+                {recordings.length} {recordings.length === 1 ? 'gravação' : 'gravações'}
+              </p>
+              <div
+                id="recordings-list"
+                className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
+              >
+                {recordings.map((rec) => (
+                  <button
+                    key={rec.id}
+                    id={`recording-${rec.id}`}
+                    onClick={() => openRecording(rec.camera_id, rec.id)}
+                    className="bg-surface border border-border rounded-lg overflow-hidden text-left hover:border-primary/50 transition-colors"
+                  >
+                    <div className="w-full aspect-video bg-surface-2 flex items-center justify-center text-faint">
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      >
+                        <rect x="3" y="5" width="18" height="14" rx="2" />
+                        <path d="M10 9l5 3-5 3V9z" fill="currentColor" stroke="none" />
+                      </svg>
                     </div>
-                    <p className="text-[10px] text-muted tabular-nums">
-                      {format(new Date(rec.start), 'dd/MM HH:mm:ss')}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
+                    <div className="px-2 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        {rec.has_motion && (
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0 bg-amber-400"
+                            title="movimento"
+                          />
+                        )}
+                        <span className="text-xs font-medium text-foreground truncate">
+                          {rec.camera_name}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted tabular-nums">
+                        {format(new Date(rec.start), 'dd/MM HH:mm:ss')}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
           )
         ) : moments.length === 0 && loaded ? (
           <p className="text-sm text-muted">
             {query ? `Nenhum momento para «${query}» nesta data.` : 'Nenhum momento nesta data.'}
           </p>
         ) : (
-          <div
-            id="recordings-grid"
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
-          >
-            {displayedMoments.map((m, i) => {
-              const thumb = momentThumb(m)
-              return (
-                <button
-                  key={`${m.camera_id}-${m.time}-${i}`}
-                  id={`moment-${i}`}
-                  onClick={() =>
-                    m.recording_available ? openMoment(m.camera_id, m.time) : setMomentLightbox(m)
-                  }
-                  className="bg-surface border border-border rounded-lg overflow-hidden text-left hover:border-primary/50 transition-colors"
-                >
-                  <div className="relative">
-                    {thumb ? (
-                      <img
-                        src={thumb}
-                        alt={m.category}
-                        className="w-full aspect-video object-cover bg-black"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full aspect-video bg-surface-2 flex items-center justify-center text-[10px] text-faint">
-                        sem prévia
-                      </div>
-                    )}
-                    {!m.recording_available && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                        <span className="text-xs font-medium text-white">Sem gravação</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="px-2 py-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`w-2 h-2 rounded-full shrink-0 ${categoryColor(m.category)}`}
-                      />
-                      <span className="text-xs font-medium text-foreground truncate">
-                        {m.camera_name}
-                      </span>
+          <>
+            <p id="recordings-count" className="text-xs text-muted mb-2">
+              {displayedMoments.length} {displayedMoments.length === 1 ? 'momento' : 'momentos'}
+            </p>
+            <div
+              id="recordings-grid"
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
+            >
+              {displayedMoments.map((m, i) => {
+                const thumb = momentThumb(m)
+                return (
+                  <button
+                    key={`${m.camera_id}-${m.time}-${i}`}
+                    id={`moment-${i}`}
+                    onClick={() =>
+                      m.recording_available ? openMoment(m.camera_id, m.time) : setMomentLightbox(m)
+                    }
+                    className="bg-surface border border-border rounded-lg overflow-hidden text-left hover:border-primary/50 transition-colors"
+                  >
+                    <div className="relative">
+                      {thumb ? (
+                        <img
+                          src={thumb}
+                          alt={m.category}
+                          className="w-full aspect-video object-cover bg-black"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full aspect-video bg-surface-2 flex items-center justify-center text-[10px] text-faint">
+                          sem prévia
+                        </div>
+                      )}
+                      {!m.recording_available && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                          <span className="text-xs font-medium text-white">Sem gravação</span>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-[10px] text-muted tabular-nums">
-                      {format(new Date(m.time), 'dd/MM HH:mm')}
-                    </p>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
+                    <div className="px-2 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${categoryColor(m.category)}`}
+                        />
+                        <span className="text-xs font-medium text-foreground truncate">
+                          {m.camera_name}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted tabular-nums">
+                        {format(new Date(m.time), 'dd/MM HH:mm')}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </>
         )}
 
         {hasMore && view === 'moments' && (

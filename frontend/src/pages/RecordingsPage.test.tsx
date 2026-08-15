@@ -1280,4 +1280,74 @@ describe('RecordingsPage', () => {
       // (8000ms) ter qualquer chance de resolver sob contenção de CPU.
     }, 15000)
   })
+
+  describe('CA4: contador da quantidade exibida, respeitando os filtros ativos', () => {
+    it('aba Momentos: mostra a quantidade de momentos exibidos (plural)', async () => {
+      renderRecordings()
+      await waitFor(() => expect(document.getElementById('recordings-count')).not.toBeNull())
+      expect(document.getElementById('recordings-count')?.textContent).toBe('2 momentos')
+    })
+
+    it('aba Momentos: singular quando só 1 item exibido', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+          if (url.startsWith('/api/content-days'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve({ days: [] }) })
+          if (url.startsWith('/api/moments'))
+            return Promise.resolve({
+              status: 200,
+              json: () => Promise.resolve({ moments: [moments[0]], total: 1, hasMore: false }),
+            })
+          return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+      renderRecordings()
+      await waitFor(() => expect(document.getElementById('recordings-count')).not.toBeNull())
+      expect(document.getElementById('recordings-count')?.textContent).toBe('1 momento')
+    })
+
+    it('aba Momentos: com "Só com gravação" ativo, conta só os itens exibidos (filtrados), não o bruto', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+          if (url.startsWith('/api/content-days'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve({ days: [] }) })
+          if (url.startsWith('/api/moments'))
+            return Promise.resolve({
+              status: 200,
+              json: () =>
+                Promise.resolve({
+                  moments: [
+                    { ...moments[0], recording_available: true },
+                    { ...moments[1], recording_available: false },
+                  ],
+                  total: 2,
+                  hasMore: false,
+                }),
+            })
+          return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+      renderRecordings()
+      await waitFor(() =>
+        expect(document.getElementById('recordings-count')?.textContent).toBe('2 momentos'),
+      )
+      fireEvent.click(document.getElementById('recordings-recording-only')!)
+      await waitFor(() =>
+        expect(document.getElementById('recordings-count')?.textContent).toBe('1 momento'),
+      )
+    })
+
+    it('aba Gravações: mostra a quantidade de gravações exibidas', async () => {
+      renderRecordings()
+      await switchToRecordings()
+      await waitFor(() => expect(document.getElementById('recordings-count')).not.toBeNull())
+      expect(document.getElementById('recordings-count')?.textContent).toBe('2 gravações')
+    })
+  })
 })
