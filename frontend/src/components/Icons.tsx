@@ -61,6 +61,30 @@ export function Camera(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+// ObjectDetectorTarget — exceção deliberada ao padrão do arquivo (todo outro ícone
+// aqui é path SVG extraído literalmente do lucide-react): construído com as mesmas
+// primitivas simples que outros ícones já usam (circle/line/polygon, ver Map/Camera/
+// HardDrive), reproduzindo o conceito de mira+caixa da imagem de referência do
+// navigator (work_progress/amostras/"criar icone para detectores de objeto.png") —
+// não há lucide-react instalado localmente pra confirmar/reaproveitar o path real de
+// um ícone "Box" da lib, e desenhar um path "de memória" apresentado como extração
+// real seria pior que uma reconstrução geométrica simples e verificável.
+export function ObjectDetectorTarget(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <line x1="12" x2="12" y1="1" y2="4" />
+      <line x1="12" x2="12" y1="20" y2="23" />
+      <line x1="1" x2="4" y1="12" y2="12" />
+      <line x1="20" x2="23" y1="12" y2="12" />
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="6" />
+      <polygon points="12 6.5 15.5 8.25 12 10 8.5 8.25" />
+      <polygon points="8.5 8.25 12 10 12 13.5 8.5 11.75" />
+      <polygon points="15.5 8.25 15.5 11.75 12 13.5 12 10" />
+    </Icon>
+  )
+}
+
 export function Cctv(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

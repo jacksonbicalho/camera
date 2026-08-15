@@ -8,7 +8,6 @@ import { useEscapeKey } from '../hooks/useEscapeKey'
 import { navItemClass } from './sidebarFlyout'
 import {
   BarChart2,
-  Camera,
   Cctv,
   Eye,
   Film,
@@ -16,6 +15,7 @@ import {
   History,
   Menu,
   Network,
+  ObjectDetectorTarget,
   Pencil,
   Search,
   Server,
@@ -264,7 +264,7 @@ export default function Sidebar() {
                   id: 'sidebar-object-detectors',
                   to: '/settings/detectors',
                   label: 'Detectores de objetos',
-                  icon: <Camera className="h-5 w-5 shrink-0" />,
+                  icon: <ObjectDetectorTarget className="h-5 w-5 shrink-0" />,
                 }}
                 showLabel={showLabel}
               />
