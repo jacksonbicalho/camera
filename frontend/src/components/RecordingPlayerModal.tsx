@@ -77,12 +77,17 @@ export default function RecordingPlayerModal({
     open ? recordingId : null,
     motionId,
   )
-  // videoError: alimentado pelo onError do VideoPlayer (achado real — quando o clipe do
-  // evento pede um fromSeconds além da duração REAL do arquivo, VideoPlayer.tsx recusa o seek
-  // e, se a cadeia de segmentos se esgota, chama onError; sem ouvir esse prop, o modal ficava
-  // em branco sem nenhuma mensagem). Reset via "ajuste durante o render" (mesmo padrão de
-  // CameraViewTabs.tsx) ao trocar de clipe — sem isso, o erro de um evento anterior vazaria
-  // visualmente pro próximo aberto no mesmo modal já montado.
+  // videoError: alimentado pelo onError do VideoPlayer — que dispara tanto quando a cadeia
+  // de segmentos se esgota (clipe pede um fromSeconds além da duração REAL do arquivo, achado
+  // da PR #610) quanto por qualquer erro nativo do <video> (rede, formato não suportado etc.);
+  // sem ouvir esse prop, o modal ficava em branco sem nenhuma mensagem em qualquer um dos dois
+  // casos. Mensagem genérica de propósito — VideoPlayer não distingue a causa pra fora
+  // (HistoryPage.tsx trata o mesmo onError da mesma forma, "Não foi possível carregar a
+  // gravação."); um texto específico ("conteúdo real menor que o esperado") citaria uma causa
+  // que pode não ser a real, achado em teste manual do navigator numa gravação que falhava por
+  // outro motivo. Reset via "ajuste durante o render" (mesmo padrão de CameraViewTabs.tsx) ao
+  // trocar de clipe — sem isso, o erro de um evento anterior vazaria visualmente pro próximo
+  // aberto no mesmo modal já montado.
   const [videoError, setVideoError] = useState('')
   const clipKey = `${cameraId ?? ''}:${recordingId ?? ''}:${motionId ?? ''}`
   const [prevClipKey, setPrevClipKey] = useState(clipKey)
@@ -191,11 +196,7 @@ export default function RecordingPlayerModal({
             idPrefix="recording-player"
             segments={segments}
             emptyMessage={error || videoError || 'Sem gravação cobrindo o evento.'}
-            onError={() =>
-              setVideoError(
-                'Não foi possível reproduzir este evento — o conteúdo real da gravação é menor que o esperado.',
-              )
-            }
+            onError={() => setVideoError('Não foi possível carregar a gravação.')}
           />
         </div>
         {/* Alças de redimensionar — uma por quina (T3, história

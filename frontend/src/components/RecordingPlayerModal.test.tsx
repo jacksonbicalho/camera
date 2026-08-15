@@ -486,7 +486,7 @@ function fireLoadedMetadata(el: HTMLVideoElement, duration: number) {
   el.dispatchEvent(new Event('loadedmetadata'))
 }
 
-describe('CA2: quando o conteúdo do evento está além da duração real do arquivo, mostra uma mensagem em vez de deixar o player em branco', () => {
+describe('CA2: quando o VideoPlayer não consegue reproduzir o conteúdo, mostra uma mensagem em vez de deixar o player em branco', () => {
   it('VideoPlayer recusa o seek (achado da PR #610) e o modal mostra o banner de erro', async () => {
     // 1 gravação no dia, começando 12:00:00Z; evento em 12:01:30Z (90s depois) — clipSegments
     // (lead=5/trail=10 do mock padrão) gera fromSeconds=85, "alcançável" pela janela de
@@ -524,7 +524,38 @@ describe('CA2: quando o conteúdo do evento está além da duração real do arq
     fireLoadedMetadata(video, 5)
 
     await waitFor(() => {
-      expect(document.getElementById('recording-player-modal-error')).not.toBeNull()
+      const banner = document.getElementById('recording-player-modal-error')
+      expect(banner).not.toBeNull()
+      expect(banner?.textContent).toBe('Não foi possível carregar a gravação.')
+    })
+  })
+
+  // Achado em teste manual do navigator (pré-push): uma gravação inteira (aba "Gravações",
+  // sem motionId — fromSeconds=0) que tocava normalmente no VLC ficava em branco com o mesmo
+  // banner de erro, mas com o texto específico de "conteúdo real menor que o esperado" — causa
+  // errada, já que aqui o problema é o <video> nativo do browser recusando o arquivo (formato/
+  // rede), não a cadeia de segmentos do onMeta (que nem chega a rodar sem loadedmetadata). O
+  // onError do VideoPlayer não distingue as duas causas pra fora (dispara igual nos dois
+  // casos) — a mensagem no modal precisa ser genérica o bastante pra não citar uma causa que
+  // pode não ser a real.
+  it('erro nativo do <video> (fora do mecanismo de segmentos) também mostra o banner, com mensagem genérica', async () => {
+    render(
+      <MemoryRouter>
+        <RecordingPlayerModal open cameraId="cam1" recordingId={1} onClose={vi.fn()} />
+      </MemoryRouter>,
+    )
+
+    const video = await waitFor(() => {
+      const el = document.getElementById('recording-player-video') as HTMLVideoElement | null
+      if (!el) throw new Error('vídeo não montou')
+      return el
+    })
+    video.dispatchEvent(new Event('error'))
+
+    await waitFor(() => {
+      const banner = document.getElementById('recording-player-modal-error')
+      expect(banner).not.toBeNull()
+      expect(banner?.textContent).toBe('Não foi possível carregar a gravação.')
     })
   })
 })
