@@ -100,8 +100,8 @@ export default function TelegramLinkSection() {
 
   return (
     <div id="telegram-link-section" className="bg-surface border border-border rounded-lg p-5">
-      <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <TelegramIcon className="h-4 w-4 shrink-0" />
+      <p className="flex items-center gap-2 text-base font-medium text-foreground">
+        <TelegramIcon className="h-5 w-5 shrink-0" />
         Telegram
       </p>
       <p className="text-xs text-muted-foreground mt-0.5 mb-4">
