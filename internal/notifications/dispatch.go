@@ -15,6 +15,10 @@ type Notification struct {
 	Title   string
 	Message string
 	Link    string
+	// ImagePath is an optional absolute filesystem path to an image (e.g. a
+	// motion-event snapshot) to attach, for senders that support it — most
+	// senders (application, email) simply ignore it.
+	ImagePath string
 }
 
 // Sender delivers a Notification to a single recipient through one channel

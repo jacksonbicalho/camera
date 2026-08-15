@@ -135,6 +135,12 @@ type ServerConfig struct {
 	SegmentsPath   string `yaml:"segments_path"`
 	RecordingsPath string `yaml:"recordings_path"`
 	JWTSecret      string `yaml:"jwt_secret"`
+	// PublicURL is the externally-reachable base URL of this instance (e.g.
+	// "http://192.168.1.10:8080"), filled in manually by the admin. Empty by
+	// default — used only to build links in outbound notifications (e.g. the
+	// Telegram motion-notify message) where a relative path wouldn't resolve
+	// to anything outside the app itself.
+	PublicURL string `yaml:"public_url"`
 }
 
 type StorageConfig struct {
@@ -262,6 +268,9 @@ func Load(path string) (Config, error) {
 	}
 	if v := os.Getenv("OS_CAMERA_JWT_SECRET"); v != "" {
 		cfg.Server.JWTSecret = v
+	}
+	if v := os.Getenv("OS_CAMERA_PUBLIC_URL"); v != "" {
+		cfg.Server.PublicURL = v
 	}
 	if v := os.Getenv("OS_CAMERA_DEBUG"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {

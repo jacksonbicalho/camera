@@ -293,6 +293,54 @@ func TestLoadEnvVarOverridesStoragePath(t *testing.T) {
 	}
 }
 
+func TestLoadParsesPublicURL(t *testing.T) {
+	path := writeTempYAML(t, `
+server:
+  public_url: http://192.168.1.10:8080
+`)
+
+	cfg, err := config.Load(path)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Server.PublicURL != "http://192.168.1.10:8080" {
+		t.Errorf("expected public_url http://192.168.1.10:8080, got %q", cfg.Server.PublicURL)
+	}
+}
+
+func TestLoadPublicURLDefaultsToEmpty(t *testing.T) {
+	path := writeTempYAML(t, `storage:
+  path: /tmp`)
+
+	cfg, err := config.Load(path)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Server.PublicURL != "" {
+		t.Errorf("expected empty public_url by default, got %q", cfg.Server.PublicURL)
+	}
+}
+
+func TestLoadEnvVarOverridesPublicURL(t *testing.T) {
+	t.Setenv("OS_CAMERA_PUBLIC_URL", "http://env.example.com")
+
+	path := writeTempYAML(t, `
+server:
+  public_url: http://yaml.example.com
+`)
+
+	cfg, err := config.Load(path)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Server.PublicURL != "http://env.example.com" {
+		t.Errorf("expected env override http://env.example.com, got %q", cfg.Server.PublicURL)
+	}
+}
+
 func TestEffectiveMotionConfigReturnsZeroWhenNil(t *testing.T) {
 	cam := config.CameraConfig{}
 

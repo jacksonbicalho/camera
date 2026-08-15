@@ -56,8 +56,9 @@ func TestDetectorRecordsEventWhenDiffExceedsThreshold(t *testing.T) {
 	cmd := &fakeFrameCommander{process: proc}
 
 	var captured []Event
-	st := newStore(t.TempDir(), func(cameraID string, ts time.Time, score float64, frame, label, color string, bbox BBox) {
+	st := newStore(t.TempDir(), func(cameraID string, ts time.Time, score float64, frame, label, color string, bbox BBox) bool {
 		captured = append(captured, Event{Score: score})
+		return true
 	})
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
@@ -70,6 +71,52 @@ func TestDetectorRecordsEventWhenDiffExceedsThreshold(t *testing.T) {
 	}
 }
 
+func TestDetectorSkipsNotifyWhenOnEventReturnsFalse(t *testing.T) {
+	t.Run("CA9: onEvent devolvendo false não dispara d.notify (canal do sino SSE)", func(t *testing.T) {
+		frameSize := 4
+		frameData := grayToRGB(append(bytes.Repeat([]byte{0}, frameSize), bytes.Repeat([]byte{255}, frameSize)...))
+		proc := &fakeFrameProcess{r: bytes.NewReader(frameData)}
+		cmd := &fakeFrameCommander{process: proc}
+
+		st := newStore(t.TempDir(), func(_ string, _ time.Time, _ float64, _, _, _ string, _ BBox) bool {
+			return false // ex.: evento sem gravação disponível
+		})
+		var notified []Event
+		notify := func(ev Event) { notified = append(notified, ev) }
+
+		cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
+		det := newDetector("entrada", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(), notify, nil, nil)
+
+		det.processFrames(context.Background())
+
+		if len(notified) != 0 {
+			t.Fatalf("expected d.notify to NOT fire when onEvent returns false, got %d calls", len(notified))
+		}
+	})
+
+	t.Run("CA9: onEvent devolvendo true dispara d.notify normalmente", func(t *testing.T) {
+		frameSize := 4
+		frameData := grayToRGB(append(bytes.Repeat([]byte{0}, frameSize), bytes.Repeat([]byte{255}, frameSize)...))
+		proc := &fakeFrameProcess{r: bytes.NewReader(frameData)}
+		cmd := &fakeFrameCommander{process: proc}
+
+		st := newStore(t.TempDir(), func(_ string, _ time.Time, _ float64, _, _, _ string, _ BBox) bool {
+			return true
+		})
+		var notified []Event
+		notify := func(ev Event) { notified = append(notified, ev) }
+
+		cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
+		det := newDetector("entrada", "rtsp://fake", "rtsp", 2, 2, cfg, cmd, st, discardLogger(), notify, nil, nil)
+
+		det.processFrames(context.Background())
+
+		if len(notified) != 1 {
+			t.Fatalf("expected d.notify to fire once when onEvent returns true, got %d calls", len(notified))
+		}
+	})
+}
+
 func TestDetectorIgnoresSmallDiff(t *testing.T) {
 	frameSize := 4
 	// Both frames identical → diff=0 < threshold=0.05
@@ -79,8 +126,9 @@ func TestDetectorIgnoresSmallDiff(t *testing.T) {
 	cmd := &fakeFrameCommander{process: proc}
 
 	var captured []Event
-	st := newStore(t.TempDir(), func(_ string, _ time.Time, score float64, _, _, _ string, _ BBox) {
+	st := newStore(t.TempDir(), func(_ string, _ time.Time, score float64, _, _, _ string, _ BBox) bool {
 		captured = append(captured, Event{Score: score})
+		return true
 	})
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
@@ -101,8 +149,9 @@ func TestDetectorTimestampIsApproxNow(t *testing.T) {
 	cmd := &fakeFrameCommander{process: proc}
 
 	var capturedAt time.Time
-	st := newStore(t.TempDir(), func(_ string, ts time.Time, _ float64, _, _, _ string, _ BBox) {
+	st := newStore(t.TempDir(), func(_ string, ts time.Time, _ float64, _, _, _ string, _ BBox) bool {
 		capturedAt = ts
+		return true
 	})
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
@@ -376,8 +425,9 @@ func TestDetectorExclusionZoneSuppressesEvent(t *testing.T) {
 	cmd := &fakeFrameCommander{process: proc}
 
 	var captured []Event
-	st := newStore(t.TempDir(), func(_ string, _ time.Time, score float64, _, _, _ string, _ BBox) {
+	st := newStore(t.TempDir(), func(_ string, _ time.Time, score float64, _, _, _ string, _ BBox) bool {
 		captured = append(captured, Event{Score: score})
+		return true
 	})
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}
@@ -409,8 +459,9 @@ func TestDetectorBBoxUsesBackgroundSubtraction(t *testing.T) {
 	cmd := &fakeFrameCommander{process: proc}
 
 	var capturedBBoxes []BBox
-	st := newStore(t.TempDir(), func(_ string, _ time.Time, _ float64, _, _, _ string, bbox BBox) {
+	st := newStore(t.TempDir(), func(_ string, _ time.Time, _ float64, _, _, _ string, bbox BBox) bool {
 		capturedBBoxes = append(capturedBBoxes, bbox)
+		return true
 	})
 
 	cfg := config.MotionConfig{Enabled: true, Threshold: 0.05, FPS: 1}

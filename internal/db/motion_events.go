@@ -25,7 +25,19 @@ type MotionEvent struct {
 
 // InsertMotionEvent adds a motion event row.
 func InsertMotionEvent(db *DB, ev MotionEvent) error {
-	_, err := db.Exec(`
+	_, err := insertMotionEvent(db, ev)
+	return err
+}
+
+// InsertMotionEventReturningID adds a motion event row and returns its id —
+// same insert as InsertMotionEvent (kept separate to avoid touching that
+// function's many existing call sites, which only check the error).
+func InsertMotionEventReturningID(db *DB, ev MotionEvent) (int64, error) {
+	return insertMotionEvent(db, ev)
+}
+
+func insertMotionEvent(db *DB, ev MotionEvent) (int64, error) {
+	res, err := db.Exec(`
 		INSERT INTO motion_events(camera_id, occurred_at, score, frame_path, label, color, bbox_x, bbox_y, bbox_w, bbox_h)
 		VALUES(?,?,?,?,?,?,?,?,?,?)`,
 		ev.CameraID,
@@ -40,9 +52,13 @@ func InsertMotionEvent(db *DB, ev MotionEvent) error {
 		nullFloat(ev.BboxH),
 	)
 	if err != nil {
-		return fmt.Errorf("insert motion event: %w", err)
+		return 0, fmt.Errorf("insert motion event: %w", err)
 	}
-	return nil
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("insert motion event: last insert id: %w", err)
+	}
+	return id, nil
 }
 
 // ListMotionEvents returns events for a camera in [start, end), ordered by occurred_at.

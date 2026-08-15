@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"strings"
 	"time"
 )
@@ -329,6 +330,40 @@ func ListOrphanedRecordings(database *DB) ([]Recording, error) {
 		result = append(result, r)
 	}
 	return result, rows.Err()
+}
+
+// FindRecordingCoveringMotion returns the recording (if any) whose window
+// [started_at-leadSec, ended_at+trailSec) covers occurredAt for cameraID —
+// same overlap formula as MarkRecordingHasMotion/moments.go's
+// recordingCoversWindow (feat/badge-momento-sem-gravacao), evaluated as a
+// single-row SQL query instead of over an already-loaded slice. An open
+// recording (ended_at IS NULL) covers "now and beyond". Picks the most
+// recent match when more than one overlaps (ORDER BY started_at DESC).
+func FindRecordingCoveringMotion(database *DB, cameraID string, occurredAt time.Time, leadSec, trailSec int) (Recording, bool, error) {
+	winStart := occurredAt.Add(-time.Duration(leadSec) * time.Second)
+	winEnd := occurredAt.Add(time.Duration(trailSec) * time.Second)
+	row := database.QueryRow(`
+		SELECT id, camera_id, started_at, COALESCE(ended_at,''), path, size_bytes, has_motion
+		FROM recordings
+		WHERE camera_id = ? AND started_at < ? AND (ended_at IS NULL OR ended_at > ?)
+		ORDER BY started_at DESC LIMIT 1`,
+		cameraID,
+		winEnd.UTC().Format(time.RFC3339),
+		winStart.UTC().Format(time.RFC3339),
+	)
+	var r Recording
+	var startedAt, endedAt string
+	if err := row.Scan(&r.ID, &r.CameraID, &startedAt, &endedAt, &r.Path, &r.SizeBytes, &r.HasMotion); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Recording{}, false, nil
+		}
+		return Recording{}, false, err
+	}
+	r.StartedAt, _ = time.Parse(time.RFC3339, startedAt)
+	if endedAt != "" {
+		r.EndedAt, _ = time.Parse(time.RFC3339, endedAt)
+	}
+	return r, true, nil
 }
 
 // MarkAnalysisSkipped sets analysis_skipped=1 for the recording with the given id.

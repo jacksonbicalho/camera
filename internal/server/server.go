@@ -143,6 +143,7 @@ type Server struct {
 	updateNotified         string // última versão latest já notificada (dedup)
 	emailSender            emailSender
 	notifications          *notifications.Dispatcher
+	telegramSender         telegramSender
 }
 
 // emailSender envia e-mail (esqueci-a-senha hoje). Definido aqui no
@@ -150,6 +151,19 @@ type Server struct {
 // internal/email (Sender).
 type emailSender interface {
 	Send(to, subject, body string) error
+}
+
+// telegramSender entrega uma notificação via Telegram pra um único usuário.
+// Definido aqui no consumidor (mesmo formato de notifications.Sender) — a
+// implementação real vive em internal/notifications/telegram (Sender).
+// Canal DEDICADO, separado do Dispatcher genérico (`notifications`, usado por
+// update-disponível/state-classifier/disco-cheio): NotifyCameraMotion nunca
+// deve passar pelo Dispatcher, porque ele faz fan-out pra TODOS os senders
+// registrados — inclusive o sino/página "Notificações" in-app
+// (application.Sender, sempre ativo, sem opt-in), que nunca foi pedido pra
+// eventos de movimento (achado do navigator testando a branch real).
+type telegramSender interface {
+	Send(n notifications.Notification, userID int64) error
 }
 
 // updateStatuser fornece o snapshot da checagem de versão e o manifesto cacheado
@@ -219,6 +233,14 @@ func (s *Server) WithEmailSender(sender emailSender) *Server {
 // their own recipient-resolution logic — nobody is actually notified.
 func (s *Server) WithNotifications(d *notifications.Dispatcher) *Server {
 	s.notifications = d
+	return s
+}
+
+// WithTelegramSender wires the dedicated Telegram-only channel used by
+// NotifyCameraMotion — deliberately NOT part of the shared Dispatcher (see
+// telegramSender's doc comment). Without it, NotifyCameraMotion no-ops.
+func (s *Server) WithTelegramSender(sender telegramSender) *Server {
+	s.telegramSender = sender
 	return s
 }
 

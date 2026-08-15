@@ -28,8 +28,11 @@ type Monitor struct {
 
 // New creates a Monitor. onEvent, if non-nil, is called for every motion event
 // in addition to writing the NDJSON file. It receives the full event data
-// including frame filename and bounding box.
-func New(cam config.CameraConfig, stream ffprobe.StreamInfo, cfg config.MotionConfig, storagePath string, reconnectInterval time.Duration, log *slog.Logger, getZones func() []zones.Zone, onEvent func(cameraID string, t time.Time, score float64, frame, label, color string, bbox BBox)) *Monitor {
+// including frame filename and bounding box, and returns whether the event
+// should also be broadcast to Events()/the SSE motion bell (e.g. false when
+// the caller determines the event has no recording backing it — a nil
+// onEvent always broadcasts, same as before this return value existed).
+func New(cam config.CameraConfig, stream ffprobe.StreamInfo, cfg config.MotionConfig, storagePath string, reconnectInterval time.Duration, log *slog.Logger, getZones func() []zones.Zone, onEvent func(cameraID string, t time.Time, score float64, frame, label, color string, bbox BBox) bool) *Monitor {
 	scaledW := cfg.CaptureWidth
 	scaledH := cfg.CaptureHeight
 	if scaledW < 1 || scaledH < 1 {

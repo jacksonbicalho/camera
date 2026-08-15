@@ -1,14 +1,17 @@
 // Package telegram is a minimal client for the Telegram Bot API, plus the
 // account-linking poller (Poller, história feat/telegram-vinculo-conta) —
-// started by cmd/camera/main.go whenever a bot token is configured. Not yet
-// wired into internal/notifications (sending real motion/state notification
-// messages is a separate, future história — this package only resolves
-// which Telegram chat belongs to which system user).
+// started by cmd/camera/main.go whenever a bot token is configured. Wired
+// into internal/notifications/telegram.Sender since história
+// feat/telegram-motion-notify (T2/T6) — this package only talks HTTP to the
+// Bot API; who gets notified and with what content is resolved by the
+// caller.
 package telegram
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 )
@@ -44,16 +47,79 @@ func (c *Client) endpoint(method string) string {
 
 // SendMessage sends a plain-text message to the given chat.
 func (c *Client) SendMessage(chatID, text string) error {
-	resp, err := c.httpClient.PostForm(c.endpoint("sendMessage"), url.Values{
-		"chat_id": {chatID},
-		"text":    {text},
-	})
+	return c.sendMessage(chatID, text, "")
+}
+
+// SendMessageHTML sends a message parsed as HTML (parse_mode=HTML) — use for
+// text that must contain a real clickable link (<a href="...">...</a>):
+// Telegram's own auto-linkification of plain http(s):// URLs doesn't
+// recognize hosts like "localhost" as a link even with an explicit scheme,
+// so relying on it is not enough for locally-hosted instances.
+func (c *Client) SendMessageHTML(chatID, html string) error {
+	return c.sendMessage(chatID, html, "HTML")
+}
+
+func (c *Client) sendMessage(chatID, text, parseMode string) error {
+	values := url.Values{"chat_id": {chatID}, "text": {text}}
+	if parseMode != "" {
+		values.Set("parse_mode", parseMode)
+	}
+	resp, err := c.httpClient.PostForm(c.endpoint("sendMessage"), values)
 	if err != nil {
 		return fmt.Errorf("telegram: send message: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("telegram: send message: unexpected status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// SendPhoto sends a photo (JPEG bytes) with an optional caption to the given
+// chat, via multipart/form-data (the Bot API's sendMessage-style form
+// encoding doesn't support file uploads).
+func (c *Client) SendPhoto(chatID string, photo []byte, caption string) error {
+	return c.sendPhoto(chatID, photo, caption, "")
+}
+
+// SendPhotoHTML is SendPhoto with the caption parsed as HTML
+// (parse_mode=HTML) — see SendMessageHTML's doc comment for why.
+func (c *Client) SendPhotoHTML(chatID string, photo []byte, captionHTML string) error {
+	return c.sendPhoto(chatID, photo, captionHTML, "HTML")
+}
+
+func (c *Client) sendPhoto(chatID string, photo []byte, caption, parseMode string) error {
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	if err := w.WriteField("chat_id", chatID); err != nil {
+		return fmt.Errorf("telegram: send photo: write chat_id: %w", err)
+	}
+	if err := w.WriteField("caption", caption); err != nil {
+		return fmt.Errorf("telegram: send photo: write caption: %w", err)
+	}
+	if parseMode != "" {
+		if err := w.WriteField("parse_mode", parseMode); err != nil {
+			return fmt.Errorf("telegram: send photo: write parse_mode: %w", err)
+		}
+	}
+	part, err := w.CreateFormFile("photo", "snapshot.jpg")
+	if err != nil {
+		return fmt.Errorf("telegram: send photo: create photo part: %w", err)
+	}
+	if _, err := part.Write(photo); err != nil {
+		return fmt.Errorf("telegram: send photo: write photo part: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("telegram: send photo: close writer: %w", err)
+	}
+
+	resp, err := c.httpClient.Post(c.endpoint("sendPhoto"), w.FormDataContentType(), &body)
+	if err != nil {
+		return fmt.Errorf("telegram: send photo: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("telegram: send photo: unexpected status %d", resp.StatusCode)
 	}
 	return nil
 }

@@ -32,6 +32,7 @@ import (
 	"camera/internal/notifications"
 	"camera/internal/notifications/application"
 	notifyemail "camera/internal/notifications/email"
+	telegramnotify "camera/internal/notifications/telegram"
 	"camera/internal/recorder"
 	"camera/internal/release"
 	"camera/internal/server"
@@ -235,7 +236,15 @@ func main() {
 	// storage.Cleaner below, built once database is known.
 	var dispatcher *notifications.Dispatcher
 
-	onMotionEvent := func(cameraID string, t time.Time, score float64, frame, label, color string, bbox motion.BBox) {
+	// onMotionEvent's return value gates whether the event is broadcast to
+	// Events()/the SSE motion bell (see motion.New's doc comment) — only
+	// true when a recording actually backs the event, same "sem gravação"
+	// criterion the Momentos badge uses (feat/badge-momento-sem-gravacao,
+	// internal/server/moments.go's recordingCoversWindow): a camera can run
+	// with motion detection on and recording off, in which case its events
+	// never have anything to show and shouldn't notify anyone (sino or
+	// Telegram).
+	onMotionEvent := func(cameraID string, t time.Time, score float64, frame, label, color string, bbox motion.BBox) bool {
 		ev := db.MotionEvent{
 			CameraID:   cameraID,
 			OccurredAt: t,
@@ -248,12 +257,37 @@ func main() {
 			BboxW:      bbox.W,
 			BboxH:      bbox.H,
 		}
-		if err := db.InsertMotionEvent(database, ev); err != nil {
-			slog.Warn("failed to record motion event in DB", "camera", cameraID, "error", err)
+		motionEventID, insertErr := db.InsertMotionEventReturningID(database, ev)
+		if insertErr != nil {
+			slog.Warn("failed to record motion event in DB", "camera", cameraID, "error", insertErr)
 		}
 		if err := db.MarkRecordingHasMotion(database, cameraID, t, t.Add(time.Second)); err != nil {
 			slog.Warn("failed to mark recording has_motion", "camera", cameraID, "error", err)
 		}
+
+		lead, trail := 10, 10
+		if cam, err := db.GetCamera(database, cameraID); err == nil {
+			mc := cam.EffectiveMotionConfig()
+			if mc.PlaybackLeadSeconds > 0 {
+				lead = mc.PlaybackLeadSeconds
+			}
+			if mc.PlaybackTrailSeconds > 0 {
+				trail = mc.PlaybackTrailSeconds
+			}
+		}
+		rec, hasRecording, err := db.FindRecordingCoveringMotion(database, cameraID, t, lead, trail)
+		if err != nil {
+			slog.Warn("failed to check for a covering recording", "camera", cameraID, "error", err)
+		}
+		if !hasRecording {
+			return false
+		}
+		// motionEventID só é confiável quando o insert acima teve sucesso —
+		// sem isso, o link da notificação apontaria pro evento errado (id 0).
+		if srv != nil && insertErr == nil {
+			srv.NotifyCameraMotion(cameraID, t, score, frame, rec.ID, motionEventID)
+		}
+		return true
 	}
 
 	startCameraProcs := func(cam config.CameraConfig) {
@@ -421,6 +455,12 @@ func main() {
 			smtpSender = email.NewSMTPSender(cfg.SMTP)
 			srv.WithEmailSender(smtpSender)
 		}
+		// telegramClient is shared by the notifications.Sender below and the
+		// account-linking poller further down — one bot, one set of HTTP calls.
+		var telegramClient *telegram.Client
+		if cfg.Extensions.Telegram.Enabled && cfg.Extensions.Telegram.BotToken != "" {
+			telegramClient = telegram.NewClient(cfg.Extensions.Telegram.BotToken)
+		}
 		if database != nil {
 			senders := []notifications.Sender{application.New(database, srv)}
 			if smtpSender != nil {
@@ -428,6 +468,15 @@ func main() {
 			}
 			dispatcher = notifications.NewDispatcher(slog, senders...)
 			srv.WithNotifications(dispatcher)
+			// Canal Telegram DEDICADO pra NotifyCameraMotion — nunca entra na
+			// lista `senders` acima: o Dispatcher genérico faz fan-out pra
+			// todos os senders, inclusive o sino/página "Notificações" in-app
+			// (application.New, sempre ativo, sem opt-in), o que nunca foi
+			// pedido pra eventos de movimento (ver telegramSender em
+			// internal/server/server.go).
+			if telegramClient != nil {
+				srv.WithTelegramSender(telegramnotify.New(database, telegramClient))
+			}
 		}
 
 		// Telegram account-linking poller — independent of the runtime "Active"
@@ -436,8 +485,8 @@ func main() {
 		// anyone who opens the deep-link. Long-polling (not a webhook) since
 		// this instance typically runs self-hosted behind NAT, without a
 		// guaranteed public HTTPS endpoint.
-		if database != nil && cfg.Extensions.Telegram.Enabled && cfg.Extensions.Telegram.BotToken != "" {
-			poller := telegram.NewPoller(telegram.NewClient(cfg.Extensions.Telegram.BotToken), telegramLinkResolver{database})
+		if database != nil && telegramClient != nil {
+			poller := telegram.NewPoller(telegramClient, telegramLinkResolver{database})
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

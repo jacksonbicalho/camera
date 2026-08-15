@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import MotionScoreChart from './MotionScoreChart'
+import { MotionTelegramNotify } from './CameraMotionTelegramNotify'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -219,6 +220,7 @@ export function MotionReadOnly({
             ]}
           />
         )}
+        <MotionTelegramNotify cameraId={id} motionEnabled={motion.enabled} />
       </div>
     </MotionPanel>
   )
@@ -564,6 +566,7 @@ export function MotionFormContent({ cam, id, peak, reload }: MotionFormContentPr
           {saved && <span className="text-xs text-green-400">Salvo</span>}
         </div>
       </form>
+      <MotionTelegramNotify cameraId={id} motionEnabled={cam.motion?.enabled ?? false} />
     </MotionPanel>
   )
 }
