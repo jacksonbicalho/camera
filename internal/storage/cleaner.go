@@ -252,6 +252,22 @@ func (c *Cleaner) syncRecordings() {
 				continue
 			}
 
+			// chunkEnd above is wall-clock (next chunk's start) — inflated by
+			// whatever gap the camera spent disconnected between chunks. Prefer
+			// the file's REAL duration (mvhd atom) when it's known and closed
+			// (chunkEnd already confirmed non-zero + valid moov above): never
+			// lets ended_at claim content the file doesn't have. Clamped to
+			// chunkEnd defensively — never let a measured duration exceed what's
+			// already known about the next chunk's start. See
+			// work_progress/analysis/202608150015_ended-at-duracao-real.md.
+			if !chunkEnd.IsZero() {
+				if dur, ok := MP4Duration(fullPath); ok {
+					if realEnd := chunkStart.Add(dur); realEnd.Before(chunkEnd) {
+						chunkEnd = realEnd
+					}
+				}
+			}
+
 			rec := db.Recording{
 				CameraID:  cameraID,
 				StartedAt: chunkStart,

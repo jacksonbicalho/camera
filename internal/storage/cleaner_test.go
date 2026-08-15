@@ -75,6 +75,56 @@ func writeCorruptMP4(t *testing.T, path string, mtime time.Time) {
 	}
 }
 
+// mp4BytesWithDuration builds a minimal MP4 (ftyp+mdat+moov(mvhd)) whose mvhd
+// (version 0) declares the given real duration — same box layout confirmed
+// against real recordings from this project's recorder (mvhd v0, timescale
+// 1000, mvhd as moov's first child). Only the fields storage.MP4Duration
+// actually reads are populated; no matrix/pre_defined padding.
+func mp4BytesWithDuration(d time.Duration) []byte {
+	const timescale = 1000
+	mvhdBody := make([]byte, 0, 20)
+	mvhdBody = append(mvhdBody, 0, 0, 0, 0) // version(0) + flags
+	mvhdBody = append(mvhdBody, 0, 0, 0, 0) // creation_time
+	mvhdBody = append(mvhdBody, 0, 0, 0, 0) // modification_time
+	ts := uint32(timescale)
+	mvhdBody = append(mvhdBody, byte(ts>>24), byte(ts>>16), byte(ts>>8), byte(ts))
+	dur := uint32(d.Seconds() * timescale)
+	mvhdBody = append(mvhdBody, byte(dur>>24), byte(dur>>16), byte(dur>>8), byte(dur))
+
+	mvhdSize := 8 + len(mvhdBody)
+	mvhd := make([]byte, 0, mvhdSize)
+	mvhd = append(mvhd, byte(mvhdSize>>24), byte(mvhdSize>>16), byte(mvhdSize>>8), byte(mvhdSize))
+	mvhd = append(mvhd, 'm', 'v', 'h', 'd')
+	mvhd = append(mvhd, mvhdBody...)
+
+	moovSize := 8 + len(mvhd)
+	moov := make([]byte, 0, moovSize)
+	moov = append(moov, byte(moovSize>>24), byte(moovSize>>16), byte(moovSize>>8), byte(moovSize))
+	moov = append(moov, 'm', 'o', 'o', 'v')
+	moov = append(moov, mvhd...)
+
+	b := []byte{
+		0, 0, 0, 24, 'f', 't', 'y', 'p',
+		'i', 's', 'o', 'm', 0, 0, 0, 0,
+		'i', 's', 'o', 'm', 'm', 'p', '4', '1',
+		0, 0, 0, 8, 'm', 'd', 'a', 't',
+	}
+	return append(b, moov...)
+}
+
+func writeMP4WithDuration(t *testing.T, path string, mtime time.Time, d time.Duration) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, mp4BytesWithDuration(d), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(path, mtime, mtime); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func writeFileWithSize(t *testing.T, path string, size int) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -663,6 +713,40 @@ func TestSyncRecordings_UpdatesEndedAtWhenSuccessorAppears(t *testing.T) {
 	if got.String != want {
 		t.Errorf("ended_at = %s, want %s", got.String, want)
 	}
+}
+
+// TestSyncRecordingsEndedAt cobre a história fix/ended-at-duracao-real: com um
+// gap de reconexão real entre dois chunks (sucessor bem mais tarde que a
+// duração real do primeiro), ended_at deve refletir a duração REAL do
+// arquivo (via mvhd), não o início do sucessor.
+func TestSyncRecordingsEndedAt(t *testing.T) {
+	t.Run("CA3: ended_at reflete duração real quando há gap de reconexão", func(t *testing.T) {
+		dir := t.TempDir()
+		database := openTestDB(t)
+		createTestCamera(t, database, "cam1")
+
+		base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+		// Chunk A: nome/started_at em `base`, mas conteúdo real de só 5s (mvhd) —
+		// simula a câmera caindo logo após começar a gravar.
+		pathA := mp4WithTimestamp(dir, "cam1", base)
+		writeMP4WithDuration(t, pathA, base, 5*time.Second)
+
+		// Chunk B só reconecta 3 minutos depois — gap real, não os 5s de A.
+		pathB := mp4WithTimestamp(dir, "cam1", base.Add(3*time.Minute))
+		writeFile(t, pathB, base.Add(3*time.Minute))
+
+		storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+		got := queryEndedAt(t, database, pathA)
+		if !got.Valid {
+			t.Fatal("ended_at de pathA está NULL — deveria ter sido preenchido (B já existe)")
+		}
+		want := base.Add(5 * time.Second).UTC().Format(time.RFC3339)
+		if got.String != want {
+			t.Errorf("ended_at = %s, want %s (duração real do arquivo, não o início de B em %s)",
+				got.String, want, base.Add(3*time.Minute).UTC().Format(time.RFC3339))
+		}
+	})
 }
 
 // Quando um chunk começa no fim de um dia UTC e o sucessor cai no dia

@@ -842,6 +842,116 @@ func TestRecordingsBackfillsMissingDBRow(t *testing.T) {
 	}
 }
 
+// mp4BytesWithDuration builds a minimal MP4 (ftyp+mdat+moov(mvhd v0)) whose
+// mvhd declares the given real duration — same box layout confirmed against
+// real recordings from this project's recorder (mvhd v0, timescale 1000,
+// mvhd as moov's first child). Mirrors internal/storage/cleaner_test.go's
+// helper of the same name (different package, so no collision) — kept small
+// enough to duplicate rather than export a storage-package test helper.
+func mp4BytesWithDuration(d time.Duration) []byte {
+	const timescale = 1000
+	mvhdBody := make([]byte, 0, 20)
+	mvhdBody = append(mvhdBody, 0, 0, 0, 0) // version(0) + flags
+	mvhdBody = append(mvhdBody, 0, 0, 0, 0) // creation_time
+	mvhdBody = append(mvhdBody, 0, 0, 0, 0) // modification_time
+	ts := uint32(timescale)
+	mvhdBody = append(mvhdBody, byte(ts>>24), byte(ts>>16), byte(ts>>8), byte(ts))
+	dur := uint32(d.Seconds() * timescale)
+	mvhdBody = append(mvhdBody, byte(dur>>24), byte(dur>>16), byte(dur>>8), byte(dur))
+
+	mvhdSize := 8 + len(mvhdBody)
+	mvhd := make([]byte, 0, mvhdSize)
+	mvhd = append(mvhd, byte(mvhdSize>>24), byte(mvhdSize>>16), byte(mvhdSize>>8), byte(mvhdSize))
+	mvhd = append(mvhd, 'm', 'v', 'h', 'd')
+	mvhd = append(mvhd, mvhdBody...)
+
+	moovSize := 8 + len(mvhd)
+	moov := make([]byte, 0, moovSize)
+	moov = append(moov, byte(moovSize>>24), byte(moovSize>>16), byte(moovSize>>8), byte(moovSize))
+	moov = append(moov, 'm', 'o', 'o', 'v')
+	moov = append(moov, mvhd...)
+
+	b := []byte{
+		0, 0, 0, 24, 'f', 't', 'y', 'p',
+		'i', 's', 'o', 'm', 0, 0, 0, 0,
+		'i', 's', 'o', 'm', 'm', 'p', '4', '1',
+		0, 0, 0, 8, 'm', 'd', 'a', 't',
+	}
+	return append(b, moov...)
+}
+
+// TestRecordingsBackfillUsesRealDuration cobre a história
+// fix/ended-at-duracao-real: o backfill on-demand (mesmo bloco de
+// TestRecordingsBackfillsMissingDBRow acima) grava `ended_at` de forma
+// PERMANENTE (db.InsertRecording, INSERT OR IGNORE — db.UpdateRecordingEndedAt
+// só preenche quando ended_at é NULL, nunca corrige um valor já gravado aqui).
+// Sem essa cobertura, um chunk cujo primeiro registro no banco vem deste
+// caminho (em vez do tick periódico de storage.Cleaner.syncRecordings)
+// ficaria com `ended_at` errado PARA SEMPRE, mesmo com a correção em
+// syncRecordings — exatamente o gap achado ao testar a história na prática
+// (ver work_progress/analysis/202608150015_ended-at-duracao-real.md).
+func TestRecordingsBackfillUsesRealDuration(t *testing.T) {
+	t.Run("CA3: backfill on-demand também usa a duração real (não o início do sucessor)", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		cameraID := "cam1"
+		dateDir := filepath.Join(tmpDir, cameraID, "2026", "05", "28")
+		if err := os.MkdirAll(dateDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		// 1º chunk: conteúdo real de só 5s (mvhd), mas o sucessor só aparece 3min
+		// depois — gap de reconexão simulado, mesmo cenário de
+		// TestSyncRecordingsEndedAt em internal/storage/cleaner_test.go.
+		if err := os.WriteFile(filepath.Join(dateDir, "20260528225426.mp4"), mp4BytesWithDuration(5*time.Second), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dateDir, "20260528225726.mp4"), []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		database := openServerTestDB(t)
+		if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.CreateCamera(database, config.CameraConfig{ID: cameraID}, nil); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := config.ServerConfig{RecordingsPath: tmpDir}
+		srv := server.NewServer(cfg, "UTC", []config.CameraConfig{{ID: cameraID}}, discardLogger(), nil).WithDB(database)
+		token := loginAndGetToken(t, srv, "admin", "pw")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/cameras/"+cameraID+"/recordings?date=2026-05-28&page=1&limit=10", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Recordings []struct {
+				Filename string `json:"filename"`
+				End      string `json:"end"`
+			} `json:"recordings"`
+		}
+		json.NewDecoder(w.Body).Decode(&resp)
+		var end string
+		found := false
+		for _, r := range resp.Recordings {
+			if r.Filename == "20260528225426.mp4" {
+				end = r.End
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("finalized chunk not found in listing")
+		}
+		want := "2026-05-28T22:54:31Z" // 22:54:26 + 5s real, não 22:57:26 (início do sucessor)
+		if end != want {
+			t.Errorf("end = %q, want %q (duração real do arquivo, não o início do sucessor)", end, want)
+		}
+	})
+}
+
 func TestGetRecordingByIDReturnsDetails(t *testing.T) {
 	tmpDir := t.TempDir()
 	cameraID := "cam1"
