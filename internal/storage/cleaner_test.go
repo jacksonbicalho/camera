@@ -749,6 +749,89 @@ func TestSyncRecordingsEndedAt(t *testing.T) {
 	})
 }
 
+// TestSyncRecordings_SelfCorrectsStaleEndedAt cobre a história
+// feat/badge-momento-sem-gravacao (T5): um ended_at gravado errado (ex.: por
+// um ciclo anterior a fix/ended-at-duracao-real, ou por MP4Duration ter
+// falhado pontualmente naquele ciclo) não pode ficar congelado pra sempre —
+// UpdateRecordingEndedAt tinha guard `WHERE ended_at IS NULL`, e uma vez
+// setado (certo ou errado) nenhum ciclo seguinte conseguia corrigi-lo, mesmo
+// syncRecordings recalculando MP4Duration a cada ciclo, pra todo chunk
+// fechado (o I/O sempre aconteceu; só a escrita nunca aplicava a correção).
+func TestSyncRecordings_SelfCorrectsStaleEndedAt(t *testing.T) {
+	t.Run("CA7: ended_at inflado (congelado por um ciclo antigo) é corrigido pra baixo num ciclo seguinte", func(t *testing.T) {
+		dir := t.TempDir()
+		database := openTestDB(t)
+		createTestCamera(t, database, "cam1")
+
+		base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+		// Chunk A: nome/started_at em `base`, conteúdo real de só 5s (mvhd) —
+		// mesma câmera instável de TestSyncRecordingsEndedAt.
+		pathA := mp4WithTimestamp(dir, "cam1", base)
+		writeMP4WithDuration(t, pathA, base, 5*time.Second)
+
+		// Sucessor 3 minutos depois — gap real, wall-clock inflado.
+		pathB := mp4WithTimestamp(dir, "cam1", base.Add(3*time.Minute))
+		writeFile(t, pathB, base.Add(3*time.Minute))
+
+		// Simula o congelamento: a linha de A já existe no banco com o
+		// ended_at ERRADO (wall-clock, início de B) — como se um ciclo antigo
+		// (antes da correção de duração real, ou uma falha pontual de
+		// MP4Duration naquele ciclo específico) já tivesse gravado.
+		if err := db.InsertRecording(database, db.Recording{
+			CameraID: "cam1", StartedAt: base, EndedAt: base.Add(3 * time.Minute), Path: pathA,
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+		got := queryEndedAt(t, database, pathA)
+		if !got.Valid {
+			t.Fatal("ended_at de pathA ficou NULL — não deveria, já havia sucessor")
+		}
+		want := base.Add(5 * time.Second).UTC().Format(time.RFC3339)
+		if got.String != want {
+			t.Errorf("ended_at = %s, want %s (duração real do arquivo) — valor errado congelado não foi autocorrigido",
+				got.String, want)
+		}
+	})
+
+	t.Run("CA7: ended_at já menor que o recém-medido nunca é sobrescrito pra cima", func(t *testing.T) {
+		dir := t.TempDir()
+		database := openTestDB(t)
+		createTestCamera(t, database, "cam1")
+
+		base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+		// Duração real do arquivo (mvhd) é 8s — o que syncRecordings VAI
+		// recalcular neste ciclo, se pudesse escrever.
+		pathA := mp4WithTimestamp(dir, "cam1", base)
+		writeMP4WithDuration(t, pathA, base, 8*time.Second)
+		pathB := mp4WithTimestamp(dir, "cam1", base.Add(3*time.Minute))
+		writeFile(t, pathB, base.Add(3*time.Minute))
+
+		// Linha já com um valor MENOR (2s) que o recém-medido (8s) — nunca pode
+		// crescer de volta. Sem o guard "ended_at > ?" este teste falharia:
+		// ended_at subiria de 2s pra 8s.
+		smallerEnded := base.Add(2 * time.Second)
+		if err := db.InsertRecording(database, db.Recording{
+			CameraID: "cam1", StartedAt: base, EndedAt: smallerEnded, Path: pathA,
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+		got := queryEndedAt(t, database, pathA)
+		if !got.Valid {
+			t.Fatal("ended_at de pathA ficou NULL")
+		}
+		want := smallerEnded.UTC().Format(time.RFC3339)
+		if got.String != want {
+			t.Errorf("ended_at = %s, want %s (valor já menor não deveria crescer pra cima)", got.String, want)
+		}
+	})
+}
+
 // Quando um chunk começa no fim de um dia UTC e o sucessor cai no dia
 // seguinte (pastas YYYY/MM/DD diferentes), o syncRecordings ainda precisa
 // linkar os dois — usa cameraID, não diretório, pra agrupar.
