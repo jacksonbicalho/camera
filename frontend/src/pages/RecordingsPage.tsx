@@ -440,21 +440,33 @@ export default function RecordingsPage() {
                 <button
                   key={`${m.camera_id}-${m.time}-${i}`}
                   id={`moment-${i}`}
-                  onClick={() => openMoment(m.camera_id, m.time)}
-                  className="bg-surface border border-border rounded-lg overflow-hidden text-left hover:border-primary/50 transition-colors"
+                  disabled={!m.recording_available}
+                  onClick={
+                    m.recording_available ? () => openMoment(m.camera_id, m.time) : undefined
+                  }
+                  className={`bg-surface border border-border rounded-lg overflow-hidden text-left transition-colors ${
+                    m.recording_available ? 'hover:border-primary/50' : 'opacity-60 cursor-default'
+                  }`}
                 >
-                  {thumb ? (
-                    <img
-                      src={thumb}
-                      alt={m.category}
-                      className="w-full aspect-video object-cover bg-black"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="w-full aspect-video bg-surface-2 flex items-center justify-center text-[10px] text-faint">
-                      sem prévia
-                    </div>
-                  )}
+                  <div className="relative">
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt={m.category}
+                        className="w-full aspect-video object-cover bg-black"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full aspect-video bg-surface-2 flex items-center justify-center text-[10px] text-faint">
+                        sem prévia
+                      </div>
+                    )}
+                    {!m.recording_available && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                        <span className="text-xs font-medium text-white">Sem gravação</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="px-2 py-1.5">
                     <div className="flex items-center gap-1.5">
                       <span

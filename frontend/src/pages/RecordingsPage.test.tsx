@@ -75,6 +75,7 @@ const moments = [
     category: 'estados:portão:aberto',
     frame: '/recordings/state_history/1/x.jpg',
     score: 0.9,
+    recording_available: true,
   },
   {
     camera_id: 'cam2',
@@ -85,6 +86,7 @@ const moments = [
     category: 'pessoa',
     frame: '20260623070000_motion.jpg',
     score: 0.5,
+    recording_available: true,
   },
 ]
 const recordings = [
@@ -781,6 +783,58 @@ describe('RecordingsPage', () => {
         expect(document.getElementById('recording-player-modal')).toBeNull()
       })
       expect(document.getElementById('test-location')!.textContent).toMatch(/^\/recordings/)
+    })
+  })
+
+  describe('CA4: card de momento sem gravação disponível mostra aviso e fica desabilitado', () => {
+    beforeEach(() => {
+      const momentsWithUnavailable = [
+        { ...moments[0], recording_available: true },
+        { ...moments[1], recording_available: false },
+      ]
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
+          if (url.startsWith('/api/content-days'))
+            return Promise.resolve({ status: 200, json: () => Promise.resolve({ days: [] }) })
+          if (url.startsWith('/api/moments'))
+            return Promise.resolve({
+              status: 200,
+              json: () =>
+                Promise.resolve({ moments: momentsWithUnavailable, total: 2, hasMore: false }),
+            })
+          return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+    })
+
+    it('card sem gravação (recording_available=false) mostra o aviso e não abre o player ao clicar', async () => {
+      renderRecordings()
+      const unavailable = await waitFor(() => {
+        const el = document.getElementById('moment-1')
+        if (!el) throw new Error('card não renderizou')
+        return el
+      })
+      expect(unavailable.textContent).toContain('Sem gravação')
+      expect(unavailable).toHaveProperty('disabled', true)
+      fireEvent.click(unavailable)
+      // dá tempo pra qualquer resolução assíncrona indevida (resolveEventRecordingUrl)
+      // rodar, se o clique tivesse disparado por engano.
+      await new Promise((r) => setTimeout(r, 0))
+      expect(document.getElementById('recording-player-modal')).toBeNull()
+    })
+
+    it('card com gravação disponível não mostra o aviso e continua clicável', async () => {
+      renderRecordings()
+      const available = await waitFor(() => {
+        const el = document.getElementById('moment-0')
+        if (!el) throw new Error('card não renderizou')
+        return el
+      })
+      expect(available.textContent).not.toContain('Sem gravação')
+      expect(available).toHaveProperty('disabled', false)
     })
   })
 })

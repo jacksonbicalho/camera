@@ -11,6 +11,7 @@ export interface Moment {
   category: string
   frame?: string
   score: number
+  recording_available: boolean
 }
 
 interface UseMomentsParams {
