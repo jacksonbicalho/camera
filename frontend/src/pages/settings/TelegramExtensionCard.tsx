@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { authHeaders } from '../../auth'
 import { Button } from '@/components/ui/button'
+import { TelegramIcon } from '@/components/TelegramIcon'
 
 interface Extension {
   id: string
@@ -54,7 +55,10 @@ export default function TelegramExtensionCard() {
       id="telegram-extension-card"
       className="bg-surface border border-border rounded-lg p-5 max-w-md"
     >
-      <p className="text-sm font-medium text-foreground">{ext.name}</p>
+      <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <TelegramIcon className="h-4 w-4 shrink-0" />
+        {ext.name}
+      </p>
       <p className="text-xs text-muted-foreground mt-0.5 mb-4">{ext.description}</p>
       {ext.available ? (
         <>

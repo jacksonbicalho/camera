@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { TelegramIcon } from '@/components/TelegramIcon'
 import { authHeaders } from '../auth'
 
 // MotionTelegramNotify — bloco de opt-in de notificação de movimento via
@@ -110,7 +111,8 @@ export function MotionTelegramNotify({ cameraId, motionEnabled }: Props) {
 
   return (
     <div className="mt-4 border-t border-border pt-4 flex flex-col gap-3">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+      <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <TelegramIcon className="h-3.5 w-3.5 shrink-0" />
         Notificações via Telegram
       </p>
       <div className="flex items-center gap-2">
