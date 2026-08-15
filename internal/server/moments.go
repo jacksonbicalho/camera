@@ -62,14 +62,15 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 
 	type moment struct {
-		CameraID   string  `json:"camera_id"`
-		CameraName string  `json:"camera_name"`
-		Time       string  `json:"time"`
-		Kind       string  `json:"kind"`
-		Label      string  `json:"label,omitempty"`
-		Category   string  `json:"category"`
-		Frame      string  `json:"frame,omitempty"`
-		Score      float64 `json:"score"`
+		CameraID           string  `json:"camera_id"`
+		CameraName         string  `json:"camera_name"`
+		Time               string  `json:"time"`
+		Kind               string  `json:"kind"`
+		Label              string  `json:"label,omitempty"`
+		Category           string  `json:"category"`
+		Frame              string  `json:"frame,omitempty"`
+		Score              float64 `json:"score"`
+		RecordingAvailable bool    `json:"recording_available"`
 	}
 	// matchesQuery casa o termo de busca (já normalizado) por substring contra a label
 	// ou o nome da categoria do momento. query vazia casa tudo.
@@ -97,6 +98,31 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
+		// Uma consulta por câmera (não por momento) — sem I/O de arquivo, só
+		// started_at/ended_at, cruzados em memória contra cada evento/transição
+		// abaixo. ended_at real (não mais inflado pelo início do próximo chunk,
+		// ver história fix/ended-at-duracao-real) é o que torna esse cálculo
+		// confiável. ListRecordingsInRange filtra por started_at >= start — sem
+		// alargar o limite inferior, o chunk que começou ANTES da meia-noite local
+		// e ainda cobre os primeiros minutos do dia consultado (aberto ou recém-
+		// fechado) ficaria de fora, gerando falso "sem gravação" pra eventos logo
+		// após a virada do dia (achado do code review, confirmado: acontece todo
+		// dia, pra toda câmera ativa, dado o chunk_duration default).
+		recs, err := db.ListRecordingsInRange(
+			s.db, []string{c.ID}, dayStart.Add(-c.EffectiveChunkDuration()), dayEnd, false,
+		)
+		if err != nil {
+			recs = nil
+		}
+		mc := c.EffectiveMotionConfig()
+		lead := mc.PlaybackLeadSeconds
+		if lead <= 0 {
+			lead = 10
+		}
+		trail := mc.PlaybackTrailSeconds
+		if trail <= 0 {
+			trail = 10
+		}
 		if evs, err := db.ListMotionEvents(s.db, c.ID, dayStart, dayEnd); err == nil {
 			for _, e := range evs {
 				cat := db.MotionCategory(e.Label)
@@ -112,6 +138,7 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 				moments = append(moments, moment{
 					CameraID: c.ID, CameraName: c.Name, Time: e.OccurredAt.UTC().Format(time.RFC3339),
 					Kind: "motion", Label: e.Label, Category: cat, Frame: e.FramePath, Score: e.Score,
+					RecordingAvailable: recordingCoversWindow(recs, e.OccurredAt, lead, trail),
 				})
 			}
 		}
@@ -130,6 +157,7 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 				moments = append(moments, moment{
 					CameraID: c.ID, CameraName: c.Name, Time: t.ChangedAt.UTC().Format(time.RFC3339),
 					Kind: "state", Label: t.State, Category: cat, Frame: t.FramePath, Score: t.Confidence,
+					RecordingAvailable: recordingCoversPoint(recs, t.ChangedAt),
 				})
 			}
 		}
@@ -164,4 +192,33 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 		"hasMore":    end < total,
 		"categories": catList,
 	})
+}
+
+// recordingCoversWindow reports whether any recording overlaps
+// [occurred-lead, occurred+trail] — same formula internal/storage/cleaner.go
+// already uses to associate has_motion. A recording with a zero EndedAt (still
+// open) is treated as covering up to and beyond "now", same as ended_at IS
+// NULL in ListStateHistory (internal/db/state_classifiers.go).
+func recordingCoversWindow(recs []db.Recording, occurred time.Time, leadSec, trailSec int) bool {
+	winStart := occurred.Add(-time.Duration(leadSec) * time.Second)
+	winEnd := occurred.Add(time.Duration(trailSec) * time.Second)
+	for _, r := range recs {
+		if r.StartedAt.Before(winEnd) && (r.EndedAt.IsZero() || r.EndedAt.After(winStart)) {
+			return true
+		}
+	}
+	return false
+}
+
+// recordingCoversPoint reports whether any recording's [started_at, ended_at)
+// contains t — strict point check, no lead/trail (state transitions never open
+// a clip window, see resolveEventRecordingUrl in the frontend). Same formula
+// as ListStateHistory (internal/db/state_classifiers.go).
+func recordingCoversPoint(recs []db.Recording, t time.Time) bool {
+	for _, r := range recs {
+		if !r.StartedAt.After(t) && (r.EndedAt.IsZero() || t.Before(r.EndedAt)) {
+			return true
+		}
+	}
+	return false
 }
