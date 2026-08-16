@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { emptyForm, formToPayload, type Camera, type CameraFormData } from './cameraFormUtils'
 import { TransmissionFields } from './cameraFormFields'
-import { Button } from '@/components/ui/button'
+import { ApplyButton } from '@/components/ui/apply-button'
 import { authHeaders } from '../auth'
 
 // CameraTransmissionSection — sessão "Transmissão" de CameraDetailSettingsPage,
@@ -147,9 +147,7 @@ export default function CameraTransmissionSection({ cam, id, reload }: Props) {
         )}
 
         <div className="flex items-center gap-3">
-          <Button id="camera-transmission-save" type="submit" size="sm" disabled={saving}>
-            {saving ? 'Aplicando...' : 'Aplicar'}
-          </Button>
+          <ApplyButton id="camera-transmission-save" saving={saving} />
           {saved && <span className="text-xs text-green-400">Salvo</span>}
         </div>
       </form>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { authHeaders } from '../../auth'
-import { Button } from '@/components/ui/button'
+import { ApplyButton } from '@/components/ui/apply-button'
 import { TelegramIcon } from '@/components/TelegramIcon'
 import { Check } from '@/components/Icons'
 import ExtensionCard from '@/components/ExtensionCard'
@@ -84,14 +84,15 @@ export default function TelegramExtensionCard() {
         description="Você receberá notificações e avisos no Telegram."
       />
       <div className="flex justify-end">
-        <Button
+        <ApplyButton
           id="telegram-apply"
+          saving={saving}
+          disabled={activeStaged === savedActive}
+          size="default"
+          type="button"
           onClick={handleApply}
-          disabled={saving || activeStaged === savedActive}
-        >
-          <Check className="h-4 w-4" />
-          {saving ? 'Aplicando...' : 'Aplicar'}
-        </Button>
+          icon={<Check className="h-4 w-4" />}
+        />
       </div>
     </ExtensionCard>
   )

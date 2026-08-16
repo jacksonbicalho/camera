@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { authHeaders } from '../../auth'
 import { Button } from '@/components/ui/button'
+import { ApplyButton } from '@/components/ui/apply-button'
 import { HardDrive, Check, Settings } from '@/components/Icons'
 import ExtensionCard from '@/components/ExtensionCard'
 import ExtensionActiveToggle from '@/components/ExtensionActiveToggle'
@@ -340,14 +341,15 @@ export default function S3ExtensionCard() {
               Configurar
             </Button>
           )}
-          <Button
+          <ApplyButton
             id="s3-config-apply"
+            saving={saving}
+            disabled={invalidToActivate || !hasChanges}
+            size="default"
+            type="button"
             onClick={handleApply}
-            disabled={saving || invalidToActivate || !hasChanges}
-          >
-            <Check className="h-4 w-4" />
-            {saving ? 'Aplicando...' : 'Aplicar'}
-          </Button>
+            icon={<Check className="h-4 w-4" />}
+          />
         </div>
       </div>
 

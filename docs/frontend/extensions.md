@@ -17,13 +17,13 @@ sub-rota nenhuma.
   aparece SEMPRE, mesmo com `available=false` — só o conteúdo específico da
   extensão (`children`) é gated.
 - `components/ExtensionActiveToggle.tsx` — controle "Ativado" compartilhado:
-  toggle switch (`<button role="switch" aria-checked>`, trilho+bolinha,
-  mesmo padrão de `#history-continuous-toggle` em `HistoryPage`, ver
-  [player.md](player.md)) + label/descrição, com um selo somente-leitura
-  (`Badge` compartilhado, `variant="success"|"neutral"`) ao lado mostrando
-  `savedActive` — o valor JÁ CONFIRMADO no servidor, distinto do `checked`
-  staged que o toggle controla. Os dois podem divergir entre o usuário mexer
-  no toggle e clicar "Aplicar".
+  monta o primitivo `Switch` (`components/ui/switch.tsx`, trilho+bolinha,
+  mesmo componente usado por `#history-continuous-toggle` em `HistoryPage`
+  — ver [design-system.md](design-system.md)) + label/descrição, com um
+  selo somente-leitura (`Badge` compartilhado, `variant="success"|"neutral"`)
+  ao lado mostrando `savedActive` — o valor JÁ CONFIRMADO no servidor,
+  distinto do `checked` staged que o toggle controla. Os dois podem divergir
+  entre o usuário mexer no toggle e clicar "Aplicar".
 - `pages/settings/TelegramExtensionCard.tsx` — fetch/PUT via
   `GET /api/settings/extensions` (lista completa, filtra por `id`) e
   `PUT /api/settings/extensions/telegram`. Estado `savedActive` (inicializado
@@ -72,4 +72,4 @@ sub-rota nenhuma.
 
 ## Ver também
 - [shell-layout.md](shell-layout.md) — `PreferencesLayout`
-- [design-system.md](design-system.md) — `Badge` compartilhado, tokens do toggle
+- [design-system.md](design-system.md) — `Badge`/`Switch`/`ApplyButton` compartilhados

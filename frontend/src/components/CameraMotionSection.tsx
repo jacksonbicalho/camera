@@ -2,6 +2,7 @@ import { useState } from 'react'
 import MotionScoreChart from './MotionScoreChart'
 import { MotionTelegramNotify } from './CameraMotionTelegramNotify'
 import { Button } from '@/components/ui/button'
+import { ApplyButton } from '@/components/ui/apply-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authHeaders } from '../auth'
@@ -560,9 +561,7 @@ export function MotionFormContent({ cam, id, peak, reload }: MotionFormContentPr
         )}
 
         <div className="flex items-center gap-3">
-          <Button id="motion-save" type="submit" size="sm" disabled={saving}>
-            {saving ? 'Aplicando...' : 'Aplicar'}
-          </Button>
+          <ApplyButton id="motion-save" saving={saving} />
           {saved && <span className="text-xs text-green-400">Salvo</span>}
         </div>
       </form>

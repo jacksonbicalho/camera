@@ -7,6 +7,7 @@ import CameraStageHeader from '../components/CameraStageHeader'
 import DatePicker from '../components/DatePicker'
 import { ChevronDown, Loader2, Play } from '../components/Icons'
 import VideoPlayer, { type VideoPlayerSegment } from '../components/VideoPlayer'
+import { Switch } from '../components/ui/switch'
 import HistoryTimeline from '../components/HistoryTimeline'
 import TimeRangeFilterPanel from '../components/TimeRangeFilterPanel'
 import {
@@ -867,32 +868,13 @@ export default function HistoryPage() {
                   onSegmentChange={handleSegmentChange}
                   footerExtra={
                     <>
-                      <button
+                      <Switch
                         id="history-continuous-toggle"
-                        type="button"
-                        role="switch"
-                        onClick={toggleContinuous}
+                        checked={continuousRecordings != null}
+                        onChange={toggleContinuous}
                         disabled={recordings.length === 0}
-                        aria-checked={continuousRecordings != null}
-                        className="flex items-center gap-1.5 disabled:opacity-40"
+                        icon={<Play className="ml-0.5 h-3 w-3" />}
                       >
-                        <span
-                          className={`inline-flex h-5 w-14 shrink-0 items-center rounded-full border-2 transition-colors ${
-                            continuousRecordings != null
-                              ? 'justify-end border-primary'
-                              : 'justify-start border-faint'
-                          }`}
-                        >
-                          <span
-                            className={`-my-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 bg-background transition-colors ${
-                              continuousRecordings != null
-                                ? 'border-primary text-primary'
-                                : 'border-faint text-faint'
-                            }`}
-                          >
-                            <Play className="ml-0.5 h-3 w-3" />
-                          </span>
-                        </span>
                         <span
                           className={`whitespace-nowrap text-caption font-medium transition-colors ${
                             continuousRecordings != null ? 'text-primary' : 'text-faint'
@@ -900,7 +882,7 @@ export default function HistoryPage() {
                         >
                           Reprodução contínua
                         </span>
-                      </button>
+                      </Switch>
                       {/* Divisor explícito (não `divide-x`) — o reset de borda do <button> zera
                       `border-left-width` do utilitário `divide-x`, então ele não aparecia. */}
                       <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
