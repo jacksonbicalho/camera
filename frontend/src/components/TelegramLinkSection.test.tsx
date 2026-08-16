@@ -13,6 +13,9 @@ function mockFetch(opts: {
   linkUrl?: string
   linkStatus?: number
   unlinkStatus?: number
+  telegramUsername?: string
+  telegramFirstName?: string
+  telegramBotUsername?: string
 }) {
   vi.stubGlobal(
     'fetch',
@@ -20,7 +23,14 @@ function mockFetch(opts: {
       const u = String(url)
       if (u === '/api/me/preferences' && (!init || init.method === undefined)) {
         return new Response(
-          JSON.stringify({ theme: 'dark', accent: 'default', telegram_linked: opts.linked }),
+          JSON.stringify({
+            theme: 'dark',
+            accent: 'default',
+            telegram_linked: opts.linked,
+            telegram_username: opts.telegramUsername ?? '',
+            telegram_first_name: opts.telegramFirstName ?? '',
+            telegram_bot_username: opts.telegramBotUsername ?? '',
+          }),
           { status: 200 },
         )
       }
@@ -114,5 +124,63 @@ describe('CA7: TelegramLinkSection mostra o botão certo por estado e dispara a 
 
     await screen.findByRole('alert')
     expect(screen.getByRole('button', { name: /desvincular/i })).toBeTruthy()
+  })
+})
+
+describe('CA3: vinculado, mostra os dados do chat vinculado e um link "Abrir chat"', () => {
+  it('mostra nome + @username, e o link "Abrir chat" aponta pro @username do bot', async () => {
+    mockFetch({
+      linked: true,
+      telegramFirstName: 'Jane',
+      telegramUsername: 'janedoe',
+      telegramBotUsername: 'os_camera_bot',
+    })
+    render(<TelegramLinkSection />)
+
+    await screen.findByRole('button', { name: /desvincular/i })
+    expect(screen.getByText('Jane (@janedoe)')).toBeTruthy()
+
+    const openChat = screen.getByRole('link', { name: /abrir chat/i })
+    expect(openChat.getAttribute('href')).toBe('https://t.me/os_camera_bot')
+  })
+
+  it('só com first_name (sem username público), mostra só o nome', async () => {
+    mockFetch({ linked: true, telegramFirstName: 'Jane', telegramBotUsername: 'os_camera_bot' })
+    render(<TelegramLinkSection />)
+
+    await screen.findByRole('button', { name: /desvincular/i })
+    expect(screen.getByText('Jane')).toBeTruthy()
+  })
+
+  it('só com username (sem first_name), mostra "@username"', async () => {
+    mockFetch({ linked: true, telegramUsername: 'janedoe', telegramBotUsername: 'os_camera_bot' })
+    render(<TelegramLinkSection />)
+
+    await screen.findByRole('button', { name: /desvincular/i })
+    expect(screen.getByText('@janedoe')).toBeTruthy()
+  })
+
+  it('sem first_name nem username (vínculo antigo, anterior a esses campos), cai no texto genérico "Conta vinculada"', async () => {
+    mockFetch({ linked: true, telegramBotUsername: 'os_camera_bot' })
+    render(<TelegramLinkSection />)
+
+    await screen.findByRole('button', { name: /desvincular/i })
+    expect(screen.getByText('Conta vinculada')).toBeTruthy()
+  })
+
+  it('sem telegram_bot_username, não mostra o link "Abrir chat"', async () => {
+    mockFetch({ linked: true, telegramFirstName: 'Jane' })
+    render(<TelegramLinkSection />)
+
+    await screen.findByRole('button', { name: /desvincular/i })
+    expect(screen.queryByRole('link', { name: /abrir chat/i })).toBeNull()
+  })
+
+  it('não vinculado, não mostra dados de chat nem link "Abrir chat"', async () => {
+    mockFetch({ linked: false, telegramBotUsername: 'os_camera_bot' })
+    render(<TelegramLinkSection />)
+
+    await screen.findByRole('button', { name: /^vincular$/i })
+    expect(screen.queryByRole('link', { name: /abrir chat/i })).toBeNull()
   })
 })

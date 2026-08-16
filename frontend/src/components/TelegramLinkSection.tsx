@@ -23,6 +23,19 @@ import ExtensionCard from '@/components/ExtensionCard'
 // persiste o chat_id. Esta página não sabe QUANDO isso acontece (não há
 // polling/websocket aqui) — o usuário recarrega a página (ou navega de
 // volta) depois de vincular no Telegram pra ver o estado atualizado.
+
+// telegramDisplayName picks the best available label for the linked
+// Telegram account: "First (@username)" > "First" > "@username" >
+// generic fallback — first_name/username can each independently be empty
+// (Telegram allows accounts without a public @handle; a link made before
+// T2 captured this data has neither).
+function telegramDisplayName(firstName: string, username: string): string {
+  if (firstName && username) return `${firstName} (@${username})`
+  if (firstName) return firstName
+  if (username) return `@${username}`
+  return 'Conta vinculada'
+}
+
 export default function TelegramLinkSection() {
   const [linked, setLinked] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -30,6 +43,9 @@ export default function TelegramLinkSection() {
   const [unlinking, setUnlinking] = useState(false)
   const [error, setError] = useState('')
   const [pendingUrl, setPendingUrl] = useState('')
+  const [telegramUsername, setTelegramUsername] = useState('')
+  const [telegramFirstName, setTelegramFirstName] = useState('')
+  const [telegramBotUsername, setTelegramBotUsername] = useState('')
 
   useEffect(() => {
     fetch('/api/me/preferences', { headers: authHeaders() })
@@ -40,9 +56,22 @@ export default function TelegramLinkSection() {
         }
         return r.ok ? r.json() : null
       })
-      .then((prefs: { telegram_linked?: boolean } | null) => {
-        if (prefs) setLinked(prefs.telegram_linked ?? false)
-      })
+      .then(
+        (
+          prefs: {
+            telegram_linked?: boolean
+            telegram_username?: string
+            telegram_first_name?: string
+            telegram_bot_username?: string
+          } | null,
+        ) => {
+          if (!prefs) return
+          setLinked(prefs.telegram_linked ?? false)
+          setTelegramUsername(prefs.telegram_username ?? '')
+          setTelegramFirstName(prefs.telegram_first_name ?? '')
+          setTelegramBotUsername(prefs.telegram_bot_username ?? '')
+        },
+      )
       .catch(() => {})
       .finally(() => setLoaded(true))
   }, [])
@@ -112,9 +141,28 @@ export default function TelegramLinkSection() {
       available
     >
       {linked ? (
-        <Button id="telegram-unlink" onClick={handleUnlink} disabled={unlinking}>
-          {unlinking ? 'Desvinculando...' : 'Desvincular'}
-        </Button>
+        <>
+          <p className="text-sm text-foreground mb-2">
+            {/* span isolado — getByText não casa texto quebrado por um <a> irmão dentro do mesmo <p> */}
+            <span>{telegramDisplayName(telegramFirstName, telegramUsername)}</span>
+            {telegramBotUsername && (
+              <>
+                {' · '}
+                <a
+                  href={`https://t.me/${telegramBotUsername}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
+                  Abrir chat
+                </a>
+              </>
+            )}
+          </p>
+          <Button id="telegram-unlink" onClick={handleUnlink} disabled={unlinking}>
+            {unlinking ? 'Desvinculando...' : 'Desvincular'}
+          </Button>
+        </>
       ) : (
         <Button id="telegram-link" onClick={handleLink} disabled={linking}>
           {linking ? 'Abrindo...' : 'Vincular'}
