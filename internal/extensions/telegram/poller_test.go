@@ -67,6 +67,15 @@ func (f *fakeResolver) ClearLinkCode(userID int64) error {
 	return nil
 }
 
+type fakePush struct {
+	pushedUserID int64
+	pushed       bool
+}
+
+func (f *fakePush) Push(userID int64) {
+	f.pushedUserID, f.pushed = userID, true
+}
+
 func TestPollerHandleUpdate(t *testing.T) {
 	t.Run("CA6: código válido persiste o chat_id e envia a mensagem de confirmação pro chat certo", func(t *testing.T) {
 		var gotChatID, gotText string
@@ -80,7 +89,7 @@ func TestPollerHandleUpdate(t *testing.T) {
 		defer telegram.StubAPIBase(server.URL)()
 
 		resolver := &fakeResolver{resolvedUserID: 42, resolvedOK: true}
-		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver)
+		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver, nil)
 
 		u := telegram.Update{Message: telegram.Message{
 			Chat: telegram.Chat{ID: 999},
@@ -109,7 +118,7 @@ func TestPollerHandleUpdate(t *testing.T) {
 		defer telegram.StubAPIBase(server.URL)()
 
 		resolver := &fakeResolver{resolvedUserID: 42, resolvedOK: true}
-		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver)
+		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver, nil)
 
 		u := telegram.Update{Message: telegram.Message{
 			Chat: telegram.Chat{ID: 999},
@@ -133,7 +142,7 @@ func TestPollerHandleUpdate(t *testing.T) {
 		defer telegram.StubAPIBase(server.URL)()
 
 		resolver := &fakeResolver{resolvedUserID: 42, resolvedOK: true}
-		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver)
+		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver, nil)
 
 		u := telegram.Update{Message: telegram.Message{Chat: telegram.Chat{ID: 999}, Text: "/start good-code"}}
 		if err := p.HandleUpdate(u); err != nil {
@@ -158,7 +167,7 @@ func TestPollerHandleUpdate(t *testing.T) {
 		defer telegram.StubAPIBase(server.URL)()
 
 		resolver := &fakeResolver{resolvedOK: false}
-		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver)
+		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver, nil)
 
 		u := telegram.Update{Message: telegram.Message{Chat: telegram.Chat{ID: 111}, Text: "/start bad-code"}}
 		if err := p.HandleUpdate(u); err != nil {
@@ -169,6 +178,62 @@ func TestPollerHandleUpdate(t *testing.T) {
 		}
 		if called {
 			t.Error("expected no message sent for an unresolved code")
+		}
+	})
+
+	t.Run("CA4: vínculo bem-sucedido chama Push(userID) no LivePush", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+		defer telegram.StubAPIBase(server.URL)()
+
+		resolver := &fakeResolver{resolvedUserID: 42, resolvedOK: true}
+		push := &fakePush{}
+		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver, push)
+
+		u := telegram.Update{Message: telegram.Message{Chat: telegram.Chat{ID: 999}, Text: "/start good-code"}}
+		if err := p.HandleUpdate(u); err != nil {
+			t.Fatalf("HandleUpdate: %v", err)
+		}
+		if !push.pushed || push.pushedUserID != 42 {
+			t.Errorf("expected Push(42) after a successful link, got pushed=%v userID=%d", push.pushed, push.pushedUserID)
+		}
+	})
+
+	t.Run("CA4: código desconhecido/expirado NÃO chama Push", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+		defer telegram.StubAPIBase(server.URL)()
+
+		resolver := &fakeResolver{resolvedOK: false}
+		push := &fakePush{}
+		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver, push)
+
+		u := telegram.Update{Message: telegram.Message{Chat: telegram.Chat{ID: 111}, Text: "/start bad-code"}}
+		if err := p.HandleUpdate(u); err != nil {
+			t.Fatalf("HandleUpdate: %v", err)
+		}
+		if push.pushed {
+			t.Error("expected no Push for an unresolved code")
+		}
+	})
+
+	t.Run("CA4: push nil não quebra (uso opcional)", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+		defer telegram.StubAPIBase(server.URL)()
+
+		resolver := &fakeResolver{resolvedUserID: 42, resolvedOK: true}
+		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver, nil)
+
+		u := telegram.Update{Message: telegram.Message{Chat: telegram.Chat{ID: 999}, Text: "/start good-code"}}
+		if err := p.HandleUpdate(u); err != nil {
+			t.Fatalf("HandleUpdate with nil push: %v", err)
 		}
 	})
 }
@@ -271,7 +336,7 @@ func TestPollerRun(t *testing.T) {
 		defer telegram.StubAPIBase(server.URL)()
 
 		resolver := &flakyResolver{fakeResolver: &fakeResolver{resolvedUserID: 7, resolvedOK: true}}
-		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver)
+		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver, nil)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { authHeaders, onUnauthorized } from '../auth'
 import { Button } from '@/components/ui/button'
 import { TelegramIcon } from '@/components/TelegramIcon'
 import ExtensionCard from '@/components/ExtensionCard'
+import { useEventSource } from '@/hooks/useEventSource'
 
 // TelegramLinkSection — vínculo da conta Telegram do usuário logado
 // (história feat/telegram-vinculo-conta, T4). Preferência PESSOAL (mesmo
@@ -19,10 +20,12 @@ import ExtensionCard from '@/components/ExtensionCard'
 // Vincular: POST /api/me/telegram/link gera um código de uso único e
 // devolve a URL do deep-link (t.me/<bot>?start=<código>) — abrir essa URL
 // faz o app do Telegram mandar "/start <código>" pro bot automaticamente;
-// o poller (T3, backend) resolve o código de volta pra este usuário e
-// persiste o chat_id. Esta página não sabe QUANDO isso acontece (não há
-// polling/websocket aqui) — o usuário recarrega a página (ou navega de
-// volta) depois de vincular no Telegram pra ver o estado atualizado.
+// o poller resolve o código de volta pra este usuário e persiste o
+// chat_id. Vínculo concluído sem reload manual (história
+// feat/telegram-link-card-dados-chat-live-update, T4): o poller chama
+// Push(userID) no MESMO canal SSE que o sino de notificações já usa
+// (GET /api/notifications/live, não é camera-scoped) — esta seção assina
+// esse canal e reaplica loadPreferences a cada evento.
 
 // telegramDisplayName picks the best available label for the linked
 // Telegram account: "First (@username)" > "First" > "@username" >
@@ -47,7 +50,7 @@ export default function TelegramLinkSection() {
   const [telegramFirstName, setTelegramFirstName] = useState('')
   const [telegramBotUsername, setTelegramBotUsername] = useState('')
 
-  useEffect(() => {
+  const loadPreferences = useCallback(() => {
     fetch('/api/me/preferences', { headers: authHeaders() })
       .then((r) => {
         if (r.status === 401) {
@@ -75,6 +78,15 @@ export default function TelegramLinkSection() {
       .catch(() => {})
       .finally(() => setLoaded(true))
   }, [])
+
+  useEffect(() => {
+    loadPreferences()
+  }, [loadPreferences])
+
+  // Re-busca as preferências a cada evento no canal SSE por usuário — o
+  // mesmo sinal genérico "algo mudou, re-busque" que o sino de
+  // notificações já usa, sem precisar diferenciar tipo de evento.
+  useEventSource('/api/notifications/live', loadPreferences)
 
   function handleLink() {
     setLinking(true)

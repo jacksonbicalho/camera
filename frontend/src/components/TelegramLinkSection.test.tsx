@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import TelegramLinkSection from './TelegramLinkSection'
 
 vi.mock('../auth', () => ({
@@ -7,6 +7,20 @@ vi.mock('../auth', () => ({
   getToken: () => 'fake',
   onUnauthorized: vi.fn(),
 }))
+
+// FakeEventSource — mesmo padrão de UserNotificationContext.test.tsx: stub
+// mínimo só com o que useEventSource usa (onmessage/close), guardando as
+// instâncias criadas pra o teste disparar onmessage manualmente.
+class FakeEventSource {
+  static instances: FakeEventSource[] = []
+  onmessage: ((e: { data: string }) => void) | null = null
+  url: string
+  constructor(url: string) {
+    this.url = url
+    FakeEventSource.instances.push(this)
+  }
+  close() {}
+}
 
 function mockFetch(opts: {
   linked: boolean
@@ -17,6 +31,8 @@ function mockFetch(opts: {
   telegramFirstName?: string
   telegramBotUsername?: string
 }) {
+  FakeEventSource.instances = []
+  vi.stubGlobal('EventSource', FakeEventSource as unknown as typeof EventSource)
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown, init?: RequestInit) => {
@@ -182,5 +198,36 @@ describe('CA3: vinculado, mostra os dados do chat vinculado e um link "Abrir cha
 
     await screen.findByRole('button', { name: /^vincular$/i })
     expect(screen.queryByRole('link', { name: /abrir chat/i })).toBeNull()
+  })
+})
+
+describe('CA4: atualiza sem reload quando o vínculo é concluído em outra aba', () => {
+  it('abre EventSource em /api/notifications/live, e um evento recebido reflete o vínculo sem reload', async () => {
+    const opts: {
+      linked: boolean
+      telegramFirstName?: string
+      telegramBotUsername?: string
+    } = { linked: false }
+    mockFetch(opts)
+    render(<TelegramLinkSection />)
+
+    await screen.findByRole('button', { name: /^vincular$/i })
+    expect(screen.queryByRole('button', { name: /desvincular/i })).toBeNull()
+
+    await waitFor(() => expect(FakeEventSource.instances.length).toBe(1))
+    expect(FakeEventSource.instances[0].url).toContain('/api/notifications/live')
+
+    // Simula o poller concluindo o vínculo em outra aba (Telegram) e
+    // empurrando via SSE — a próxima resposta de /api/me/preferences já
+    // reflete o novo estado.
+    opts.linked = true
+    opts.telegramFirstName = 'Jane'
+    opts.telegramBotUsername = 'os_camera_bot'
+    act(() => {
+      FakeEventSource.instances[0].onmessage?.({ data: '{"type":"notification"}' })
+    })
+
+    await screen.findByRole('button', { name: /desvincular/i })
+    expect(screen.getByText('Jane')).toBeTruthy()
   })
 })

@@ -1,7 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import ProfilePage from './ProfilePage'
+
+// ProfilePage renders TelegramLinkSection for real (not mocked out), which
+// opens an EventSource (useEventSource) — happy-dom doesn't provide one, so
+// a no-op stub is needed even though no test here exercises SSE behavior.
+class NoopEventSource {
+  onmessage: ((e: { data: string }) => void) | null = null
+  close() {}
+}
+
+beforeEach(() => {
+  vi.stubGlobal('EventSource', NoopEventSource as unknown as typeof EventSource)
+})
 
 afterEach(() => {
   cleanup()
@@ -10,6 +22,7 @@ afterEach(() => {
 
 vi.mock('../auth', () => ({
   authHeaders: () => ({}),
+  getToken: () => 'fake',
   onUnauthorized: vi.fn(),
 }))
 

@@ -119,17 +119,29 @@ type LinkResolver interface {
 	ClearLinkCode(userID int64) error
 }
 
+// LivePush notifies a specific logged-in user's browser that something
+// changed for them — satisfied structurally by *server.Server (the same
+// SSE fan-out, GET /api/notifications/live, that already drives the
+// notification bell; see internal/notifications/application for the other
+// consumer of this exact interface shape). Passing nil to NewPoller is
+// fine — HandleUpdate just skips the push (e.g. tests that don't care).
+type LivePush interface {
+	Push(userID int64)
+}
+
 // Poller drives the account-linking flow: HandleUpdate processes one
 // incoming Update, and a caller (main.go, T3) loops GetUpdates → HandleUpdate
 // with backoff, mirroring recorder.Run(ctx, reconnect).
 type Poller struct {
 	client   *Client
 	resolver LinkResolver
+	push     LivePush
 }
 
-// NewPoller builds a Poller for the given Client/LinkResolver.
-func NewPoller(client *Client, resolver LinkResolver) *Poller {
-	return &Poller{client: client, resolver: resolver}
+// NewPoller builds a Poller for the given Client/LinkResolver/LivePush (push
+// may be nil — see LivePush).
+func NewPoller(client *Client, resolver LinkResolver, push LivePush) *Poller {
+	return &Poller{client: client, resolver: resolver, push: push}
 }
 
 // HandleUpdate processes one Update: a valid "/start <code>" resolves the
@@ -156,6 +168,12 @@ func (p *Poller) HandleUpdate(u Update) error {
 	// can't be replayed from a different chat before it would've expired.
 	if err := p.resolver.ClearLinkCode(userID); err != nil {
 		return err
+	}
+	// Tell the user's open browser tab (if any) that the link just
+	// completed — T4 of feat/telegram-link-card-dados-chat-live-update:
+	// without this, TelegramLinkSection only found out on a manual reload.
+	if p.push != nil {
+		p.push.Push(userID)
 	}
 	return p.client.SendMessage(chatID, "Conta vinculada! Você vai receber notificações por aqui.")
 }
