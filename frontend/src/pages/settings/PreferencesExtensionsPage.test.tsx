@@ -37,6 +37,14 @@ function mockFetch() {
               available: true,
               active: false,
             },
+            {
+              id: 'face-detector',
+              name: 'Face Detector',
+              category: 'Análise',
+              description: 'Detecta rostos nas gravações da câmera.',
+              available: true,
+              active: false,
+            },
           ]),
           { status: 200 },
         )
@@ -73,5 +81,37 @@ describe('CA4/CA5: PreferencesExtensionsPage mostra o conteúdo de Telegram e S3
     expect(document.getElementById('preferences-nav-extensions')).toBeTruthy()
     expect(document.getElementById('preferences-nav-appearance')).toBeTruthy()
     expect(document.getElementById('preferences-nav-storage')).toBeTruthy()
+  })
+})
+
+describe('CA4: PreferencesExtensionsPage renderiza o card Face Detector junto com Telegram/S3', () => {
+  it('mostra o card Face Detector na página', async () => {
+    mockFetch()
+    render(
+      <MemoryRouter>
+        <PreferencesExtensionsPage />
+      </MemoryRouter>,
+    )
+
+    await screen.findByText('Face Detector')
+    expect(screen.queryByText('Extensão não permitida nesta instância.')).toBeNull()
+  })
+
+  it('os cards ficam lado a lado (wrapper usa grid, não empilhado em coluna)', async () => {
+    mockFetch()
+    render(
+      <MemoryRouter>
+        <PreferencesExtensionsPage />
+      </MemoryRouter>,
+    )
+
+    await screen.findByText('Telegram')
+    const wrapper = document.getElementById('telegram-extension-card')?.parentElement
+    expect(wrapper?.className).toContain('grid')
+    expect(wrapper?.className).toMatch(/grid-cols-/)
+    // items-stretch explícito (não deixado no default implícito) — é o que
+    // faz um card mais curto (ex.: extensão indisponível) igualar a altura
+    // dos vizinhos na mesma linha do grid.
+    expect(wrapper?.className).toContain('items-stretch')
   })
 })
