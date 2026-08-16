@@ -206,6 +206,92 @@ func TestPreferences_TelegramActiveReflectsExtensionState(t *testing.T) {
 	})
 }
 
+func TestPreferences_TelegramChatInfo(t *testing.T) {
+	t.Run("CA2: telegram_username/telegram_first_name vêm vazios antes de vincular", func(t *testing.T) {
+		srv, token := themeServer(t)
+		req := httptest.NewRequest(http.MethodGet, "/api/me/preferences", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var r struct {
+			TelegramUsername  string `json:"telegram_username"`
+			TelegramFirstName string `json:"telegram_first_name"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if r.TelegramUsername != "" || r.TelegramFirstName != "" {
+			t.Errorf("expected empty telegram_username/telegram_first_name before linking, got username=%q first_name=%q",
+				r.TelegramUsername, r.TelegramFirstName)
+		}
+	})
+
+	t.Run("CA2: telegram_username/telegram_first_name refletem o que foi persistido pelo poller (SetUserTelegramChatInfo)", func(t *testing.T) {
+		database := openServerTestDB(t)
+		uid, err := db.CreateUser(database, "u2", "pw", "viewer", false)
+		if err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
+		token := loginAndGetToken(t, srv, "u2", "pw")
+
+		if err := db.SetUserTelegramChatInfo(database, uid, "999", "janedoe", "Jane", "Doe"); err != nil {
+			t.Fatalf("SetUserTelegramChatInfo: %v", err)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/api/me/preferences", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var r struct {
+			TelegramLinked    bool   `json:"telegram_linked"`
+			TelegramUsername  string `json:"telegram_username"`
+			TelegramFirstName string `json:"telegram_first_name"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if !r.TelegramLinked || r.TelegramUsername != "janedoe" || r.TelegramFirstName != "Jane" {
+			t.Errorf("expected linked=true username=janedoe first_name=Jane, got linked=%v username=%q first_name=%q",
+				r.TelegramLinked, r.TelegramUsername, r.TelegramFirstName)
+		}
+	})
+
+	t.Run("CA2: telegram_bot_username reflete o @username do bot quando a extensão está configurada", func(t *testing.T) {
+		srv, token := telegramServer(t, "os_camera_bot")
+		req := httptest.NewRequest(http.MethodGet, "/api/me/preferences", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var r struct {
+			TelegramBotUsername string `json:"telegram_bot_username"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if r.TelegramBotUsername != "os_camera_bot" {
+			t.Errorf("expected telegram_bot_username='os_camera_bot', got %q", r.TelegramBotUsername)
+		}
+	})
+
+	t.Run("CA2: telegram_bot_username fica vazio quando a extensão não está configurada", func(t *testing.T) {
+		srv, token := themeServer(t)
+		req := httptest.NewRequest(http.MethodGet, "/api/me/preferences", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var r struct {
+			TelegramBotUsername string `json:"telegram_bot_username"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if r.TelegramBotUsername != "" {
+			t.Errorf("expected empty telegram_bot_username without the extension configured, got %q", r.TelegramBotUsername)
+		}
+	})
+}
+
 func TestPreferences_SetThemeDoesNotClobberAccent(t *testing.T) {
 	srv, token := themeServer(t)
 	if code := putAccent(t, srv, token, "amber"); code != http.StatusNoContent && code != http.StatusOK {

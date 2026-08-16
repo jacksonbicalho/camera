@@ -486,7 +486,7 @@ func main() {
 		// this instance typically runs self-hosted behind NAT, without a
 		// guaranteed public HTTPS endpoint.
 		if database != nil && telegramClient != nil {
-			poller := telegram.NewPoller(telegramClient, telegramLinkResolver{database})
+			poller := telegram.NewPoller(telegramClient, telegramLinkResolver{database}, srv)
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -690,8 +690,8 @@ func (r telegramLinkResolver) ResolveLinkCode(code string) (int64, bool) {
 	return userID, true
 }
 
-func (r telegramLinkResolver) SetChatID(userID int64, chatID string) error {
-	return db.SetUserTelegramChatID(r.db, userID, chatID)
+func (r telegramLinkResolver) SetChatInfo(userID int64, chatID, username, firstName, lastName string) error {
+	return db.SetUserTelegramChatInfo(r.db, userID, chatID, username, firstName, lastName)
 }
 
 func (r telegramLinkResolver) ClearLinkCode(userID int64) error {

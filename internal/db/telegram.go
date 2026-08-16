@@ -11,8 +11,11 @@ import (
 // (internal/db/passwordreset.go): ephemeral/small per-user values reuse the
 // generic user_settings KV table — no dedicated migration.
 const (
-	telegramLinkCodeKey = "telegram_link_code"
-	telegramChatIDKey   = "telegram_chat_id"
+	telegramLinkCodeKey  = "telegram_link_code"
+	telegramChatIDKey    = "telegram_chat_id"
+	telegramUsernameKey  = "telegram_username"
+	telegramFirstNameKey = "telegram_first_name"
+	telegramLastNameKey  = "telegram_last_name"
 )
 
 // SetTelegramLinkCode persists a Telegram account-linking code with its
@@ -80,13 +83,51 @@ func GetUserTelegramChatID(db *DB, userID int64) (string, error) {
 	return getUserSetting(db, userID, telegramChatIDKey, "")
 }
 
-// SetUserTelegramChatID persists the user's linked Telegram chat_id.
-func SetUserTelegramChatID(db *DB, userID int64, chatID string) error {
-	return setUserSetting(db, userID, telegramChatIDKey, chatID)
+// GetUserTelegramChatInfo returns the user's linked Telegram chat_id plus
+// the identity captured at link time (username/first_name/last_name — any
+// or all may be "", either because the account has none set, or because
+// the link predates this field existing). All four are "" when not linked.
+func GetUserTelegramChatInfo(db *DB, userID int64) (chatID, username, firstName, lastName string, err error) {
+	if chatID, err = getUserSetting(db, userID, telegramChatIDKey, ""); err != nil {
+		return "", "", "", "", err
+	}
+	if username, err = getUserSetting(db, userID, telegramUsernameKey, ""); err != nil {
+		return "", "", "", "", err
+	}
+	if firstName, err = getUserSetting(db, userID, telegramFirstNameKey, ""); err != nil {
+		return "", "", "", "", err
+	}
+	if lastName, err = getUserSetting(db, userID, telegramLastNameKey, ""); err != nil {
+		return "", "", "", "", err
+	}
+	return chatID, username, firstName, lastName, nil
 }
 
-// ClearUserTelegramChatID unlinks the user's Telegram account.
+// SetUserTelegramChatInfo persists the user's linked Telegram chat_id and
+// identity together — replaces SetUserTelegramChatID (feat/telegram-link-card-dados-chat-live-update,
+// T2), since a successful link always carries all of it at once (the
+// poller reads them off the same Message.From).
+func SetUserTelegramChatInfo(db *DB, userID int64, chatID, username, firstName, lastName string) error {
+	if err := setUserSetting(db, userID, telegramChatIDKey, chatID); err != nil {
+		return err
+	}
+	if err := setUserSetting(db, userID, telegramUsernameKey, username); err != nil {
+		return err
+	}
+	if err := setUserSetting(db, userID, telegramFirstNameKey, firstName); err != nil {
+		return err
+	}
+	return setUserSetting(db, userID, telegramLastNameKey, lastName)
+}
+
+// ClearUserTelegramChatID unlinks the user's Telegram account — clears the
+// chat_id AND the identity fields set alongside it (SetUserTelegramChatInfo),
+// so a future re-link with a different Telegram account never shows stale
+// name/username from the previous one before the new SetChatInfo call lands.
 func ClearUserTelegramChatID(db *DB, userID int64) error {
-	_, err := db.Exec(`DELETE FROM user_settings WHERE user_id=? AND key=?`, userID, telegramChatIDKey)
+	_, err := db.Exec(
+		`DELETE FROM user_settings WHERE user_id=? AND key IN (?, ?, ?, ?)`,
+		userID, telegramChatIDKey, telegramUsernameKey, telegramFirstNameKey, telegramLastNameKey,
+	)
 	return err
 }

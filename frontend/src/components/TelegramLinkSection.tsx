@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { authHeaders, onUnauthorized } from '../auth'
 import { Button } from '@/components/ui/button'
 import { TelegramIcon } from '@/components/TelegramIcon'
+import ExtensionCard from '@/components/ExtensionCard'
+import { useEventSource } from '@/hooks/useEventSource'
 
 // TelegramLinkSection — vínculo da conta Telegram do usuário logado
 // (história feat/telegram-vinculo-conta, T4). Preferência PESSOAL (mesmo
@@ -18,10 +20,25 @@ import { TelegramIcon } from '@/components/TelegramIcon'
 // Vincular: POST /api/me/telegram/link gera um código de uso único e
 // devolve a URL do deep-link (t.me/<bot>?start=<código>) — abrir essa URL
 // faz o app do Telegram mandar "/start <código>" pro bot automaticamente;
-// o poller (T3, backend) resolve o código de volta pra este usuário e
-// persiste o chat_id. Esta página não sabe QUANDO isso acontece (não há
-// polling/websocket aqui) — o usuário recarrega a página (ou navega de
-// volta) depois de vincular no Telegram pra ver o estado atualizado.
+// o poller resolve o código de volta pra este usuário e persiste o
+// chat_id. Vínculo concluído sem reload manual (história
+// feat/telegram-link-card-dados-chat-live-update, T4): o poller chama
+// Push(userID) no MESMO canal SSE que o sino de notificações já usa
+// (GET /api/notifications/live, não é camera-scoped) — esta seção assina
+// esse canal e reaplica loadPreferences a cada evento.
+
+// telegramDisplayName picks the best available label for the linked
+// Telegram account: "First (@username)" > "First" > "@username" >
+// generic fallback — first_name/username can each independently be empty
+// (Telegram allows accounts without a public @handle; a link made before
+// T2 captured this data has neither).
+function telegramDisplayName(firstName: string, username: string): string {
+  if (firstName && username) return `${firstName} (@${username})`
+  if (firstName) return firstName
+  if (username) return `@${username}`
+  return 'Conta vinculada'
+}
+
 export default function TelegramLinkSection() {
   const [linked, setLinked] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -29,8 +46,11 @@ export default function TelegramLinkSection() {
   const [unlinking, setUnlinking] = useState(false)
   const [error, setError] = useState('')
   const [pendingUrl, setPendingUrl] = useState('')
+  const [telegramUsername, setTelegramUsername] = useState('')
+  const [telegramFirstName, setTelegramFirstName] = useState('')
+  const [telegramBotUsername, setTelegramBotUsername] = useState('')
 
-  useEffect(() => {
+  const loadPreferences = useCallback(() => {
     fetch('/api/me/preferences', { headers: authHeaders() })
       .then((r) => {
         if (r.status === 401) {
@@ -39,12 +59,34 @@ export default function TelegramLinkSection() {
         }
         return r.ok ? r.json() : null
       })
-      .then((prefs: { telegram_linked?: boolean } | null) => {
-        if (prefs) setLinked(prefs.telegram_linked ?? false)
-      })
+      .then(
+        (
+          prefs: {
+            telegram_linked?: boolean
+            telegram_username?: string
+            telegram_first_name?: string
+            telegram_bot_username?: string
+          } | null,
+        ) => {
+          if (!prefs) return
+          setLinked(prefs.telegram_linked ?? false)
+          setTelegramUsername(prefs.telegram_username ?? '')
+          setTelegramFirstName(prefs.telegram_first_name ?? '')
+          setTelegramBotUsername(prefs.telegram_bot_username ?? '')
+        },
+      )
       .catch(() => {})
       .finally(() => setLoaded(true))
   }, [])
+
+  useEffect(() => {
+    loadPreferences()
+  }, [loadPreferences])
+
+  // Re-busca as preferências a cada evento no canal SSE por usuário — o
+  // mesmo sinal genérico "algo mudou, re-busque" que o sino de
+  // notificações já usa, sem precisar diferenciar tipo de evento.
+  useEventSource('/api/notifications/live', loadPreferences)
 
   function handleLink() {
     setLinking(true)
@@ -99,20 +141,40 @@ export default function TelegramLinkSection() {
   if (!loaded) return null
 
   return (
-    <div id="telegram-link-section" className="bg-surface border border-border rounded-lg p-5">
-      <p className="flex items-center gap-2 text-base font-medium text-foreground">
-        <TelegramIcon className="h-5 w-5 shrink-0" />
-        Telegram
-      </p>
-      <p className="text-xs text-muted-foreground mt-0.5 mb-4">
-        {linked
+    <ExtensionCard
+      id="telegram-link-section"
+      icon={<TelegramIcon className="relative h-16 w-16" />}
+      name="Telegram"
+      description={
+        linked
           ? 'Sua conta está vinculada — você pode receber notificações por aqui.'
-          : 'Vincule sua conta pra poder receber notificações via Telegram.'}
-      </p>
+          : 'Vincule sua conta pra poder receber notificações via Telegram.'
+      }
+      available
+    >
       {linked ? (
-        <Button id="telegram-unlink" onClick={handleUnlink} disabled={unlinking}>
-          {unlinking ? 'Desvinculando...' : 'Desvincular'}
-        </Button>
+        <>
+          <p className="text-sm text-foreground mb-2">
+            {/* span isolado — getByText não casa texto quebrado por um <a> irmão dentro do mesmo <p> */}
+            <span>{telegramDisplayName(telegramFirstName, telegramUsername)}</span>
+            {telegramBotUsername && (
+              <>
+                {' · '}
+                <a
+                  href={`https://t.me/${telegramBotUsername}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
+                  Abrir chat
+                </a>
+              </>
+            )}
+          </p>
+          <Button id="telegram-unlink" onClick={handleUnlink} disabled={unlinking}>
+            {unlinking ? 'Desvinculando...' : 'Desvincular'}
+          </Button>
+        </>
       ) : (
         <Button id="telegram-link" onClick={handleLink} disabled={linking}>
           {linking ? 'Abrindo...' : 'Vincular'}
@@ -132,6 +194,6 @@ export default function TelegramLinkSection() {
           {error}
         </p>
       )}
-    </div>
+    </ExtensionCard>
   )
 }

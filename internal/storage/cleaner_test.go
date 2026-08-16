@@ -8,6 +8,8 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -1035,6 +1037,105 @@ func TestCleanFromDB_PurgesOrphanEventAfterRecordingsDeleted(t *testing.T) {
 	database.QueryRow(`SELECT COUNT(*) FROM motion_events WHERE camera_id='cam1'`).Scan(&count)
 	if count != 0 {
 		t.Errorf("evento órfão além da retenção deveria ter sido purgado, count=%d", count)
+	}
+}
+
+// setupS3RetentionFixture cria uma câmera, um destino S3 apontado pro
+// httptest.Server dado, e uma retention_config "without_motion" ->
+// send_to_drive apontando pra esse destino. Não mexe em db.SetExtensionActive
+// — cada teste decide o valor que quer exercitar.
+func setupS3RetentionFixture(t *testing.T, database *db.DB, s3Endpoint string) {
+	t.Helper()
+	createTestCameraWithMotion(t, database, "cam1", 30, 10)
+	ext, err := db.InsertRetentionExtension(database, db.RetentionExtension{
+		Name:      "meu-s3",
+		Type:      "s3",
+		Endpoint:  s3Endpoint,
+		Bucket:    "bucket",
+		Region:    "us-east-1",
+		AccessKey: "AK",
+		SecretKey: "SK",
+	})
+	if err != nil {
+		t.Fatalf("InsertRetentionExtension: %v", err)
+	}
+	if err := db.UpdateRetentionConfig(database, db.RetentionConfig{
+		Category:             "without_motion",
+		Action:               "send_to_drive",
+		RetentionExtensionID: ext.ID,
+	}); err != nil {
+		t.Fatalf("UpdateRetentionConfig: %v", err)
+	}
+}
+
+// TestCleanFromDB_S3ExtensionDisabled_DoesNotUploadOrDelete é a regressão do
+// achado real: loadDrives() montava o drive S3 só a partir da existência da
+// config salva, ignorando db.GetExtensionActive — desativar a extensão na UI
+// não tinha efeito nenhum no Cleaner, e uploads continuavam acontecendo.
+func TestCleanFromDB_S3ExtensionDisabled_DoesNotUploadOrDelete(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+
+	var uploadCalled bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uploadCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	setupS3RetentionFixture(t, database, srv.URL)
+	if err := db.SetExtensionActive(database, "s3", false); err != nil {
+		t.Fatalf("SetExtensionActive: %v", err)
+	}
+
+	base := time.Now().UTC().Add(-120 * time.Minute).Truncate(time.Second)
+	pathA := mp4WithTimestamp(dir, "cam1", base)
+	pathB := mp4WithTimestamp(dir, "cam1", base.Add(10*time.Second))
+	writeFile(t, pathA, base)
+	writeFile(t, pathB, base.Add(10*time.Second))
+
+	storage.New(dir, 10080, 60, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if uploadCalled {
+		t.Error("esperado NENHUM upload pro S3 com a extensão desativada")
+	}
+	if _, err := os.Stat(pathA); err != nil {
+		t.Errorf("esperado pathA RETIDO (não deletado) com S3 desativado e action=send_to_drive, got: %v", err)
+	}
+}
+
+// TestCleanFromDB_S3ExtensionEnabled_UploadsAndDeletes é o controle positivo
+// do teste acima — confirma que a checagem nova (db.GetExtensionActive) não
+// quebrou o caminho normal (extensão ativa continua fazendo upload+delete).
+func TestCleanFromDB_S3ExtensionEnabled_UploadsAndDeletes(t *testing.T) {
+	dir := t.TempDir()
+	database := openTestDB(t)
+
+	var uploadCalled bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uploadCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	setupS3RetentionFixture(t, database, srv.URL)
+	if err := db.SetExtensionActive(database, "s3", true); err != nil {
+		t.Fatalf("SetExtensionActive: %v", err)
+	}
+
+	base := time.Now().UTC().Add(-120 * time.Minute).Truncate(time.Second)
+	pathA := mp4WithTimestamp(dir, "cam1", base)
+	pathB := mp4WithTimestamp(dir, "cam1", base.Add(10*time.Second))
+	writeFile(t, pathA, base)
+	writeFile(t, pathB, base.Add(10*time.Second))
+
+	storage.New(dir, 10080, 60, 5*time.Minute, 0, 0, database, discardLogger()).Clean()
+
+	if !uploadCalled {
+		t.Error("esperado um upload pro S3 com a extensão ativada")
+	}
+	if _, err := os.Stat(pathA); !os.IsNotExist(err) {
+		t.Errorf("esperado pathA deletado após upload bem-sucedido, got err=%v", err)
 	}
 }
 

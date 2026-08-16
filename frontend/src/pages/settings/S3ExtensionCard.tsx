@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { authHeaders } from '../../auth'
 import { Button } from '@/components/ui/button'
-import { HardDrive, Check } from '@/components/Icons'
+import { HardDrive, Check, Settings } from '@/components/Icons'
 import ExtensionCard from '@/components/ExtensionCard'
 import ExtensionActiveToggle from '@/components/ExtensionActiveToggle'
 
@@ -53,11 +53,41 @@ const emptyForm = () => ({
 // (novo estado, só alimenta o selo do toggle) é atualizado por `loadActive`
 // — que já roda no mount e de novo (com sucesso ou falha) ao final de
 // `handleApply` — então sempre reflete a verdade do servidor, sem lógica
-// duplicada. Diferente do Telegram (CA5 de T5, história anterior), o botão
-// "Aplicar" aqui NÃO usa `savedActive` pra decidir se habilita: a regra
-// permanece `disabled={saving || invalidToActivate}` (decisão de escopo da
-// análise desta história — "salvo" no S3 envolve toggle + até 7 campos de
-// formulário).
+// duplicada.
+//
+// Card uniforme + botão "Configurar" (história
+// fix/extension-cards-uniformes-e-ajustes-perfil, T2) — o formulário de
+// destino não é mais gated por `activeStaged` (isso fazia o card crescer
+// pra sempre depois de ativado, destoando do tamanho fixo do Telegram).
+// `configuring` (novo estado local, sempre nasce `false`) controla a
+// visibilidade do formulário — o toggle "Ativado" e `configuring` andam
+// juntos (`onChange` chama `setConfiguring(checked)` direto, nos dois
+// sentidos: ligar abre, desligar fecha — achado do navigator testando a
+// branch: manter o form aberto depois de desligar o toggle era
+// confuso). O botão "Configurar" (linha do rodapé, ao lado de "Aplicar"
+// — não perto do toggle, também pedido do navigator vendo a página
+// real) é a via independente pra reabrir uma config já ativa sem
+// precisar desligar/religar o toggle; vira "Cancelar" (mesma posição,
+// mesmo id trocado por `s3-config-cancel`) enquanto `configuring` está
+// aberto — achado do navigator vendo a página real: sem essa troca, o
+// formulário não tinha NENHUMA forma explícita de fechar (só desligar
+// o toggle ou aplicar). "Cancelar" descarta a edição em curso
+// (`setActiveStaged(savedActive)`/`setForm(savedForm)`) e fecha — igual
+// à semântica de "Cancelar" já usada em outras telas do app
+// (ProfilePage etc.). Só ESSE caminho garante que uma edição não-salva
+// não "vaze" pra próxima vez que o form reabrir — desligar o toggle
+// direto (o outro caminho de fechar) ainda não reseta `form`, mesmo
+// follow-up já registrado antes de T2 existir. Fecha também quando
+// `handleApply` termina com sucesso (além do desligar o toggle e do
+// Cancelar).
+// `hasChanges` (T3 da mesma história) estende a regra de habilitação
+// por divergência do Telegram (CA5 de T5, história anterior) pro S3 —
+// `savedForm` espelha `form`, atualizado no mesmo ponto (mount e pós-
+// `handleApply`); cobre o toggle (`activeStaged !== savedActive`) e os
+// campos de texto do formulário, com `access_key`/`secret_key` (campos
+// WRITE-ONLY — a API nunca devolve o valor salvo) só contando como
+// divergência quando preenchidos (nunca "vazio" vs. "salvo mascarado").
+// Botão "Aplicar": `disabled={saving || invalidToActivate || !hasChanges}`.
 export default function S3ExtensionCard() {
   const [existing, setExisting] = useState<RetentionExtension | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -68,6 +98,8 @@ export default function S3ExtensionCard() {
   const [description, setDescription] = useState('')
   const [activeStaged, setActiveStaged] = useState(false)
   const [savedActive, setSavedActive] = useState(false)
+  const [configuring, setConfiguring] = useState(false)
+  const [savedForm, setSavedForm] = useState(emptyForm())
 
   const loadRetentionExtension = () =>
     fetch('/api/retention-extensions', { headers: authHeaders() })
@@ -75,19 +107,19 @@ export default function S3ExtensionCard() {
       .then((list: RetentionExtension[]) => {
         const re = list?.[0] ?? null
         setExisting(re)
-        setForm(
-          re
-            ? {
-                name: re.name,
-                endpoint: re.endpoint,
-                bucket: re.bucket,
-                region: re.region,
-                access_key: '',
-                secret_key: '',
-                prefix: re.prefix,
-              }
-            : emptyForm(),
-        )
+        const next = re
+          ? {
+              name: re.name,
+              endpoint: re.endpoint,
+              bucket: re.bucket,
+              region: re.region,
+              access_key: '',
+              secret_key: '',
+              prefix: re.prefix,
+            }
+          : emptyForm()
+        setForm(next)
+        setSavedForm(next)
       })
       .catch(() => {})
       .finally(() => setLoaded(true))
@@ -122,9 +154,13 @@ export default function S3ExtensionCard() {
     if (!activeStaged) {
       // Desligando: não mexe na config salva, só desativa.
       applyActive()
+        .then((res) => {
+          if (res.ok) setConfiguring(false)
+        })
         .catch(() => {})
         .finally(() => {
           setSaving(false)
+          loadRetentionExtension()
           loadActive()
         })
       return
@@ -148,6 +184,9 @@ export default function S3ExtensionCard() {
     })
       .then((res) => {
         if (res.ok) return applyActive()
+      })
+      .then((activeRes) => {
+        if (activeRes?.ok) setConfiguring(false)
       })
       .catch(() => {})
       .finally(() => {
@@ -203,6 +242,16 @@ export default function S3ExtensionCard() {
     activeStaged &&
     (!form.name || !form.bucket || (!existing && (!form.access_key || !form.secret_key)))
 
+  const hasChanges =
+    activeStaged !== savedActive ||
+    form.name !== savedForm.name ||
+    form.endpoint !== savedForm.endpoint ||
+    form.bucket !== savedForm.bucket ||
+    form.region !== savedForm.region ||
+    form.prefix !== savedForm.prefix ||
+    form.access_key !== '' ||
+    form.secret_key !== ''
+
   return (
     <ExtensionCard
       id="s3-extension-card"
@@ -218,12 +267,15 @@ export default function S3ExtensionCard() {
       <ExtensionActiveToggle
         id="s3-active"
         checked={activeStaged}
-        onChange={setActiveStaged}
+        onChange={(checked) => {
+          setActiveStaged(checked)
+          setConfiguring(checked)
+        }}
         savedActive={savedActive}
         description="Habilite para conectar e utilizar o armazenamento S3."
       />
 
-      {activeStaged && (
+      {configuring && (
         <div className="space-y-3 mb-4">
           {fields.map(({ label, field, required, placeholder, password }) => (
             <div key={field}>
@@ -261,10 +313,42 @@ export default function S3ExtensionCard() {
         ) : (
           <span />
         )}
-        <Button id="s3-config-apply" onClick={handleApply} disabled={saving || invalidToActivate}>
-          <Check className="h-4 w-4" />
-          {saving ? 'Aplicando...' : 'Aplicar'}
-        </Button>
+        <div className="flex gap-2">
+          {configuring ? (
+            <Button
+              id="s3-config-cancel"
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setActiveStaged(savedActive)
+                setForm(savedForm)
+                setConfiguring(false)
+              }}
+            >
+              Cancelar
+            </Button>
+          ) : (
+            <Button
+              id="s3-config-configure"
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfiguring(true)}
+            >
+              <Settings className="h-4 w-4" />
+              Configurar
+            </Button>
+          )}
+          <Button
+            id="s3-config-apply"
+            onClick={handleApply}
+            disabled={saving || invalidToActivate || !hasChanges}
+          >
+            <Check className="h-4 w-4" />
+            {saving ? 'Aplicando...' : 'Aplicar'}
+          </Button>
+        </div>
       </div>
 
       <ConfirmDialog

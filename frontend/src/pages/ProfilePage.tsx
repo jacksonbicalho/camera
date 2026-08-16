@@ -222,6 +222,12 @@ export default function ProfilePage() {
           </div>
         )}
 
+        {!editing && (
+          <Button id="profile-edit-basic" type="button" variant="outline" onClick={startEditBasic}>
+            Editar
+          </Button>
+        )}
+
         {profile && !editing && <TelegramLinkSection />}
 
         {error && (
@@ -335,12 +341,6 @@ export default function ProfilePage() {
               </Button>
             </div>
           </form>
-        )}
-
-        {!editing && (
-          <Button id="profile-edit-basic" type="button" variant="outline" onClick={startEditBasic}>
-            Editar
-          </Button>
         )}
       </div>
     </ProfileLayout>
