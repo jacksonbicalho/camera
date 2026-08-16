@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { format } from 'date-fns'
 import Layout from '../components/Layout'
@@ -73,6 +73,30 @@ interface RecordingItem {
   url: string
 }
 
+// Espelha os breakpoints Tailwind da grade de Momentos/Gravações
+// ("grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6") — usado só pra
+// decidir quantas páginas extras buscar automaticamente ao clicar "Carregar
+// mais" (ver GRID_ROW_FILL_MAX_EXTRA_PAGES abaixo), não pro layout em si.
+const GRID_BREAKPOINTS = [
+  { minWidth: 1024, cols: 6 }, // lg
+  { minWidth: 768, cols: 4 }, // md
+  { minWidth: 640, cols: 3 }, // sm
+  { minWidth: 0, cols: 2 }, // base
+]
+
+function currentGridColumns(): number {
+  const width = typeof window !== 'undefined' ? window.innerWidth : 0
+  for (const bp of GRID_BREAKPOINTS) {
+    if (width >= bp.minWidth) return bp.cols
+  }
+  return 2
+}
+
+// Teto de páginas extras buscadas automaticamente por clique em "Carregar
+// mais" — evita loop sem fim se a contagem exibida nunca fechar múltiplo de
+// coluna (ex.: filtro "Só com gravação" raro numa data específica).
+const GRID_ROW_FILL_MAX_EXTRA_PAGES = 5
+
 export default function RecordingsPage() {
   const {
     date: dateParam,
@@ -113,6 +137,45 @@ export default function RecordingsPage() {
     query,
     page,
   })
+
+  // "Carregar mais" — depois de um clique manual, continua buscando páginas
+  // extras sozinho (sem exigir novos cliques) até a contagem EXIBIDA (já
+  // filtrada por "Só com gravação", que reduz o total client-side depois da
+  // busca) fechar um múltiplo do nº de colunas atual, ou até hasMore/o teto
+  // de segurança acabarem. Só entra em ação após um clique — a carga inicial
+  // (página 1) nunca auto-continua sozinha.
+  const autoFillingRef = useRef(false)
+  const autoFillExtraPagesRef = useRef(0)
+  const displayedMoments = recordingOnly ? moments.filter((m) => m.recording_available) : moments
+
+  useEffect(() => {
+    if (!autoFillingRef.current || !loaded) return
+    const cols = currentGridColumns()
+    // Reavalia usando a contagem EXIBIDA atual (displayedMoments, já filtrada
+    // por "Só com gravação") — mas as dependências do efeito usam
+    // `moments.length` (bruto), não `displayedMoments.length`: uma página
+    // buscada automaticamente pode contribuir 0 itens visíveis (exatamente o
+    // caso que motiva este ticket — o filtro esconde itens depois da busca),
+    // e nesse caso a contagem EXIBIDA não muda, o que travaria o efeito sem
+    // nunca checar hasMore/teto de novo se dependêssemos dela diretamente.
+    // `moments.length` sempre muda a cada página buscada com sucesso.
+    const filledRow = displayedMoments.length % cols === 0
+    if (filledRow || !hasMore || autoFillExtraPagesRef.current >= GRID_ROW_FILL_MAX_EXTRA_PAGES) {
+      autoFillingRef.current = false
+      return
+    }
+    autoFillExtraPagesRef.current += 1
+    setPage((p) => p + 1)
+    // displayedMoments é derivado (moments+recordingOnly): a dependência real de "novo fetch
+    // concluído" é moments.length, não displayedMoments.length (ver comentário acima).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moments.length, hasMore, loaded])
+
+  function handleLoadMore() {
+    autoFillingRef.current = true
+    autoFillExtraPagesRef.current = 0
+    setPage((p) => p + 1)
+  }
 
   // Opções do filtro de categoria (`#recordings-category-chips`) — dinâmicas, derivadas
   // de `categories` (o universo de categorias do dia que o servidor devolve INDEPENDENTE
@@ -403,61 +466,69 @@ export default function RecordingsPage() {
                 : 'Nenhuma gravação nesta janela.'}
             </p>
           ) : (
-            <div
-              id="recordings-list"
-              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
-            >
-              {recordings.map((rec) => (
-                <button
-                  key={rec.id}
-                  id={`recording-${rec.id}`}
-                  onClick={() => openRecording(rec.camera_id, rec.id)}
-                  className="bg-surface border border-border rounded-lg overflow-hidden text-left hover:border-primary/50 transition-colors"
-                >
-                  <div className="w-full aspect-video bg-surface-2 flex items-center justify-center text-faint">
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    >
-                      <rect x="3" y="5" width="18" height="14" rx="2" />
-                      <path d="M10 9l5 3-5 3V9z" fill="currentColor" stroke="none" />
-                    </svg>
-                  </div>
-                  <div className="px-2 py-1.5">
-                    <div className="flex items-center gap-1.5">
-                      {rec.has_motion && (
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0 bg-amber-400"
-                          title="movimento"
-                        />
-                      )}
-                      <span className="text-xs font-medium text-foreground truncate">
-                        {rec.camera_name}
-                      </span>
+            <>
+              <p id="recordings-count" className="text-xs text-muted mb-2">
+                {recordings.length} {recordings.length === 1 ? 'gravação' : 'gravações'}
+              </p>
+              <div
+                id="recordings-list"
+                className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
+              >
+                {recordings.map((rec) => (
+                  <button
+                    key={rec.id}
+                    id={`recording-${rec.id}`}
+                    onClick={() => openRecording(rec.camera_id, rec.id)}
+                    className="bg-surface border border-border rounded-lg overflow-hidden text-left hover:border-primary/50 transition-colors"
+                  >
+                    <div className="w-full aspect-video bg-surface-2 flex items-center justify-center text-faint">
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      >
+                        <rect x="3" y="5" width="18" height="14" rx="2" />
+                        <path d="M10 9l5 3-5 3V9z" fill="currentColor" stroke="none" />
+                      </svg>
                     </div>
-                    <p className="text-[10px] text-muted tabular-nums">
-                      {format(new Date(rec.start), 'dd/MM HH:mm:ss')}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
+                    <div className="px-2 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        {rec.has_motion && (
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0 bg-amber-400"
+                            title="movimento"
+                          />
+                        )}
+                        <span className="text-xs font-medium text-foreground truncate">
+                          {rec.camera_name}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted tabular-nums">
+                        {format(new Date(rec.start), 'dd/MM HH:mm:ss')}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
           )
         ) : moments.length === 0 && loaded ? (
           <p className="text-sm text-muted">
             {query ? `Nenhum momento para «${query}» nesta data.` : 'Nenhum momento nesta data.'}
           </p>
         ) : (
-          <div
-            id="recordings-grid"
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
-          >
-            {(recordingOnly ? moments.filter((m) => m.recording_available) : moments).map(
-              (m, i) => {
+          <>
+            <p id="recordings-count" className="text-xs text-muted mb-2">
+              {displayedMoments.length} {displayedMoments.length === 1 ? 'momento' : 'momentos'}
+            </p>
+            <div
+              id="recordings-grid"
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
+            >
+              {displayedMoments.map((m, i) => {
                 const thumb = momentThumb(m)
                 return (
                   <button
@@ -502,9 +573,9 @@ export default function RecordingsPage() {
                     </div>
                   </button>
                 )
-              },
-            )}
-          </div>
+              })}
+            </div>
+          </>
         )}
 
         {hasMore && view === 'moments' && (
@@ -513,7 +584,7 @@ export default function RecordingsPage() {
               id="recordings-load-more"
               variant="secondary"
               size="sm"
-              onClick={() => setPage((p) => p + 1)}
+              onClick={handleLoadMore}
             >
               Carregar mais
             </Button>

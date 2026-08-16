@@ -24,7 +24,6 @@
     "react-dom": "^19.2.5",
     "react-grid-layout": "^2.2.3",
     "react-router-dom": "^7.14.2",
-    "simple-icons": "^16.28.0",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
