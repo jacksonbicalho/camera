@@ -61,10 +61,10 @@ describe('CA4/CA5: PreferencesExtensionsPage mostra o conteúdo de Telegram e S3
       </MemoryRouter>,
     )
 
-    // Telegram: available+active — checkbox marcado, sem navegar pra sub-rota.
+    // Telegram: available+active — toggle ligado, sem navegar pra sub-rota.
     await screen.findByText('Telegram')
-    const telegramCheckbox = document.getElementById('telegram-active') as HTMLInputElement
-    expect(telegramCheckbox.checked).toBe(true)
+    const telegramToggle = document.getElementById('telegram-active') as HTMLElement
+    expect(telegramToggle.getAttribute('aria-checked')).toBe('true')
 
     // S3: available — card renderiza de verdade (não a mensagem de bloqueio).
     await screen.findByText('S3')

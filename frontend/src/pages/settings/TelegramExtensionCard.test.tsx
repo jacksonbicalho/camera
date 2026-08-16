@@ -42,29 +42,33 @@ function mockFetch(
   )
 }
 
+function switchChecked(el: HTMLElement) {
+  return el.getAttribute('aria-checked') === 'true'
+}
+
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
 })
 
 describe('CA4: a página Extensões mostra o conteúdo do Telegram diretamente, sem sub-rota própria', () => {
-  it('mostra o checkbox refletindo active=true vindo da API', async () => {
+  it('mostra o toggle refletindo active=true vindo da API', async () => {
     mockFetch({ available: true, active: true })
     render(<TelegramExtensionCard />)
 
-    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
-    await waitFor(() => expect(checkbox.checked).toBe(true))
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(true))
   })
 
-  it('alterar o checkbox e clicar "Aplicar" dispara PUT /api/settings/extensions/telegram com o novo valor', async () => {
+  it('alterar o toggle e clicar "Aplicar" dispara PUT /api/settings/extensions/telegram com o novo valor', async () => {
     let putBody: unknown = null
     mockFetch({ available: true, active: false }, (body) => {
       putBody = body
     })
     render(<TelegramExtensionCard />)
 
-    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
-    fireEvent.click(checkbox)
+    const toggle = await screen.findByRole('switch')
+    fireEvent.click(toggle)
     fireEvent.click(screen.getByRole('button', { name: /aplicar/i }))
 
     await waitFor(() => {
@@ -72,34 +76,34 @@ describe('CA4: a página Extensões mostra o conteúdo do Telegram diretamente, 
     })
   })
 
-  it('quando a extensão não está disponível, não mostra checkbox nem Aplicar', async () => {
+  it('quando a extensão não está disponível, não mostra toggle nem Aplicar', async () => {
     mockFetch({ available: false, active: false })
     render(<TelegramExtensionCard />)
 
     await screen.findByText('Extensão não permitida nesta instância.')
-    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.queryByRole('switch')).toBeNull()
     expect(screen.queryByRole('button', { name: /aplicar/i })).toBeNull()
   })
 })
 
 describe('CA5: botão "Aplicar" só fica habilitado quando o valor staged diverge do salvo', () => {
-  it('estado inicial: staged bate com o salvo (active=false, checkbox desmarcado) → botão desabilitado', async () => {
+  it('estado inicial: staged bate com o salvo (active=false, toggle desligado) → botão desabilitado', async () => {
     mockFetch({ available: true, active: false })
     render(<TelegramExtensionCard />)
 
-    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
-    await waitFor(() => expect(checkbox.checked).toBe(false))
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(false))
     const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
     expect(button.disabled).toBe(true)
   })
 
-  it('marcar o checkbox (diverge do salvo) habilita o botão', async () => {
+  it('marcar o toggle (diverge do salvo) habilita o botão', async () => {
     mockFetch({ available: true, active: false })
     render(<TelegramExtensionCard />)
 
-    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
-    await waitFor(() => expect(checkbox.checked).toBe(false))
-    fireEvent.click(checkbox)
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(false))
+    fireEvent.click(toggle)
 
     await waitFor(() => {
       const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
@@ -111,9 +115,9 @@ describe('CA5: botão "Aplicar" só fica habilitado quando o valor staged diverg
     mockFetch({ available: true, active: false })
     render(<TelegramExtensionCard />)
 
-    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
-    await waitFor(() => expect(checkbox.checked).toBe(false))
-    fireEvent.click(checkbox)
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(false))
+    fireEvent.click(toggle)
     await waitFor(() => {
       const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
       expect(button.disabled).toBe(false)
@@ -131,16 +135,16 @@ describe('CA5: botão "Aplicar" só fica habilitado quando o valor staged diverg
     mockFetch({ available: true, active: false })
     render(<TelegramExtensionCard />)
 
-    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
-    await waitFor(() => expect(checkbox.checked).toBe(false))
-    fireEvent.click(checkbox)
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(false))
+    fireEvent.click(toggle)
     fireEvent.click(screen.getByRole('button', { name: /aplicar/i }))
     await waitFor(() => {
       const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
       expect(button.disabled).toBe(true)
     })
 
-    fireEvent.click(checkbox)
+    fireEvent.click(toggle)
 
     await waitFor(() => {
       const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
@@ -152,9 +156,9 @@ describe('CA5: botão "Aplicar" só fica habilitado quando o valor staged diverg
     mockFetch({ available: true, active: false }, undefined, 500)
     render(<TelegramExtensionCard />)
 
-    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
-    await waitFor(() => expect(checkbox.checked).toBe(false))
-    fireEvent.click(checkbox)
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(false))
+    fireEvent.click(toggle)
     await waitFor(() => {
       const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
       expect(button.disabled).toBe(false)
@@ -168,5 +172,25 @@ describe('CA5: botão "Aplicar" só fica habilitado quando o valor staged diverg
     })
     const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
     expect(button.disabled).toBe(false)
+  })
+})
+
+describe('CA2: selo de estado salvo (ExtensionActiveToggle) reflete savedActive, não o staged', () => {
+  it('o selo mostra "Desativado" no estado inicial e "Ativado" só depois de aplicar', async () => {
+    mockFetch({ available: true, active: false })
+    render(<TelegramExtensionCard />)
+
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(false))
+    expect(screen.getByTestId('telegram-active-saved-badge').textContent).toBe('Desativado')
+
+    fireEvent.click(toggle)
+    expect(screen.getByTestId('telegram-active-saved-badge').textContent).toBe('Desativado')
+
+    fireEvent.click(screen.getByRole('button', { name: /aplicar/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('telegram-active-saved-badge').textContent).toBe('Ativado')
+    })
   })
 })
