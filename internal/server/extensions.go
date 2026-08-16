@@ -25,7 +25,7 @@ type extensionDTO struct {
 // extensionsMeta is the fixed (non-configurable) metadata for each known
 // extension, plus how to compute whether it's available from the loaded
 // config.ExtensionsConfig. A plain slice, not a registry/map indirection —
-// only 2 concrete extensions exist today (regra dos três, CLAUDE.md).
+// only a handful of concrete extensions exist today (regra dos três, CLAUDE.md).
 func (s *Server) extensionsMeta() []extensionDTO {
 	return []extensionDTO{
 		{
