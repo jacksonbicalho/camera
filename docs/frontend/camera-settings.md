@@ -89,4 +89,4 @@ id" e o carve-out sempre-editável desta página.
 
 ## Ver também
 - [routing-editing.md](routing-editing.md) — padrão de rota e o carve-out sempre-editável
-- [design-system.md](design-system.md) — `SettingsSection`/tokens usados nos painéis
+- [design-system.md](design-system.md) — `SettingsSection`/tokens usados nos painéis, `ApplyButton` compartilhado pelo botão "Aplicar" de cada seção

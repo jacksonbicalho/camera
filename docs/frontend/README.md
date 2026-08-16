@@ -42,7 +42,7 @@ repita o mesmo erro, mantenha, mas em 1-2 frases, não um parágrafo.
 
 ### Fundamentos
 - [routing-editing.md](routing-editing.md) — padrão de edição via rota dedicada, convenção de `id` único, rotas de câmera "seção antes do id"
-- [design-system.md](design-system.md) — tokens/tema, modo de cor, accent, exceção MUI
+- [design-system.md](design-system.md) — tokens/tema, modo de cor, accent, exceção MUI, `Switch`/`ApplyButton` compartilhados
 
 ### Shell e navegação
 - [shell-layout.md](shell-layout.md) — `Sidebar`, `TopBar`, `Layout`, `PageHeader`, `SettingsLayout`, `CameraSettingsTabs`, `PreferencesLayout`, `ProfileLayout`, largura do conteúdo (`.page-content`)
