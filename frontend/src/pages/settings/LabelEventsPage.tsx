@@ -552,7 +552,7 @@ export default function LabelEventsPage() {
           onClick={() => closeZoomModal()}
         >
           <div
-            className="flex flex-col gap-3 w-full max-w-xl max-h-[85vh] overflow-y-auto bg-surface rounded-lg shadow-2xl p-4"
+            className="flex flex-col gap-3 w-full max-w-[90vw] xl:max-w-5xl max-h-[85vh] overflow-y-auto bg-surface rounded-lg shadow-2xl p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <EventAnnotationsEditor
