@@ -3,6 +3,8 @@ import { authHeaders } from '../../auth'
 import { Button } from '@/components/ui/button'
 import { TelegramIcon } from '@/components/TelegramIcon'
 import { Check } from '@/components/Icons'
+import ExtensionCard from '@/components/ExtensionCard'
+import ExtensionActiveToggle from '@/components/ExtensionActiveToggle'
 
 interface Extension {
   id: string
@@ -22,12 +24,13 @@ interface Extension {
 //
 // Redesenho (história fix/ajustes-icone-telegram-e-momentos, T5) — mockup
 // fornecido pelo navigator: card maior, logo grande com halo/glow atrás,
-// checkbox customizado (quadrado azul + Check branco, em vez do checkbox
-// nativo pequeno — o <input type="checkbox"> nativo continua por trás,
-// só visualmente reestilizado, pra manter role="checkbox"/foco/teclado
-// intactos), botão "Aplicar" com ícone. `savedActive` guarda o último valor
-// CONFIRMADO (do fetch inicial, ou reatribuído após um PUT bem-sucedido) —
-// "Aplicar" só fica habilitado quando `activeStaged` diverge dele.
+// botão "Aplicar" com ícone. `savedActive` guarda o último valor CONFIRMADO
+// (do fetch inicial, ou reatribuído após um PUT bem-sucedido) — "Aplicar"
+// só fica habilitado quando `activeStaged` diverge dele. Chrome visual
+// (card/ícone+halo/nome/descrição) e o controle "Ativado" migraram pra
+// ExtensionCard/ExtensionActiveToggle na história
+// fix/extension-card-compartilhado-e-s3-redesign (T1), compartilhados com
+// S3ExtensionCard.
 export default function TelegramExtensionCard() {
   const [ext, setExt] = useState<Extension | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -66,57 +69,30 @@ export default function TelegramExtensionCard() {
   if (!ext) return <p className="text-sm text-muted-foreground">Extensão não encontrada.</p>
 
   return (
-    <div
+    <ExtensionCard
       id="telegram-extension-card"
-      className="bg-surface border border-border rounded-xl p-6 max-w-md"
+      icon={<TelegramIcon className="relative h-16 w-16" />}
+      name={ext.name}
+      description={ext.description}
+      available={ext.available}
     >
-      <div className="flex items-center gap-4 mb-4">
-        <div className="relative shrink-0">
-          <div className="absolute inset-0 -m-2 rounded-full bg-primary/20 blur-lg" />
-          <TelegramIcon className="relative h-16 w-16" />
-        </div>
-        <div>
-          <p className="text-2xl font-bold text-foreground">{ext.name}</p>
-          <p className="text-sm text-muted-foreground mt-1">{ext.description}</p>
-        </div>
+      <ExtensionActiveToggle
+        id="telegram-active"
+        checked={activeStaged}
+        onChange={setActiveStaged}
+        savedActive={savedActive}
+        description="Você receberá notificações e avisos no Telegram."
+      />
+      <div className="flex justify-end">
+        <Button
+          id="telegram-apply"
+          onClick={handleApply}
+          disabled={saving || activeStaged === savedActive}
+        >
+          <Check className="h-4 w-4" />
+          {saving ? 'Aplicando...' : 'Aplicar'}
+        </Button>
       </div>
-      {ext.available ? (
-        <>
-          <div className="border-t border-border my-4" />
-          <label className="flex items-start gap-3 cursor-pointer mb-6">
-            <span className="relative shrink-0 mt-0.5">
-              <input
-                type="checkbox"
-                id="telegram-active"
-                checked={activeStaged}
-                onChange={(e) => setActiveStaged(e.target.checked)}
-                className="peer sr-only"
-              />
-              <span className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-surface-2 peer-checked:border-primary peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 transition-colors">
-                {activeStaged && <Check className="h-4 w-4 text-primary-foreground" />}
-              </span>
-            </span>
-            <span>
-              <span className="block text-base font-medium text-foreground">Ativado</span>
-              <span className="block text-sm text-muted-foreground">
-                Você receberá notificações e avisos no Telegram.
-              </span>
-            </span>
-          </label>
-          <div className="flex justify-end">
-            <Button
-              id="telegram-apply"
-              onClick={handleApply}
-              disabled={saving || activeStaged === savedActive}
-            >
-              <Check className="h-4 w-4" />
-              {saving ? 'Aplicando...' : 'Aplicar'}
-            </Button>
-          </div>
-        </>
-      ) : (
-        <p className="text-xs text-muted-foreground">Extensão não permitida nesta instância.</p>
-      )}
-    </div>
+    </ExtensionCard>
   )
 }

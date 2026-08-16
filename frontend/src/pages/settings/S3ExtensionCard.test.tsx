@@ -14,6 +14,7 @@ function mockFetch(
   s3Active = false,
   s3Available = true,
 ) {
+  let currentActive = s3Active
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown, init?: RequestInit) => {
@@ -29,19 +30,26 @@ function mockFetch(
               id: 's3',
               name: 'S3',
               category: 'Retenção',
-              description: 'Envia gravações expiradas para um destino S3 externo.',
+              description: 'Armazenamento em nuvem compatível com S3.',
               available: s3Available,
-              active: s3Active,
+              active: currentActive,
             },
           ]),
           { status: 200 },
         )
       }
       const body = init?.body ? JSON.parse(String(init.body)) : null
+      if (u === '/api/settings/extensions/s3' && method === 'PUT') {
+        currentActive = Boolean((body as { active?: boolean } | null)?.active)
+      }
       spy?.(method, u, body)
       return new Response(JSON.stringify({ id: 'new-id', ...(body ?? {}) }), { status: 201 })
     }),
   )
+}
+
+function switchChecked(el: HTMLElement) {
+  return el.getAttribute('aria-checked') === 'true'
 }
 
 afterEach(() => {
@@ -62,9 +70,9 @@ describe('CA5: a página Extensões mostra o conteúdo completo do S3, junto do 
     mockFetch([])
     render(<S3ExtensionCard />)
 
-    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
+    const toggle = await screen.findByRole('switch')
     expect(screen.queryByLabelText(/^nome/i)).toBeNull()
-    fireEvent.click(checkbox)
+    fireEvent.click(toggle)
     await screen.findByLabelText(/^nome/i)
   })
 
@@ -73,7 +81,7 @@ describe('CA5: a página Extensões mostra o conteúdo completo do S3, junto do 
     mockFetch([], (method, url, body) => calls.push({ method, url, body }))
     render(<S3ExtensionCard />)
 
-    fireEvent.click(await screen.findByRole('checkbox'))
+    fireEvent.click(await screen.findByRole('switch'))
     fireEvent.change(await screen.findByLabelText(/^nome/i), { target: { value: 'meu-s3' } })
     fireEvent.change(screen.getByLabelText(/bucket/i), { target: { value: 'meu-bucket' } })
     fireEvent.change(screen.getByLabelText(/access key/i), { target: { value: 'AK' } })
@@ -138,9 +146,9 @@ describe('CA5: a página Extensões mostra o conteúdo completo do S3, junto do 
     )
     render(<S3ExtensionCard />)
 
-    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
-    await waitFor(() => expect(checkbox.checked).toBe(true))
-    fireEvent.click(checkbox)
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(true))
+    fireEvent.click(toggle)
     fireEvent.click(document.getElementById('s3-config-apply')!)
 
     await waitFor(() => {
@@ -199,12 +207,36 @@ describe('CA5: a página Extensões mostra o conteúdo completo do S3, junto do 
     expect(screen.queryByRole('button', { name: /excluir configuração/i })).toBeNull()
   })
 
-  it('quando a extensão não está disponível, não mostra nada além do aviso', async () => {
+  it('quando a extensão não está disponível, mostra o aviso em vez do toggle/formulário (nome continua visível, mesmo padrão do card do Telegram)', async () => {
     mockFetch([], undefined, false, false)
     render(<S3ExtensionCard />)
 
     await screen.findByText('Extensão não permitida nesta instância.')
-    expect(screen.queryByRole('checkbox')).toBeNull()
-    expect(screen.queryByText('S3')).toBeNull()
+    expect(screen.queryByRole('switch')).toBeNull()
+    expect(screen.getByText('S3')).toBeTruthy()
+  })
+})
+
+describe('CA2: selo de estado salvo (ExtensionActiveToggle) reflete o servidor, não o staged', () => {
+  it('selo mostra "Desativado" inicialmente e só reflete "Ativado" depois de aplicar com sucesso', async () => {
+    mockFetch([], undefined, false)
+    render(<S3ExtensionCard />)
+
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(false))
+    expect(screen.getByTestId('s3-active-saved-badge').textContent).toBe('Desativado')
+
+    fireEvent.click(toggle)
+    expect(screen.getByTestId('s3-active-saved-badge').textContent).toBe('Desativado')
+
+    fireEvent.change(await screen.findByLabelText(/^nome/i), { target: { value: 'meu-s3' } })
+    fireEvent.change(screen.getByLabelText(/bucket/i), { target: { value: 'meu-bucket' } })
+    fireEvent.change(screen.getByLabelText(/access key/i), { target: { value: 'AK' } })
+    fireEvent.change(screen.getByLabelText(/secret key/i), { target: { value: 'SK' } })
+    fireEvent.click(document.getElementById('s3-config-apply')!)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('s3-active-saved-badge').textContent).toBe('Ativado')
+    })
   })
 })

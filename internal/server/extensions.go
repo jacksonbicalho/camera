@@ -39,7 +39,7 @@ func (s *Server) extensionsMeta() []extensionDTO {
 			ID:          "s3",
 			Name:        "S3",
 			Category:    "Retenção",
-			Description: "Envia gravações expiradas para um destino S3 externo antes de apagá-las.",
+			Description: "Armazenamento em nuvem compatível com S3.",
 			Available:   s.extensionsCfg.S3.Enabled,
 		},
 	}
