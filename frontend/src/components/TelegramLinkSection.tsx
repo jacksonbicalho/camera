@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { authHeaders, onUnauthorized } from '../auth'
 import { Button } from '@/components/ui/button'
 import { TelegramIcon } from '@/components/TelegramIcon'
+import ExtensionCard from '@/components/ExtensionCard'
 
 // TelegramLinkSection — vínculo da conta Telegram do usuário logado
 // (história feat/telegram-vinculo-conta, T4). Preferência PESSOAL (mesmo
@@ -99,16 +100,17 @@ export default function TelegramLinkSection() {
   if (!loaded) return null
 
   return (
-    <div id="telegram-link-section" className="bg-surface border border-border rounded-lg p-5">
-      <p className="flex items-center gap-2 text-base font-medium text-foreground">
-        <TelegramIcon className="h-5 w-5 shrink-0" />
-        Telegram
-      </p>
-      <p className="text-xs text-muted-foreground mt-0.5 mb-4">
-        {linked
+    <ExtensionCard
+      id="telegram-link-section"
+      icon={<TelegramIcon className="relative h-16 w-16" />}
+      name="Telegram"
+      description={
+        linked
           ? 'Sua conta está vinculada — você pode receber notificações por aqui.'
-          : 'Vincule sua conta pra poder receber notificações via Telegram.'}
-      </p>
+          : 'Vincule sua conta pra poder receber notificações via Telegram.'
+      }
+      available
+    >
       {linked ? (
         <Button id="telegram-unlink" onClick={handleUnlink} disabled={unlinking}>
           {unlinking ? 'Desvinculando...' : 'Desvincular'}
@@ -132,6 +134,6 @@ export default function TelegramLinkSection() {
           {error}
         </p>
       )}
-    </div>
+    </ExtensionCard>
   )
 }
