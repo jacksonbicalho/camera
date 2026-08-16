@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { authHeaders } from '../auth'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
+import { ApplyButton } from '@/components/ui/apply-button'
 
 // CameraAnalysisSection — sessão de análise de objetos por câmera (título
 // exibido "Detector de objetos" — pedido do navigator, já que o campo
@@ -152,14 +152,13 @@ export default function CameraAnalysisSection({ id }: { id: string }) {
         )}
 
         <div className="p-4 flex items-center gap-3">
-          <Button
+          <ApplyButton
             id="camera-analysis-save"
-            size="sm"
+            saving={saving}
+            disabled={needsDetector}
+            type="button"
             onClick={handleSave}
-            disabled={saving || needsDetector}
-          >
-            {saving ? 'Aplicando...' : 'Aplicar'}
-          </Button>
+          />
           {error && <p className="text-sm text-red-400">{error}</p>}
           {!error && saved && <p className="text-sm text-green-400">Salvo</p>}
           {!error && !saved && needsDetector && (

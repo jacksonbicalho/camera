@@ -43,12 +43,10 @@ describe('CA8: o botão de Detector de objetos fica alinhado à esquerda e rotul
       expect(footer?.className).not.toContain('justify-between')
     })
   })
-
-  it('o botão usa size="sm" (h-8), mesmo tamanho do Aplicar de Movimento/Captura/Gravação/Transmissão', async () => {
-    stubFetch()
-    render(<CameraAnalysisSection id="cam-1" />)
-    await waitFor(() => {
-      expect(document.getElementById('camera-analysis-save')?.className).toContain('h-8')
-    })
-  })
 })
+
+// O tamanho "sm" (h-8) do botão "Aplicar" não é mais um teste de consistência
+// cross-file (comparando o className deste componente contra os demais) —
+// virou garantido por construção: todos usam o mesmo ApplyButton
+// (components/ui/apply-button.tsx, default size="sm"), testado uma única vez
+// em apply-button.test.tsx.

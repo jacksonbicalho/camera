@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { emptyForm, formToPayload, type Camera, type CameraFormData } from './cameraFormUtils'
 import { NameField, CaptureFields } from './cameraFormFields'
-import { Button } from '@/components/ui/button'
+import { ApplyButton } from '@/components/ui/apply-button'
 import { authHeaders } from '../auth'
 
 // CameraCaptureSection — sessão "Nome e Captura" de CameraDetailSettingsPage,
@@ -89,9 +89,7 @@ export default function CameraCaptureSection({ cam, id, reload }: Props) {
         )}
 
         <div className="flex items-center gap-3">
-          <Button id="camera-capture-save" type="submit" size="sm" disabled={saving}>
-            {saving ? 'Aplicando...' : 'Aplicar'}
-          </Button>
+          <ApplyButton id="camera-capture-save" saving={saving} />
           {saved && <span className="text-xs text-green-400">Salvo</span>}
         </div>
       </form>

@@ -57,7 +57,11 @@ if ! checkbox_marked "$story" '.*revisada'; then
 fi
 
 approved=$(grep -ciE '^[[:space:]]*-[[:space:]]*\[x\][[:space:]*]*T[0-9]+:[[:space:]]*APPROVED' "$story" || true)
-commits=$(git rev-list --count develop..HEAD 2>/dev/null || echo 0)
+# --no-merges: um merge de develop na branch de história (ex.: pra trazer uma
+# mudança de outra PR já mergeada) não é commit de ticket nenhum — contá-lo
+# infla a contagem e bloqueia o próximo commit de ticket de verdade mesmo com
+# review APPROVED registrada.
+commits=$(git rev-list --no-merges --count develop..HEAD 2>/dev/null || echo 0)
 
 if [ "${approved:-0}" -gt "${commits:-0}" ]; then
   exit 0

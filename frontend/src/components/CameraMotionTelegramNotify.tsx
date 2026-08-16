@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { ApplyButton } from '@/components/ui/apply-button'
 import { Check } from '@/components/Icons'
 import { TelegramIcon } from '@/components/TelegramIcon'
 import ExtensionCard from '@/components/ExtensionCard'
@@ -179,16 +179,14 @@ export function MotionTelegramNotify({ cameraId, motionEnabled }: Props) {
           </div>
         )}
         <div className="flex items-center gap-3">
-          <Button
+          <ApplyButton
             id="motion-telegram-notify-save"
+            saving={saving}
+            disabled={!hasChanges}
             type="button"
-            size="sm"
-            disabled={saving || !hasChanges}
             onClick={handleApply}
-          >
-            <Check className="h-4 w-4" />
-            {saving ? 'Aplicando...' : 'Aplicar'}
-          </Button>
+            icon={<Check className="h-4 w-4" />}
+          />
           {saved && <span className="text-xs text-green-400">Salvo</span>}
         </div>
       </ExtensionCard>
