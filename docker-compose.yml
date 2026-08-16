@@ -31,7 +31,7 @@ services:
     #user: "${UID}:${GID}"
     volumes:
       - .:/app
-      - ./storage:/data
+      - dev-camera-storage:/data
       #- frontend_node_modules:/app/frontend/node_modules
     env_file:
       - path: .env
@@ -78,7 +78,33 @@ services:
       # e2e-playwright`.
       retries: 180
       start_period: 5s
+  # redis:
+  #   image: redis:latest
+  #   container_name: os-camera-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - dados_redis:/data
+  #   restart: always
 
 volumes:
   frontend_node_modules:
   e2e-playwright-browsers:
+    
+  dev-camera-storage:
+    name: dev-camera-storage-volume
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      # Pasta do seu computador onde os dados vão ficar salvos
+      device: './storage'
+  
+  dados_redis:
+    name: os-camera-redis-volume
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      # Pasta do seu computador onde os dados vão ficar salvos
+      device: './storage/redis'
