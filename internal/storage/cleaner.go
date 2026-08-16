@@ -349,8 +349,21 @@ func (c *Cleaner) loadDrives() (drives map[string]s3.Uploader, withMotionAction,
 		c.log.Warn("failed to load retention extensions from db", "err", err)
 		return
 	}
+	// A extensão S3 desativada (toggle "Ativado" em Preferências > Extensões)
+	// não deve fazer upload nenhum, mesmo com uma config de destino salva —
+	// achado real: antes desta checagem, loadDrives() montava o drive só a
+	// partir da existência da linha em retention_extensions, ignorando
+	// completamente db.GetExtensionActive. Sem o drive no mapa, cleanFromDB
+	// cai no mesmo fallback seguro já usado quando o drive referenciado não
+	// existe (arquivo fica retido, sem upload nem delete).
+	// GetExtensionActive já retorna false no branch de erro (fail-safe) — só
+	// logamos, sem precisar reatribuir.
+	s3Active, err := db.GetExtensionActive(c.db, "s3")
+	if err != nil {
+		c.log.Warn("failed to load s3 extension active flag", "err", err)
+	}
 	for _, dr := range dbExtensions {
-		if dr.Type == "s3" {
+		if dr.Type == "s3" && s3Active {
 			drives[dr.ID] = s3.NewClient(s3.Config{
 				Endpoint:  dr.Endpoint,
 				Bucket:    dr.Bucket,
