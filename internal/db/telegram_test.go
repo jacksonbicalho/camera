@@ -95,8 +95,8 @@ func TestTelegramChatID(t *testing.T) {
 		database := openTestDB(t)
 		id := mkUser(t, database, "telegram-chatid-set")
 
-		if err := db.SetUserTelegramChatID(database, id, "12345"); err != nil {
-			t.Fatalf("SetUserTelegramChatID: %v", err)
+		if err := db.SetUserTelegramChatInfo(database, id, "12345", "janedoe", "Jane", "Doe"); err != nil {
+			t.Fatalf("SetUserTelegramChatInfo: %v", err)
 		}
 		chatID, err := db.GetUserTelegramChatID(database, id)
 		if err != nil {
@@ -115,6 +115,67 @@ func TestTelegramChatID(t *testing.T) {
 		}
 		if chatID != "" {
 			t.Errorf("expected chat_id cleared, got %q", chatID)
+		}
+	})
+}
+
+func TestTelegramChatInfo(t *testing.T) {
+	t.Run("CA2: sem vínculo, todos os campos vêm vazios", func(t *testing.T) {
+		database := openTestDB(t)
+		id := mkUser(t, database, "telegram-chatinfo-empty")
+		chatID, username, firstName, lastName, err := db.GetUserTelegramChatInfo(database, id)
+		if err != nil {
+			t.Fatalf("GetUserTelegramChatInfo: %v", err)
+		}
+		if chatID != "" || username != "" || firstName != "" || lastName != "" {
+			t.Errorf("expected all fields empty before linking, got chatID=%q username=%q first=%q last=%q",
+				chatID, username, firstName, lastName)
+		}
+	})
+
+	t.Run("CA2: SetUserTelegramChatInfo persiste chat_id+identidade juntos, e Clear apaga tudo", func(t *testing.T) {
+		database := openTestDB(t)
+		id := mkUser(t, database, "telegram-chatinfo-set")
+
+		if err := db.SetUserTelegramChatInfo(database, id, "999", "janedoe", "Jane", "Doe"); err != nil {
+			t.Fatalf("SetUserTelegramChatInfo: %v", err)
+		}
+		chatID, username, firstName, lastName, err := db.GetUserTelegramChatInfo(database, id)
+		if err != nil {
+			t.Fatalf("GetUserTelegramChatInfo: %v", err)
+		}
+		if chatID != "999" || username != "janedoe" || firstName != "Jane" || lastName != "Doe" {
+			t.Errorf("expected chatID=999 username=janedoe first=Jane last=Doe, got chatID=%q username=%q first=%q last=%q",
+				chatID, username, firstName, lastName)
+		}
+
+		if err := db.ClearUserTelegramChatID(database, id); err != nil {
+			t.Fatalf("ClearUserTelegramChatID: %v", err)
+		}
+		chatID, username, firstName, lastName, err = db.GetUserTelegramChatInfo(database, id)
+		if err != nil {
+			t.Fatalf("GetUserTelegramChatInfo: %v", err)
+		}
+		if chatID != "" || username != "" || firstName != "" || lastName != "" {
+			t.Errorf("expected all fields cleared, got chatID=%q username=%q first=%q last=%q",
+				chatID, username, firstName, lastName)
+		}
+	})
+
+	t.Run("CA2: username pode ficar vazio (usuário sem @handle público) sem quebrar os demais campos", func(t *testing.T) {
+		database := openTestDB(t)
+		id := mkUser(t, database, "telegram-chatinfo-no-username")
+
+		if err := db.SetUserTelegramChatInfo(database, id, "999", "", "Jane", ""); err != nil {
+			t.Fatalf("SetUserTelegramChatInfo: %v", err)
+		}
+		chatID, username, firstName, lastName, err := db.GetUserTelegramChatInfo(database, id)
+		if err != nil {
+			t.Fatalf("GetUserTelegramChatInfo: %v", err)
+		}
+		if chatID != "999" || username != "" || firstName != "Jane" || lastName != "" {
+			t.Errorf("expected chatID=999 username='' first=Jane last='', got chatID=%q username=%q first=%q last=%q",
+				chatID, username, firstName, lastName)
 		}
 	})
 }

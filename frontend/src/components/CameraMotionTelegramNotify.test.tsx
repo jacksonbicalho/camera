@@ -128,6 +128,76 @@ describe('CA6: MotionTelegramNotify — visível com as 3 condições, Aplicar e
     const body = JSON.parse(putInit.body)
     expect(body).toEqual({ enabled: true, min_score: 0.07 })
   })
+
+  it('CA2: o selo do toggle reflete o valor salvo, não muda só por mexer no staged, e só atualiza após Aplicar bem-sucedido', async () => {
+    mockPrefsAndNotify({
+      telegramActive: true,
+      telegramLinked: true,
+      enabled: false,
+      minScore: 0.02,
+    })
+    render(<MotionTelegramNotify cameraId="cam-1" motionEnabled={true} />)
+
+    await waitFor(() =>
+      expect(document.getElementById('motion-telegram-notify-enabled')).toBeTruthy(),
+    )
+    expect(screen.getByTestId('motion-telegram-notify-enabled-saved-badge').textContent).toBe(
+      'Desativado',
+    )
+
+    fireEvent.click(document.getElementById('motion-telegram-notify-enabled')!)
+    expect(screen.getByTestId('motion-telegram-notify-enabled-saved-badge').textContent).toBe(
+      'Desativado',
+    )
+
+    mockFetch.mockImplementationOnce(() => Promise.resolve({ ok: true, text: async () => '' }))
+    fireEvent.click(screen.getByText('Aplicar'))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('motion-telegram-notify-enabled-saved-badge').textContent).toBe(
+        'Ativado',
+      ),
+    )
+  })
+
+  it('CA2: "Aplicar" só fica habilitado quando o toggle ou o score mínimo divergem do salvo', async () => {
+    mockPrefsAndNotify({
+      telegramActive: true,
+      telegramLinked: true,
+      enabled: true,
+      minScore: 0.02,
+    })
+    render(<MotionTelegramNotify cameraId="cam-1" motionEnabled={true} />)
+
+    await waitFor(() =>
+      expect(document.getElementById('motion-telegram-notify-enabled')).toBeTruthy(),
+    )
+    const applyButton = () => screen.getByText('Aplicar').closest('button') as HTMLButtonElement
+
+    // Estado inicial: staged bate com o salvo — desabilitado.
+    expect(applyButton().disabled).toBe(true)
+
+    // Mexer só no score mínimo (toggle continua igual) já diverge.
+    fireEvent.change(document.getElementById('motion-telegram-notify-min-score')!, {
+      target: { value: '0.09' },
+    })
+    expect(applyButton().disabled).toBe(false)
+
+    // Voltar o score pro valor salvo (mesmo formatado diferente: "0.020")
+    // volta a bater com o salvo — desabilita de novo.
+    fireEvent.change(document.getElementById('motion-telegram-notify-min-score')!, {
+      target: { value: '0.020' },
+    })
+    expect(applyButton().disabled).toBe(true)
+
+    mockFetch.mockImplementationOnce(() => Promise.resolve({ ok: true, text: async () => '' }))
+    fireEvent.change(document.getElementById('motion-telegram-notify-min-score')!, {
+      target: { value: '0.09' },
+    })
+    fireEvent.click(applyButton())
+
+    await waitFor(() => expect(applyButton().disabled).toBe(true))
+  })
 })
 
 describe('CA6: montado tanto em MotionFormContent (admin) quanto MotionReadOnly (viewer)', () => {

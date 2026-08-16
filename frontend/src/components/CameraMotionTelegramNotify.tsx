@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Check } from '@/components/Icons'
 import { TelegramIcon } from '@/components/TelegramIcon'
+import ExtensionCard from '@/components/ExtensionCard'
+import ExtensionActiveToggle from '@/components/ExtensionActiveToggle'
 import { authHeaders } from '../auth'
 
 // MotionTelegramNotify — bloco de opt-in de notificação de movimento via
@@ -13,6 +16,20 @@ import { authHeaders } from '../auth'
 // aqui — vincular Telegram é só em Perfil): motion habilitado na câmera,
 // extensão Telegram ativa na instância, e o próprio usuário já com Telegram
 // vinculado. Falhas de rede degradam para oculto (fail-safe).
+//
+// Redesenho (história feat/telegram-link-card-dados-chat-live-update, T5) —
+// mesmo estilo de ExtensionCard/ExtensionActiveToggle já usado em
+// TelegramExtensionCard/S3ExtensionCard/TelegramLinkSection: card próprio
+// (aninhado dentro do painel "Detecção de movimento" — decisão deliberada
+// do navigator, confirmada mesmo sabendo do card-dentro-de-card) e o
+// checkbox nativo virou um toggle switch com label padrão "Ativado".
+// `savedEnabled`/`savedMinScore` guardam o último valor CONFIRMADO (do
+// fetch inicial, ou reatribuído após um PUT bem-sucedido) — alimentam o
+// selo do toggle E a regra de habilitação do "Aplicar" (só habilita quando
+// o staged diverge do salvo em pelo menos um dos dois campos), pedido do
+// navigator testando a página real — mesmo espírito da CA5 de
+// TelegramExtensionCard (história fix/ajustes-icone-telegram-e-momentos),
+// agora estendido a 2 campos em vez de 1.
 
 const inputClass =
   'w-full bg-surface-2 border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:border-ring'
@@ -29,7 +46,9 @@ export function MotionTelegramNotify({ cameraId, motionEnabled }: Props) {
   const [telegramActive, setTelegramActive] = useState(false)
   const [telegramLinked, setTelegramLinked] = useState(false)
   const [enabled, setEnabled] = useState(false)
+  const [savedEnabled, setSavedEnabled] = useState(false)
   const [minScore, setMinScore] = useState('0.02')
+  const [savedMinScore, setSavedMinScore] = useState('0.02')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -71,7 +90,9 @@ export function MotionTelegramNotify({ cameraId, motionEnabled }: Props) {
         const notify = (await notifyRes.json()) as { enabled?: boolean; min_score?: number }
         if (cancelled) return
         setEnabled(notify.enabled ?? false)
+        setSavedEnabled(notify.enabled ?? false)
         setMinScore(String(notify.min_score ?? 0.02))
+        setSavedMinScore(String(notify.min_score ?? 0.02))
       } catch {
         if (!cancelled) setLoadFailed(true)
       } finally {
@@ -88,6 +109,11 @@ export function MotionTelegramNotify({ cameraId, motionEnabled }: Props) {
     return null
   }
 
+  // parseFloat na comparação de minScore — evita falso-divergente por
+  // formatação (ex.: "0.020" digitado vs. "0.02" salvo), o mesmo valor
+  // numérico não deveria manter o botão habilitado à toa.
+  const hasChanges = enabled !== savedEnabled || parseFloat(minScore) !== parseFloat(savedMinScore)
+
   async function handleApply() {
     setSaving(true)
     setError(null)
@@ -102,6 +128,8 @@ export function MotionTelegramNotify({ cameraId, motionEnabled }: Props) {
         setError((await res.text()).trim() || 'Erro ao salvar')
         return
       }
+      setSavedEnabled(enabled)
+      setSavedMinScore(minScore)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } finally {
@@ -110,63 +138,60 @@ export function MotionTelegramNotify({ cameraId, motionEnabled }: Props) {
   }
 
   return (
-    <div className="mt-4 border-t border-border pt-4 flex flex-col gap-3">
-      <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground uppercase tracking-wider">
-        <TelegramIcon className="h-5 w-5 shrink-0" />
-        Notificações via Telegram
-      </p>
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
+    <div className="mt-6 border-t border-border pt-6">
+      <ExtensionCard
+        id="motion-telegram-notify"
+        icon={<TelegramIcon className="relative h-16 w-16" />}
+        name="Notificações via Telegram"
+        description="Receba um aviso no Telegram quando esta câmera detectar movimento."
+        available
+      >
+        <ExtensionActiveToggle
           id="motion-telegram-notify-enabled"
           checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-          className="accent-primary"
+          onChange={setEnabled}
+          savedActive={savedEnabled}
+          description="Notificar via Telegram"
         />
-        <label
-          htmlFor="motion-telegram-notify-enabled"
-          className="text-xs text-muted-foreground cursor-pointer"
-        >
-          Notificar via Telegram
-        </label>
-      </div>
-      {enabled && (
-        <div>
-          <label htmlFor="motion-telegram-notify-min-score" className={labelClass}>
-            Score mínimo
-          </label>
-          <input
-            id="motion-telegram-notify-min-score"
-            type="number"
-            step="0.001"
-            min="0"
-            max="1"
-            value={minScore}
-            onChange={(e) => setMinScore(e.target.value)}
-            className={inputClass}
-          />
-          <p className="text-xs text-muted-foreground mt-0.5">
-            0 – 1.0 · só notifica eventos com score igual ou acima deste valor
-          </p>
+        {enabled && (
+          <div className="mb-4">
+            <label htmlFor="motion-telegram-notify-min-score" className={labelClass}>
+              Score mínimo
+            </label>
+            <input
+              id="motion-telegram-notify-min-score"
+              type="number"
+              step="0.001"
+              min="0"
+              max="1"
+              value={minScore}
+              onChange={(e) => setMinScore(e.target.value)}
+              className={inputClass}
+            />
+            <p className="text-xs text-muted-foreground mt-0.5">
+              0 – 1.0 · só notifica eventos com score igual ou acima deste valor
+            </p>
+          </div>
+        )}
+        {error && (
+          <div className="px-3 py-2 mb-4 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
+            {error}
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <Button
+            id="motion-telegram-notify-save"
+            type="button"
+            size="sm"
+            disabled={saving || !hasChanges}
+            onClick={handleApply}
+          >
+            <Check className="h-4 w-4" />
+            {saving ? 'Aplicando...' : 'Aplicar'}
+          </Button>
+          {saved && <span className="text-xs text-green-400">Salvo</span>}
         </div>
-      )}
-      {error && (
-        <div className="px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-xs text-red-400">
-          {error}
-        </div>
-      )}
-      <div className="flex items-center gap-3">
-        <Button
-          id="motion-telegram-notify-save"
-          type="button"
-          size="sm"
-          disabled={saving}
-          onClick={handleApply}
-        >
-          {saving ? 'Aplicando...' : 'Aplicar'}
-        </Button>
-        {saved && <span className="text-xs text-green-400">Salvo</span>}
-      </div>
+      </ExtensionCard>
     </div>
   )
 }
