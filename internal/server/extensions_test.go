@@ -159,6 +159,72 @@ func TestExtensionsListed(t *testing.T) {
 	})
 }
 
+func TestExtensionsListed_FaceDetector(t *testing.T) {
+	t.Run("CA2: a extensão face-detector aparece na lista (id/name/category/description) com available conforme extensions.face_detector.enabled", func(t *testing.T) {
+		t.Run("available=false quando extensions.face_detector.enabled=false", func(t *testing.T) {
+			srv, token := setupExtensionsServer(t, config.ExtensionsConfig{})
+			list := getExtensions(t, srv, token)
+			fd, ok := findExtension(list, "face-detector")
+			if !ok {
+				t.Fatalf("esperava a extensão face-detector na lista, got %+v", list)
+			}
+			if fd.Name != "Face Detector" {
+				t.Errorf("name = %q, want Face Detector", fd.Name)
+			}
+			if fd.Category == "" || fd.Description == "" {
+				t.Errorf("esperava category e description preenchidos, got %+v", fd)
+			}
+			if fd.Available {
+				t.Error("expected available=false with extensions.face_detector.enabled=false")
+			}
+			if fd.Active {
+				t.Error("expected active=false por padrão")
+			}
+		})
+
+		t.Run("available=true quando extensions.face_detector.enabled=true", func(t *testing.T) {
+			srv, token := setupExtensionsServer(t, config.ExtensionsConfig{
+				FaceDetector: config.FaceDetectorConfig{Enabled: true},
+			})
+			list := getExtensions(t, srv, token)
+			fd, ok := findExtension(list, "face-detector")
+			if !ok {
+				t.Fatalf("esperava a extensão face-detector na lista, got %+v", list)
+			}
+			if !fd.Available {
+				t.Error("expected available=true with extensions.face_detector.enabled=true")
+			}
+		})
+	})
+
+	t.Run("CA2: PUT /api/settings/extensions/face-detector liga a extensão sem afetar as outras", func(t *testing.T) {
+		srv, token := setupExtensionsServer(t, config.ExtensionsConfig{
+			FaceDetector: config.FaceDetectorConfig{Enabled: true},
+		})
+
+		body, _ := json.Marshal(map[string]bool{"active": true})
+		req := httptest.NewRequest(http.MethodPut, "/api/settings/extensions/face-detector", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("PUT: expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		list := getExtensions(t, srv, token)
+		fd, ok := findExtension(list, "face-detector")
+		if !ok || !fd.Active {
+			t.Fatalf("esperava face-detector.active=true após o PUT, got %+v", list)
+		}
+		for _, e := range list {
+			if e.ID != "face-detector" && e.Active {
+				t.Errorf("PUT em face-detector não deveria ativar outra extensão, mas %s veio active=true", e.ID)
+			}
+		}
+	})
+}
+
 func TestExtensionsListed_S3(t *testing.T) {
 	t.Run("CA5: a extensão s3 aparece na lista com category=retention e available conforme extensions.s3.enabled", func(t *testing.T) {
 		t.Run("available=false quando extensions.s3.enabled=false", func(t *testing.T) {

@@ -45,8 +45,9 @@ type Config struct {
 // are NOT config fields: they're intrinsic to each extension and hardcoded
 // in Go (internal/server/extensions.go), never something an admin reconfigures.
 type ExtensionsConfig struct {
-	Telegram TelegramConfig    `yaml:"telegram"`
-	S3       S3ExtensionConfig `yaml:"s3"`
+	Telegram     TelegramConfig     `yaml:"telegram"`
+	S3           S3ExtensionConfig  `yaml:"s3"`
+	FaceDetector FaceDetectorConfig `yaml:"face_detector"`
 }
 
 // TelegramConfig holds the Telegram Bot API token used by
@@ -62,6 +63,14 @@ type TelegramConfig struct {
 // (bucket/credentials) is user-configured via the API/UI and lives in the
 // retention_extensions table (internal/db), not in this bootstrap file.
 type S3ExtensionConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// FaceDetectorConfig gates the Face Detector extension (esqueleto liga/desliga,
+// história feat/extensao-face-detector). Sem outros campos ainda — a
+// detecção facial de verdade (modelo/serviço) é escopo de uma história
+// futura; por ora só controla se a extensão aparece disponível na UI.
+type FaceDetectorConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 

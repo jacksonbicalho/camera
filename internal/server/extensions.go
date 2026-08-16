@@ -42,6 +42,13 @@ func (s *Server) extensionsMeta() []extensionDTO {
 			Description: "Armazenamento em nuvem compatível com S3.",
 			Available:   s.extensionsCfg.S3.Enabled,
 		},
+		{
+			ID:          "face-detector",
+			Name:        "Face Detector",
+			Category:    "Análise",
+			Description: "Detecta rostos nas gravações da câmera.",
+			Available:   s.extensionsCfg.FaceDetector.Enabled,
+		},
 	}
 }
 
