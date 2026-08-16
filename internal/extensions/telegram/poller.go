@@ -19,16 +19,32 @@ type Update struct {
 	Message  Message `json:"message"`
 }
 
-// Message is the message payload of an Update.
+// Message is the message payload of an Update. From is the Telegram user
+// who sent it — a pointer since the Bot API omits it for some message
+// types (theoretically not for a /start a human typed, but never assume a
+// field the API marks optional is always present).
 type Message struct {
 	Chat Chat   `json:"chat"`
 	Text string `json:"text"`
+	From *From  `json:"from"`
 }
 
 // Chat identifies the Telegram chat a message came from — its ID is what
 // SendMessage needs as chat_id to reply.
 type Chat struct {
 	ID int64 `json:"id"`
+}
+
+// From identifies the Telegram user who sent a Message — captured at
+// account-linking time (história feat/telegram-link-card-dados-chat-live-update,
+// T2) so the linked account's own frontend can show who's linked, not just
+// a boolean. Username is empty for users without a public @handle
+// (Telegram allows that) — callers must not assume it's always set.
+type From struct {
+	ID        int64  `json:"id"`
+	Username  string `json:"username"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
 }
 
 type getUpdatesResponse struct {
@@ -92,7 +108,11 @@ func ParseStartCommand(text string) (code string, ok bool) {
 // convenção do projeto) since Poller is what calls it.
 type LinkResolver interface {
 	ResolveLinkCode(code string) (userID int64, ok bool)
-	SetChatID(userID int64, chatID string) error
+	// SetChatInfo persists the chat_id plus the linking user's Telegram
+	// identity (username/first_name/last_name may be empty — see From)
+	// — renamed from SetChatID (T2 of feat/telegram-link-card-dados-chat-live-update)
+	// when the flow started capturing more than just the chat_id.
+	SetChatInfo(userID int64, chatID, username, firstName, lastName string) error
 	// ClearLinkCode invalidates the code after a successful link — single-use:
 	// without this, a leaked/observed code stays valid until it expires and
 	// could re-link (hijack) the same user's chat_id from a different chat.
@@ -125,7 +145,11 @@ func (p *Poller) HandleUpdate(u Update) error {
 		return nil
 	}
 	chatID := strconv.FormatInt(u.Message.Chat.ID, 10)
-	if err := p.resolver.SetChatID(userID, chatID); err != nil {
+	var username, firstName, lastName string
+	if u.Message.From != nil {
+		username, firstName, lastName = u.Message.From.Username, u.Message.From.FirstName, u.Message.From.LastName
+	}
+	if err := p.resolver.SetChatInfo(userID, chatID, username, firstName, lastName); err != nil {
 		return err
 	}
 	// Single-use: consume the code now that it linked successfully, so it

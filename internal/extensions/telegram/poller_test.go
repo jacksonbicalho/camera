@@ -45,6 +45,9 @@ type fakeResolver struct {
 	resolvedOK     bool
 	gotUserID      int64
 	gotChatID      string
+	gotUsername    string
+	gotFirstName   string
+	gotLastName    string
 	clearedUserID  int64
 	cleared        bool
 }
@@ -53,8 +56,9 @@ func (f *fakeResolver) ResolveLinkCode(code string) (int64, bool) {
 	return f.resolvedUserID, f.resolvedOK
 }
 
-func (f *fakeResolver) SetChatID(userID int64, chatID string) error {
+func (f *fakeResolver) SetChatInfo(userID int64, chatID, username, firstName, lastName string) error {
 	f.gotUserID, f.gotChatID = userID, chatID
+	f.gotUsername, f.gotFirstName, f.gotLastName = username, firstName, lastName
 	return nil
 }
 
@@ -78,7 +82,11 @@ func TestPollerHandleUpdate(t *testing.T) {
 		resolver := &fakeResolver{resolvedUserID: 42, resolvedOK: true}
 		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver)
 
-		u := telegram.Update{Message: telegram.Message{Chat: telegram.Chat{ID: 999}, Text: "/start good-code"}}
+		u := telegram.Update{Message: telegram.Message{
+			Chat: telegram.Chat{ID: 999},
+			Text: "/start good-code",
+			From: &telegram.From{ID: 999, Username: "janedoe", FirstName: "Jane", LastName: "Doe"},
+		}}
 		if err := p.HandleUpdate(u); err != nil {
 			t.Fatalf("HandleUpdate: %v", err)
 		}
@@ -90,6 +98,53 @@ func TestPollerHandleUpdate(t *testing.T) {
 		}
 		if !resolver.cleared || resolver.clearedUserID != 42 {
 			t.Errorf("expected the link code to be cleared (single-use) for user 42, got cleared=%v for user=%d", resolver.cleared, resolver.clearedUserID)
+		}
+	})
+
+	t.Run("CA2: código válido também persiste username/first_name/last_name do remetente do /start", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+		defer telegram.StubAPIBase(server.URL)()
+
+		resolver := &fakeResolver{resolvedUserID: 42, resolvedOK: true}
+		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver)
+
+		u := telegram.Update{Message: telegram.Message{
+			Chat: telegram.Chat{ID: 999},
+			Text: "/start good-code",
+			From: &telegram.From{ID: 999, Username: "janedoe", FirstName: "Jane", LastName: "Doe"},
+		}}
+		if err := p.HandleUpdate(u); err != nil {
+			t.Fatalf("HandleUpdate: %v", err)
+		}
+		if resolver.gotUsername != "janedoe" || resolver.gotFirstName != "Jane" || resolver.gotLastName != "Doe" {
+			t.Errorf("expected username/first_name/last_name captured, got username=%q first=%q last=%q",
+				resolver.gotUsername, resolver.gotFirstName, resolver.gotLastName)
+		}
+	})
+
+	t.Run("CA2: From ausente não quebra — persiste chat_id com identidade vazia", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+		defer telegram.StubAPIBase(server.URL)()
+
+		resolver := &fakeResolver{resolvedUserID: 42, resolvedOK: true}
+		p := telegram.NewPoller(telegram.NewClient("TOK"), resolver)
+
+		u := telegram.Update{Message: telegram.Message{Chat: telegram.Chat{ID: 999}, Text: "/start good-code"}}
+		if err := p.HandleUpdate(u); err != nil {
+			t.Fatalf("HandleUpdate: %v", err)
+		}
+		if resolver.gotChatID != "999" {
+			t.Errorf("expected chat_id '999' still persisted without From, got %q", resolver.gotChatID)
+		}
+		if resolver.gotUsername != "" || resolver.gotFirstName != "" || resolver.gotLastName != "" {
+			t.Errorf("expected empty identity fields when From is nil, got username=%q first=%q last=%q",
+				resolver.gotUsername, resolver.gotFirstName, resolver.gotLastName)
 		}
 	})
 
@@ -168,7 +223,7 @@ func TestClientGetUpdates(t *testing.T) {
 	})
 }
 
-// flakyResolver fails SetChatID exactly once (for the first call), then
+// flakyResolver fails SetChatInfo exactly once (for the first call), then
 // delegates to the embedded fakeResolver — simulates a transient error
 // (e.g. a DB hiccup) to prove Run retries instead of dropping the update.
 type flakyResolver struct {
@@ -176,12 +231,12 @@ type flakyResolver struct {
 	failed bool
 }
 
-func (f *flakyResolver) SetChatID(userID int64, chatID string) error {
+func (f *flakyResolver) SetChatInfo(userID int64, chatID, username, firstName, lastName string) error {
 	if !f.failed {
 		f.failed = true
 		return fmt.Errorf("simulated transient failure")
 	}
-	return f.fakeResolver.SetChatID(userID, chatID)
+	return f.fakeResolver.SetChatInfo(userID, chatID, username, firstName, lastName)
 }
 
 func TestPollerRun(t *testing.T) {

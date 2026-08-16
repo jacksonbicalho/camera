@@ -35,7 +35,7 @@ func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load preferences", http.StatusInternalServerError)
 		return
 	}
-	chatID, err := db.GetUserTelegramChatID(s.db, s.currentUserID(r))
+	chatID, telegramUsername, telegramFirstName, _, err := db.GetUserTelegramChatInfo(s.db, s.currentUserID(r))
 	if err != nil {
 		http.Error(w, "failed to load preferences", http.StatusInternalServerError)
 		return
@@ -45,13 +45,26 @@ func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load preferences", http.StatusInternalServerError)
 		return
 	}
+	// telegram_bot_username is the BOT's own @handle (not the user's) — used
+	// by the frontend to build an "open chat" link (https://t.me/<handle>).
+	// Best-effort: only resolvable when the extension is actually configured
+	// with a valid token, so a failure here degrades to "" rather than
+	// failing the whole preferences response over a field only the Telegram
+	// card needs.
+	var telegramBotUsername string
+	if s.extensionsCfg.Telegram.Enabled && s.extensionsCfg.Telegram.BotToken != "" {
+		telegramBotUsername, _ = s.telegramUsername()
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"theme":           theme,
-		"accent":          accent,
-		"notify_email":    notifyEmail,
-		"telegram_linked": chatID != "",
-		"telegram_active": telegramActive,
+		"theme":                 theme,
+		"accent":                accent,
+		"notify_email":          notifyEmail,
+		"telegram_linked":       chatID != "",
+		"telegram_active":       telegramActive,
+		"telegram_username":     telegramUsername,
+		"telegram_first_name":   telegramFirstName,
+		"telegram_bot_username": telegramBotUsername,
 	})
 }
 

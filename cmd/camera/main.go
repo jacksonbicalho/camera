@@ -690,8 +690,8 @@ func (r telegramLinkResolver) ResolveLinkCode(code string) (int64, bool) {
 	return userID, true
 }
 
-func (r telegramLinkResolver) SetChatID(userID int64, chatID string) error {
-	return db.SetUserTelegramChatID(r.db, userID, chatID)
+func (r telegramLinkResolver) SetChatInfo(userID int64, chatID, username, firstName, lastName string) error {
+	return db.SetUserTelegramChatInfo(r.db, userID, chatID, username, firstName, lastName)
 }
 
 func (r telegramLinkResolver) ClearLinkCode(userID int64) error {

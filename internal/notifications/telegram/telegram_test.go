@@ -57,7 +57,7 @@ func TestTelegramSender_Send(t *testing.T) {
 	})
 
 	t.Run("CA3: extensão não ativa na instância, não envia", func(t *testing.T) {
-		if err := db.SetUserTelegramChatID(database, uid, "12345"); err != nil {
+		if err := db.SetUserTelegramChatInfo(database, uid, "12345", "", "", ""); err != nil {
 			t.Fatalf("set chat id: %v", err)
 		}
 		m := &fakeMessenger{}
@@ -91,7 +91,7 @@ func TestTelegramSender_Send(t *testing.T) {
 		if err := db.SetExtensionActive(database, "telegram", true); err != nil {
 			t.Fatalf("set extension active: %v", err)
 		}
-		if err := db.SetUserTelegramChatID(database, uid, "chat-42"); err != nil {
+		if err := db.SetUserTelegramChatInfo(database, uid, "chat-42", "", "", ""); err != nil {
 			t.Fatalf("set chat id: %v", err)
 		}
 		m := &fakeMessenger{}
@@ -108,7 +108,7 @@ func TestTelegramSender_Send(t *testing.T) {
 		if err := db.SetExtensionActive(database, "telegram", true); err != nil {
 			t.Fatalf("set extension active: %v", err)
 		}
-		if err := db.SetUserTelegramChatID(database, uid, "chat-42"); err != nil {
+		if err := db.SetUserTelegramChatInfo(database, uid, "chat-42", "", "", ""); err != nil {
 			t.Fatalf("set chat id: %v", err)
 		}
 		imgPath := filepath.Join(t.TempDir(), "snapshot.jpg")
@@ -134,7 +134,7 @@ func TestTelegramSender_Send(t *testing.T) {
 		if err := db.SetExtensionActive(database, "telegram", true); err != nil {
 			t.Fatalf("set extension active: %v", err)
 		}
-		if err := db.SetUserTelegramChatID(database, uid, "chat-42"); err != nil {
+		if err := db.SetUserTelegramChatInfo(database, uid, "chat-42", "", "", ""); err != nil {
 			t.Fatalf("set chat id: %v", err)
 		}
 		m := &fakeMessenger{}
@@ -155,7 +155,7 @@ func TestTelegramSender_Send(t *testing.T) {
 		if err := db.SetExtensionActive(database, "telegram", true); err != nil {
 			t.Fatalf("set extension active: %v", err)
 		}
-		if err := db.SetUserTelegramChatID(database, uid, "chat-42"); err != nil {
+		if err := db.SetUserTelegramChatInfo(database, uid, "chat-42", "", "", ""); err != nil {
 			t.Fatalf("set chat id: %v", err)
 		}
 		imgPath := filepath.Join(t.TempDir(), "snapshot.jpg")
