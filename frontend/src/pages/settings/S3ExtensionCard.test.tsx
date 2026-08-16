@@ -99,7 +99,7 @@ describe('CA5: a página Extensões mostra o conteúdo completo do S3, junto do 
     })
   })
 
-  it('com uma linha já existente e já ativo, pré-popula o form; "Aplicar" dispara PUT /api/retention-extensions/:id', async () => {
+  it('com uma linha já existente e já ativo, "Configurar" revela o form pré-populado; "Aplicar" dispara PUT /api/retention-extensions/:id', async () => {
     const calls: { method: string; url: string; body: unknown }[] = []
     mockFetch(
       [
@@ -117,6 +117,10 @@ describe('CA5: a página Extensões mostra o conteúdo completo do S3, junto do 
     )
     render(<S3ExtensionCard />)
 
+    await screen.findByText('S3')
+    expect(screen.queryByLabelText(/^nome/i)).toBeNull()
+
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
     const nameInput = (await screen.findByLabelText(/^nome/i)) as HTMLInputElement
     await waitFor(() => expect(nameInput.value).toBe('destino-atual'))
 
@@ -214,6 +218,111 @@ describe('CA5: a página Extensões mostra o conteúdo completo do S3, junto do 
     await screen.findByText('Extensão não permitida nesta instância.')
     expect(screen.queryByRole('switch')).toBeNull()
     expect(screen.getByText('S3')).toBeTruthy()
+  })
+})
+
+describe('CA2: card do S3 nasce sempre fechado (mesmo tamanho dos outros), abre por Configurar ou pelo toggle, fecha ao aplicar', () => {
+  it('extensão já ativa: o formulário NÃO aparece até "Configurar" ou o toggle serem acionados', async () => {
+    mockFetch(
+      [
+        {
+          id: 'ext1',
+          name: 'destino-atual',
+          endpoint: '',
+          bucket: 'bucket-atual',
+          region: 'us-east-1',
+          prefix: '',
+        },
+      ],
+      undefined,
+      true,
+    )
+    render(<S3ExtensionCard />)
+
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(true))
+    expect(screen.queryByLabelText(/^nome/i)).toBeNull()
+  })
+
+  it('botão "Configurar" abre o formulário mesmo com a extensão já ativa, sem precisar desligar/religar o toggle', async () => {
+    mockFetch(
+      [
+        {
+          id: 'ext1',
+          name: 'destino-atual',
+          endpoint: '',
+          bucket: 'bucket-atual',
+          region: 'us-east-1',
+          prefix: '',
+        },
+      ],
+      undefined,
+      true,
+    )
+    render(<S3ExtensionCard />)
+
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(true))
+    expect(screen.queryByLabelText(/^nome/i)).toBeNull()
+
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
+
+    await screen.findByLabelText(/^nome/i)
+    expect(switchChecked(toggle)).toBe(true)
+  })
+
+  it('o botão "Configurar" some enquanto o formulário está aberto (o lugar dele vira o de "Aplicar")', async () => {
+    mockFetch([])
+    render(<S3ExtensionCard />)
+
+    expect(await screen.findByRole('button', { name: /configurar/i })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /configurar/i }))
+
+    await screen.findByLabelText(/^nome/i)
+    expect(screen.queryByRole('button', { name: /configurar/i })).toBeNull()
+  })
+
+  it('desligar o toggle fecha a configuração de volta', async () => {
+    mockFetch(
+      [
+        {
+          id: 'ext1',
+          name: 'destino-atual',
+          endpoint: '',
+          bucket: 'bucket-atual',
+          region: 'us-east-1',
+          prefix: '',
+        },
+      ],
+      undefined,
+      true,
+    )
+    render(<S3ExtensionCard />)
+
+    const toggle = await screen.findByRole('switch')
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
+    await screen.findByLabelText(/^nome/i)
+
+    fireEvent.click(toggle)
+
+    expect(screen.queryByLabelText(/^nome/i)).toBeNull()
+  })
+
+  it('"Aplicar" bem-sucedido fecha a configuração de volta', async () => {
+    mockFetch([])
+    render(<S3ExtensionCard />)
+
+    fireEvent.click(await screen.findByRole('switch'))
+    await screen.findByLabelText(/^nome/i)
+    fireEvent.change(screen.getByLabelText(/^nome/i), { target: { value: 'meu-s3' } })
+    fireEvent.change(screen.getByLabelText(/bucket/i), { target: { value: 'meu-bucket' } })
+    fireEvent.change(screen.getByLabelText(/access key/i), { target: { value: 'AK' } })
+    fireEvent.change(screen.getByLabelText(/secret key/i), { target: { value: 'SK' } })
+
+    fireEvent.click(document.getElementById('s3-config-apply')!)
+
+    await waitFor(() => expect(screen.queryByLabelText(/^nome/i)).toBeNull())
   })
 })
 
