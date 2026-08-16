@@ -272,7 +272,7 @@ describe('CA2: card do S3 nasce sempre fechado (mesmo tamanho dos outros), abre 
     expect(switchChecked(toggle)).toBe(true)
   })
 
-  it('o botão "Configurar" some enquanto o formulário está aberto (o lugar dele vira o de "Aplicar")', async () => {
+  it('o botão "Configurar" vira "Cancelar" enquanto o formulário está aberto, e fecha ao clicar', async () => {
     mockFetch([])
     render(<S3ExtensionCard />)
 
@@ -281,7 +281,42 @@ describe('CA2: card do S3 nasce sempre fechado (mesmo tamanho dos outros), abre 
     fireEvent.click(screen.getByRole('button', { name: /configurar/i }))
 
     await screen.findByLabelText(/^nome/i)
-    expect(screen.queryByRole('button', { name: /configurar/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^configurar$/i })).toBeNull()
+    expect(document.getElementById('s3-config-cancel')).toBeTruthy()
+
+    fireEvent.click(document.getElementById('s3-config-cancel')!)
+
+    expect(screen.queryByLabelText(/^nome/i)).toBeNull()
+    expect(await screen.findByRole('button', { name: /configurar/i })).toBeTruthy()
+  })
+
+  it('"Cancelar" descarta as edições em curso (não fica "vazando" pra próxima vez que o form reabrir)', async () => {
+    mockFetch(
+      [
+        {
+          id: 'ext1',
+          name: 'destino-atual',
+          endpoint: '',
+          bucket: 'bucket-atual',
+          region: 'us-east-1',
+          prefix: '',
+        },
+      ],
+      undefined,
+      true,
+    )
+    render(<S3ExtensionCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
+    const nameInput = (await screen.findByLabelText(/^nome/i)) as HTMLInputElement
+    await waitFor(() => expect(nameInput.value).toBe('destino-atual'))
+
+    fireEvent.change(nameInput, { target: { value: 'editado-descartado' } })
+    fireEvent.click(document.getElementById('s3-config-cancel')!)
+
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
+    const reopenedInput = (await screen.findByLabelText(/^nome/i)) as HTMLInputElement
+    expect(reopenedInput.value).toBe('destino-atual')
   })
 
   it('desligar o toggle fecha a configuração de volta', async () => {

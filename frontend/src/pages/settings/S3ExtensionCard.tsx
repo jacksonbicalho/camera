@@ -66,10 +66,20 @@ const emptyForm = () => ({
 // branch: manter o form aberto depois de desligar o toggle era
 // confuso). O botão "Configurar" (linha do rodapé, ao lado de "Aplicar"
 // — não perto do toggle, também pedido do navigator vendo a página
-// real; some enquanto o formulário já está aberto, já que "Aplicar"
-// assume o mesmo lugar funcional) é a via independente pra reabrir uma
-// config já ativa sem precisar desligar/religar o toggle. Fecha também
-// quando `handleApply` termina com sucesso (além do desligar o toggle).
+// real) é a via independente pra reabrir uma config já ativa sem
+// precisar desligar/religar o toggle; vira "Cancelar" (mesma posição,
+// mesmo id trocado por `s3-config-cancel`) enquanto `configuring` está
+// aberto — achado do navigator vendo a página real: sem essa troca, o
+// formulário não tinha NENHUMA forma explícita de fechar (só desligar
+// o toggle ou aplicar). "Cancelar" descarta a edição em curso
+// (`setActiveStaged(savedActive)`/`setForm(savedForm)`) e fecha — igual
+// à semântica de "Cancelar" já usada em outras telas do app
+// (ProfilePage etc.). Só ESSE caminho garante que uma edição não-salva
+// não "vaze" pra próxima vez que o form reabrir — desligar o toggle
+// direto (o outro caminho de fechar) ainda não reseta `form`, mesmo
+// follow-up já registrado antes de T2 existir. Fecha também quando
+// `handleApply` termina com sucesso (além do desligar o toggle e do
+// Cancelar).
 // `hasChanges` (T3 da mesma história) estende a regra de habilitação
 // por divergência do Telegram (CA5 de T5, história anterior) pro S3 —
 // `savedForm` espelha `form`, atualizado no mesmo ponto (mount e pós-
@@ -304,7 +314,21 @@ export default function S3ExtensionCard() {
           <span />
         )}
         <div className="flex gap-2">
-          {!configuring && (
+          {configuring ? (
+            <Button
+              id="s3-config-cancel"
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setActiveStaged(savedActive)
+                setForm(savedForm)
+                setConfiguring(false)
+              }}
+            >
+              Cancelar
+            </Button>
+          ) : (
             <Button
               id="s3-config-configure"
               type="button"
