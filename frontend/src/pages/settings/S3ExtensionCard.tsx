@@ -70,12 +70,14 @@ const emptyForm = () => ({
 // assume o mesmo lugar funcional) é a via independente pra reabrir uma
 // config já ativa sem precisar desligar/religar o toggle. Fecha também
 // quando `handleApply` termina com sucesso (além do desligar o toggle).
-// `hasChanges` (planejado para T3 da mesma história, ainda não
-// implementado neste ponto) vai estender a regra de habilitação por
-// divergência do Telegram (CA5 de T5, história anterior) pro S3 —
-// cobrindo o toggle e os 7 campos do formulário, com
-// `access_key`/`secret_key` (campos WRITE-ONLY — a API nunca devolve o
-// valor salvo) só contando como divergência quando preenchidos.
+// `hasChanges` (T3 da mesma história) estende a regra de habilitação
+// por divergência do Telegram (CA5 de T5, história anterior) pro S3 —
+// `savedForm` espelha `form`, atualizado no mesmo ponto (mount e pós-
+// `handleApply`); cobre o toggle (`activeStaged !== savedActive`) e os
+// campos de texto do formulário, com `access_key`/`secret_key` (campos
+// WRITE-ONLY — a API nunca devolve o valor salvo) só contando como
+// divergência quando preenchidos (nunca "vazio" vs. "salvo mascarado").
+// Botão "Aplicar": `disabled={saving || invalidToActivate || !hasChanges}`.
 export default function S3ExtensionCard() {
   const [existing, setExisting] = useState<RetentionExtension | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -87,6 +89,7 @@ export default function S3ExtensionCard() {
   const [activeStaged, setActiveStaged] = useState(false)
   const [savedActive, setSavedActive] = useState(false)
   const [configuring, setConfiguring] = useState(false)
+  const [savedForm, setSavedForm] = useState(emptyForm())
 
   const loadRetentionExtension = () =>
     fetch('/api/retention-extensions', { headers: authHeaders() })
@@ -94,19 +97,19 @@ export default function S3ExtensionCard() {
       .then((list: RetentionExtension[]) => {
         const re = list?.[0] ?? null
         setExisting(re)
-        setForm(
-          re
-            ? {
-                name: re.name,
-                endpoint: re.endpoint,
-                bucket: re.bucket,
-                region: re.region,
-                access_key: '',
-                secret_key: '',
-                prefix: re.prefix,
-              }
-            : emptyForm(),
-        )
+        const next = re
+          ? {
+              name: re.name,
+              endpoint: re.endpoint,
+              bucket: re.bucket,
+              region: re.region,
+              access_key: '',
+              secret_key: '',
+              prefix: re.prefix,
+            }
+          : emptyForm()
+        setForm(next)
+        setSavedForm(next)
       })
       .catch(() => {})
       .finally(() => setLoaded(true))
@@ -147,6 +150,7 @@ export default function S3ExtensionCard() {
         .catch(() => {})
         .finally(() => {
           setSaving(false)
+          loadRetentionExtension()
           loadActive()
         })
       return
@@ -228,6 +232,16 @@ export default function S3ExtensionCard() {
     activeStaged &&
     (!form.name || !form.bucket || (!existing && (!form.access_key || !form.secret_key)))
 
+  const hasChanges =
+    activeStaged !== savedActive ||
+    form.name !== savedForm.name ||
+    form.endpoint !== savedForm.endpoint ||
+    form.bucket !== savedForm.bucket ||
+    form.region !== savedForm.region ||
+    form.prefix !== savedForm.prefix ||
+    form.access_key !== '' ||
+    form.secret_key !== ''
+
   return (
     <ExtensionCard
       id="s3-extension-card"
@@ -302,7 +316,11 @@ export default function S3ExtensionCard() {
               Configurar
             </Button>
           )}
-          <Button id="s3-config-apply" onClick={handleApply} disabled={saving || invalidToActivate}>
+          <Button
+            id="s3-config-apply"
+            onClick={handleApply}
+            disabled={saving || invalidToActivate || !hasChanges}
+          >
             <Check className="h-4 w-4" />
             {saving ? 'Aplicando...' : 'Aplicar'}
           </Button>

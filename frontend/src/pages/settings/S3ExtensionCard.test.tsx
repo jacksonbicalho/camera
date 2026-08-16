@@ -124,6 +124,7 @@ describe('CA5: a página Extensões mostra o conteúdo completo do S3, junto do 
     const nameInput = (await screen.findByLabelText(/^nome/i)) as HTMLInputElement
     await waitFor(() => expect(nameInput.value).toBe('destino-atual'))
 
+    fireEvent.change(nameInput, { target: { value: 'destino-novo' } })
     fireEvent.click(document.getElementById('s3-config-apply')!)
 
     await waitFor(() => {
@@ -323,6 +324,115 @@ describe('CA2: card do S3 nasce sempre fechado (mesmo tamanho dos outros), abre 
     fireEvent.click(document.getElementById('s3-config-apply')!)
 
     await waitFor(() => expect(screen.queryByLabelText(/^nome/i)).toBeNull())
+  })
+})
+
+describe('CA3: "Aplicar" do S3 só habilita quando algo diverge do último valor salvo', () => {
+  const existingRow = {
+    id: 'ext1',
+    name: 'destino-atual',
+    endpoint: '',
+    bucket: 'bucket-atual',
+    region: 'us-east-1',
+    prefix: '',
+  }
+
+  it('estado inicial (staged bate com salvo): "Aplicar" começa desabilitado', async () => {
+    mockFetch([existingRow], undefined, true)
+    render(<S3ExtensionCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
+    await screen.findByLabelText(/^nome/i)
+
+    expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('mudar um campo do formulário habilita "Aplicar"', async () => {
+    mockFetch([existingRow], undefined, true)
+    render(<S3ExtensionCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
+    await screen.findByLabelText(/^nome/i)
+    expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.change(screen.getByLabelText(/^nome/i), { target: { value: 'novo-nome' } })
+
+    expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('reverter o campo para o valor salvo desabilita "Aplicar" de novo', async () => {
+    mockFetch([existingRow], undefined, true)
+    render(<S3ExtensionCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
+    const nameInput = await screen.findByLabelText(/^nome/i)
+
+    fireEvent.change(nameInput, { target: { value: 'novo-nome' } })
+    expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(false)
+
+    fireEvent.change(nameInput, { target: { value: 'destino-atual' } })
+    expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('digitar em access_key/secret_key habilita "Aplicar" mesmo com o resto igual (campos write-only)', async () => {
+    mockFetch([existingRow], undefined, true)
+    render(<S3ExtensionCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
+    await screen.findByLabelText(/^nome/i)
+    expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.change(screen.getByLabelText(/access key/i), { target: { value: 'AK' } })
+
+    expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('ligar o toggle sozinho (sem mexer no formulário) habilita "Aplicar" — diverge do salvo', async () => {
+    mockFetch([existingRow], undefined, false)
+    render(<S3ExtensionCard />)
+
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(switchChecked(toggle)).toBe(false))
+    expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.click(toggle)
+
+    expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('"Aplicar" bem-sucedido desabilita o botão de novo', async () => {
+    mockFetch([existingRow], undefined, true)
+    render(<S3ExtensionCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
+    fireEvent.change(await screen.findByLabelText(/^nome/i), { target: { value: 'novo-nome' } })
+    expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(false)
+
+    fireEvent.click(document.getElementById('s3-config-apply')!)
+
+    await waitFor(() => expect(screen.queryByLabelText(/^nome/i)).toBeNull())
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
+    await waitFor(() =>
+      expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(true),
+    )
+  })
+
+  it('editar um campo, desligar o toggle e aplicar resincroniza savedForm — "Aplicar" não fica preso habilitado', async () => {
+    mockFetch([existingRow], undefined, true)
+    render(<S3ExtensionCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /configurar/i }))
+    fireEvent.change(await screen.findByLabelText(/^nome/i), {
+      target: { value: 'editado-mas-nao-salvo' },
+    })
+
+    fireEvent.click(screen.getByRole('switch'))
+    fireEvent.click(document.getElementById('s3-config-apply')!)
+
+    await waitFor(() => expect(screen.queryByText('Aplicando...')).toBeNull())
+    await waitFor(() =>
+      expect((document.getElementById('s3-config-apply') as HTMLButtonElement).disabled).toBe(true),
+    )
   })
 })
 
