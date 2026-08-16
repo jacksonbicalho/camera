@@ -126,7 +126,10 @@ bash scripts/functional-check.sh   → roda cenários, marca CAs [x]
 bash scripts/finalize-story.sh     → se tudo verde: marca [x] Aprovado
    │
    ▼
-scripts/commit.sh (se pendente)
+invoca subagent docs-writer   → atualiza docs/go-modules, docs/frontend
+   │                             e (se visível ao usuário) o guia em docs/
+   ▼
+scripts/commit.sh (se pendente)   → inclui as edições do docs-writer
    │
    ▼
 Preenche o resumo em `## Revisão` da story
@@ -151,7 +154,7 @@ scripts/push-pr.sh   (push+PR+CI+merge)
 3. **Gate G2.** Nenhuma branch nova, linha de código de produção ou teste antes de `[x] História revisada` — evita o custo de abandonar uma branch se a revisão pedir mudanças grandes na story.
 4. **Só então:** `git checkout -b <tipo>/<slug> develop` (sincronizado de novo, caso a revisão tenha demorado).
 5. **Ciclo por ticket (sem nenhum prompt ao navigator):** TDD red → green → refactor → `bash scripts/check.sh` → invoca o subagent `code-reviewer` → `CHANGES_REQUESTED` (corrige blocker/major, re-invoca, máx. 3 iterações, senão escala) ou `APPROVED` (`scripts/record-review.sh <Tn> <iterações>`, então commit do ticket).
-6. **Fim dos tickets:** `bash scripts/functional-check.sh` (roda os cenários, marca os CAs) → `bash scripts/finalize-story.sh` (marca `[x] Aprovado` quando História revisada + Review APPROVED + todos os CAs estão verdes) → `scripts/commit.sh` (se houver algo pendente) → preenche o resumo em `## Revisão` da story → `bash scripts/await-gate.sh prepush` em background (mesmo padrão de G1/G2) → **PARA e aguarda o navigator marcar `[x] Pré-push: revisado e aprovado`** (ver "Pré-push" em Gates humanos e em Artefatos acima) → só então `scripts/push-pr.sh` (push + PR **sempre `--base develop`** + aguarda CI + merge quando verde). Se o navigator encontrar problemas em vez de aprovar, ele escreve o que encontrou na própria seção `## Revisão` e **deixa o checkbox desmarcado** — o driver lê o feedback (aparece no diff do arquivo), corrige (voltando ao ciclo normal de ticket — TDD → `check.sh` → subagent `code-reviewer` → commit — se a correção mexer em lógica de produção), atualiza o resumo e volta a aguardar o MESMO checkbox. **CI vermelho:** o `push-pr.sh` propaga o erro sem mergear (PR fica aberto) — **Política A**: um fix trivial pós-`Aprovado` (deixar o CI verde) não exige nova aprovação; se o fix mexer em lógica de produção, volta pro ciclo de ticket (novo review do subagent).
+6. **Fim dos tickets:** `bash scripts/functional-check.sh` (roda os cenários, marca os CAs) → `bash scripts/finalize-story.sh` (marca `[x] Aprovado` quando História revisada + Review APPROVED + todos os CAs estão verdes) → invoca o subagent `docs-writer` (ver "Documentação automatizada" abaixo), passando a story finalizada — ele atualiza `docs/go-modules/`/`docs/frontend/` (e, se a história mudou algo visível ao usuário final, o guia correspondente em `docs/*.md`) — → `scripts/commit.sh` (se houver algo pendente, incluindo as edições do `docs-writer`) → preenche o resumo em `## Revisão` da story → `bash scripts/await-gate.sh prepush` em background (mesmo padrão de G1/G2) → **PARA e aguarda o navigator marcar `[x] Pré-push: revisado e aprovado`** (ver "Pré-push" em Gates humanos e em Artefatos acima) → só então `scripts/push-pr.sh` (push + PR **sempre `--base develop`** + aguarda CI + merge quando verde). Se o navigator encontrar problemas em vez de aprovar, ele escreve o que encontrou na própria seção `## Revisão` e **deixa o checkbox desmarcado** — o driver lê o feedback (aparece no diff do arquivo), corrige (voltando ao ciclo normal de ticket — TDD → `check.sh` → subagent `code-reviewer` → commit — se a correção mexer em lógica de produção), atualiza o resumo e volta a aguardar o MESMO checkbox. **CI vermelho:** o `push-pr.sh` propaga o erro sem mergear (PR fica aberto) — **Política A**: um fix trivial pós-`Aprovado` (deixar o CI verde) não exige nova aprovação; se o fix mexer em lógica de produção, volta pro ciclo de ticket (novo review do subagent).
 7. Atualizar o arquivo de release correspondente em `work_progress/releases/`: preencher a branch e o número do PR na tabela, marcar `[~]`; o `merge-when-green.sh` marca `[~]→[✓]` ao mergear em `develop`. **Apenas o corte de release** (`develop → master`, G3) depende de autorização explícita do navigator.
 
 ### Artefatos
@@ -255,6 +258,25 @@ Loop por ticket:
 4. Veredito `APPROVED` → `scripts/record-review.sh <Tn> <iterações>`.
 5. **Circuit breaker:** 3 iterações sem `APPROVED` → driver para, resume o impasse na seção Code Review e escala ao navigator (única exceção de interação entre G2 e G3).
 
+### Documentação automatizada
+
+Subagent `docs-writer` (`.claude/agents/docs-writer.md`): invocado **uma vez por história** (não por ticket, diferente do `code-reviewer`) — logo depois de `finalize-story.sh`, antes do commit final e do gate de pré-push (ver "Fluxo por demanda" acima). Recebe a story finalizada inteira e o `git diff develop...HEAD` da branch completa, e edita a documentação diretamente (`tools: Read, Grep, Glob, Bash, Edit, Write`, ao contrário do `code-reviewer`).
+
+**`CLAUDE.md` nunca ganha conteúdo do `docs-writer`** — só uma linha de pointer nova quando uma área genuinamente nova nasce. Toda documentação de comportamento/decisão vai para:
+- `docs/go-modules/<pacote>/README.md` (backend, convenção já existente).
+- `docs/frontend/<área>.md` (frontend, ver [`docs/frontend/README.md`](../docs/frontend/README.md) pro índice e pro modelo de documentação — mesma forma nos dois casos: Arquivos principais + Decisões e invariantes + Ver também, prosa como arquitetura, não como changelog).
+- Guias de usuário em `docs/*.md` no topo (`docs/motion.md`, `docs/storage.md` etc.) — só quando a história muda algo visível/operável pelo usuário final; nunca cria um guia novo sozinho, registra em Observações se achar que falta um.
+
+**Rodando uma vez por história, não por ticket**, o `docs-writer` documenta o estado FINAL da mudança, não o histórico picotado de cada ticket — evita o mesmo tipo de acúmulo verboso que motivou a extração de `docs/frontend/` a partir do `CLAUDE.md` (história `docs/reorganizar-claude-md-e-agente-documentacao`).
+
+**Restrição de comando por hook, mesmo padrão do `code-reviewer`** (ver acima pro porquê `disallowedTools`/`Bash(cmd:*)` no frontmatter não restringe nada de verdade): `scripts/hooks/docs-writer-bash-guard.sh` só permite `git diff`/`git log`/`git show`/`git status` (leitura) — o `docs-writer` nunca commita, dá push ou abre PR; isso é sempre o driver, depois de revisar o diff de documentação.
+
+Loop (uma vez por história, não em loop de correção como o code review):
+1. Driver termina `finalize-story.sh`.
+2. Driver invoca o subagent passando: a story finalizada (path).
+3. Driver revisa o diff de documentação produzido antes de commitar — não é um veredito estruturado como o `code-reviewer`, é edição direta que o driver confere.
+4. `scripts/commit.sh` inclui as edições de documentação junto com qualquer coisa pendente.
+
 ### Commits semânticos
 
 Formato: `<tipo>(<escopo opcional>): <descrição curta em inglês>` — para tickets, `<tipo>(<escopo>): Tn — <descrição>`.
@@ -310,7 +332,7 @@ Hooks `PreToolUse` (matcher `Bash`, versionados no repo) impõem o fluxo automat
 
 O gate de testes roda no host (Go instalado), **sem cache** (`-count=1`) — só execução limpa pega testes dependentes de `time.Now()` (o cache do Go não rastreia o relógio). Escopo é backend; o frontend segue coberto pelo CI. Hooks só recarregam no início da sessão do Claude Code: alterações em `settings.json` (ou nos scripts de hook) valem a partir da próxima sessão.
 
-**Hook escopado a um subagent** (diferente dos acima, que valem pra sessão principal inteira): `.claude/agents/code-reviewer.md` declara seu próprio `hooks.PreToolUse` (matcher `Bash`) apontando pra `scripts/hooks/reviewer-bash-guard.sh` — é a restrição de comando REAL do subagent `code-reviewer` (ver "Code review automatizado" acima pro porquê: o campo `tools:` do frontmatter não restringe comando nenhum, só ferramenta inteira).
+**Hook escopado a um subagent** (diferente dos acima, que valem pra sessão principal inteira): `.claude/agents/code-reviewer.md` declara seu próprio `hooks.PreToolUse` (matcher `Bash`) apontando pra `scripts/hooks/reviewer-bash-guard.sh` — é a restrição de comando REAL do subagent `code-reviewer` (ver "Code review automatizado" acima pro porquê: o campo `tools:` do frontmatter não restringe comando nenhum, só ferramenta inteira). Mesmo padrão em `.claude/agents/docs-writer.md`, apontando pra `scripts/hooks/docs-writer-bash-guard.sh` (ver "Documentação automatizada" acima) — a diferença é que o `docs-writer` também tem `Write`/`Edit` liberados no `tools:` (ele existe pra editar documentação), então o hook restringe só o `Bash`, não a escrita de arquivo.
 
 ### Scripts de workflow (`scripts/`)
 
