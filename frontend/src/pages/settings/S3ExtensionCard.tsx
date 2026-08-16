@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { authHeaders } from '../../auth'
 import { Button } from '@/components/ui/button'
+import { HardDrive, Check } from '@/components/Icons'
+import ExtensionCard from '@/components/ExtensionCard'
+import ExtensionActiveToggle from '@/components/ExtensionActiveToggle'
 
 interface RetentionExtension {
   id: string
@@ -15,6 +18,7 @@ interface RetentionExtension {
 interface ExtensionState {
   available: boolean
   active: boolean
+  description: string
 }
 
 const emptyForm = () => ({
@@ -39,6 +43,21 @@ const emptyForm = () => ({
 // Desmarcar e aplicar só desliga o toggle — não apaga a config salva (fica
 // pronta pra reativar sem preencher tudo de novo); apagar de vez é
 // "Excluir configuração", ação separada.
+//
+// Redesenho (história fix/extension-card-compartilhado-e-s3-redesign, T2) —
+// chrome visual (card/ícone+halo/nome/descrição) e o controle "Ativado"
+// migraram pra ExtensionCard/ExtensionActiveToggle (T1 da mesma história,
+// compartilhados com TelegramExtensionCard). Ícone: sem asset oficial da AWS
+// disponível ainda — HardDrive (Icons.tsx) num avatar circular como
+// fallback, trocável depois sem mexer no resto do componente. `savedActive`
+// (novo estado, só alimenta o selo do toggle) é atualizado por `loadActive`
+// — que já roda no mount e de novo (com sucesso ou falha) ao final de
+// `handleApply` — então sempre reflete a verdade do servidor, sem lógica
+// duplicada. Diferente do Telegram (CA5 de T5, história anterior), o botão
+// "Aplicar" aqui NÃO usa `savedActive` pra decidir se habilita: a regra
+// permanece `disabled={saving || invalidToActivate}` (decisão de escopo da
+// análise desta história — "salvo" no S3 envolve toggle + até 7 campos de
+// formulário).
 export default function S3ExtensionCard() {
   const [existing, setExisting] = useState<RetentionExtension | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -46,7 +65,9 @@ export default function S3ExtensionCard() {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [available, setAvailable] = useState(false)
+  const [description, setDescription] = useState('')
   const [activeStaged, setActiveStaged] = useState(false)
+  const [savedActive, setSavedActive] = useState(false)
 
   const loadRetentionExtension = () =>
     fetch('/api/retention-extensions', { headers: authHeaders() })
@@ -77,7 +98,9 @@ export default function S3ExtensionCard() {
       .then((list: ({ id: string } & ExtensionState)[]) => {
         const s3 = list?.find((e) => e.id === 's3')
         setAvailable(s3?.available ?? false)
+        setDescription(s3?.description ?? '')
         setActiveStaged(s3?.active ?? false)
+        setSavedActive(s3?.active ?? false)
       })
       .catch(() => {})
 
@@ -175,26 +198,30 @@ export default function S3ExtensionCard() {
   ]
 
   if (!loaded) return <p className="text-sm text-muted-foreground">Carregando...</p>
-  if (!available)
-    return <p className="text-sm text-muted-foreground">Extensão não permitida nesta instância.</p>
 
   const invalidToActivate =
     activeStaged &&
     (!form.name || !form.bucket || (!existing && (!form.access_key || !form.secret_key)))
 
   return (
-    <div id="s3-extension-card" className="bg-surface border border-border rounded-lg p-5 max-w-md">
-      <p className="text-sm font-medium text-foreground mb-3">S3</p>
-      <label className="flex items-center gap-2 cursor-pointer mb-4">
-        <input
-          type="checkbox"
-          id="s3-active"
-          checked={activeStaged}
-          onChange={(e) => setActiveStaged(e.target.checked)}
-          className="accent-primary"
-        />
-        <span className="text-sm text-foreground">Ativado</span>
-      </label>
+    <ExtensionCard
+      id="s3-extension-card"
+      icon={
+        <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-primary">
+          <HardDrive className="h-8 w-8 text-on-primary" />
+        </div>
+      }
+      name="S3"
+      description={description}
+      available={available}
+    >
+      <ExtensionActiveToggle
+        id="s3-active"
+        checked={activeStaged}
+        onChange={setActiveStaged}
+        savedActive={savedActive}
+        description="Habilite para conectar e utilizar o armazenamento S3."
+      />
 
       {activeStaged && (
         <div className="space-y-3 mb-4">
@@ -235,6 +262,7 @@ export default function S3ExtensionCard() {
           <span />
         )}
         <Button id="s3-config-apply" onClick={handleApply} disabled={saving || invalidToActivate}>
+          <Check className="h-4 w-4" />
           {saving ? 'Aplicando...' : 'Aplicar'}
         </Button>
       </div>
@@ -248,6 +276,6 @@ export default function S3ExtensionCard() {
         onCancel={() => setConfirmDelete(false)}
         danger
       />
-    </div>
+    </ExtensionCard>
   )
 }
