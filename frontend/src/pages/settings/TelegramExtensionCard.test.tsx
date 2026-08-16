@@ -11,6 +11,7 @@ vi.mock('../../auth', () => ({
 function mockFetch(
   telegram: { available: boolean; active: boolean },
   putSpy?: (body: unknown) => void,
+  putStatus = 200,
 ) {
   vi.stubGlobal(
     'fetch',
@@ -34,7 +35,7 @@ function mockFetch(
       if (u === '/api/settings/extensions/telegram' && init?.method === 'PUT') {
         const body = init.body ? JSON.parse(String(init.body)) : null
         putSpy?.(body)
-        return new Response('{}', { status: 200 })
+        return new Response('{}', { status: putStatus })
       }
       return new Response('{}', { status: 200 })
     }),
@@ -78,5 +79,94 @@ describe('CA4: a página Extensões mostra o conteúdo do Telegram diretamente, 
     await screen.findByText('Extensão não permitida nesta instância.')
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(screen.queryByRole('button', { name: /aplicar/i })).toBeNull()
+  })
+})
+
+describe('CA5: botão "Aplicar" só fica habilitado quando o valor staged diverge do salvo', () => {
+  it('estado inicial: staged bate com o salvo (active=false, checkbox desmarcado) → botão desabilitado', async () => {
+    mockFetch({ available: true, active: false })
+    render(<TelegramExtensionCard />)
+
+    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
+    await waitFor(() => expect(checkbox.checked).toBe(false))
+    const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+  })
+
+  it('marcar o checkbox (diverge do salvo) habilita o botão', async () => {
+    mockFetch({ available: true, active: false })
+    render(<TelegramExtensionCard />)
+
+    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
+    await waitFor(() => expect(checkbox.checked).toBe(false))
+    fireEvent.click(checkbox)
+
+    await waitFor(() => {
+      const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
+      expect(button.disabled).toBe(false)
+    })
+  })
+
+  it('clicar Aplicar salva e desabilita o botão de novo (staged volta a bater com o salvo)', async () => {
+    mockFetch({ available: true, active: false })
+    render(<TelegramExtensionCard />)
+
+    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
+    await waitFor(() => expect(checkbox.checked).toBe(false))
+    fireEvent.click(checkbox)
+    await waitFor(() => {
+      const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
+      expect(button.disabled).toBe(false)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /aplicar/i }))
+
+    await waitFor(() => {
+      const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
+      expect(button.disabled).toBe(true)
+    })
+  })
+
+  it('depois de aplicar, desmarcar de novo (voltando ao valor oposto do salvo) reabilita o botão', async () => {
+    mockFetch({ available: true, active: false })
+    render(<TelegramExtensionCard />)
+
+    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
+    await waitFor(() => expect(checkbox.checked).toBe(false))
+    fireEvent.click(checkbox)
+    fireEvent.click(screen.getByRole('button', { name: /aplicar/i }))
+    await waitFor(() => {
+      const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
+      expect(button.disabled).toBe(true)
+    })
+
+    fireEvent.click(checkbox)
+
+    await waitFor(() => {
+      const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
+      expect(button.disabled).toBe(false)
+    })
+  })
+
+  it('quando o PUT falha (status não-2xx), o botão continua habilitado (staged não foi confirmado como salvo)', async () => {
+    mockFetch({ available: true, active: false }, undefined, 500)
+    render(<TelegramExtensionCard />)
+
+    const checkbox = (await screen.findByRole('checkbox')) as HTMLInputElement
+    await waitFor(() => expect(checkbox.checked).toBe(false))
+    fireEvent.click(checkbox)
+    await waitFor(() => {
+      const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
+      expect(button.disabled).toBe(false)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /aplicar/i }))
+
+    await waitFor(() => {
+      const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
+      expect(button.textContent).toMatch(/aplicar/i)
+    })
+    const button = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
+    expect(button.disabled).toBe(false)
   })
 })

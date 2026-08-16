@@ -32,7 +32,7 @@ func (s *Server) extensionsMeta() []extensionDTO {
 			ID:          "telegram",
 			Name:        "Telegram",
 			Category:    "Notificações",
-			Description: "Envia notificações de movimento via Telegram.",
+			Description: "Receba alertas e atualizações importantes diretamente no seu Telegram.",
 			Available:   s.extensionsCfg.Telegram.Enabled && s.extensionsCfg.Telegram.BotToken != "",
 		},
 		{
