@@ -1284,10 +1284,15 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 			all[i].ID = idsByPath[all[i].path]
 		}
 		// end = ended_at real (só chunks finalizados; o chunk em gravação fica sem).
+		// Presença no mapa já significa ended_at IS NOT NULL (EndedAtByPaths só
+		// seleciona essas linhas) — o banco venceu a heurística por request
+		// acima (mtime/IsValidMP4): um chunk que o Cleaner já fechou nunca pode
+		// ficar preso em "em gravação" só porque IsValidMP4 falha nele.
 		if endedByPath, err := db.EndedAtByPaths(s.db, paths); err == nil {
 			for i := range all {
 				if e, ok := endedByPath[all[i].path]; ok {
 					all[i].End = e.UTC().Format(time.RFC3339)
+					all[i].IsRecording = false
 				}
 			}
 		}

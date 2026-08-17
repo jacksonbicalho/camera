@@ -395,6 +395,66 @@ func TestRecordingsMarksActiveFileAsRecording(t *testing.T) {
 	}
 }
 
+func TestRecordingsCA5EndedAtBeatsIsValidMP4Heuristic(t *testing.T) {
+	tmpDir := t.TempDir()
+	cameraID := "cam1"
+	dateDir := filepath.Join(tmpDir, cameraID, "2026", "06", "10")
+	if err := os.MkdirAll(dateDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Arquivo truncado (não passa storage.IsValidMP4) e com mtime antigo — sem
+	// o fix, a heurística por request marcaria is_recording=true pra sempre.
+	path := filepath.Join(dateDir, "20260610150000.mp4")
+	if err := os.WriteFile(path, []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-10 * time.Minute)
+	os.Chtimes(path, old, old)
+
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CreateCamera(database, config.CameraConfig{ID: cameraID}, nil); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 6, 10, 15, 0, 0, 0, time.UTC)
+	if err := db.InsertRecording(database, db.Recording{
+		CameraID: cameraID, StartedAt: start, EndedAt: start.Add(40 * time.Second),
+		Path: path,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.ServerConfig{RecordingsPath: tmpDir}
+	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{{ID: cameraID}}, discardLogger(), nil).WithDB(database)
+	token := loginAndGetToken(t, srv, "admin", "pw")
+	req := httptest.NewRequest(http.MethodGet, "/api/cameras/"+cameraID+"/recordings?date=2026-06-10", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Recordings []struct {
+			Filename    string `json:"filename"`
+			IsRecording bool   `json:"is_recording"`
+		} `json:"recordings"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Recordings) != 1 {
+		t.Fatalf("expected 1 recording, got %d", len(resp.Recordings))
+	}
+	if resp.Recordings[0].IsRecording {
+		t.Errorf("chunk com ended_at já setado no banco não deveria ficar is_recording=true, mesmo falhando IsValidMP4")
+	}
+}
+
 func TestRecordingsIncludesEndForFinishedChunks(t *testing.T) {
 	tmpDir := t.TempDir()
 	cameraID := "cam1"
