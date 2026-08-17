@@ -37,7 +37,7 @@ suja `develop` nem exige commit nenhum):
    reproduza de memória. COMPLETA antes da revisão:
    - `## Contexto` e `## Solução` nunca em branco (importe da análise).
    - `## Tickets`: decomponha em unidades pequenas (alvo ≤ ~200 linhas de diff
-     cada), com tabela (`#`, Descrição, Depende de, Status `[]`) e uma seção
+     cada), com tabela (`#`, Descrição, Depende de, Issue `—`, Status `[]`) e uma seção
      `### Tn — título` por ticket dizendo escopo, arquivos e critérios cobertos.
      Uma história com 1 ticket é válida; com mais de ~6, questione se não são
      duas histórias.
@@ -82,7 +82,11 @@ suja `develop` nem exige commit nenhum):
 Após o G2 abrir:
 
 6. **Só agora crie a branch** (sincronize `develop` de novo antes, caso a
-   revisão tenha demorado): `git checkout -b <tipo>/<slug> develop`.
+   revisão tenha demorado): `git checkout -b <tipo>/<slug> develop`, seguido
+   de `bash scripts/create-ticket-issues.sh <story>` — cria 1 Issue do
+   GitHub por ticket da tabela (idempotente), gravando `#<numero>` na
+   coluna `Issue`. A partir daqui `/act <numero da issue>` também pode
+   retomar um ticket específico.
 7. Execute o ciclo COMPLETO sem nenhum prompt ao navigator: para cada
    ticket em ordem de dependência —
 red → green → refactor → `bash scripts/check.sh` → invocar o subagent
