@@ -74,3 +74,56 @@ func TestCreateTicketIssues(t *testing.T) {
 		}
 	})
 }
+
+func TestTicketSectionBodyStopsAtLevel2Heading(t *testing.T) {
+	t.Run("CA2: nao vaza secoes ## posteriores quando o ticket e o ultimo da story", func(t *testing.T) {
+		story := writeStoryFixture(t,
+			"## Tickets",
+			"| # | Descrição | Depende de | Issue | Status |",
+			"|---|-----------|------------|-------|--------|",
+			"| T1 | Primeiro ticket | — | — | [] |",
+			"",
+			"### T1 — Primeiro ticket",
+			"Escopo do primeiro ticket.",
+			"",
+			"## Critérios de Aceitação",
+			"- [] CA1: Backend e frontend verdes (auto: scripts/check.sh)",
+			"",
+			"## Gates",
+			"- [] História revisada",
+		)
+
+		out, err := bash(t, "CREATE_TICKET_ISSUES_SH_LIB=1 . ./create-ticket-issues.sh && _ticket_section_body "+story+" T1")
+		if err != nil {
+			t.Fatalf("_ticket_section_body falhou: %v\nsaída:\n%s", err, out)
+		}
+
+		if !strings.Contains(out, "Escopo do primeiro ticket.") {
+			t.Errorf("esperava o escopo do próprio ticket no corpo; saída:\n%s", out)
+		}
+		if strings.Contains(out, "Critérios de Aceitação") || strings.Contains(out, "CA1:") {
+			t.Errorf("corpo vazou a seção ## Critérios de Aceitação; saída:\n%s", out)
+		}
+		if strings.Contains(out, "Gates") || strings.Contains(out, "História revisada") {
+			t.Errorf("corpo vazou a seção ## Gates; saída:\n%s", out)
+		}
+	})
+
+	t.Run("continua parando em outro ### Tn (ticket no meio da lista)", func(t *testing.T) {
+		story := writeStoryFixture(t,
+			"### T1 — Primeiro ticket",
+			"Escopo do primeiro ticket.",
+			"",
+			"### T2 — Segundo ticket",
+			"Escopo do segundo ticket.",
+		)
+
+		out, err := bash(t, "CREATE_TICKET_ISSUES_SH_LIB=1 . ./create-ticket-issues.sh && _ticket_section_body "+story+" T1")
+		if err != nil {
+			t.Fatalf("_ticket_section_body falhou: %v\nsaída:\n%s", err, out)
+		}
+		if strings.Contains(out, "Segundo ticket") {
+			t.Errorf("corpo vazou pro T2; saída:\n%s", out)
+		}
+	})
+}
