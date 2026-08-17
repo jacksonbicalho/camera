@@ -5,6 +5,7 @@ import PageHeader from '../../components/PageHeader'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import CameraForm from '../../components/CameraForm'
 import CameraCard from '../../components/CameraCard'
+import Spinner from '../../components/Spinner'
 import { type Camera, type CameraFormData, formToPayload } from '../../components/cameraFormUtils'
 import { authHeaders, onUnauthorized, getRole, getToken } from '../../auth'
 import { Plus, Settings, Trash2 } from '../../components/Icons'
@@ -142,15 +143,18 @@ export default function CamerasSettingsPage() {
         ) : (
           <div id="cameras-grid" className="flex flex-row flex-wrap gap-6">
             {cameras.map((cam) => (
-              <CameraCard
-                key={cam.id}
-                id={`camera-card-${cam.id}`}
-                href={`/settings/cameras/${cam.id}`}
-                thumbnail={<ThumbnailImage cameraId={cam.id} name={cam.name} />}
-                name={cam.name || cam.id}
-                badges={<StatusBadges cam={cam} />}
-                className="hover:border-primary transition-colors"
-              />
+              // Sem ação nenhuma (viewer) — o card inteiro navega; ao
+              // contrário do admin, não é draggable, então não há disputa
+              // entre o gesto de arrastar e o link.
+              <Link key={cam.id} to={`/settings/cameras/${cam.id}`} className="contents">
+                <CameraCard
+                  id={`camera-card-${cam.id}`}
+                  thumbnail={<ThumbnailImage cameraId={cam.id} name={cam.name} />}
+                  name={cam.name || cam.id}
+                  badges={<StatusBadges cam={cam} />}
+                  className="hover:border-primary transition-colors"
+                />
+              </Link>
             ))}
           </div>
         )}
@@ -218,7 +222,6 @@ export default function CamerasSettingsPage() {
               <CameraCard
                 key={cam.id}
                 id={`camera-card-${cam.id}`}
-                href={`/settings/cameras/${cam.id}`}
                 thumbnail={<ThumbnailImage cameraId={cam.id} name={cam.name} />}
                 name={cam.name || cam.id}
                 badges={<StatusBadges cam={cam} />}
@@ -243,7 +246,12 @@ export default function CamerasSettingsPage() {
                 }
               >
                 <Button asChild variant="outline" size="sm">
-                  <Link to={`/settings/cameras/${cam.id}`}>
+                  {/* draggable=false: <a> é arrastável nativamente por
+                      padrão (like <img>) — sem isso, começar o gesto de
+                      arrastar em cima do botão dispara o drag nativo do
+                      link em vez de borbulhar pro drag customizado do
+                      card. */}
+                  <Link to={`/settings/cameras/${cam.id}`} draggable={false}>
                     <Settings className="w-3.5 h-3.5" />
                     Configurar
                   </Link>
@@ -289,15 +297,22 @@ export default function CamerasSettingsPage() {
 }
 
 function ThumbnailImage({ cameraId, name }: { cameraId: string; name?: string }) {
+  const [loaded, setLoaded] = useState(false)
+  const [errored, setErrored] = useState(false)
   return (
-    <img
-      src={`/api/cameras/${cameraId}/snapshot?token=${getToken()}`}
-      alt={name || cameraId}
-      className="w-full h-full object-cover"
-      onError={(e) => {
-        ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-      }}
-    />
+    <div className="relative w-full h-full flex items-center justify-center">
+      {!loaded && !errored && <Spinner className="w-6 h-6 text-muted-foreground" />}
+      {!errored && (
+        <img
+          src={`/api/cameras/${cameraId}/snapshot?token=${getToken()}`}
+          alt={name || cameraId}
+          draggable={false}
+          className={`absolute inset-0 w-full h-full object-cover${loaded ? '' : ' opacity-0'}`}
+          onLoad={() => setLoaded(true)}
+          onError={() => setErrored(true)}
+        />
+      )}
+    </div>
   )
 }
 

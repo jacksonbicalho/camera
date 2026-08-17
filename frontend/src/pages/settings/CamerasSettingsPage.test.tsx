@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import CamerasSettingsPage from './CamerasSettingsPage'
 import { getRole } from '../../auth'
@@ -179,6 +179,86 @@ describe('CA2: lista de câmeras (admin) usa CameraCard em grade lado a lado, me
     expect(grid!.className).toContain('flex-row')
     expect(grid!.className).toContain('flex-wrap')
   })
+
+  it('card arrastável não tem link de navegação por cima — só a ação "Configurar"', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [
+        {
+          id: 'cam1',
+          name: 'Corredor',
+          recording_enabled: false,
+          motion: null,
+          analysis_enabled: false,
+        },
+      ],
+    })
+
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Corredor')).toBeTruthy())
+
+    const card = document.getElementById('camera-card-cam1')!
+    // um <a> envolvendo a área arrastável disputaria o gesto de arrastar
+    // com o link nativo — o card em si não pode estar dentro/ser um <a>;
+    // "Configurar" (que É um link) continua sendo a única navegação.
+    expect(card.closest('a')).toBeNull()
+    expect(card.getAttribute('draggable')).toBe('true')
+  })
+
+  it('imagem e link "Configurar" são draggable=false, pra não capturar o drag nativo do <img>/<a>', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [
+        {
+          id: 'cam1',
+          name: 'Corredor',
+          recording_enabled: false,
+          motion: null,
+          analysis_enabled: false,
+        },
+      ],
+    })
+
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Corredor')).toBeTruthy())
+
+    const card = document.getElementById('camera-card-cam1')!
+    const img = card.querySelector('img')
+    expect(img).toBeTruthy()
+    expect(img!.getAttribute('draggable')).toBe('false')
+
+    const configureLink = within(card).getByRole('link', { name: /Configurar/i })
+    expect(configureLink.getAttribute('draggable')).toBe('false')
+  })
+
+  it('thumbnail mostra um spinner até a imagem carregar, depois some', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [
+        {
+          id: 'cam1',
+          name: 'Corredor',
+          recording_enabled: false,
+          motion: null,
+          analysis_enabled: false,
+        },
+      ],
+    })
+
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Corredor')).toBeTruthy())
+
+    const card = document.getElementById('camera-card-cam1')!
+    expect(within(card).getByRole('status')).toBeTruthy()
+
+    const img = card.querySelector('img')!
+    fireEvent.load(img)
+
+    expect(within(card).queryByRole('status')).toBeNull()
+  })
 })
 
 describe('CA3: lista de câmeras (viewer) também usa CameraCard em grade, sem ações de admin', () => {
@@ -207,6 +287,32 @@ describe('CA3: lista de câmeras (viewer) também usa CameraCard em grade, sem a
 
     expect(screen.queryByRole('button', { name: /Excluir/i })).toBeNull()
     expect(screen.queryByRole('link', { name: /Configurar/i })).toBeNull()
+  })
+
+  it('sem ações, o card inteiro é o link de navegação pro detalhe (não é arrastável)', async () => {
+    vi.mocked(getRole).mockReturnValue('viewer')
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [
+        {
+          id: 'cam1',
+          name: 'Quintal',
+          recording_enabled: false,
+          motion: null,
+          analysis_enabled: false,
+        },
+      ],
+    })
+
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Quintal')).toBeTruthy())
+
+    const card = document.getElementById('camera-card-cam1')!
+    const link = card.closest('a')
+    expect(link).toBeTruthy()
+    expect(link!.getAttribute('href')).toBe('/settings/cameras/cam1')
+    expect(card.getAttribute('draggable')).toBeNull()
   })
 })
 
