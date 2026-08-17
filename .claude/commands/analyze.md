@@ -11,10 +11,16 @@ Execute a **fase de Análise** (passo 1 do fluxo, `docs/workflow.md`):
 1. **Investigue antes de escrever.** Explore o código (Grep/Glob/Read) para
    entender o comportamento atual, os módulos envolvidos e a causa raiz (se for
    bug). Não faça perguntas que o código responde.
-2. Se a demanda for genuinamente ambígua (duas interpretações levariam a
+2. **Liste `.claude/skills/` e invoque via `Skill` tool qualquer skill cujo
+   domínio bata com a demanda** (ex.: mudanças de frontend →
+   `composition-patterns`/`react-best-practices`/`web-design-guidelines`)
+   — incorpore o resultado na Investigação/Opções/Decisão recomendada
+   abaixo, antes de aprofundar mais a investigação. Nenhuma skill aplicável
+   → siga sem invocar nada.
+3. Se a demanda for genuinamente ambígua (duas interpretações levariam a
    soluções diferentes), use AskUserQuestion AGORA — ambiguidade se resolve na
    análise, nunca depois do G1.
-3. Crie `work_progress/analysis/YYYYMMDDHHmm_<slug>.md` (timestamp atual, slug curto em
+4. Crie `work_progress/analysis/YYYYMMDDHHmm_<slug>.md` (timestamp atual, slug curto em
    kebab-case) com exatamente esta estrutura:
 
    ```markdown
@@ -34,9 +40,9 @@ Execute a **fase de Análise** (passo 1 do fluxo, `docs/workflow.md`):
    - **Decisão recomendada**: uma opção, com justificativa de 2-3 linhas.
    - **Impacto**: módulos afetados, riscos, necessidade de migração, e uma
      estimativa de decomposição (quantos tickets, grandes temas).
-4. Apresente um resumo de ~5 linhas ao navigator e rode em background:
+5. Apresente um resumo de ~5 linhas ao navigator e rode em background:
    `bash scripts/await-gate.sh analise <arquivo-da-análise>`
-5. **NÃO crie story, branch, código ou teste antes de `[x] Análise aprovada`.**
+6. **NÃO crie story, branch, código ou teste antes de `[x] Análise aprovada`.**
    Quando o gate abrir, pergunte nada: siga direto para `/story` usando esta
    análise como entrada.
 

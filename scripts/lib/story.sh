@@ -64,3 +64,76 @@ mark_checkbox() {
   esc=$(printf '%s' "$text" | sed 's/[][\.*^$/]/\\&/g')
   sed -i "0,/^\([[:space:]]*-[[:space:]]*\)\[\][[:space:]]*${esc}/s//\1[x] ${text}/" "$file"
 }
+
+# Coluna `Issue` da tabela `## Tickets` (formato `| # | Descrição | Depende
+# de | Issue | Status |`, "Issue" antes de "Status" pra não quebrar o
+# parsing acima que assume Status como último campo): `#<numero>` quando a
+# issue já foi criada por scripts/create-ticket-issues.sh, `—`/vazio caso
+# contrário.
+
+# resolve_ticket_issue <arquivo> <Tn>  → imprime o número da issue
+# registrada pro ticket (sem o `#`), vazio se não houver.
+resolve_ticket_issue() {
+  story=$1; ticket=$2
+  line=$(grep -E "^\|[[:space:]]*${ticket}[[:space:]]*\|" "$story" | head -n1) || true
+  [ -z "$line" ] && return 0
+  issue=$(printf '%s' "$line" | awk -F'|' '{print $5}' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+  case "$issue" in
+    '#'[0-9]*) printf '%s\n' "${issue#\#}" ;;
+  esac
+}
+
+# resolve_ticket_by_issue <arquivo> <numero>  → imprime o Tn cuja Issue
+# registrada é <numero> (sem o `#`), vazio se não houver. Base do comando
+# `/act <numero>`.
+resolve_ticket_by_issue() {
+  story=$1; n=$2
+  grep -E '^\|[[:space:]]*T[0-9]+[[:space:]]*\|' "$story" | while IFS='|' read -r _ ticket _ _ issue _ _; do
+    ticket=$(printf '%s' "$ticket" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+    issue=$(printf '%s' "$issue" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/^#//')
+    if [ "$issue" = "$n" ]; then
+      printf '%s\n' "$ticket"
+      break
+    fi
+  done
+}
+
+# closes_refs <arquivo>  → "Closes #N1, #N2, ..." pra todos os tickets com
+# Issue registrada; string vazia se nenhum. Usado por scripts/push-pr.sh no
+# corpo do PR, pra fechar as issues automaticamente no merge.
+closes_refs() {
+  story=$1
+  awk -F'|' '
+    $0 ~ /^\|[[:space:]]*T[0-9]+[[:space:]]*\|/ {
+      issue = $5
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", issue)
+      if (issue ~ /^#[0-9]+$/) {
+        if (out != "") out = out ", "
+        out = out issue
+      }
+    }
+    END { if (out != "") print "Closes " out }
+  ' "$story"
+}
+
+# close_ticket_issues <arquivo>  → fecha (gh issue close) a Issue de cada
+# ticket com Issue registrada. Necessário porque a keyword `Closes #N` no
+# corpo do PR só fecha a issue automaticamente quando o GitHub mergeia no
+# branch DEFAULT do repositório — PRs de ticket sempre mergeiam em
+# `develop`, que não é o default (`master` é), então o fechamento
+# automático passivo não dispara; scripts/merge-when-green.sh chama esta
+# função explicitamente no merge. Best-effort: falha de rede/permissão não
+# pode abortar o merge, que já aconteceu.
+close_ticket_issues() {
+  story=$1
+  grep -E '^\|[[:space:]]*T[0-9]+[[:space:]]*\|' "$story" | while IFS='|' read -r _ ticket _ _ issue _ _; do
+    issue=$(printf '%s' "$issue" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+    case "$issue" in
+      '#'[0-9]*)
+        n=${issue#\#}
+        gh issue close "$n" >/dev/null 2>&1 \
+          || echo "aviso: não foi possível fechar a issue #$n" >&2
+        ;;
+    esac
+  done
+}
