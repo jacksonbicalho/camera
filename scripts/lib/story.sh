@@ -64,3 +64,36 @@ mark_checkbox() {
   esc=$(printf '%s' "$text" | sed 's/[][\.*^$/]/\\&/g')
   sed -i "0,/^\([[:space:]]*-[[:space:]]*\)\[\][[:space:]]*${esc}/s//\1[x] ${text}/" "$file"
 }
+
+# Coluna `Issue` da tabela `## Tickets` (formato `| # | Descrição | Depende
+# de | Issue | Status |`, "Issue" antes de "Status" pra não quebrar o
+# parsing acima que assume Status como último campo): `#<numero>` quando a
+# issue já foi criada por scripts/create-ticket-issues.sh, `—`/vazio caso
+# contrário.
+
+# resolve_ticket_issue <arquivo> <Tn>  → imprime o número da issue
+# registrada pro ticket (sem o `#`), vazio se não houver.
+resolve_ticket_issue() {
+  story=$1; ticket=$2
+  line=$(grep -E "^\|[[:space:]]*${ticket}[[:space:]]*\|" "$story" | head -n1) || true
+  [ -z "$line" ] && return 0
+  issue=$(printf '%s' "$line" | awk -F'|' '{print $5}' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+  case "$issue" in
+    '#'[0-9]*) printf '%s\n' "${issue#\#}" ;;
+  esac
+}
+
+# resolve_ticket_by_issue <arquivo> <numero>  → imprime o Tn cuja Issue
+# registrada é <numero> (sem o `#`), vazio se não houver. Base do comando
+# `/act <numero>`.
+resolve_ticket_by_issue() {
+  story=$1; n=$2
+  grep -E '^\|[[:space:]]*T[0-9]+[[:space:]]*\|' "$story" | while IFS='|' read -r _ ticket _ _ issue _ _; do
+    ticket=$(printf '%s' "$ticket" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+    issue=$(printf '%s' "$issue" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/^#//')
+    if [ "$issue" = "$n" ]; then
+      printf '%s\n' "$ticket"
+      break
+    fi
+  done
+}

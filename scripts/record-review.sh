@@ -86,6 +86,15 @@ $indented"
     printf '\n## Code Review\n%s\n' "$block" >> "$story"
   fi
   echo "registrado: $line"
+
+  # Espelha o mesmo texto na Issue do ticket (coluna Issue da tabela ##
+  # Tickets), se ela existir — best-effort: falha de rede/permissão não pode
+  # abortar o registro do review, que já aconteceu na story acima.
+  issue=$(resolve_ticket_issue "$story" "$ticket")
+  if [ -n "$issue" ]; then
+    gh issue comment "$issue" --body "$block" >/dev/null 2>&1 \
+      || echo "aviso: não foi possível comentar na issue #$issue" >&2
+  fi
 fi
 
 # Marca o Status do ticket na tabela (linha `| Tn | ... | [] |` → `[x]`)
