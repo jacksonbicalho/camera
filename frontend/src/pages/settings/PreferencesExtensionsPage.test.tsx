@@ -66,9 +66,9 @@ describe('CA4/CA5: PreferencesExtensionsPage mostra o conteúdo de Telegram e S3
     const telegramToggle = document.getElementById('telegram-active') as HTMLElement
     expect(telegramToggle.getAttribute('aria-checked')).toBe('true')
 
-    // S3: available — card renderiza de verdade (não a mensagem de bloqueio).
+    // S3: available — card renderiza de verdade, sem opacidade/tooltip de indisponibilidade.
     await screen.findByText('S3')
-    expect(screen.queryByText('Extensão não permitida nesta instância.')).toBeNull()
+    expect(document.getElementById('s3-extension-card')?.getAttribute('title')).toBeNull()
 
     expect(document.getElementById('preferences-nav-extensions')).toBeTruthy()
     expect(document.getElementById('preferences-nav-appearance')).toBeTruthy()

@@ -76,13 +76,17 @@ describe('CA4: a página Extensões mostra o conteúdo do Telegram diretamente, 
     })
   })
 
-  it('quando a extensão não está disponível, não mostra toggle nem Aplicar', async () => {
+  it('quando a extensão não está disponível, mostra o toggle/Aplicar travados (não escondidos), card opaco com tooltip — mesma altura do card habilitado', async () => {
     mockFetch({ available: false, active: false })
     render(<TelegramExtensionCard />)
 
-    await screen.findByText('Extensão não permitida nesta instância.')
-    expect(screen.queryByRole('switch')).toBeNull()
-    expect(screen.queryByRole('button', { name: /aplicar/i })).toBeNull()
+    const toggle = await screen.findByRole('switch')
+    expect((toggle as HTMLButtonElement).closest('fieldset')?.disabled).toBe(true)
+    const applyButton = screen.getByRole('button', { name: /aplicar/i }) as HTMLButtonElement
+    expect(applyButton.closest('fieldset')?.disabled).toBe(true)
+    expect(document.getElementById('telegram-extension-card')?.getAttribute('title')).toBe(
+      'Esta extensão não está habilitada nesta instância.',
+    )
   })
 })
 
