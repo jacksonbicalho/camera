@@ -12,12 +12,39 @@
 // core.NeedsRTSPTransport, protocolo-agnóstico por construção.
 package mjpeg
 
-import "camera/internal/core"
+import (
+	"strconv"
+	"time"
+
+	"camera/internal/core"
+)
+
+// ReadTimeout é o timeout de leitura de rede aplicado à captura MJPEG via
+// "-rw_timeout" (ffmpeg) — ver work_progress/analysis (história
+// fix/mjpeg-read-timeout). MJPEG é HTTP contínuo
+// (multipart/x-mixed-replace), sem nenhum mecanismo de heartbeat como o
+// RTSP tem via RTCP: se a câmera para de mandar frames mas não fecha o
+// socket TCP, o processo ffmpeg fica pendurado pra sempre sem esta flag —
+// nenhum outro timeout de rede é configurado em lugar nenhum do projeto.
+// Quando o timeout expira, o ffmpeg sai com erro, o que aciona o loop de
+// reconexão já existente (recorder/streamer/motion, reconnect_interval) —
+// sem a flag, o processo nunca morre sozinho e o reconnect_interval nunca
+// chega a ser usado. Exportada (não só usada internamente por
+// ConnectArgs) porque internal/motion monta sua própria captura MJPEG de
+// forma independente (ver internal/motion/ffmpeg.go) e precisa do mesmo
+// valor, sem depender de como ConnectArgs compõe o restante do pipeline.
+const ReadTimeout = 15 * time.Second
+
+// readTimeoutArgs monta a flag ffmpeg de timeout de leitura de rede a
+// partir de ReadTimeout.
+func readTimeoutArgs() []string {
+	return []string{"-rw_timeout", strconv.FormatInt(ReadTimeout.Microseconds(), 10)}
+}
 
 // ConnectArgs monta os args ffmpeg pra ler um stream MJPEG remoto — ao
 // contrário do RTSP, MJPEG é servido sobre HTTP simples e não tem flag de
-// transporte equivalente a "-rtsp_transport tcp" pra forçar; core.InputArgs
-// (-i <url>) já basta.
+// transporte equivalente a "-rtsp_transport tcp" pra forçar, mas precisa
+// de um timeout de leitura (ReadTimeout) que o RTSP/HLS não têm hoje.
 func ConnectArgs(url string) []string {
-	return core.InputArgs(url)
+	return append(readTimeoutArgs(), core.InputArgs(url)...)
 }

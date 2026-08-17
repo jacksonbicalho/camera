@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
 
+	"camera/internal/capturer/mjpeg"
 	"camera/internal/core"
 )
 
@@ -34,6 +36,9 @@ func ffmpegArgs(url string, width, height, fps int, captureType string) []string
 	var args []string
 	if core.NeedsRTSPTransport(captureType) {
 		args = append(args, "-rtsp_transport", "tcp")
+	}
+	if captureType == "mjpeg" {
+		args = append(args, "-rw_timeout", strconv.FormatInt(mjpeg.ReadTimeout.Microseconds(), 10))
 	}
 	args = append(args, "-i", url,
 		"-vf", vf,
