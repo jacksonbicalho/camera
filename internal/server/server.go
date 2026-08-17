@@ -1137,9 +1137,32 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 		startTime   time.Time            // not serialized; used to backfill the DB row on demand
 	}
 
-	var all []recording
+	// O Recorder fixa o diretório de saída no início do processo (ver
+	// findRecordingPath) — um chunk cujo timestamp (nome do arquivo) já cai
+	// no dia D pode ficar fisicamente na pasta do dia D-1 se o processo não
+	// rolou a tempo da meia-noite UTC. Varre também o dia anterior de cada
+	// utcDay, deduplicando datas de diretório repetidas (evita escanear a
+	// mesma pasta 2x quando o range já cobre dias consecutivos) — o filtro
+	// de timestamp abaixo (dayStart/dayEnd) continua sendo o que decide se
+	// um arquivo pertence à consulta, independente de qual pasta o contém.
+	scanDates := make([]time.Time, 0, len(utcDays)*2)
+	seenDates := make(map[string]bool, len(utcDays)*2)
 	for _, utcDay := range utcDays {
-		dir := filepath.Join(s.cfg.RecordingsPath, id, utcDay.Format("2006/01/02"))
+		for _, delta := range []int{0, -1} {
+			d := utcDay.AddDate(0, 0, delta)
+			key := d.Format("2006-01-02")
+			if seenDates[key] {
+				continue
+			}
+			seenDates[key] = true
+			scanDates = append(scanDates, d)
+		}
+	}
+
+	var all []recording
+	for _, scanDate := range scanDates {
+		dirRel := scanDate.Format("2006/01/02")
+		dir := filepath.Join(s.cfg.RecordingsPath, id, dirRel)
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			continue
@@ -1162,7 +1185,7 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 			all = append(all, recording{
 				Filename:  e.Name(),
 				Start:     ts.UTC().Format(time.RFC3339),
-				URL:       "/recordings/" + id + "/" + utcDay.Format("2006/01/02") + "/" + e.Name(),
+				URL:       "/recordings/" + id + "/" + dirRel + "/" + e.Name(),
 				mtime:     info.ModTime(),
 				path:      filepath.Join(dir, e.Name()),
 				startTime: ts,
