@@ -28,7 +28,7 @@ describe('ExtensionCard', () => {
     expect(screen.queryByText('Extensão não permitida nesta instância.')).toBeNull()
   })
 
-  it('quando available=false, mostra a mensagem de indisponibilidade JUNTO dos children, travados num fieldset disabled (não escondidos — mesma altura do card habilitado)', () => {
+  it('quando available=false, mostra a mensagem de indisponibilidade em vez dos children', () => {
     render(
       <ExtensionCard
         id="acme-extension-card"
@@ -37,13 +37,11 @@ describe('ExtensionCard', () => {
         description="Integração com a Acme."
         available={false}
       >
-        <button type="button">ação da extensão</button>
+        <p>conteúdo específico da extensão</p>
       </ExtensionCard>,
     )
 
     expect(screen.getByText('Extensão não permitida nesta instância.')).toBeTruthy()
-    const action = screen.getByText('ação da extensão') as HTMLButtonElement
-    expect(action).toBeTruthy()
-    expect(action.closest('fieldset')?.disabled).toBe(true)
+    expect(screen.queryByText('conteúdo específico da extensão')).toBeNull()
   })
 })

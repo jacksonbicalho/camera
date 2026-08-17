@@ -25,7 +25,7 @@ type extensionDTO struct {
 // extensionsMeta is the fixed (non-configurable) metadata for each known
 // extension, plus how to compute whether it's available from the loaded
 // config.ExtensionsConfig. A plain slice, not a registry/map indirection —
-// only a handful of concrete extensions exist today (regra dos três, CLAUDE.md).
+// only 2 concrete extensions exist today (regra dos três, CLAUDE.md).
 func (s *Server) extensionsMeta() []extensionDTO {
 	return []extensionDTO{
 		{
@@ -41,13 +41,6 @@ func (s *Server) extensionsMeta() []extensionDTO {
 			Category:    "Retenção",
 			Description: "Armazenamento em nuvem compatível com S3.",
 			Available:   s.extensionsCfg.S3.Enabled,
-		},
-		{
-			ID:          "face-detector",
-			Name:        "Face Detector",
-			Category:    "Análise",
-			Description: "Detecta rostos nas gravações da câmera.",
-			Available:   s.extensionsCfg.FaceDetector.Enabled,
 		},
 	}
 }

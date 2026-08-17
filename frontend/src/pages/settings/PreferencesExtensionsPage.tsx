@@ -3,7 +3,6 @@ import PageHeader from '../../components/PageHeader'
 import PreferencesLayout from '../../components/PreferencesLayout'
 import TelegramExtensionCard from './TelegramExtensionCard'
 import S3ExtensionCard from './S3ExtensionCard'
-import FaceDetectorCard from './FaceDetectorCard'
 
 // PreferencesExtensionsPage — rota /settings/preferences/extensions (história
 // refactor/preferencias-submenu-lateral-storage, T4): mostra o conteúdo de
@@ -18,10 +17,9 @@ export default function PreferencesExtensionsPage() {
     <SettingsLayout id="preferences-extensions-page" footerId="preferences-extensions-footer">
       <PageHeader title="Preferências" subtitle="Extensões disponíveis para esta instância." />
       <PreferencesLayout active="extensions">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 items-stretch">
+        <div className="flex flex-col gap-6">
           <TelegramExtensionCard />
           <S3ExtensionCard />
-          <FaceDetectorCard />
         </div>
       </PreferencesLayout>
     </SettingsLayout>

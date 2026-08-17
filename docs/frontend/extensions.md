@@ -7,24 +7,15 @@ sub-rota nenhuma.
 
 ## Arquivos principais
 
-- `pages/settings/PreferencesExtensionsPage.tsx` — dispõe um
-  `<Nome>ExtensionCard` por extensão lado a lado, num grid (`grid
-  grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 items-stretch`) — antes
-  empilhados em coluna (`flex flex-col gap-6`), trocado na história
-  `feat/extensao-face-detector` (ver "Decisões e invariantes" abaixo).
+- `pages/settings/PreferencesExtensionsPage.tsx` — empilha um
+  `<Nome>ExtensionCard` por extensão (`flex flex-col gap-6`).
 - `components/ExtensionCard.tsx` — chrome visual compartilhado por todo card
   de extensão: card (`bg-surface border border-border rounded-xl p-6
-  max-w-md flex flex-col`), header (ícone com halo `blur-lg` atrás + nome
-  `text-2xl font-bold` + descrição), divisor, e SEMPRE `children` — envolvido
-  num `<fieldset disabled={!available}>` (desabilita nativamente todo
-  `<button>`/`<input>` descendente, sem precisar propagar `disabled` por
-  cada componente filho) com opacidade reduzida (`disabled:opacity-50`)
-  quando `available=false`. Nesse caso, a mensagem "Extensão não permitida
-  nesta instância." aparece JUNTO dos campos travados, não no lugar deles —
-  antes (`available ? children : mensagem`) o card indisponível tinha só a
-  frase, sem toggle/formulário, e ficava visivelmente mais baixo que os
-  vizinhos numa mesma linha de grid (história `feat/extensao-face-detector`,
-  achado do navigator testando a página real).
+  max-w-md`), header (ícone com halo `blur-lg` atrás + nome `text-2xl
+  font-bold` + descrição), divisor, e — se `available` — `children`; senão,
+  "Extensão não permitida nesta instância.". O header (nome+descrição)
+  aparece SEMPRE, mesmo com `available=false` — só o conteúdo específico da
+  extensão (`children`) é gated.
 - `components/ExtensionActiveToggle.tsx` — controle "Ativado" compartilhado:
   monta o primitivo `Switch` (`components/ui/switch.tsx`, trilho+bolinha,
   mesmo componente usado por `#history-continuous-toggle` em `HistoryPage`
@@ -50,17 +41,6 @@ sub-rota nenhuma.
   pronta pra reativar sem preencher tudo de novo). Ícone: `HardDrive`
   (`Icons.tsx`) num avatar circular `bg-primary`/`text-on-primary` como
   fallback — sem asset de marca oficial da AWS disponível ainda.
-- `pages/settings/FaceDetectorCard.tsx` — 3º card, cópia estrutural fiel de
-  `TelegramExtensionCard.tsx` (só `ExtensionCard`/`ExtensionActiveToggle`/
-  `ApplyButton`, sem formulário extra). Ícone `CircleUser` (`Icons.tsx`) no
-  mesmo avatar circular `bg-primary` do `HardDrive` do S3 — sem asset de
-  marca própria pra uma feature que não é integração de terceiro.
-  Esqueleto liga/desliga só (história `feat/extensao-face-detector`):
-  nenhuma lógica de detecção facial de verdade ainda, isso é escopo de
-  história futura (pacote `internal/extensions/facedetector/`, pipeline de
-  análise). `available` vem de `extensions.face_detector.enabled` em
-  `camera.yaml` (`config.FaceDetectorConfig`), mesmo gate por config que
-  Telegram/S3 já usam.
 
 ## Decisões e invariantes
 
@@ -89,25 +69,6 @@ sub-rota nenhuma.
   (`TelegramExtensionPage.tsx`, `S3ExtensionConfigPage.tsx`) nem a landing
   que escolhia qual abrir primeiro existem mais — extinto quando o submenu
   deixou de ter sub-rota por extensão.
-- **Cards lado a lado (grid) + `children` sempre renderizado em
-  `ExtensionCard` são a mesma correção, em duas camadas** (história
-  `feat/extensao-face-detector`, pedido do navigator ao ver Face Detector —
-  `available=false` por padrão — visivelmente mais baixo que Telegram/S3 na
-  mesma linha). A causa raiz não era CSS: o card indisponível tinha menos
-  CONTEÚDO (só a frase de aviso, sem toggle). Trocar `flex`+`h-full` por
-  CSS Grid (`items-stretch`) foi tentado primeiro e não bastou sozinho —
-  só resolveu de vez depois de `ExtensionCard` passar a renderizar
-  `children` sempre (travado num `<fieldset disabled>` quando
-  `!available`), igualando o conteúdo real dos cards independente de
-  `available`. O grid continua como rede de segurança pra qualquer
-  diferença residual de altura (ex.: o formulário do S3 é maior que os
-  outros mesmo habilitado).
-- **Testar `disabled` herdado de `<fieldset>` exige `element.closest('fieldset')?.disabled`**
-  — a IDL `.disabled` do próprio elemento não reflete o estado herdado do
-  fieldset ancestor, só o atributo setado diretamente nele. Confirmado
-  empiricamente rodando a suíte (`ExtensionCard.test.tsx`/
-  `TelegramExtensionCard.test.tsx`/`S3ExtensionCard.test.tsx`), não
-  assumido.
 
 ## Ver também
 - [shell-layout.md](shell-layout.md) — `PreferencesLayout`

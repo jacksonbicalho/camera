@@ -45,8 +45,6 @@ storage:
 #     bot_token: ""                 # env: OS_CAMERA_EXT_TELEGRAM_BOT_TOKEN
 #   s3:
 #     enabled: false                # permite a extensão de retenção via S3 — configuração do destino (bucket/credenciais) é feita na UI
-#   face_detector:
-#     enabled: false                # permite a extensão Face Detector no sistema — o admin ainda precisa marcá-la como ativa na UI (esqueleto liga/desliga, sem detecção real ainda)
 
 admin:
   username: admin                  # usuário administrador criado na primeira inicialização

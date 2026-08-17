@@ -53,7 +53,7 @@ repita o mesmo erro, mantenha, mas em 1-2 frases, não um parágrafo.
 
 ### Configurações (`/settings/*`)
 - [camera-settings.md](camera-settings.md) — `CameraForm`, seções sempre-editáveis de câmera, `CameraDetailSettingsPage`, `CamerasSettingsPage`
-- [extensions.md](extensions.md) — `PreferencesExtensionsPage`, `ExtensionCard`/`ExtensionActiveToggle` (chrome compartilhado), `TelegramExtensionCard`, `S3ExtensionCard`, `FaceDetectorCard`
+- [extensions.md](extensions.md) — `PreferencesExtensionsPage`, `ExtensionCard`/`ExtensionActiveToggle` (chrome compartilhado), `TelegramExtensionCard`, `S3ExtensionCard`
 - [users-profile.md](users-profile.md) — `UsersSettingsPage`, `ProfileLayout`, `ChangePasswordPage`
 
 ### Notificações

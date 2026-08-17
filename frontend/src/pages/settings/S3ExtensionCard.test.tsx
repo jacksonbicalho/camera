@@ -212,13 +212,12 @@ describe('CA5: a página Extensões mostra o conteúdo completo do S3, junto do 
     expect(screen.queryByRole('button', { name: /excluir configuração/i })).toBeNull()
   })
 
-  it('quando a extensão não está disponível, mostra o toggle travado junto do aviso (nome continua visível, mesma altura do card habilitado)', async () => {
+  it('quando a extensão não está disponível, mostra o aviso em vez do toggle/formulário (nome continua visível, mesmo padrão do card do Telegram)', async () => {
     mockFetch([], undefined, false, false)
     render(<S3ExtensionCard />)
 
     await screen.findByText('Extensão não permitida nesta instância.')
-    const toggle = screen.getByRole('switch') as HTMLButtonElement
-    expect(toggle.closest('fieldset')?.disabled).toBe(true)
+    expect(screen.queryByRole('switch')).toBeNull()
     expect(screen.getByText('S3')).toBeTruthy()
   })
 })
