@@ -13,12 +13,16 @@ interface CameraCardProps extends HTMLAttributes<HTMLDivElement> {
 // CameraCard — chrome visual análogo a ExtensionCard.tsx (mesmo "modelo",
 // história refactor/camera-list-cards): bg-surface border rounded-xl p-6,
 // pra CamerasSettingsPage virar uma grade lado a lado em vez de linhas
-// empilhadas. `min-w-80 max-w-md` (não só `max-w-md` como ExtensionCard):
-// ao contrário da extensão (nome+descrição em texto corrido, largo o
-// bastante pra encostar no teto sozinho), o conteúdo da câmera é enxuto
-// (nome curto + badges) e encolheria bem abaixo do teto sem um piso —
-// `min-w-80` reserva espaço pra controles futuros no card (pedido do
-// navigator). Diferente de ExtensionCard (ícone com halo), a câmera tem
+// empilhadas. Largura FIXA `sm:w-md` (448px — mesma medida que
+// ExtensionCard usa como `max-w-md`; ali é só um teto porque a descrição
+// em texto corrido já empurra a largura sozinha até lá, aqui vira largura
+// de verdade porque o conteúdo da câmera é enxuto — nome curto + badges —
+// e não empurraria nada: um `max-w`/`min-w` sozinho deixava o card menor
+// que a extensão, mesmo mirando na mesma medida). `w-full` abaixo do
+// breakpoint `sm` evita vazar a viewport no mobile. Largura generosa
+// reserva espaço pra controles futuros no card (pedido explícito do
+// navigator, 2 rodadas de pré-push). Diferente de ExtensionCard (ícone
+// com halo), a câmera tem
 // uma imagem real (thumbnail do snapshot) — por isso `thumbnail` é
 // ReactNode, não um slot de ícone fixo. `children` é opcional (viewer não
 // tem ação nenhuma; só aparece o divisor quando há `children`, diferente
@@ -52,7 +56,7 @@ export default function CameraCard({
       id={id}
       draggable={draggable}
       className={cn(
-        'group relative bg-surface border border-border rounded-xl p-6 min-w-80 max-w-md',
+        'group relative bg-surface border border-border rounded-xl p-6 w-full sm:w-md',
         draggable && 'cursor-grab active:cursor-grabbing',
         className,
       )}
