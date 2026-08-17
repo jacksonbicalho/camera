@@ -7,15 +7,16 @@ sub-rota nenhuma.
 
 ## Arquivos principais
 
-- `pages/settings/PreferencesExtensionsPage.tsx` — empilha um
-  `<Nome>ExtensionCard` por extensão (`flex flex-col gap-6`).
+- `pages/settings/PreferencesExtensionsPage.tsx` — mostra um
+  `<Nome>ExtensionCard` por extensão lado a lado (`flex flex-row flex-wrap
+  gap-6`; `flex-wrap` mantém a página usável em telas estreitas).
 - `components/ExtensionCard.tsx` — chrome visual compartilhado por todo card
   de extensão: card (`bg-surface border border-border rounded-xl p-6
   max-w-md`), header (ícone com halo `blur-lg` atrás + nome `text-2xl
-  font-bold` + descrição), divisor, e — se `available` — `children`; senão,
-  "Extensão não permitida nesta instância.". O header (nome+descrição)
-  aparece SEMPRE, mesmo com `available=false` — só o conteúdo específico da
-  extensão (`children`) é gated.
+  font-bold` + descrição), divisor, e `children` sempre. O header
+  (nome+descrição) aparece SEMPRE, mesmo com `available=false`; `children`
+  também sempre renderiza — nunca é substituído por texto (ver "Decisões e
+  invariantes" abaixo pro tratamento de `available=false`).
 - `components/ExtensionActiveToggle.tsx` — controle "Ativado" compartilhado:
   monta o primitivo `Switch` (`components/ui/switch.tsx`, trilho+bolinha,
   mesmo componente usado por `#history-continuous-toggle` em `HistoryPage`
@@ -44,6 +45,24 @@ sub-rota nenhuma.
 
 ## Decisões e invariantes
 
+- **`available=false` deixa o card opaco (`opacity-40`) com tooltip, nunca
+  esconde `children`** (`ExtensionCard.tsx`, história
+  `fix/altura-consistente-extension-card`): o `<div>` raiz ganha
+  `opacity-40` + `title="Esta extensão não está habilitada nesta
+  instância."` (tooltip nativo do browser, mesmo padrão de
+  `ThemeModeNav`/`UserMenu` — sem componente de tooltip dedicado neste
+  projeto) quando `!available`. `children` sempre renderiza, envolto num
+  `<fieldset disabled={!available}>` — desabilita nativamente todo
+  `<button>`/`<input>` descendente sem precisar propagar `disabled` manual
+  por cada card filho. Existe porque a versão anterior (trocar `children`
+  por um parágrafo de aviso fixo) deixava o card visivelmente mais baixo
+  que os demais, quebrando o alinhamento lado a lado — qualquer extensão
+  nova que use `ExtensionCard` ganha essa altura consistente de graça, sem
+  precisar de nenhum cuidado extra no card filho.
+- **Cards lado a lado** (`PreferencesExtensionsPage.tsx`, `flex-row
+  flex-wrap`) só funciona porque todo `ExtensionCard` tem `max-w-md` e
+  altura consistente entre `available=true`/`false` (ponto acima) — sem
+  isso a grid desalinharia.
 - **Um card só por extensão**, nunca um card de "Ativado" separado de um
   card de formulário — desenho anterior do S3 tinha os dois separados,
   revertido a pedido do navigator: "isso eu entendo que deva ser apenas um
