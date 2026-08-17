@@ -10,13 +10,17 @@
 set -u
 
 # _ticket_section_body <story> <Tn> — corpo da seção "### Tn — título"
-# (até o próximo "### " ou fim do arquivo), mesmo padrão do section() de
-# push-pr.sh, mas para subseções de ticket em vez de "## heading".
+# (até o próximo heading de nível 2+ — outro "### Tn" ou o "## Critérios
+# de Aceitação"/"## Gates"/etc. que vem depois do ÚLTIMO ticket — ou fim
+# do arquivo), mesmo padrão do section() de push-pr.sh, mas para
+# subseções de ticket em vez de "## heading". `##+` (POSIX ERE, portável
+# sem depender de {n,}) casa "##" ou mais — para em QUALQUER heading de
+# nível 2 ou 3, não só em outro ticket.
 _ticket_section_body() {
   story=$1; ticket=$2
   awk -v ticket="$ticket" '
     $0 ~ "^### " ticket "([[:space:]]|$)" { f=1; next }
-    f && /^### / { f=0 }
+    f && /^##+[[:space:]]/ { f=0 }
     f { print }
   ' "$story"
 }
