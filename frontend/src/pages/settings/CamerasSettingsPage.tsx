@@ -4,11 +4,12 @@ import SettingsLayout from '../../components/SettingsLayout'
 import PageHeader from '../../components/PageHeader'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import CameraForm from '../../components/CameraForm'
+import CameraCard from '../../components/CameraCard'
+import Spinner from '../../components/Spinner'
 import { type Camera, type CameraFormData, formToPayload } from '../../components/cameraFormUtils'
 import { authHeaders, onUnauthorized, getRole, getToken } from '../../auth'
-import { Plus, GripVertical, ChevronRight, Pencil, Trash2 } from '../../components/Icons'
+import { Plus, Settings, Trash2 } from '../../components/Icons'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
 export default function CamerasSettingsPage() {
@@ -140,29 +141,20 @@ export default function CamerasSettingsPage() {
         ) : cameras.length === 0 ? (
           <p className="text-muted-foreground text-sm">Nenhuma câmera disponível.</p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div id="cameras-grid" className="flex flex-row flex-wrap gap-6">
             {cameras.map((cam) => (
-              <Card
-                key={cam.id}
-                id={`camera-row-${cam.id}`}
-                className="hover:border-primary transition-colors"
-              >
-                <Link
-                  to={`/settings/cameras/${cam.id}`}
-                  className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Thumbnail cameraId={cam.id} name={cam.name} />
-                    <span className="text-sm font-medium text-foreground truncate">
-                      {cam.name || cam.id}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <StatusBadges cam={cam} />
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 ml-auto" />
-                </Link>
-              </Card>
+              // Sem ação nenhuma (viewer) — o card inteiro navega; ao
+              // contrário do admin, não é draggable, então não há disputa
+              // entre o gesto de arrastar e o link.
+              <Link key={cam.id} to={`/settings/cameras/${cam.id}`} className="contents">
+                <CameraCard
+                  id={`camera-card-${cam.id}`}
+                  thumbnail={<ThumbnailImage cameraId={cam.id} name={cam.name} />}
+                  name={cam.name || cam.id}
+                  badges={<StatusBadges cam={cam} />}
+                  className="hover:border-primary transition-colors"
+                />
+              </Link>
             ))}
           </div>
         )}
@@ -225,11 +217,14 @@ export default function CamerasSettingsPage() {
         ) : cameras.length === 0 && !noDb ? (
           <p className="text-muted-foreground text-sm">Nenhuma câmera configurada.</p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div id="cameras-grid" className="flex flex-row flex-wrap gap-6">
             {cameras.map((cam) => (
-              <Card
+              <CameraCard
                 key={cam.id}
-                id={`camera-row-${cam.id}`}
+                id={`camera-card-${cam.id}`}
+                thumbnail={<ThumbnailImage cameraId={cam.id} name={cam.name} />}
+                name={cam.name || cam.id}
+                badges={<StatusBadges cam={cam} />}
                 draggable
                 onDragStart={() => {
                   dragIdRef.current = cam.id
@@ -244,47 +239,33 @@ export default function CamerasSettingsPage() {
                   dragIdRef.current = null
                   setDragOverId(null)
                 }}
-                className={dragOverId === cam.id ? 'border-primary' : 'hover:border-primary'}
+                className={
+                  dragOverId === cam.id
+                    ? 'border-primary'
+                    : 'hover:border-primary transition-colors'
+                }
               >
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-                  {/* drag handle */}
-                  <GripVertical className="w-4 h-4 text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing" />
-
-                  {/* card clicável: thumbnail + nome (só esse trecho é link) */}
-                  <Link
-                    to={`/settings/cameras/${cam.id}`}
-                    className="flex items-center gap-3 min-w-0"
-                  >
-                    <Thumbnail cameraId={cam.id} name={cam.name} />
-                    <span className="text-sm font-medium text-foreground truncate">
-                      {cam.name || cam.id}
-                    </span>
+                <Button asChild variant="outline" size="sm">
+                  {/* draggable=false: <a> é arrastável nativamente por
+                      padrão (like <img>) — sem isso, começar o gesto de
+                      arrastar em cima do botão dispara o drag nativo do
+                      link em vez de borbulhar pro drag customizado do
+                      card. */}
+                  <Link to={`/settings/cameras/${cam.id}`} draggable={false}>
+                    <Settings className="w-3.5 h-3.5" />
+                    Configurar
                   </Link>
-
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <StatusBadges cam={cam} />
-                  </div>
-
-                  {/* ações: sempre visíveis, fora do link */}
-                  <div className="flex items-center gap-2 shrink-0 ml-auto">
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={`/settings/cameras/${cam.id}`}>
-                        <Pencil className="w-3.5 h-3.5" />
-                        Editar
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => setDeleteId(cam.id)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Excluir
-                    </Button>
-                  </div>
-                </div>
-              </Card>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setDeleteId(cam.id)}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Excluir
+                </Button>
+              </CameraCard>
             ))}
           </div>
         ))}
@@ -315,17 +296,22 @@ export default function CamerasSettingsPage() {
   )
 }
 
-function Thumbnail({ cameraId, name }: { cameraId: string; name?: string }) {
+function ThumbnailImage({ cameraId, name }: { cameraId: string; name?: string }) {
+  const [loaded, setLoaded] = useState(false)
+  const [errored, setErrored] = useState(false)
   return (
-    <div className="w-20 h-12 shrink-0 rounded overflow-hidden bg-surface-2">
-      <img
-        src={`/api/cameras/${cameraId}/snapshot?token=${getToken()}`}
-        alt={name || cameraId}
-        className="w-full h-full object-cover"
-        onError={(e) => {
-          ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-        }}
-      />
+    <div className="relative w-full h-full flex items-center justify-center">
+      {!loaded && !errored && <Spinner className="w-6 h-6 text-muted-foreground" />}
+      {!errored && (
+        <img
+          src={`/api/cameras/${cameraId}/snapshot?token=${getToken()}`}
+          alt={name || cameraId}
+          draggable={false}
+          className={`absolute inset-0 w-full h-full object-cover${loaded ? '' : ' opacity-0'}`}
+          onLoad={() => setLoaded(true)}
+          onError={() => setErrored(true)}
+        />
+      )}
     </div>
   )
 }
