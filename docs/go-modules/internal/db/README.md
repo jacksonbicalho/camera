@@ -44,7 +44,18 @@ get/set abaixo são wrappers finos sobre `getUserSetting`/`setUserSetting`
   constraint nativa sobre `(user_id, key)`; `GetUserByLogin` aceita username
   OU e-mail no mesmo campo).
 - `camera:<id>` = `"1"` — acesso de viewer por câmera (`GetUserCameras`/
-  `SetUserCameras`/`UserHasCamera`).
+  `SetUserCameras`/`UserHasCamera`). Sem FK pra `cameras(id)` — a chave é
+  texto composto por convenção (`"camera:"+id`), não uma coluna dedicada, e
+  SQLite não declara FK sobre substring de outra coluna. Por isso
+  `DeleteCamera` (`cameras.go`) não pode confiar em `ON DELETE CASCADE`: ele
+  mesmo abre uma transação e roda `DELETE FROM cameras` + `DELETE FROM
+  user_settings WHERE key=?` (sem filtro de `user_id` — a concessão de
+  QUALQUER usuário que tinha aquela câmera vira órfã igual) antes de
+  commitar. Concessões que já ficaram órfãs de deleções anteriores a esse
+  fix foram limpas uma vez pela migration `0052_cleanup_orphaned_camera_grants.sql`
+  (`DELETE ... WHERE key LIKE 'camera:%' AND substr(key,8) NOT IN (SELECT id
+  FROM cameras)`) — retroativa e idempotente, mas não substitui o cleanup em
+  `DeleteCamera`: sem ele, toda deleção nova voltaria a acumular órfãos.
 - `notification:<id>` (JSON `{type,title,message,link,created_at,read_at}`) +
   `notification_seq` (contador por usuário, em tx) — a persistência por trás
   do sender `application` de [internal/notifications](../notifications/README.md)
