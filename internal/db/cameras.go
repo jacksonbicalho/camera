@@ -291,10 +291,25 @@ func UpdateCameraStreamInfo(database *DB, id, codec string, hasAudio *bool, widt
 	return err
 }
 
-// DeleteCamera removes the camera (cascades to camera_motion).
+// DeleteCamera removes the camera (cascades to camera_motion) and revokes
+// any viewer grants for it. user_settings.key ("camera:<id>") has no FK to
+// cameras(id) — it's a composite text key, not a dedicated column — so the
+// grant cleanup has to happen here explicitly, in the same transaction, or
+// it's left orphaned forever.
 func DeleteCamera(db *DB, id string) error {
-	_, err := db.Exec(`DELETE FROM cameras WHERE id=?`, id)
-	return err
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if _, err := tx.Exec(`DELETE FROM cameras WHERE id=?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM user_settings WHERE key=?`, cameraKeyPrefix+id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ReorderCameras sets display_order for each camera according to its position

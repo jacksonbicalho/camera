@@ -137,6 +137,61 @@ func TestDeleteCamera(t *testing.T) {
 	}
 }
 
+// CA2: DeleteCamera precisa limpar as concessões user_settings da câmera
+// deletada para TODOS os usuários que a tinham — sem isso, a concessão fica
+// órfã pra sempre (user_settings.key="camera:<id>" nunca teve FK pra
+// cameras(id), a chave é texto composto por convenção). Também prova que o
+// DELETE não é global demais: uma concessão pra OUTRA câmera sobrevive.
+func TestDeleteCameraRemovesOrphanedGrantsFromAllUsers(t *testing.T) {
+	t.Run("CA2: DeleteCamera remove a concessão de todos os usuários, preservando concessões de outras câmeras", func(t *testing.T) {
+		database := openTestDB(t)
+
+		camDeleted, err := db.CreateCamera(database, makeCamera("removida"), nil)
+		if err != nil {
+			t.Fatalf("CreateCamera removida: %v", err)
+		}
+		camKept, err := db.CreateCamera(database, makeCamera("mantida"), nil)
+		if err != nil {
+			t.Fatalf("CreateCamera mantida: %v", err)
+		}
+
+		u1, err := db.CreateUser(database, "viewer1", "pw", "viewer", false)
+		if err != nil {
+			t.Fatalf("CreateUser viewer1: %v", err)
+		}
+		u2, err := db.CreateUser(database, "viewer2", "pw", "viewer", false)
+		if err != nil {
+			t.Fatalf("CreateUser viewer2: %v", err)
+		}
+		if err := db.SetUserCameras(database, u1, []string{camDeleted.ID, camKept.ID}); err != nil {
+			t.Fatalf("SetUserCameras u1: %v", err)
+		}
+		if err := db.SetUserCameras(database, u2, []string{camDeleted.ID}); err != nil {
+			t.Fatalf("SetUserCameras u2: %v", err)
+		}
+
+		if err := db.DeleteCamera(database, camDeleted.ID); err != nil {
+			t.Fatalf("DeleteCamera: %v", err)
+		}
+
+		u1Cams, err := db.GetUserCameras(database, u1)
+		if err != nil {
+			t.Fatalf("GetUserCameras u1: %v", err)
+		}
+		if len(u1Cams) != 1 || u1Cams[0] != camKept.ID {
+			t.Errorf("u1: esperava só [%s] após deletar camDeleted, got %v", camKept.ID, u1Cams)
+		}
+
+		u2Cams, err := db.GetUserCameras(database, u2)
+		if err != nil {
+			t.Fatalf("GetUserCameras u2: %v", err)
+		}
+		if len(u2Cams) != 0 {
+			t.Errorf("u2: esperava nenhuma concessão após deletar sua única câmera, got %v", u2Cams)
+		}
+	})
+}
+
 func TestUpdateCameraStreamInfo(t *testing.T) {
 	database := openTestDB(t)
 
