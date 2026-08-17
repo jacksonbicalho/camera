@@ -92,3 +92,4 @@ sub-rota nenhuma.
 ## Ver também
 - [shell-layout.md](shell-layout.md) — `PreferencesLayout`
 - [design-system.md](design-system.md) — `Badge`/`Switch`/`ApplyButton` compartilhados
+- [camera-settings.md](camera-settings.md) — `CameraCard`, réplica do chrome de `ExtensionCard` pra grade de `/settings/cameras` (história `refactor/camera-list-cards`)

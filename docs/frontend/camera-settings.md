@@ -57,10 +57,31 @@ id" e o carve-out sempre-editável desta página.
   estrutural (`CameraViewFields`) satisfeito tanto por `Camera` (admin)
   quanto `CameraSettings` (viewer). `DeviceInfoPanel` renderiza sempre por
   último.
-- `pages/settings/CamerasSettingsPage.tsx` (`/settings/cameras`) — lista
-  como `Card`s, thumbnail 80×48px do snapshot. Badges condicionais
-  ("Detecção" verde, "Gravando" vermelho, "Análise de objetos" azul). No
-  modo admin, drag-and-drop pra reordenar (`PUT /api/settings/cameras/reorder`).
+- `components/CameraCard.tsx` — chrome análogo a `ExtensionCard.tsx` (ver
+  [extensions.md](extensions.md)): `bg-surface border border-border
+  rounded-xl p-6 max-w-md`, id explícito por prop. Diferente de
+  `ExtensionCard` (ícone com halo), a câmera tem uma imagem real — por isso
+  `thumbnail` é `ReactNode` livre, não um slot de ícone fixo. `children` é
+  opcional (o viewer não tem ação nenhuma); o divisor (`border-t`) só
+  aparece quando `children` existe, ao contrário de `ExtensionCard` onde
+  `children` sempre está presente. Props HTML extras (`...rest`, incluindo
+  `draggable`/`onDragStart`/`onDragOver`/`onDrop`/`onDragEnd`) são
+  repassadas pro `<div>` raiz — é assim que `CamerasSettingsPage` pluga
+  drag-and-drop sem o componente conhecer a lógica de reordenação.
+- `pages/settings/CamerasSettingsPage.tsx` (`/settings/cameras`) — grade
+  lado a lado de `CameraCard` (`id="cameras-grid"`, `flex flex-row
+  flex-wrap gap-6`, mesma classe literal de
+  `PreferencesExtensionsPage.tsx`), não mais uma lista de linhas
+  empilhadas (história `refactor/camera-list-cards`). Cada card tem id
+  `camera-card-<id>`. Thumbnail do snapshot em destaque no topo (dentro do
+  `Link` pro detalhe). Badges condicionais ("Detecção" verde, "Gravando"
+  vermelho, "Análise de objetos" azul). No branch admin, `children` = botões
+  **Configurar** (ícone `Settings`, mesmo rótulo/ícone que
+  `S3ExtensionCard` já usa — reforça o "mesmo modelo de extensões") e
+  **Excluir**; drag-and-drop pra reordenar (`PUT
+  /api/settings/cameras/reorder`) é plugado via props spread no `CameraCard`
+  — o card inteiro é a área arrastável, sem handle (`GripVertical`)
+  dedicado. Branch viewer: sem `children`, sem drag.
 
 ## Decisões e invariantes
 
@@ -86,7 +107,26 @@ id" e o carve-out sempre-editável desta página.
 - Nome não ganhou seção própria em `CameraCaptureSection` — campo único,
   painel dedicado seria desproporcional (decisão do navigator); vive dentro
   da MESMA `<div>` de borda que Captura, não um bloco visualmente separado.
+- **`/settings/cameras` virou grade de cards a pedido explícito do
+  navigator** ("mesmo modelo de extensões", história
+  `refactor/camera-list-cards`): a lista antiga era `Card` genérico em
+  linha horizontal única (`flex flex-col gap-2`, thumbnail 80×48px + nome +
+  badges + botões tudo numa linha, com `GripVertical` como handle dedicado
+  de drag). O card inteiro já era a área de drag de fato antes da migração
+  (o `GripVertical` era só ícone decorativo, não o iniciador real do
+  evento `dragstart`) — trocar pra "card inteiro arrastável" é só mudança
+  de affordance visual, não de comportamento de interação. O botão que era
+  "Editar" (ícone `Pencil`) virou "Configurar" (ícone `Settings`), mesmo
+  rótulo/ícone que `S3ExtensionCard` já usa.
+  `e2e/tests/cameras-settings-mobile.spec.ts` (CA7 de
+  `feat/badge-cards-responsivo`) foi adaptado pro novo id
+  (`camera-card-<id>`) e pro novo risco: como o card já é vertical por
+  construção, a asserção deixou de provar "quebra em linhas" (só fazia
+  sentido pra linha horizontal antiga) e passou a provar que o card
+  (`max-w-md` ~448px) e o bloco de ações não vazam da viewport mobile
+  (375px).
 
 ## Ver também
 - [routing-editing.md](routing-editing.md) — padrão de rota e o carve-out sempre-editável
 - [design-system.md](design-system.md) — `SettingsSection`/tokens usados nos painéis, `ApplyButton` compartilhado pelo botão "Aplicar" de cada seção
+- [extensions.md](extensions.md) — `ExtensionCard`, o modelo de chrome que `CameraCard` replica

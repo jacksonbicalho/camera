@@ -101,16 +101,16 @@ Formatos comuns de URL RTSP:
 
 ## Reordenar câmeras
 
-Na tela de listagem de câmeras, arraste o ícone ⠿ à esquerda de cada câmera para reordenar. A ordem é salva imediatamente.
+Na tela de listagem de câmeras, as câmeras aparecem lado a lado em cards. Arraste o card inteiro para reordenar. A ordem é salva imediatamente.
 
 ---
 
 ## Editar ou remover câmera
 
-Passe o mouse sobre uma câmera na lista para exibir os ícones de ação:
+Cada card de câmera mostra a miniatura, o nome, os badges de status e, abaixo de uma linha divisória, os botões de ação:
 
-- **Lápis** — abre o formulário de edição da câmera
-- **Lixeira** — remove a câmera; na confirmação é possível marcar **Apagar também as gravações do disco** para remover os arquivos MP4
+- **Configurar** (ícone de engrenagem) — abre a página de configuração da câmera
+- **Excluir** (ícone de lixeira) — remove a câmera; na confirmação é possível marcar **Apagar também as gravações do disco** para remover os arquivos MP4
 
 ---
 
