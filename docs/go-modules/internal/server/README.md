@@ -77,6 +77,48 @@ estática registrada antes de `PUT .../{id}` pra ter precedência no mux do Go
 datas locais distintas com conteúdo, pros calendários habilitarem só esses
 dias.
 
+## Listagem de gravações por câmera (`handleRecordings`, `server.go`)
+`GET /api/cameras/{id}/recordings?date=` lista os chunks MP4 de um dia
+(`date` interpretado no fuso local, convertido pro range de `utcDay`s que
+cobre esse dia) direto do filesystem, e depois enriquece cada item com dados
+do banco (`ID`, `End`) via `db.EndedAtByPaths`. Dois pontos não-óbvios:
+
+- **`ended_at` do banco sempre vence a heurística de `IsRecording` por
+  request.** A heurística por request (`mtime < 30s` ou
+  `!storage.IsValidMP4`) existe pra decidir "em gravação" sem esperar o
+  `storage.Cleaner.syncRecordings` (roda a cada 1min) fechar a linha no
+  banco. Mas ela é só um proxy — se o path já apareceu em `endedByPath`
+  (presença no mapa já significa `ended_at IS NOT NULL`, `db.EndedAtByPaths`
+  só seleciona essas linhas), o chunk força `IsRecording=false`
+  incondicionalmente, mesmo que `storage.IsValidMP4` continue falhando nele
+  (ex.: arquivo truncado por um processo de captura que travou/hangeu).
+  Sem essa prioridade, um chunk corrompido por um hang fica preso em "em
+  gravação" pra sempre, mesmo depois do `Cleaner` já ter confirmado que
+  terminou — não é um bug específico de um protocolo de captura: qualquer
+  hang que deixe um arquivo truncado o expõe, MJPEG só foi o caso real que
+  tornou isso provável na prática (`internal/motion`/`internal/capturer/mjpeg`
+  não tinham timeout de rede antes de `fix(mjpeg): timeout de leitura de
+  rede para captura MJPEG`).
+- **A varredura por dia também escaneia o dia UTC anterior a cada
+  `utcDay` do range** (deduplicando datas repetidas quando o range já
+  cobre dias consecutivos), aplicando o mesmo filtro de timestamp de
+  sempre (`ts` fora de `[dayStart, dayEnd)` é descartado) pra decidir
+  inclusão — só o conjunto de diretórios escaneados muda, não o critério
+  de quem pertence ao dia. Existe porque `Recorder` fixa `OutputDir` no
+  início do processo: um chunk cujo timestamp (no nome do arquivo) já é do
+  dia D pode ficar fisicamente na pasta do dia D-1 se o processo não rolou
+  a tempo da meia-noite UTC. Sem esse fallback o chunk fica invisível pra
+  qualquer consulta por aquele dia — o que também alimentava o bug acima
+  indiretamente, pois um chunk mais antigo (ainda visível) podia ser
+  avaliado, errado, como "o último". Mesma lógica que `findRecordingPath`
+  (usado só por `handleDeleteRecording`, pra achar 1 arquivo específico) já
+  usava — generalizada aqui pra toda a listagem do dia.
+
+`GET /api/cameras/{id}/recordings/by-id/{recording_id}` (`handleRecordingByID`)
+e `DELETE /api/cameras/{id}/recordings/{filename}` (`handleDeleteRecording`,
+admin) são endpoints vizinhos no mesmo arquivo, não cobertos por este
+enriquecimento (operam sobre um recording já identificado, não uma listagem).
+
 ## Device info (`device_info.go`)
 `GET /api/cameras/{id}/device-info` / `POST .../device-info/refresh`
 (admin) — ver [internal/deviceinfo](../deviceinfo/README.md). Coleta

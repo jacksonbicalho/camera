@@ -15,7 +15,14 @@ original é mantido pro snapshot do evento.
   dão o score de uma bbox arbitrária por frame (usado pelo canvas de zonas).
 - `ffmpeg.go`/`ffmpeg_unix.go`/`ffmpeg_windows.go` — monta os args do pipe
   (`-vf fps=N,scale=W:H,format=rgb24 -f rawvideo pipe:1`) e o processo por
-  plataforma.
+  plataforma. Para `capture_type=mjpeg`, acrescenta `-rw_timeout` (em
+  microssegundos) antes de `-i url`, com o mesmo valor de
+  `mjpeg.ReadTimeout` (`internal/capturer/mjpeg`) — MJPEG é HTTP contínuo
+  (`multipart/x-mixed-replace`), sem heartbeat como o RTSP tem via RTCP:
+  sem esse timeout, se a câmera para de mandar frames sem fechar o socket
+  TCP, o processo ffmpeg do pipe fica pendurado pra sempre e o
+  `reconnect_interval` (que só age depois que o processo morre) nunca
+  chega a ser acionado. `hls`/`rtsp`/default não ganham a flag.
 - `detector.go` — `processFrames`: lê frames full-res até EOF/cancelamento,
   faz o diff em cinza contra o frame anterior, e grava um evento quando o
   score cruza o limiar (com cooldown). `saveSnapshot` anota o **próprio frame
@@ -47,8 +54,19 @@ evento sai na resolução do stream de motion (menor se for substream). O botão
 (admin): deriva candidatos por convenção (`subtype=0`→`subtype=1`), roda
 `ffprobe.Resolve` em cada um e devolve o primeiro que responder.
 
+## Decisões e invariantes
+- `ffmpeg.go` importa `internal/capturer/mjpeg` só pelo **valor** da
+  constante `ReadTimeout`, nunca chama `mjpeg.ConnectArgs` — `motion` monta
+  seus próprios args do pipe (`-vf`/`-f rawvideo`/etc.) de forma
+  independente dos protocolos de captura "de alto nível" (mesma razão de
+  `feat/capture-rtsp-dominio` já descrita acima); compartilhar o número
+  evita duplicar o valor do timeout sem reintroduzir esse acoplamento
+  (mesmo tipo de dependência-só-de-valor que já existe com
+  `core.NeedsRTSPTransport`).
+
 ## Ver também
 - [internal/zones](../zones/README.md) — o tipo `Zone` consumido pelo diff mascarado.
 - [internal/exec](../exec/README.md) — processo ffmpeg do pipe.
 - [internal/config](../config/README.md) — `EffectiveMotionURL` e o `MotionConfig`.
 - [internal/db](../db/README.md) — tabela `motion_events`.
+- [internal/capturer](../capturer/README.md) — protocolos de captura "de alto nível" (rtsp/hls); `internal/capturer/mjpeg` (subpacote irmão, sem README próprio ainda) expõe `ReadTimeout`, o valor compartilhado com este pacote.

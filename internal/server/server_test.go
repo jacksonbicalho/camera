@@ -395,6 +395,131 @@ func TestRecordingsMarksActiveFileAsRecording(t *testing.T) {
 	}
 }
 
+func TestRecordingsCA5EndedAtBeatsIsValidMP4Heuristic(t *testing.T) {
+	tmpDir := t.TempDir()
+	cameraID := "cam1"
+	dateDir := filepath.Join(tmpDir, cameraID, "2026", "06", "10")
+	if err := os.MkdirAll(dateDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Arquivo truncado (não passa storage.IsValidMP4) e com mtime antigo — sem
+	// o fix, a heurística por request marcaria is_recording=true pra sempre.
+	path := filepath.Join(dateDir, "20260610150000.mp4")
+	if err := os.WriteFile(path, []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-10 * time.Minute)
+	os.Chtimes(path, old, old)
+
+	database := openServerTestDB(t)
+	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CreateCamera(database, config.CameraConfig{ID: cameraID}, nil); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 6, 10, 15, 0, 0, 0, time.UTC)
+	if err := db.InsertRecording(database, db.Recording{
+		CameraID: cameraID, StartedAt: start, EndedAt: start.Add(40 * time.Second),
+		Path: path,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.ServerConfig{RecordingsPath: tmpDir}
+	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{{ID: cameraID}}, discardLogger(), nil).WithDB(database)
+	token := loginAndGetToken(t, srv, "admin", "pw")
+	req := httptest.NewRequest(http.MethodGet, "/api/cameras/"+cameraID+"/recordings?date=2026-06-10", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Recordings []struct {
+			Filename    string `json:"filename"`
+			IsRecording bool   `json:"is_recording"`
+		} `json:"recordings"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Recordings) != 1 {
+		t.Fatalf("expected 1 recording, got %d", len(resp.Recordings))
+	}
+	if resp.Recordings[0].IsRecording {
+		t.Errorf("chunk com ended_at já setado no banco não deveria ficar is_recording=true, mesmo falhando IsValidMP4")
+	}
+}
+
+func TestRecordingsCA6IncludesChunkMisfiledInPreviousDayDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	cameraID := "cam1"
+	// O Recorder fixa o diretório de saída no início do processo — um chunk
+	// cujo nome (timestamp) já é do dia 15 pode ficar fisicamente na pasta do
+	// dia 14 se o processo não rolou a tempo da meia-noite UTC.
+	day14Dir := filepath.Join(tmpDir, cameraID, "2026", "07", "14")
+	day15Dir := filepath.Join(tmpDir, cameraID, "2026", "07", "15")
+	for _, dir := range []string{day14Dir, day15Dir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Timestamp do dia 15, mas fisicamente na pasta do dia 14 (misfiled).
+	misfiled := filepath.Join(day14Dir, "20260715000005.mp4")
+	// Chunk normal do dia 15, já na pasta certa.
+	normal := filepath.Join(day15Dir, "20260715100000.mp4")
+	// Chunk do dia 14 de verdade (timestamp e pasta batem) — não deve
+	// aparecer na consulta do dia 15.
+	day14Own := filepath.Join(day14Dir, "20260714230000.mp4")
+	for _, f := range []string{misfiled, normal, day14Own} {
+		if err := os.WriteFile(f, []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cfg := config.ServerConfig{RecordingsPath: tmpDir}
+	srv := server.NewServer(cfg, "UTC", []config.CameraConfig{{ID: cameraID}}, discardLogger(), nil)
+	srv = withTestUsers(t, srv)
+	token := loginAndGetToken(t, srv, "master", "secret")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cameras/"+cameraID+"/recordings?date=2026-07-15&limit=0", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Recordings []struct {
+			Filename string `json:"filename"`
+		} `json:"recordings"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Recordings) != 2 {
+		t.Fatalf("expected 2 recordings for 2026-07-15 (normal + misfiled), got %d: %v", len(resp.Recordings), resp.Recordings)
+	}
+	found := map[string]bool{}
+	for _, r := range resp.Recordings {
+		found[r.Filename] = true
+	}
+	if !found["20260715000005.mp4"] {
+		t.Errorf("chunk misfiled na pasta do dia anterior deveria aparecer na consulta do dia 15, got %v", resp.Recordings)
+	}
+	if !found["20260715100000.mp4"] {
+		t.Errorf("chunk normal do dia 15 deveria continuar aparecendo, got %v", resp.Recordings)
+	}
+	if found["20260714230000.mp4"] {
+		t.Errorf("chunk que de fato pertence ao dia 14 não deveria vazar pra consulta do dia 15, got %v", resp.Recordings)
+	}
+}
+
 func TestRecordingsIncludesEndForFinishedChunks(t *testing.T) {
 	tmpDir := t.TempDir()
 	cameraID := "cam1"
