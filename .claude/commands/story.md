@@ -11,7 +11,7 @@ decomposição em tickets.
 **Passo 0 — antes de qualquer pré-condição ou investigação:** leia
 `docs/workflow.md` por completo com a ferramenta Read, agora, mesmo que já
 tenha lido em sessão anterior ou ache que lembra o conteúdo (a seção
-"Artefatos" é o template exato usado no passo 2 abaixo).
+"Artefatos" é o template exato usado no passo 3 abaixo).
 
 Pré-condições (valide antes de qualquer coisa):
 - Se a entrada for um arquivo em `work_progress/analysis/`, ele DEVE conter
@@ -25,8 +25,13 @@ Passos (ainda em `develop` — **a branch só nasce depois do G2**, ver abaixo;
 `work_progress/stories/` é gitignored, então rascunhar a story aqui não
 suja `develop` nem exige commit nenhum):
 
-1. Decida `tipo` (feat/fix/refactor/chore/...), `escopo` e `slug`.
-2. Crie `work_progress/stories/YYYYMMDDHHmm_<slug>.md` copiando o template
+1. **Liste `.claude/skills/` e invoque via `Skill` tool qualquer skill cujo
+   domínio bata com a demanda** (ex.: mudanças de frontend →
+   `composition-patterns`/`react-best-practices`/`web-design-guidelines`)
+   — deixe o resultado informar a forma dos tickets e dos testes nomeados
+   nos passos 3-4 abaixo. Nenhuma skill aplicável → siga sem invocar nada.
+2. Decida `tipo` (feat/fix/refactor/chore/...), `escopo` e `slug`.
+3. Crie `work_progress/stories/YYYYMMDDHHmm_<slug>.md` copiando o template
    `work_progress/stories/YYYYMMDDHHmm_<slug>.md` de `docs/workflow.md`
    (seção "Artefatos") **literalmente**, campo por campo —
    inclusive a linha `> Análise: work_progress/analysis/....md` quando a
@@ -63,31 +68,31 @@ suja `develop` nem exige commit nenhum):
      - [] Aprovado
      ```
    - Seções vazias `## Code Review` e `## Revisão` ao final.
-3. **Escreva os testes nomeados AGORA** (ou, se o CA exigir um script
+4. **Escreva os testes nomeados AGORA** (ou, se o CA exigir um script
    permanente novo em `scripts/`, escreva-o também) — exceto CA1. O
    navigator revisa junto com a story: fazem parte do que o G2 aprova. Um
    teste que ainda não pode passar (código não existe) deve FALHAR de forma
    clara, não dar erro de compilação/sintaxe. Esses arquivos SÃO
    versionados, mas ainda NÃO existe branch nem commit — ficam como untracked
-   em `develop` até o passo 7 abaixo (nenhum problema: `develop` só é
+   em `develop` até o passo 8 abaixo (nenhum problema: `develop` só é
    protegido contra commit/push direto, não contra arquivos soltos no
    working tree).
-4. Apresente a story ao navigator e rode em background:
+5. Apresente a story ao navigator e rode em background:
    `bash scripts/await-gate.sh revisao`
-5. **Gate G2:** nenhuma branch nova, linha de código de produção ou teste
+6. **Gate G2:** nenhuma branch nova, linha de código de produção ou teste
    unitário antes de `[x] História revisada`. Se a revisão pedir mudanças
    na story, edite o arquivo e mantenha o `await-gate.sh` rodando — ainda
    sem branch, sem custo de abandonar nada.
 
 Após o G2 abrir:
 
-6. **Só agora crie a branch** (sincronize `develop` de novo antes, caso a
+7. **Só agora crie a branch** (sincronize `develop` de novo antes, caso a
    revisão tenha demorado): `git checkout -b <tipo>/<slug> develop`, seguido
    de `bash scripts/create-ticket-issues.sh <story>` — cria 1 Issue do
    GitHub por ticket da tabela (idempotente), gravando `#<numero>` na
    coluna `Issue`. A partir daqui `/act <numero da issue>` também pode
    retomar um ticket específico.
-7. Execute o ciclo COMPLETO sem nenhum prompt ao navigator: para cada
+8. Execute o ciclo COMPLETO sem nenhum prompt ao navigator: para cada
    ticket em ordem de dependência —
 red → green → refactor → `bash scripts/check.sh` → invocar o subagent
 `code-reviewer` (passando story, Tn e o diff) → corrigir blocker/major e

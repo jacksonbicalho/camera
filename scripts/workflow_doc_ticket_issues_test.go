@@ -37,7 +37,7 @@ func TestWorkflowDocReflectsTicketIssueTracking(t *testing.T) {
 // TestStoryCommandCallsCreateTicketIssues confirma que o comando REAL que o
 // driver executa (.claude/commands/story.md), não só a narrativa em
 // docs/workflow.md, dispara a criação das Issues — achado do code review do
-// T4: o passo 6 (criação da branch) ficava sem o gatilho de
+// T4: o passo de criação da branch ficava sem o gatilho de
 // create-ticket-issues.sh, então docs/workflow.md descrevia um
 // comportamento que o comando de verdade não executava.
 func TestStoryCommandCallsCreateTicketIssues(t *testing.T) {

@@ -5,7 +5,7 @@ argument-hint: <número da issue>
 
 Entrada (número da issue): $ARGUMENTS
 
-Execute o ciclo de um ticket específico — mesma mecânica do passo 7 de
+Execute o ciclo de um ticket específico — mesma mecânica do passo 8 de
 `/story` (`docs/workflow.md`), só que retomado a partir do número de uma
 Issue do GitHub em vez de seguir a ordem da tabela `## Tickets`.
 
@@ -29,7 +29,7 @@ Passos:
    adivinhe qual ticket o navigator quis dizer.
 3. Se o ticket já está `[x]` na tabela `## Tickets` (já commitado e
    aprovado), informe isso e pare — não há nada a retomar.
-4. Execute o ciclo do ticket exatamente como o passo 7 de `/story`: TDD
+4. Execute o ciclo do ticket exatamente como o passo 8 de `/story`: TDD
    red → green → refactor → `bash scripts/check.sh` → invoca o subagent
    `code-reviewer` (story, Tn, diff) → `CHANGES_REQUESTED` (corrige
    blocker/major, re-invoca, máx. 3 iterações, senão escala ao navigator
