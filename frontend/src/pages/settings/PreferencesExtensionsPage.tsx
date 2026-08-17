@@ -12,12 +12,18 @@ import S3ExtensionCard from './S3ExtensionCard'
 // navigator testando a branch: o submenu deve ter só 3 links fixos
 // (Extensões/Aparência/Armazenamento), e clicar em "Extensões" já mostra o
 // conteúdo ali — sem navegar pra outra rota.
+//
+// Cards lado a lado (história fix/altura-consistente-extension-card):
+// `flex-row flex-wrap` em vez de empilhados — cada `ExtensionCard` já tem
+// `max-w-md` e altura consistente entre si (`available=true`/`false`), então
+// a grid horizontal não desalinha; `flex-wrap` garante que a página continua
+// usável em telas estreitas.
 export default function PreferencesExtensionsPage() {
   return (
     <SettingsLayout id="preferences-extensions-page" footerId="preferences-extensions-footer">
       <PageHeader title="Preferências" subtitle="Extensões disponíveis para esta instância." />
       <PreferencesLayout active="extensions">
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-row flex-wrap gap-6">
           <TelegramExtensionCard />
           <S3ExtensionCard />
         </div>
