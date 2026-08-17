@@ -12,6 +12,9 @@
 
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$ROOT/scripts/lib/story.sh"
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RESET='\033[0m'
 
 PR="${1:-}"
@@ -99,6 +102,14 @@ if [[ "$MARKED" -eq 1 ]]; then
     slug=${HEAD#*/}
     story=$(ls work_progress/stories/*_"${slug}".md 2>/dev/null | tail -1 || true)
     if [[ -n "$story" ]]; then
+        # `Closes #N` no corpo do PR (scripts/push-pr.sh) não fecha a issue
+        # sozinho: PRs de ticket mergeiam em `develop`, que não é o branch
+        # default do repositório (só master é) — o fechamento automático
+        # via keyword só dispara em merge no default. Fecha explicitamente
+        # aqui, ANTES de apagar a story (close_ticket_issues lê a tabela ##
+        # Tickets dela).
+        close_ticket_issues "$story"
+
         # A análise que originou a story (se houve G1) fica referenciada no
         # cabeçalho (`> Análise: work_progress/analysis/...md`, ver template
         # em docs/workflow.md) — lida ANTES de apagar a story, senão a

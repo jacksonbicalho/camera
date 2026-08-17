@@ -61,10 +61,12 @@ else
     nl=$'\n'
     contexto=$(section 'Contexto')
     solucao=$(section 'Solu')
+    closes=$(closes_refs "$story")
     body=""
     [ -n "$contexto" ] && body+="## Contexto${nl}${contexto}${nl}${nl}"
     [ -n "$solucao" ] && body+="## Solução${nl}${solucao}${nl}${nl}"
     [ -z "$body" ] && body="${title}${nl}${nl}"
+    [ -n "$closes" ] && body+="${closes}${nl}${nl}"
     body+="🤖 Generated with [Claude Code](https://claude.com/claude-code)"
 
     gh pr create --base develop --head "$branch" --title "$title" --body "$body"
