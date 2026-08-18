@@ -21,8 +21,6 @@ const AboutPage = lazy(() => import('./pages/settings/AboutPage'))
 const CamerasSettingsPage = lazy(() => import('./pages/settings/CamerasSettingsPage'))
 const CameraDetailSettingsPage = lazy(() => import('./pages/settings/CameraDetailSettingsPage'))
 const CameraZonesSettingsPage = lazy(() => import('./pages/settings/CameraZonesSettingsPage'))
-const CameraStatesSettingsPage = lazy(() => import('./pages/settings/CameraStatesSettingsPage'))
-const StatesLandingPage = lazy(() => import('./pages/settings/StatesLandingPage'))
 const DiscoverPage = lazy(() => import('./pages/settings/DiscoverPage'))
 const AnalysisSettingsPage = lazy(() => import('./pages/settings/AnalysisSettingsPage'))
 const LabelEventsPage = lazy(() => import('./pages/settings/LabelEventsPage'))
@@ -347,30 +345,6 @@ export const routes = (
       element={
         <Lazy>
           <CameraZonesSettingsPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/states"
-      element={
-        <Lazy>
-          <StatesLandingPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/states/:id"
-      element={
-        <Lazy>
-          <CameraStatesSettingsPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/states/edit/:cid"
-      element={
-        <Lazy>
-          <CameraStatesSettingsPage />
         </Lazy>
       }
     />

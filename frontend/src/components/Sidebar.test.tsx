@@ -468,3 +468,12 @@ describe('regressão: cabeçalho de seção nunca quebra em 2 linhas (truncate +
     expect(header.getAttribute('title')).toBe('Inteligência')
   })
 })
+
+describe('CA3: classificação de estado removida — sem item "Estados"', () => {
+  it('não renderiza mais o link #sidebar-states nem o texto "Estados"', () => {
+    renderAt('/')
+    expect(document.getElementById('sidebar-states')).toBeNull()
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    expect(document.getElementById('sidebar')?.textContent).not.toContain('Estados')
+  })
+})

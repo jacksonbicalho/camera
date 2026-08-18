@@ -26,7 +26,6 @@ const MIGRATED_FILES = [
   'src/pages/settings/AnalysisSettingsPage.tsx',
   'src/pages/settings/AppearanceSettingsPage.tsx',
   'src/pages/settings/CameraDetailSettingsPage.tsx',
-  'src/pages/settings/CameraStatesSettingsPage.tsx',
 ]
 
 describe('migração para tokens de tema — arquivos fora de CameraPage', () => {

@@ -14,7 +14,6 @@ import {
   Gauge,
   History,
   Menu,
-  Network,
   ObjectDetectorTarget,
   Pencil,
   Search,
@@ -268,15 +267,6 @@ export default function Sidebar() {
                   to: '/settings/trainers',
                   label: 'Treinadores',
                   icon: <Gauge className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-states',
-                  to: '/settings/states',
-                  label: 'Estados',
-                  icon: <Network className="h-5 w-5 shrink-0" />,
                 }}
                 showLabel={showLabel}
               />
