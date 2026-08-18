@@ -121,24 +121,6 @@ func (s *Server) routeTable() []route {
 		{"GET", "/api/retention", authAdmin, s.handleListRetentionConfigs},
 		{"PUT", "/api/retention/{category}", authAdmin, s.handleUpdateRetentionConfig},
 
-		{"POST", "/api/settings/analysis/reanalyze", authAdmin, s.handleReanalyze},
-		{"POST", "/api/settings/analysis/finetune", authAdmin, s.handleStartFinetune},
-		{"DELETE", "/api/settings/analysis/finetune/{job_id}", authAdmin, s.handleCancelFinetune},
-		{"GET", "/api/settings/analysis/finetune/status/{job_id}", authAdmin, s.handleFinetuneStatus},
-		{"GET", "/api/settings/cameras/{id}/analysis", authAdmin, s.handleGetCameraAnalysisConfig},
-		{"PUT", "/api/settings/cameras/{id}/analysis", authAdmin, s.handleUpdateCameraAnalysisConfig},
-
-		{"GET", "/api/settings/detectors", authAdmin, s.handleListDetectors},
-		{"POST", "/api/settings/detectors", authAdmin, s.handleCreateDetector},
-		{"PUT", "/api/settings/detectors/{id}", authAdmin, s.handleUpdateDetector},
-		{"DELETE", "/api/settings/detectors/{id}", authAdmin, s.handleDeleteDetector},
-		{"POST", "/api/settings/detectors/{id}/test", authAdmin, s.handleTestDetector},
-
-		{"GET", "/api/settings/trainers", authAdmin, s.handleListTrainers},
-		{"POST", "/api/settings/trainers", authAdmin, s.handleCreateTrainer},
-		{"PUT", "/api/settings/trainers/{id}", authAdmin, s.handleUpdateTrainer},
-		{"DELETE", "/api/settings/trainers/{id}", authAdmin, s.handleDeleteTrainer},
-
 		{"GET", "/api/cameras/{id}/recordings", authCamera, s.handleRecordings},
 		{"GET", "/api/cameras/{id}/content-days", authCamera, s.handleContentDays},
 		{"GET", "/api/cameras/{id}/recordings/by-id/{recording_id}", authCamera, s.handleRecordingByID},
@@ -163,18 +145,12 @@ func (s *Server) routeTable() []route {
 		{"PUT", "/api/cameras/{id}/telegram-notify", authCamera, s.handleSetCameraTelegramNotify},
 
 		{"GET", "/api/events/{id}", authFull, s.handleGetEventByID},
-		{"POST", "/api/events/{id}/annotations", authFull, s.handleCreateAnnotation},
-		{"GET", "/api/events/{id}/annotations", authFull, s.handleListAnnotations},
-		{"DELETE", "/api/events/{id}/annotations", authFull, s.handleDeleteAnnotationsByEvent},
-		{"PATCH", "/api/annotations/{id}", authFull, s.handleUpdateAnnotation},
-		{"DELETE", "/api/annotations/{id}", authFull, s.handleDeleteAnnotation},
 		{"PATCH", "/api/events/{id}/label", authFull, s.handleUpdateEventLabel},
 		{"PUT", "/api/events/{id}/frame", authFull, s.handleUpdateEventFrame},
 		{"DELETE", "/api/events/bulk", authAdmin, s.handleBulkDeleteEvents},
 		{"PATCH", "/api/events/bulk/dismiss", authAdmin, s.handleBulkDismissEvents},
 		{"PATCH", "/api/events/bulk/label", authAdmin, s.handleBulkUpdateEventLabels},
 		{"GET", "/api/cameras/{id}/events", authCamera, s.handlePageEvents},
-		{"GET", "/api/settings/analysis/annotation-count", authAdmin, s.handleAnnotationCount},
 
 		{"GET", "/api/cameras/{id}/snapshot", authCamera, s.handleSnapshot},
 		{"GET", "/api/cameras/{id}/event-frame", authCamera, s.handleEventFrame},

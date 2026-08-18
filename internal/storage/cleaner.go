@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -14,12 +13,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"camera/internal/analysis"
 	"camera/internal/db"
-	"camera/internal/detector"
 	"camera/internal/extensions/s3"
 	"camera/internal/notifications"
 )
@@ -34,28 +30,8 @@ type Cleaner struct {
 	db                   *db.DB
 	log                  *slog.Logger
 	forceCh              chan struct{}
-	analyzer             analysis.Analyzer
-	// detectorFactory resolves a non-yolo registered detector (today: only
-	// "huggingface") into a runnable adapter. Production default is
-	// detector.New; overridable in tests (WithDetectorFactory) so they never
-	// hit the real Hugging Face Inference API. The yolo path keeps going
-	// through `analyzer`/`WithAnalyzer` above — unchanged, still the
-	// override every existing test already uses — so this only widens what
-	// analyzeNewRecordings can dispatch to, without touching that contract.
-	detectorFactory func(detectorType string, config map[string]string) (detector.Detector, error)
-	analyzeMu       sync.Mutex
-	diskWarned      bool // edge-trigger state for the disk-usage notification
-	notifications   *notifications.Dispatcher
-}
-
-func (c *Cleaner) WithAnalyzer(a analysis.Analyzer) *Cleaner {
-	c.analyzer = a
-	return c
-}
-
-func (c *Cleaner) WithDetectorFactory(f func(detectorType string, config map[string]string) (detector.Detector, error)) *Cleaner {
-	c.detectorFactory = f
-	return c
+	diskWarned           bool // edge-trigger state for the disk-usage notification
+	notifications        *notifications.Dispatcher
 }
 
 // WithNotifications wires the Dispatcher used by notifyDiskHigh to fan a
@@ -77,7 +53,6 @@ func New(storagePath string, withMotionMinutes, withoutMotionMinutes int, chunkD
 		db:                   database,
 		log:                  log,
 		forceCh:              make(chan struct{}, 1),
-		detectorFactory:      detector.New,
 	}
 }
 
@@ -868,235 +843,6 @@ func (c *Cleaner) sweepMotionDayDir(dir string) {
 	removeDirIfEmpty(dir, c.log)
 }
 
-// AnalyzeNew runs one pass of YOLO analysis over recordings not yet analyzed.
-// It is intentionally NOT part of Clean(): analysis can take minutes per file
-// (timeout × backlog), so running it on the retention path starved retention and
-// let overdue recordings pile up far beyond their configured window. Run() drives
-// this off the critical path (async, guarded by a mutex).
-func (c *Cleaner) AnalyzeNew() {
-	if c.db == nil {
-		return
-	}
-	c.analyzeNewRecordings()
-}
-
-// defaultAnalysisConfidenceThreshold is used when a camera has a detector
-// chosen but no confidence_threshold of its own set yet.
-const defaultAnalysisConfidenceThreshold = 0.4
-
-// huggingFaceImagePath picks what to send to the Hugging Face Inference API
-// for a recording: the motion snapshot (_motion.jpg) of the strongest motion
-// event within the recording's time window, when one exists. That snapshot
-// is the same kind of still image a human would manually upload via the
-// detector "test" page (/settings/detectors/test/:id) — a blind frame grab
-// from an arbitrary offset in the recording (the fallback, same as before
-// this method existed) has no guarantee the subject that triggered the
-// recording is even in frame.
-func (c *Cleaner) huggingFaceImagePath(cameraID, recordingPath string, startedAt, endedAt time.Time) string {
-	events, err := db.ListMotionEvents(c.db, cameraID, startedAt, endedAt)
-	if err != nil {
-		return recordingPath
-	}
-	best, bestScore := "", -1.0
-	for _, e := range events {
-		if e.FramePath == "" || e.Score <= bestScore {
-			continue
-		}
-		// e.FramePath is a bare filename (internal/motion/detector.go saves
-		// it that way) — reconstruct the real on-disk path the same way
-		// RemoveMotionEventJPEGs above already does, or os.Stat resolves it
-		// relative to the process CWD (never the recordings tree) and
-		// always misses.
-		dayDir := e.OccurredAt.UTC().Format("2006/01/02")
-		jpegPath := filepath.Join(c.storagePath, cameraID, filepath.FromSlash(dayDir), e.FramePath)
-		if _, err := os.Stat(jpegPath); err != nil {
-			continue
-		}
-		best, bestScore = jpegPath, e.Score
-	}
-	if best == "" {
-		return recordingPath
-	}
-	return best
-}
-
-func (c *Cleaner) analyzeNewRecordings() {
-	if c.db == nil {
-		return
-	}
-
-	rows, err := c.db.Query(`
-		SELECT r.id, r.camera_id, r.path, r.started_at, r.ended_at,
-			cac.detector_id, cac.confidence_threshold
-		FROM recordings r
-		JOIN camera_analysis_config cac ON cac.camera_id = r.camera_id
-		WHERE r.ended_at IS NOT NULL
-		AND r.has_motion = 1
-		AND r.analysis_skipped = 0
-		AND cac.enabled = 1
-		AND cac.detector_id IS NOT NULL
-		AND NOT EXISTS (SELECT 1 FROM detections d WHERE d.recording_id = r.id)`)
-	if err != nil {
-		c.log.Warn("analyzeNewRecordings: query failed", "err", err)
-		return
-	}
-	type pending struct {
-		id                  int64
-		cameraID            string
-		path                string
-		startedAt           time.Time
-		endedAt             time.Time
-		detectorID          int64
-		confidenceThreshold sql.NullFloat64
-	}
-	var candidates []pending
-	for rows.Next() {
-		var p pending
-		var startedAt, endedAt string
-		if err := rows.Scan(&p.id, &p.cameraID, &p.path, &startedAt, &endedAt, &p.detectorID, &p.confidenceThreshold); err != nil {
-			continue
-		}
-		p.startedAt, _ = time.Parse(time.RFC3339, startedAt)
-		p.endedAt, _ = time.Parse(time.RFC3339, endedAt)
-		candidates = append(candidates, p)
-	}
-	rows.Close()
-
-	if len(candidates) == 0 {
-		c.log.Debug("analyzeNewRecordings: no pending recordings")
-		return
-	}
-	c.log.Info("analyzeNewRecordings: processing", "count", len(candidates))
-
-	detectors := map[int64]db.ObjectDetector{}
-
-	total := len(candidates)
-	var analyzed int
-	for i, p := range candidates {
-		if (i+1)%10 == 0 {
-			c.log.Info("analyzeNewRecordings: progress", "done", i+1, "total", total)
-		}
-		// candidates was snapshotted by the query above at the start of this
-		// run — a big batch can take minutes, and the navigator may disable
-		// analysis (or switch detectors) for a camera while it's still in
-		// flight. Re-check camera_analysis_config per item so a change takes
-		// effect immediately instead of only on the next AnalyzeNew() pass
-		// (confirmed live: a 222-recording batch kept hitting YOLO well
-		// after analysis had been turned off for that camera).
-		var curEnabled int
-		var curDetectorID sql.NullInt64
-		scanErr := c.db.QueryRow(`SELECT enabled, detector_id FROM camera_analysis_config WHERE camera_id=?`, p.cameraID).
-			Scan(&curEnabled, &curDetectorID)
-		if scanErr != nil || curEnabled == 0 || !curDetectorID.Valid || curDetectorID.Int64 != p.detectorID {
-			c.log.Debug("analyzeNewRecordings: skipped (config changed since batch was fetched)", "camera_id", p.cameraID, "path", p.path)
-			continue
-		}
-		if _, err := os.Stat(p.path); err != nil {
-			c.log.Warn("analyzeNewRecordings: file not found, skipping", "path", p.path)
-			continue
-		}
-		det, ok := detectors[p.detectorID]
-		if !ok {
-			var err error
-			det, err = db.GetObjectDetector(c.db, p.detectorID)
-			if err != nil {
-				c.log.Warn("analyzeNewRecordings: detector not found, skipping", "detector_id", p.detectorID, "err", err)
-				continue
-			}
-			detectors[p.detectorID] = det
-		}
-		threshold := defaultAnalysisConfidenceThreshold
-		if p.confidenceThreshold.Valid {
-			threshold = p.confidenceThreshold.Float64
-		}
-		// model is YOLO-specific ("custom" flags a fine-tuned model, see
-		// customModel below); huggingface detectors have no equivalent
-		// concept, so it stays "" for them — customModel just resolves to
-		// false, which is correct for that type.
-		model := det.Config["model"]
-
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		var dets []analysis.Detection
-		var err error
-		switch det.Type {
-		case "huggingface":
-			var dt detector.Detector
-			dt, err = c.detectorFactory(det.Type, det.Config)
-			if err != nil {
-				cancel()
-				c.log.Warn("analyzeNewRecordings: skipped (invalid detector config)", "detector_id", p.detectorID, "err", err)
-				continue
-			}
-			dets, err = dt.Detect(ctx, c.huggingFaceImagePath(p.cameraID, p.path, p.startedAt, p.endedAt), threshold)
-		default: // "yolo", and "" for detectors registered before the type column existed
-			serviceURL := det.Config["service_url"]
-			if serviceURL == "" {
-				cancel()
-				c.log.Warn("analyzeNewRecordings: skipped (detector has no service_url)", "detector_id", p.detectorID)
-				continue
-			}
-			analyzer := c.analyzer
-			if analyzer == nil {
-				analyzer = analysis.NewClient(serviceURL)
-			}
-			dets, err = analyzer.Analyze(ctx, analysis.AnalyzeRequest{
-				Path:                p.path,
-				Model:               model,
-				ConfidenceThreshold: threshold,
-			})
-		}
-		cancel()
-		if errors.Is(err, analysis.ErrServiceBusy) {
-			// Serviço ocupado (treino ou outra inferência usando a GPU) —
-			// não é falha da gravação, então nunca MarkAnalysisSkipped
-			// (permanente). Para a passada inteira: as próximas gravações
-			// provavelmente colidiriam com o mesmo estado; tentam de novo
-			// no próximo AnalyzeNew/Cleaner.Run.
-			c.log.Info("analyzeNewRecordings: yolo service busy, retrying later", "path", p.path)
-			break
-		}
-		if err != nil {
-			c.log.Warn("analyzeNewRecordings: analyze failed", "path", p.path, "err", err)
-			_ = db.MarkAnalysisSkipped(c.db, p.id)
-			continue
-		}
-		customModel := model == "custom"
-		if len(dets) == 0 {
-			c.log.Debug("analyzeNewRecordings: result", "path", p.path, "labels", "none")
-			// Insert a sentinel (label="") so this recording is not retried.
-			_ = db.InsertDetections(c.db, p.path, []db.Detection{{Label: "", Confidence: 0, FrameCount: 0}}, customModel)
-			analyzed++
-			continue
-		}
-		labels := make([]string, len(dets))
-		dbDets := make([]db.Detection, len(dets))
-		topLabel, topConf := "", -1.0
-		for j, d := range dets {
-			labels[j] = d.Label
-			dbDets[j] = db.Detection{Label: d.Label, Confidence: d.Confidence, FrameCount: d.FrameCount}
-			if d.Label != "" && d.Confidence > topConf {
-				topLabel, topConf = d.Label, d.Confidence
-			}
-		}
-		c.log.Debug("analyzeNewRecordings: result", "path", p.path, "labels", labels)
-		if err := db.InsertDetections(c.db, p.path, dbDets, customModel); err != nil {
-			c.log.Warn("analyzeNewRecordings: insert detections failed", "path", p.path, "err", err)
-		} else {
-			analyzed++
-		}
-		// Aplica o label de maior confiança aos eventos sem rótulo da gravação,
-		// pra virarem dado de treino (corrigíveis depois em Análise de vídeo).
-		if topLabel != "" && !p.startedAt.IsZero() && !p.endedAt.IsZero() {
-			if n, err := db.LabelUnlabeledMotionEventsInRange(c.db, p.cameraID, p.startedAt, p.endedAt, topLabel); err != nil {
-				c.log.Warn("analyzeNewRecordings: label events failed", "path", p.path, "err", err)
-			} else if n > 0 {
-				c.log.Info("analyzeNewRecordings: labeled events from analysis", "path", p.path, "label", topLabel, "count", n)
-			}
-		}
-	}
-	c.log.Info("analyzeNewRecordings: done", "analyzed", analyzed, "total", total)
-}
-
 // effectiveSizeSettings returns max size (GB) and warn percent, preferring DB
 // overrides (storage.max_size_gb / storage.warn_percent) over the construction
 // values — so changes made in the UI take effect at runtime.
@@ -1228,12 +974,6 @@ func (c *Cleaner) Run(ctx context.Context, defaultInterval time.Duration) {
 		case <-ticker.C:
 			if c.db != nil {
 				c.syncRecordings()
-				if c.analyzeMu.TryLock() {
-					go func() {
-						defer c.analyzeMu.Unlock()
-						c.analyzeNewRecordings()
-					}()
-				}
 			}
 			if time.Since(lastClean) >= c.effectiveInterval(defaultInterval) {
 				c.Clean()

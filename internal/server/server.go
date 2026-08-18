@@ -963,7 +963,6 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		MotionThreshold      float64     `json:"motion_threshold"`
 		PlaybackLeadSeconds  int         `json:"playback_lead_seconds"`
 		PlaybackTrailSeconds int         `json:"playback_trail_seconds"`
-		AnalysisEnabled      bool        `json:"analysis_enabled"`
 	}
 
 	cameras := s.cameras
@@ -1013,14 +1012,6 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 				CaptureHeight:   mc.CaptureHeight,
 			}
 		}
-		var analysisEnabled bool
-		if s.db != nil {
-			if cfg, err := db.GetCameraAnalysisConfig(s.db, c.ID); err == nil {
-				// See the equivalent comment in cameras.go — reflects
-				// whether the camera is actually analyzed, not just Enabled.
-				analysisEnabled = cfg.Enabled && cfg.DetectorID != nil
-			}
-		}
 		list[i] = cameraInfo{
 			ID:                   c.ID,
 			Name:                 c.Name,
@@ -1044,7 +1035,6 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 			MotionThreshold:      mc.Threshold,
 			PlaybackLeadSeconds:  lead,
 			PlaybackTrailSeconds: trail,
-			AnalysisEnabled:      analysisEnabled,
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -1088,24 +1078,17 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 	// Collect UTC calendar days that overlap with this local day.
 	utcDays := utcDaysInRange(dayStart, dayEnd)
 
-	type recordingDetection struct {
-		Label       string  `json:"label"`
-		Confidence  float64 `json:"confidence"`
-		FrameCount  int     `json:"frame_count"`
-		CustomModel bool    `json:"custom_model,omitempty"`
-	}
 	type recording struct {
-		ID          int64                `json:"id,omitempty"`
-		Filename    string               `json:"filename"`
-		Start       string               `json:"start"`
-		End         string               `json:"end,omitempty"`
-		URL         string               `json:"url"`
-		IsRecording bool                 `json:"is_recording"`
-		HasMotion   bool                 `json:"has_motion"`
-		Detections  []recordingDetection `json:"detections,omitempty"`
-		mtime       time.Time            // not serialized; used to detect active recording
-		path        string               // not serialized; used for DB has_motion lookup
-		startTime   time.Time            // not serialized; used to backfill the DB row on demand
+		ID          int64     `json:"id,omitempty"`
+		Filename    string    `json:"filename"`
+		Start       string    `json:"start"`
+		End         string    `json:"end,omitempty"`
+		URL         string    `json:"url"`
+		IsRecording bool      `json:"is_recording"`
+		HasMotion   bool      `json:"has_motion"`
+		mtime       time.Time // not serialized; used to detect active recording
+		path        string    // not serialized; used for DB has_motion lookup
+		startTime   time.Time // not serialized; used to backfill the DB row on demand
 	}
 
 	// O Recorder fixa o diretório de saída no início do processo (ver
@@ -1287,25 +1270,6 @@ func (s *Server) handleRecordings(w http.ResponseWriter, r *http.Request) {
 				if e, ok := endedByPath[all[i].path]; ok {
 					all[i].End = e.UTC().Format(time.RFC3339)
 					all[i].IsRecording = false
-				}
-			}
-		}
-	}
-
-	// Enrich detections from detections table.
-	if s.db != nil && len(all) > 0 {
-		paths := make([]string, len(all))
-		for i, r := range all {
-			paths[i] = r.path
-		}
-		if detsByPath, err := db.DetectionsByPaths(s.db, paths); err == nil {
-			for i := range all {
-				if dets := detsByPath[all[i].path]; len(dets) > 0 {
-					rd := make([]recordingDetection, len(dets))
-					for j, d := range dets {
-						rd[j] = recordingDetection{Label: d.Label, Confidence: d.Confidence, FrameCount: d.FrameCount, CustomModel: d.CustomModel}
-					}
-					all[i].Detections = rd
 				}
 			}
 		}
