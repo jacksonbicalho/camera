@@ -4,10 +4,6 @@ import PageHeader from '../../components/PageHeader'
 import { authHeaders } from '../../auth'
 import { Button } from '@/components/ui/button'
 
-interface AnalysisConfig {
-  state_trainer_id: number | null
-}
-
 interface TrainerItem {
   id: number
   name: string
@@ -89,9 +85,6 @@ function ReanalyzePanel({
 }
 
 export default function AnalysisSettingsPage() {
-  const [cfg, setCfg] = useState<AnalysisConfig>({ state_trainer_id: null })
-  const [savingStateTrainer, setSavingStateTrainer] = useState(false)
-  const [error, setError] = useState('')
   const [annCount, setAnnCount] = useState<number | null>(null)
   const [labelCount, setLabelCount] = useState<number | null>(null)
   const [epochs, setEpochs] = useState(20)
@@ -132,10 +125,6 @@ export default function AnalysisSettingsPage() {
   }
 
   useEffect(() => {
-    fetch('/api/settings/analysis', { headers: authHeaders() })
-      .then((r) => r.json())
-      .then(setCfg)
-      .catch(() => setError('Falha ao carregar configurações'))
     refreshCounts()
     fetch('/api/settings/trainers', { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : []))
@@ -224,69 +213,13 @@ export default function AnalysisSettingsPage() {
     setFtError('')
   }
 
-  // Único campo desta seção — salva sozinho ao trocar (sem botão "Salvar"
-  // separado, mesmo padrão de outros seletores simples do app, ex. accent
-  // color em AppearanceSettingsPage).
-  async function handleStateTrainerChange(v: string) {
-    const stateTrainerId = v ? Number(v) : null
-    setError('')
-    setSavingStateTrainer(true)
-    try {
-      const res = await fetch('/api/settings/analysis', {
-        method: 'PUT',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state_trainer_id: stateTrainerId }),
-      })
-      if (res.ok) {
-        setCfg({ state_trainer_id: stateTrainerId })
-      } else {
-        setError('Erro ao salvar')
-      }
-    } finally {
-      setSavingStateTrainer(false)
-    }
-  }
-
   return (
     <SettingsLayout id="analysis-settings-page" footerId="analysis-settings-footer">
       <div className="space-y-6">
         <PageHeader
           title="Análise de vídeo"
-          subtitle="Serviço usado por classificação de estado — detectores de objetos (por câmera) e fine-tuning (por trainer) têm seu próprio cadastro em Configurações → Detectores/Treinadores."
+          subtitle="Treino de modelo customizado a partir de eventos rotulados e re-análise das gravações existentes. Detectores de objetos (por câmera) e fine-tuning (por trainer) têm seu próprio cadastro em Configurações → Detectores/Treinadores."
         />
-
-        <div className="bg-surface-2 rounded-lg border border-border p-4">
-          <label
-            htmlFor="analysis-state-trainer"
-            className="block text-sm font-medium text-foreground mb-2"
-          >
-            Serviço usado por classificação de estado
-          </label>
-          <select
-            id="analysis-state-trainer"
-            className="w-full bg-surface-2 text-foreground text-sm rounded px-3 py-2 border border-border focus:outline-none focus:border-ring disabled:opacity-60"
-            value={cfg.state_trainer_id ?? ''}
-            disabled={savingStateTrainer}
-            onChange={(e) => handleStateTrainerChange(e.target.value)}
-          >
-            <option value="">Nenhum</option>
-            {trainers.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          {trainers.length === 0 ? (
-            <p className="text-xs text-muted-foreground mt-1">
-              Nenhum trainer cadastrado — cadastre um em Configurações → Treinadores.
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground mt-1">
-              Aponta pro mesmo serviço YOLO já cadastrado ali — sem digitar a URL de novo.
-            </p>
-          )}
-          {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
-        </div>
 
         <div className="bg-surface-2 rounded-lg border border-border divide-y divide-border">
           <div className="p-4">

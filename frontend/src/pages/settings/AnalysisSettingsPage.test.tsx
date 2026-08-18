@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import AnalysisSettingsPage from './AnalysisSettingsPage'
 
@@ -18,23 +18,17 @@ const trainers = [
   { id: 8, name: 'YOLO secundário', type: 'yolo', config: {} },
 ]
 
-// stateTrainerID: valor devolvido por GET /api/settings/analysis
-// (state_trainer_id) — null por padrão (nenhum trainer escolhido ainda).
 // anyCameraAnalysisEnabled: pelo menos 1 câmera com analysis_enabled=true
 // em GET /api/settings/cameras — true por padrão (não afeta os testes que
 // não são sobre esse gate).
 function mockFetch({
-  stateTrainerID = null,
-  putSpy,
   anyCameraAnalysisEnabled = true,
 }: {
-  stateTrainerID?: number | null
-  putSpy?: (url: string, body: unknown) => void
   anyCameraAnalysisEnabled?: boolean
 } = {}) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: unknown, init?: RequestInit) => {
+    vi.fn(async (url: unknown) => {
       const u = String(url)
       if (u === '/api/settings')
         return new Response(JSON.stringify({ cameras: [] }), { status: 200 })
@@ -43,13 +37,6 @@ function mockFetch({
           JSON.stringify([{ id: 'cam1', analysis_enabled: anyCameraAnalysisEnabled }]),
           { status: 200 },
         )
-      if (u === '/api/settings/analysis') {
-        if (init?.method === 'PUT') {
-          putSpy?.(u, init.body ? JSON.parse(String(init.body)) : null)
-          return new Response(JSON.stringify({ state_trainer_id: stateTrainerID }), { status: 200 })
-        }
-        return new Response(JSON.stringify({ state_trainer_id: stateTrainerID }), { status: 200 })
-      }
       if (u === '/api/settings/analysis/annotation-count')
         return new Response(JSON.stringify({ count: 1, label_count: 65 }), { status: 200 })
       if (u === '/api/settings/trainers')
@@ -72,72 +59,6 @@ function renderPage() {
   )
 }
 
-describe('CA5: 1ª seção vira um seletor de trainer cadastrado pra state classification (sem URL/Modelo livres)', () => {
-  it('não renderiza mais os campos "URL do serviço" nem "Modelo" (nem o catálogo de modelos)', async () => {
-    mockFetch()
-    renderPage()
-
-    await screen.findByText(/análise de vídeo/i)
-    expect(screen.queryByText(/url do serviço/i)).toBeNull()
-    expect(screen.queryByLabelText(/^modelo$/i)).toBeNull()
-    expect(screen.queryByText(/carregando modelos/i)).toBeNull()
-    expect(screen.queryByText(/serviço yolo offline/i)).toBeNull()
-  })
-
-  it('mostra um seletor de trainer pra state classification, listando os trainers cadastrados', async () => {
-    mockFetch()
-    renderPage()
-
-    const select = (await screen.findByLabelText(/classificação de estado/i)) as HTMLSelectElement
-    await vi.waitFor(() => {
-      expect(select.textContent).toContain('YOLO principal')
-      expect(select.textContent).toContain('YOLO secundário')
-    })
-  })
-
-  it('reflete o state_trainer_id já configurado (GET) como valor selecionado', async () => {
-    mockFetch({ stateTrainerID: 8 })
-    renderPage()
-
-    const select = (await screen.findByLabelText(/classificação de estado/i)) as HTMLSelectElement
-    await vi.waitFor(() => expect(select.value).toBe('8'))
-  })
-
-  it('escolher um trainer dispara PUT /api/settings/analysis com o state_trainer_id escolhido', async () => {
-    const putCalls: Array<{ url: string; body: unknown }> = []
-    mockFetch({ putSpy: (url, body) => putCalls.push({ url, body }) })
-    renderPage()
-
-    const select = (await screen.findByLabelText(/classificação de estado/i)) as HTMLSelectElement
-    await vi.waitFor(() => expect(select.textContent).toContain('YOLO principal'))
-    fireEvent.change(select, { target: { value: '7' } })
-
-    await vi.waitFor(() => {
-      expect(putCalls).toContainEqual({
-        url: '/api/settings/analysis',
-        body: { state_trainer_id: 7 },
-      })
-    })
-  })
-
-  it('nunca chama GET /api/settings/analysis/models (catálogo removido)', async () => {
-    const calledURLs: string[] = []
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: unknown) => {
-        calledURLs.push(String(url))
-        if (String(url) === '/api/settings/trainers')
-          return new Response(JSON.stringify(trainers), { status: 200 })
-        return new Response('{}', { status: 200 })
-      }),
-    )
-    renderPage()
-
-    await screen.findByText(/análise de vídeo/i)
-    expect(calledURLs).not.toContain('/api/settings/analysis/models')
-  })
-})
-
 describe('CA6: "Re-analisar tudo" desabilitado durante fine-tuning ativo', () => {
   function mockFetchWithFtStatus(status: 'running' | 'pending') {
     vi.stubGlobal('localStorage', {
@@ -159,8 +80,6 @@ describe('CA6: "Re-analisar tudo" desabilitado durante fine-tuning ativo', () =>
           return new Response(JSON.stringify([{ id: 'cam1', analysis_enabled: true }]), {
             status: 200,
           })
-        if (u === '/api/settings/analysis')
-          return new Response(JSON.stringify({ state_trainer_id: null }), { status: 200 })
         if (u === '/api/settings/analysis/annotation-count')
           return new Response(JSON.stringify({ count: 1, label_count: 65 }), { status: 200 })
         if (u === '/api/settings/trainers')
@@ -246,9 +165,7 @@ describe('CA6: tela de análise global não mostra mais toggle de ativação nem
 // CA6 (história feat/trainer-adapter-pattern): "Treinar agora" passa a
 // exigir um trainer cadastrado escolhido — o fine-tuning não usa mais
 // video_analysis_config.ServiceURL direto (internal/trainer, cadastro
-// próprio em /settings/trainers). Distinto do seletor de CA5 acima: este é
-// o trainer usado PRO FINE-TUNING, não o de state classification — os dois
-// convivem na mesma página, cada um com seu próprio <select>.
+// próprio em /settings/trainers).
 describe('CA6: AnalysisSettingsPage exibe um seletor de trainer cadastrado (fine-tuning)', () => {
   it('busca GET /api/settings/trainers e lista os trainers cadastrados num select', async () => {
     mockFetch()
@@ -256,5 +173,20 @@ describe('CA6: AnalysisSettingsPage exibe um seletor de trainer cadastrado (fine
 
     const select = (await screen.findByLabelText(/^trainer$/i)) as HTMLSelectElement
     await vi.waitFor(() => expect(select.textContent).toContain('YOLO principal'))
+  })
+})
+
+// chore/remover-classificacao-estados-frontend — classificação de estado removida:
+// o seletor "Serviço usado por classificação de estado" (#analysis-state-trainer,
+// que existia numa 2ª seção própria) sai da página; o seletor de trainer pra
+// fine-tuning (CA6 acima) fica intocado.
+describe('CA5: classificação de estado removida — sem seletor "Serviço usado por classificação de estado"', () => {
+  it('não renderiza mais o select #analysis-state-trainer nem o texto "classificação de estado"', async () => {
+    mockFetch()
+    renderPage()
+
+    await screen.findByText(/análise de vídeo/i)
+    expect(document.getElementById('analysis-state-trainer')).toBeNull()
+    expect(screen.queryByText(/classificação de estado/i)).toBeNull()
   })
 })
