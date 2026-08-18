@@ -95,10 +95,11 @@ do banco (`ID`, `End`) via `db.EndedAtByPaths`. Dois pontos não-óbvios:
   Sem essa prioridade, um chunk corrompido por um hang fica preso em "em
   gravação" pra sempre, mesmo depois do `Cleaner` já ter confirmado que
   terminou — não é um bug específico de um protocolo de captura: qualquer
-  hang que deixe um arquivo truncado o expõe, MJPEG só foi o caso real que
-  tornou isso provável na prática (`internal/motion`/`internal/capturer/mjpeg`
-  não tinham timeout de rede antes de `fix(mjpeg): timeout de leitura de
-  rede para captura MJPEG`).
+  hang que deixe um arquivo truncado o expõe. Historicamente MJPEG (HTTP
+  contínuo sem heartbeat como o RTCP do RTSP) era o caso real que tornava
+  isso provável na prática; o protocolo foi removido do projeto por inteiro
+  (`chore/remover-mjpeg-backend`), mas a lógica de prioridade aqui continua
+  válida pra qualquer hang de rede/processo, não era exclusiva dele.
 - **A varredura por dia também escaneia o dia UTC anterior a cada
   `utcDay` do range** (deduplicando datas repetidas quando o range já
   cobre dias consecutivos), aplicando o mesmo filtro de timestamp de
