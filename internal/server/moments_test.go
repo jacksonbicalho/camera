@@ -183,3 +183,63 @@ func TestMomentsRecordingAvailable(t *testing.T) {
 		}
 	})
 }
+
+// TestMomentsRespectsViewerAccess cobre a história
+// fix/limpar-concessoes-camera-orfas — comportamento já correto hoje
+// (handleMoments já filtra por db.GetUserCameras), sem cobertura de teste
+// até agora. Mesmo padrão de TestGlobalContentDays_AggregatesAndRespectsAccess
+// (content_days_test.go).
+func TestMomentsRespectsViewerAccess(t *testing.T) {
+	t.Run("CA4: viewer com acesso só a uma câmera não vê momentos de câmera não concedida", func(t *testing.T) {
+		database := openServerTestDB(t)
+		viewerID, err := db.CreateUser(database, "vw", "pw", "viewer", false)
+		if err != nil {
+			t.Fatalf("create viewer: %v", err)
+		}
+		cam1 := config.CameraConfig{ID: "cam1", Name: "Permitida", RTSPURL: "rtsp://x/"}
+		cam2 := config.CameraConfig{ID: "cam2", Name: "Negada", RTSPURL: "rtsp://x/"}
+		for _, cam := range []config.CameraConfig{cam1, cam2} {
+			if _, err := db.CreateCamera(database, cam, nil); err != nil {
+				t.Fatalf("create camera %s: %v", cam.ID, err)
+			}
+		}
+		if err := db.SetUserCameras(database, viewerID, []string{"cam1"}); err != nil {
+			t.Fatalf("grant: %v", err)
+		}
+
+		day := time.Date(2026, 6, 23, 0, 0, 0, 0, time.UTC)
+		if err := db.InsertMotionEvent(database, db.MotionEvent{
+			CameraID: "cam1", OccurredAt: day.Add(10 * time.Hour), Score: 0.5, FramePath: "a.jpg",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.InsertMotionEvent(database, db.MotionEvent{
+			CameraID: "cam2", OccurredAt: day.Add(11 * time.Hour), Score: 0.5, FramePath: "b.jpg",
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{cam1, cam2}, discardLogger(), nil).WithDB(database)
+		token := loginAndGetToken(t, srv, "vw", "pw")
+		w := doJSON(t, srv, http.MethodGet, "/api/moments?date=2026-06-23", token, nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("moments: %d %s", w.Code, w.Body.String())
+		}
+		var out struct {
+			Moments []struct {
+				CameraID string `json:"camera_id"`
+			} `json:"moments"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range out.Moments {
+			if m.CameraID != "cam1" {
+				t.Errorf("viewer sem acesso a %s não deveria ver esse momento, got %+v", m.CameraID, out.Moments)
+			}
+		}
+		if len(out.Moments) == 0 {
+			t.Error("esperava ao menos o momento de cam1 (câmera concedida)")
+		}
+	})
+}

@@ -2043,6 +2043,67 @@ func TestGlobalRecordings(t *testing.T) {
 	}
 }
 
+// TestGlobalRecordingsRespectsViewerAccess cobre a história
+// fix/limpar-concessoes-camera-orfas — comportamento já correto hoje
+// (recordings_global.go já filtra por accessibleCameraIDs/GetUserCameras),
+// sem cobertura de teste até agora. Mesmo padrão de
+// TestGlobalContentDays_AggregatesAndRespectsAccess (content_days_test.go).
+func TestGlobalRecordingsRespectsViewerAccess(t *testing.T) {
+	t.Run("CA5: viewer com acesso só a uma câmera não vê gravações de câmera não concedida", func(t *testing.T) {
+		database := openServerTestDB(t)
+		viewerID, err := db.CreateUser(database, "vw", "pw", "viewer", false)
+		if err != nil {
+			t.Fatalf("create viewer: %v", err)
+		}
+		camAllowed, err := db.CreateCamera(database, config.CameraConfig{Name: "Permitida"}, nil)
+		if err != nil {
+			t.Fatalf("create camAllowed: %v", err)
+		}
+		camDenied, err := db.CreateCamera(database, config.CameraConfig{Name: "Negada"}, nil)
+		if err != nil {
+			t.Fatalf("create camDenied: %v", err)
+		}
+		if err := db.SetUserCameras(database, viewerID, []string{camAllowed.ID}); err != nil {
+			t.Fatalf("grant: %v", err)
+		}
+
+		recPath := "/data/recordings"
+		mk := func(cam config.CameraConfig, at time.Time, file string) {
+			p := recPath + "/" + cam.ID + "/2026/06/23/" + file
+			if err := db.InsertRecording(database, db.Recording{CameraID: cam.ID, StartedAt: at, Path: p}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		mk(camAllowed, time.Date(2026, 6, 23, 10, 0, 0, 0, time.UTC), "a.mp4")
+		mk(camDenied, time.Date(2026, 6, 23, 10, 5, 0, 0, time.UTC), "b.mp4")
+
+		srv := server.NewServer(config.ServerConfig{RecordingsPath: recPath}, "UTC",
+			[]config.CameraConfig{{ID: camAllowed.ID}, {ID: camDenied.ID}}, discardLogger(), nil).WithDB(database)
+		token := loginAndGetToken(t, srv, "vw", "pw")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/recordings?date=2026-06-23", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Recordings []map[string]any `json:"recordings"`
+			Total      int              `json:"total"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if resp.Total != 1 || len(resp.Recordings) != 1 {
+			t.Fatalf("esperava só a gravação de camAllowed, got total=%d: %+v", resp.Total, resp.Recordings)
+		}
+		if resp.Recordings[0]["camera_id"] != camAllowed.ID {
+			t.Errorf("viewer sem acesso a camDenied não deveria ver essa gravação, got %+v", resp.Recordings[0])
+		}
+	})
+}
+
 func TestMomentsSearchQuery(t *testing.T) {
 	database := openServerTestDB(t)
 	if _, err := db.CreateUser(database, "master", "secret", "admin", false); err != nil {
