@@ -23,15 +23,6 @@ func TestAggregateMotionEvents(t *testing.T) {
 	mk("cam2", base.Add(24*time.Hour), "carro")  // outra câmera → fora do escopo
 	mk("cam1", base.Add(72*time.Hour), "pessoa") // fora do range (depois do `to`)
 
-	// Transições de estado de cam1 entram no relatório (categoria "estados").
-	c1, err := db.CreateStateClassifier(database, makeClassifier("cam1"))
-	if err != nil {
-		t.Fatalf("classifier: %v", err)
-	}
-	insertTransition(t, database, c1, "aberto", 0.9, "/x/a.jpg", "2026-06-20 12:00:00")  // dia 20
-	insertTransition(t, database, c1, "fechado", 0.9, "/x/b.jpg", "2026-06-21 09:00:00") // dia 21
-	insertTransition(t, database, c1, "aberto", 0.9, "/x/c.jpg", "2026-06-25 09:00:00")  // fora do range
-
 	from := time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 6, 22, 0, 0, 0, 0, time.UTC) // exclusivo: pega 20 e 21
 
@@ -39,24 +30,16 @@ func TestAggregateMotionEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("aggregate: %v", err)
 	}
-	// 2 motion (cam1, dia 20) + 2 estados (cam1, dias 20 e 21) = 4; cam2 fora do escopo
-	if rep.Total != 4 {
-		t.Fatalf("total = %d, want 4", rep.Total)
+	// 2 motion (cam1, dia 20); cam2 fora do escopo
+	if rep.Total != 2 {
+		t.Fatalf("total = %d, want 2", rep.Total)
 	}
-	if len(rep.ByDay) != 2 || rep.ByDay[0].Day != "2026-06-20" || rep.ByDay[0].Count != 3 || rep.ByDay[1].Day != "2026-06-21" || rep.ByDay[1].Count != 1 {
+	if len(rep.ByDay) != 2 || rep.ByDay[0].Day != "2026-06-20" || rep.ByDay[0].Count != 2 || rep.ByDay[1].Day != "2026-06-21" || rep.ByDay[1].Count != 0 {
 		t.Errorf("by_day = %+v", rep.ByDay)
 	}
-	// dia 20: 1 pessoa + 1 movimento (label vazio) + 1 estado (aberto)
-	if rep.ByDay[0].ByCategory["pessoa"] != 1 || rep.ByDay[0].ByCategory["movimento"] != 1 ||
-		rep.ByDay[0].ByCategory["estados:portão:aberto"] != 1 {
+	// dia 20: 1 pessoa + 1 movimento (label vazio)
+	if rep.ByDay[0].ByCategory["pessoa"] != 1 || rep.ByDay[0].ByCategory["movimento"] != 1 {
 		t.Errorf("by_day[0].by_category = %+v", rep.ByDay[0].ByCategory)
-	}
-	// dia 21: só 1 estado (fechado — categoria composta DIFERENTE da de "aberto")
-	if rep.ByDay[1].ByCategory["estados:portão:fechado"] != 1 || len(rep.ByDay[1].ByCategory) != 1 {
-		t.Errorf("by_day[1].by_category = %+v", rep.ByDay[1].ByCategory)
-	}
-	if rep.ByCategory["estados:portão:aberto"] != 1 || rep.ByCategory["estados:portão:fechado"] != 1 {
-		t.Errorf("by_category[estados:*] = %+v, want aberto=1 fechado=1", rep.ByCategory)
 	}
 	if rep.ByLabel["pessoa"] != 1 || rep.ByLabel[""] != 1 {
 		t.Errorf("by_label = %+v", rep.ByLabel)
@@ -77,16 +60,11 @@ func TestAggregateMotionEventsHourly(t *testing.T) {
 		}
 	}
 	// dia (em BRT) = 2026-06-21 → [03:00Z, +24h)
-	mk(time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC), "")       // 09:00 BRT → hora 9, movimento
+	mk(time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC), "")        // 09:00 BRT → hora 9, movimento
 	mk(time.Date(2026, 6, 21, 12, 30, 0, 0, time.UTC), "pessoa") // 09:30 BRT → hora 9, pessoa
-	c1, err := db.CreateStateClassifier(database, makeClassifier("cam1"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	insertTransition(t, database, c1, "aberto", 0.9, "/x/a.jpg", "2026-06-21 15:00:00") // 12:00 BRT → hora 12, estados
 
-	from := time.Date(2026, 6, 21, 3, 0, 0, 0, time.UTC)  // 00:00 BRT
-	to := time.Date(2026, 6, 22, 3, 0, 0, 0, time.UTC)    // 24:00 BRT
+	from := time.Date(2026, 6, 21, 3, 0, 0, 0, time.UTC) // 00:00 BRT
+	to := time.Date(2026, 6, 22, 3, 0, 0, 0, time.UTC)   // 24:00 BRT
 
 	rep, err := db.AggregateMotionEventsHourly(database, from, to, "cam1", loc)
 	if err != nil {
@@ -95,20 +73,14 @@ func TestAggregateMotionEventsHourly(t *testing.T) {
 	if len(rep.ByHour) != 24 {
 		t.Fatalf("esperava 24 buckets de hora, got %d", len(rep.ByHour))
 	}
-	if rep.Total != 3 {
-		t.Fatalf("total = %d, want 3", rep.Total)
+	if rep.Total != 2 {
+		t.Fatalf("total = %d, want 2", rep.Total)
 	}
 	if rep.ByHour[9].Hour != 9 || rep.ByHour[9].Count != 2 || rep.ByHour[9].ByCategory["movimento"] != 1 || rep.ByHour[9].ByCategory["pessoa"] != 1 {
 		t.Errorf("hora 9 = %+v", rep.ByHour[9])
 	}
-	if rep.ByHour[12].Count != 1 || rep.ByHour[12].ByCategory["estados:portão:aberto"] != 1 {
-		t.Errorf("hora 12 (estado) = %+v", rep.ByHour[12])
-	}
 	if rep.ByHour[0].Count != 0 {
 		t.Errorf("hora 0 deveria ser zero: %+v", rep.ByHour[0])
-	}
-	if rep.ByCategory["estados:portão:aberto"] != 1 {
-		t.Errorf("by_category[estados:portão:aberto] = %d, want 1", rep.ByCategory["estados:portão:aberto"])
 	}
 	if rep.ByLabel[""] != 1 || rep.ByLabel["pessoa"] != 1 {
 		t.Errorf("by_label = %+v", rep.ByLabel)
@@ -161,12 +133,6 @@ func TestAggregateMotionEventsDayHour(t *testing.T) {
 	mk("cam1", time.Date(2026, 6, 21, 12, 30, 0, 0, time.UTC), "")      // 09:30 BRT 06-21 → (06-21, 9)
 	mk("cam2", time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC), "carro")  // outra câmera → ignorado
 
-	c1, err := db.CreateStateClassifier(database, makeClassifier("cam1"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	insertTransition(t, database, c1, "aberto", 0.9, "/x/a.jpg", "2026-06-22 15:00:00") // 12:00 BRT 06-22 → (06-22, 12)
-
 	from := time.Date(2026, 6, 21, 3, 0, 0, 0, time.UTC) // 00:00 BRT 06-21
 	to := time.Date(2026, 6, 24, 3, 0, 0, 0, time.UTC)   // +3 dias (21, 22, 23)
 
@@ -177,8 +143,8 @@ func TestAggregateMotionEventsDayHour(t *testing.T) {
 	if len(rep.Heatmap) != 72 { // 3 dias × 24
 		t.Fatalf("esperava 72 células (3×24), got %d", len(rep.Heatmap))
 	}
-	if rep.Total != 3 {
-		t.Fatalf("total = %d, want 3", rep.Total)
+	if rep.Total != 2 {
+		t.Fatalf("total = %d, want 2", rep.Total)
 	}
 	cell := func(date string, hour int) db.DayHourCell {
 		for _, c := range rep.Heatmap {
@@ -191,9 +157,6 @@ func TestAggregateMotionEventsDayHour(t *testing.T) {
 	}
 	if c := cell("2026-06-21", 9); c.Count != 2 {
 		t.Errorf("célula 06-21/9h = %+v, want count 2", c)
-	}
-	if c := cell("2026-06-22", 12); c.Count != 1 {
-		t.Errorf("célula 06-22/12h (estado) = %+v, want count 1", c)
 	}
 	if c := cell("2026-06-23", 3); c.Count != 0 {
 		t.Errorf("célula sem evento deveria ser zero: %+v", c)
@@ -229,53 +192,54 @@ func TestMotionCategory_FielAoLabelReal(t *testing.T) {
 	}
 }
 
-// história feat/estados-categoria-granular — ByCategory/by_category deixa de agregar
-// transições de estado no bucket fixo "estados" e passa a quebrar por (classificador,
-// estado): estados:<slug-do-nome>:<estado>. Cobre AggregateMotionEvents (diário) e
-// AggregateMotionEventsHourly (por hora) — as 2 que quebram por categoria.
-func TestAggregateMotionEventsStateCategoryComposite(t *testing.T) {
-	database := openTestDB(t)
-	ensureCamera(t, database, "cam1")
+// TestAggregateMotionEventsExcludesStateTransitions cobre a história
+// chore/remover-classificacao-estados-backend — AggregateMotionEvents/Hourly param de
+// somar transições de camera_state_history no relatório. Usa SQL bruto (sem
+// db.CreateStateClassifier/stateclass, ambos removidos num ticket anterior desta mesma
+// história) — só a tabela camera_state_history/camera_state_classifiers ainda existe
+// nesta fase, removida pela migration do último ticket.
+func TestAggregateMotionEventsExcludesStateTransitions(t *testing.T) {
+	t.Run("CA7: AggregateMotionEvents/Hourly não somam mais transições de camera_state_history (classificação de estado removida)", func(t *testing.T) {
+		database := openTestDB(t)
+		ensureCamera(t, database, "cam1")
 
-	classifierCfg := makeClassifier("cam1")
-	classifierCfg.Name = "Pessoa"
-	classifierCfg.Classes = []string{"entrando", "saindo"}
-	cid, err := db.CreateStateClassifier(database, classifierCfg)
-	if err != nil {
-		t.Fatalf("classifier: %v", err)
-	}
-	insertTransition(t, database, cid, "saindo", 0.9, "/x/a.jpg", "2026-06-20 12:00:00")
-	insertTransition(t, database, cid, "entrando", 0.9, "/x/b.jpg", "2026-06-20 13:00:00")
+		base := time.Date(2026, 6, 20, 10, 0, 0, 0, time.UTC)
+		if err := db.InsertMotionEvent(database, db.MotionEvent{CameraID: "cam1", OccurredAt: base, Score: 0.5, Label: "pessoa"}); err != nil {
+			t.Fatalf("insert motion: %v", err)
+		}
 
-	from := time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)
+		res, err := database.Exec(
+			`INSERT INTO camera_state_classifiers (camera_id, name, crop_x, crop_y, crop_w, crop_h) VALUES (?, ?, ?, ?, ?, ?)`,
+			"cam1", "Portão", 0.1, 0.1, 0.3, 0.3,
+		)
+		if err != nil {
+			t.Fatalf("insert classifier: %v", err)
+		}
+		cid, _ := res.LastInsertId()
+		if _, err := database.Exec(
+			`INSERT INTO camera_state_history (classifier_id, state, confidence, changed_at) VALUES (?, ?, ?, ?)`,
+			cid, "aberto", 0.9, "2026-06-20 12:00:00",
+		); err != nil {
+			t.Fatalf("insert transition: %v", err)
+		}
 
-	t.Run("CA6: AggregateMotionEvents quebra ByCategory por (classificador, estado), não mais o bucket genérico \"estados\"", func(t *testing.T) {
+		from := time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)
+		to := time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)
+
 		rep, err := db.AggregateMotionEvents(database, from, to, "cam1")
 		if err != nil {
 			t.Fatalf("aggregate: %v", err)
 		}
-		if rep.ByCategory["estados"] != 0 {
-			t.Errorf("bucket genérico \"estados\" não deveria mais existir, got %d", rep.ByCategory["estados"])
+		if rep.Total != 1 {
+			t.Errorf("total = %d, want 1 (só o evento de movimento, sem a transição de estado)", rep.Total)
 		}
-		if rep.ByCategory["estados:pessoa:saindo"] != 1 {
-			t.Errorf("by_category[estados:pessoa:saindo] = %d, want 1 (%+v)", rep.ByCategory["estados:pessoa:saindo"], rep.ByCategory)
-		}
-		if rep.ByCategory["estados:pessoa:entrando"] != 1 {
-			t.Errorf("by_category[estados:pessoa:entrando] = %d, want 1 (%+v)", rep.ByCategory["estados:pessoa:entrando"], rep.ByCategory)
-		}
-	})
 
-	t.Run("CA6: AggregateMotionEventsHourly quebra by_category por (classificador, estado)", func(t *testing.T) {
-		rep, err := db.AggregateMotionEventsHourly(database, from, to, "cam1", time.UTC)
+		hourly, err := db.AggregateMotionEventsHourly(database, from, to, "cam1", time.UTC)
 		if err != nil {
 			t.Fatalf("aggregate hourly: %v", err)
 		}
-		if rep.ByCategory["estados"] != 0 {
-			t.Errorf("bucket genérico \"estados\" não deveria mais existir, got %d", rep.ByCategory["estados"])
-		}
-		if rep.ByCategory["estados:pessoa:saindo"] != 1 || rep.ByCategory["estados:pessoa:entrando"] != 1 {
-			t.Errorf("by_category composto ausente/errado: %+v", rep.ByCategory)
+		if hourly.Total != 1 {
+			t.Errorf("hourly total = %d, want 1 (só o evento de movimento, sem a transição de estado)", hourly.Total)
 		}
 	})
 }
