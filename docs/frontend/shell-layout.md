@@ -58,9 +58,15 @@ aponta pra `/`); `Câmeras e Gravações` (Câmeras, Gravações `/recordings`,
 Histórico `/history`, Relatórios `/reports` — **todos os itens visíveis pra
 qualquer role**, sem gate `isAdmin`); `Inteligência` (admin: Análise de
 vídeo, Rotular eventos — âncora na mesma página —, Detectores de objetos,
-Treinadores, Estados); `Administração` (admin: Servidor, Rastrear câmeras,
-Usuários, Preferências — `/settings/preferences/extensions`, ponto de
-entrada único pra Extensões/Aparência/Armazenamento).
+Treinadores); `Administração` (admin: Servidor, Rastrear câmeras, Usuários,
+Preferências — `/settings/preferences/extensions`, ponto de entrada único
+pra Extensões/Aparência/Armazenamento).
+
+O item "Estados" (classificação de estado por câmera, `/settings/states`)
+foi removido junto com toda a UI dedicada (história
+`chore/remover-classificacao-estados-frontend`, 1ª de 3 histórias
+sequenciais — backend Go e serviço YOLO ainda respondem às rotas/endpoints
+correspondentes, só o frontend parou de chamá-los).
 
 Os 3 itens de Gravações/Histórico/Relatórios já foram admin-only
 (`{isAdmin && (...)}`); o gate foi removido porque escondia páginas cujo

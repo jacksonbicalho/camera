@@ -20,8 +20,9 @@ Todas usam o shell `Layout` (ver [shell-layout.md](shell-layout.md)).
   `RecordingsGateway` (único intermediário com o backend); `:motionId`
   monta o clip com lead/trail em torno do evento.
 - `pages/RecordingsPage.tsx` (`/recordings(/:date(/:hour(/:view)))`) —
-  gravações + "momentos" (eventos de movimento/pessoa/ia/estados) agregados
-  multi-câmera; filtro de categoria (multi-seleção) + janela de horas.
+  gravações + "momentos" (eventos de movimento/pessoa/label arbitrário)
+  agregados multi-câmera; filtro de categoria (multi-seleção) + janela de
+  horas.
   Clique abre `RecordingPlayerModal` (ver [player.md](player.md)).
 - `pages/ReportsPage.tsx` (`/reports/:cameraId/:date/:days`) — histograma
   empilhado de eventos por categoria, por câmera, num intervalo de dias.
