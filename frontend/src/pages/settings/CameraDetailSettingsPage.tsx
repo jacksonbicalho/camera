@@ -29,7 +29,6 @@ function fmtResolution(w: number, h: number): string {
 
 function captureTypeLabel(v: string): string {
   if (v === 'hls') return 'HLS'
-  if (v === 'mjpeg') return 'MJPEG'
   return 'RTSP'
 }
 
