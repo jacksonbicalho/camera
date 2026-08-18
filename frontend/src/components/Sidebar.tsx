@@ -204,39 +204,33 @@ export default function Sidebar() {
               }}
               showLabel={showLabel}
             />
-            {isAdmin && (
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-recordings',
-                  to: '/recordings',
-                  label: 'Gravações',
-                  icon: <Film className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-            )}
-            {isAdmin && (
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-history',
-                  to: '/history',
-                  label: 'Histórico',
-                  icon: <History className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-            )}
-            {isAdmin && (
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-relatorios',
-                  to: '/reports',
-                  label: 'Relatórios',
-                  icon: <BarChart2 className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-            )}
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-recordings',
+                to: '/recordings',
+                label: 'Gravações',
+                icon: <Film className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-history',
+                to: '/history',
+                label: 'Histórico',
+                icon: <History className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
+            <SidebarNavLink
+              item={{
+                id: 'sidebar-relatorios',
+                to: '/reports',
+                label: 'Relatórios',
+                icon: <BarChart2 className="h-5 w-5 shrink-0" />,
+              }}
+              showLabel={showLabel}
+            />
           </SidebarSection>
 
           {isAdmin && (

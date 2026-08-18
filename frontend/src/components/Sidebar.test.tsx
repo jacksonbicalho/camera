@@ -178,13 +178,13 @@ describe('CA2: seção "Câmeras e Gravações" (ex-"Sistema") ganha Gravações
     }
   })
 
-  it('viewer vê só Câmeras — Gravações/Histórico/Relatórios continuam admin-only (mesmo gate de antes, só migrado de seção)', () => {
+  it('CA2: viewer também vê Gravações/Histórico/Relatórios (mesmo padrão de "Câmeras" — nunca teve por que ser admin-only)', () => {
     vi.mocked(getRole).mockReturnValue('viewer')
     renderAt('/')
     expect(document.getElementById('sidebar-cameras')).toBeTruthy()
-    expect(document.getElementById('sidebar-recordings')).toBeNull()
-    expect(document.getElementById('sidebar-history')).toBeNull()
-    expect(document.getElementById('sidebar-relatorios')).toBeNull()
+    expect(document.getElementById('sidebar-recordings')).toBeTruthy()
+    expect(document.getElementById('sidebar-history')).toBeTruthy()
+    expect(document.getElementById('sidebar-relatorios')).toBeTruthy()
   })
 
   it('"Histórico" fica ativo em qualquer sub-rota /history/*', () => {
