@@ -67,8 +67,6 @@ describe('CA4: CameraTransmissionSection (edição) sempre editável, com Aplica
   })
 })
 
-// --- capture_type propagado pro /detect-streams (história feat/capture-mjpeg) ---
-
 describe('CA5: "Detectar" propaga capture_type pro backend', () => {
   it('envia capture_type junto com rtsp_url (bug pré-existente: endpoint sempre assumia RTSP)', async () => {
     let sentBody: Record<string, unknown> | null = null
@@ -76,15 +74,15 @@ describe('CA5: "Detectar" propaga capture_type pro backend', () => {
       'fetch',
       vi.fn((url: string, init?: RequestInit) => {
         sentBody = JSON.parse(String(init?.body))
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ codec: 'mjpeg' }) })
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ codec: 'h264' }) })
       }),
     )
     render(
       <CameraTransmissionSection
         cam={{
           ...baseCam,
-          capture_type: 'mjpeg',
-          rtsp_url: 'https://195.196.36.242/mjpg/video.mjpg',
+          capture_type: 'hls',
+          rtsp_url: 'https://195.196.36.242/stream/playlist.m3u8',
         }}
         id="cam-1"
         reload={vi.fn()}
@@ -94,7 +92,7 @@ describe('CA5: "Detectar" propaga capture_type pro backend', () => {
     fireEvent.click(document.getElementById('camera-live-transport-detect')!)
 
     await waitFor(() => expect(sentBody).not.toBeNull())
-    expect(sentBody!.capture_type).toBe('mjpeg')
+    expect(sentBody!.capture_type).toBe('hls')
   })
 })
 

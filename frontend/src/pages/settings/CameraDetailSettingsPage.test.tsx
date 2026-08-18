@@ -148,10 +148,8 @@ describe('CameraDetailSettingsPage', () => {
     })
   })
 
-  // --- capture_type=mjpeg (história feat/capture-mjpeg) ---
-
-  describe('CA4: viewer — visualização somente-leitura mostra o Protocolo/URL corretos pra um 3º capture_type', () => {
-    it('capture_type=mjpeg mostra "MJPEG" e "URL MJPEG", não o fallback "RTSP"', async () => {
+  describe('CA3: câmera legada com capture_type=mjpeg (protocolo removido) cai no fallback RTSP', () => {
+    it('mostra "RTSP" em vez de "MJPEG" pra um dado antigo do banco com capture_type=mjpeg', async () => {
       vi.mocked(getRole).mockReturnValue('viewer')
       vi.stubGlobal(
         'fetch',
@@ -194,9 +192,9 @@ describe('CameraDetailSettingsPage', () => {
         </MemoryRouter>,
       )
 
-      await waitFor(() => expect(screen.getByText('MJPEG')).toBeTruthy())
-      expect(screen.getByText('URL MJPEG')).toBeTruthy()
-      expect(screen.queryByText('RTSP')).toBeNull()
+      await waitFor(() => expect(screen.getByText('RTSP')).toBeTruthy())
+      expect(screen.queryByText('MJPEG')).toBeNull()
+      expect(screen.queryByText('URL MJPEG')).toBeNull()
     })
   })
 })

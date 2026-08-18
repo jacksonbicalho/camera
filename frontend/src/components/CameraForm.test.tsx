@@ -83,32 +83,13 @@ describe('CA3: sessão "Captura" — seletor capture_type com campos condicionai
   })
 })
 
-// --- capture_type=mjpeg (história feat/capture-mjpeg) ---
-
-describe('CA4: sessão "Captura" — capture_type=mjpeg', () => {
-  it('capture_type=mjpeg: troca o rótulo/placeholder da URL', () => {
+describe('CA2: capture_type — protocolo MJPEG removido (história chore/remover-mjpeg-frontend)', () => {
+  it('o select de capture_type não oferece mais a opção MJPEG', () => {
     renderForm()
-    fireEvent.change(document.getElementById('camera-capture-type')!, {
-      target: { value: 'mjpeg' },
-    })
-    expect(screen.getByText('URL MJPEG')).toBeTruthy()
-    expect(screen.queryByText('RTSP URL')).toBeNull()
-    expect(screen.queryByText('URL HLS')).toBeNull()
-  })
-
-  it('submete capture_type=mjpeg junto com o resto do form', () => {
-    const { onSave } = renderForm()
-    fireEvent.change(document.getElementById('camera-capture-type')!, {
-      target: { value: 'mjpeg' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('Sala, Garagem, Entrada'), {
-      target: { value: 'Portão' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('https://exemplo.com/mjpg/video.mjpg'), {
-      target: { value: 'https://195.196.36.242/mjpg/video.mjpg' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /^salvar$/i }))
-    expect(onSave.mock.calls[0][0].capture_type).toBe('mjpeg')
+    const select = document.getElementById('camera-capture-type') as HTMLSelectElement
+    const values = Array.from(select.options).map((o) => o.value)
+    expect(values).not.toContain('mjpeg')
+    expect(values).toEqual(['rtsp', 'hls'])
   })
 })
 
@@ -119,21 +100,21 @@ describe('CA5: "Detectar" propaga capture_type pro backend', () => {
       'fetch',
       vi.fn((url: string, init?: RequestInit) => {
         sentBody = JSON.parse(String(init?.body))
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ codec: 'mjpeg' }) })
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ codec: 'h264' }) })
       }),
     )
     renderForm()
     fireEvent.change(document.getElementById('camera-capture-type')!, {
-      target: { value: 'mjpeg' },
+      target: { value: 'hls' },
     })
-    fireEvent.change(screen.getByPlaceholderText('https://exemplo.com/mjpg/video.mjpg'), {
-      target: { value: 'https://195.196.36.242/mjpg/video.mjpg' },
+    fireEvent.change(screen.getByPlaceholderText('https://exemplo.com/stream/playlist.m3u8'), {
+      target: { value: 'https://195.196.36.242/stream/playlist.m3u8' },
     })
 
     fireEvent.click(document.getElementById('camera-live-transport-detect')!)
 
     await waitFor(() => expect(sentBody).not.toBeNull())
-    expect(sentBody!.capture_type).toBe('mjpeg')
+    expect(sentBody!.capture_type).toBe('hls')
   })
 })
 

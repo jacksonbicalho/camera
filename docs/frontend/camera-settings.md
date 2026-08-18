@@ -85,6 +85,20 @@ id" e o carve-out sempre-editável desta página.
 
 ## Decisões e invariantes
 
+- **O select de `capture_type` (`CaptureFields`) só oferece RTSP/HLS** — a
+  opção MJPEG foi removida do formulário (história
+  `chore/remover-mjpeg-frontend`), junto com os branches de label/placeholder
+  da URL que dependiam dela; qualquer valor não reconhecido (inclusive
+  `mjpeg` legado) cai no fallback `'RTSP URL'`. `captureTypeLabel`
+  (`CameraDetailSettingsPage.tsx`) segue o mesmo fallback: câmeras salvas
+  antes desta história com `capture_type=mjpeg` no banco exibem "RTSP" na
+  tela de detalhe, não "MJPEG" e não um valor confuso. Isso é só a metade
+  frontend de uma remoção planejada em 2 histórias — o backend
+  (`internal/capturer/mjpeg`, `internal/motion`, `internal/recorder`,
+  `internal/transmission/hls`/`webrtc`, `internal/server`) ainda captura
+  mjpeg normalmente até a história companheira (backend) ser feita; até lá,
+  câmeras `mjpeg` legadas continuam funcionando de verdade, só a exibição na
+  UI muda.
 - **`CameraDetailSettingsPage` abandonou o modo Editar** (história
   `refactor/camera-detail-secoes-aplicar`): o navigator reportou que
   alternar pra "Editar" abria todas as seções de uma vez sem deixar claro
