@@ -202,28 +202,6 @@ func DeleteMotionEventsInRange(db *DB, cameraID string, start, end time.Time) er
 	return err
 }
 
-// UpdateMotionEventFramePath replaces the frame_path of a motion event.
-// Returns an error if no row with the given id exists.
-func UpdateMotionEventFramePath(db *DB, id int64, framePath string) error {
-	res, err := db.Exec(`UPDATE motion_events SET frame_path=? WHERE id=?`, framePath, id)
-	if err != nil {
-		return fmt.Errorf("update motion event frame_path: %w", err)
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("motion event %d not found", id)
-	}
-	return nil
-}
-
-// UpdateMotionEventLabel sets or clears the label of a motion event.
-func UpdateMotionEventLabel(db *DB, id int64, label string) error {
-	_, err := db.Exec(`UPDATE motion_events SET label=? WHERE id=?`, nullStr(label), id)
-	if err != nil {
-		return fmt.Errorf("update motion event label: %w", err)
-	}
-	return nil
-}
-
 // BulkDeleteMotionEvents deletes the motion events with the given IDs and
 // returns the affected count plus the snapshot of every deleted row (with
 // camera_id, occurred_at and frame_path) so the caller can resolve and remove
@@ -265,101 +243,6 @@ func BulkDeleteMotionEvents(db *DB, ids []int64) (int64, []MotionEvent, error) {
 	}
 	deleted, _ := res.RowsAffected()
 	return deleted, events, nil
-}
-
-// BulkUpdateMotionEventLabels sets (or clears, when label is empty) the label
-// for the given motion event IDs. Returns the affected row count.
-func BulkUpdateMotionEventLabels(db *DB, ids []int64, label string) (int64, error) {
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	placeholders := make([]string, len(ids))
-	args := make([]any, 0, len(ids)+1)
-	args = append(args, nullStr(label))
-	for i, id := range ids {
-		placeholders[i] = "?"
-		args = append(args, id)
-	}
-	in := strings.Join(placeholders, ",")
-	res, err := db.Exec(`UPDATE motion_events SET label=? WHERE id IN (`+in+`)`, args...)
-	if err != nil {
-		return 0, fmt.Errorf("bulk update labels: %w", err)
-	}
-	updated, _ := res.RowsAffected()
-	return updated, nil
-}
-
-// PageMotionEvents returns a page of motion events for a camera, ordered by occurred_at DESC.
-// offset and limit control pagination; unlabeledOnly filters to events with no label;
-// labelSearch filters to events whose label contains the given string (case-insensitive, ignored when empty).
-// dismissedOnly=true returns only dismissed events; false (default) excludes them.
-// Returns the events, the total matching count, and any error.
-func PageMotionEvents(db *DB, cameraID string, offset, limit int, unlabeledOnly bool, labelSearch string, dismissedOnly bool) ([]MotionEvent, int, error) {
-	filter := ""
-	args := []any{cameraID}
-	if dismissedOnly {
-		filter += " AND dismissed=1"
-	} else {
-		filter += " AND dismissed=0"
-	}
-	if unlabeledOnly {
-		filter += " AND (label IS NULL OR label = '')"
-	} else if labelSearch != "" {
-		filter += " AND label LIKE ? COLLATE NOCASE"
-		args = append(args, "%"+labelSearch+"%")
-	}
-
-	countArgs := args
-	var total int
-	err := db.QueryRow(
-		`SELECT COUNT(*) FROM motion_events WHERE camera_id=?`+filter, countArgs...,
-	).Scan(&total)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count motion events: %w", err)
-	}
-
-	queryArgs := append(args, limit, offset)
-	rows, err := db.Query(
-		`SELECT id, camera_id, occurred_at, score, frame_path, label, color, bbox_x, bbox_y, bbox_w, bbox_h, dismissed
-		 FROM motion_events WHERE camera_id=?`+filter+`
-		 ORDER BY occurred_at DESC LIMIT ? OFFSET ?`,
-		queryArgs...,
-	)
-	if err != nil {
-		return nil, 0, fmt.Errorf("page motion events: %w", err)
-	}
-	defer rows.Close()
-
-	var events []MotionEvent
-	for rows.Next() {
-		ev, err := scanMotionEvent(rows)
-		if err != nil {
-			return nil, 0, fmt.Errorf("scan motion event: %w", err)
-		}
-		events = append(events, ev)
-	}
-	return events, total, rows.Err()
-}
-
-// BulkDismissMotionEvents marks the given motion event IDs as dismissed=1.
-// Empty ids returns (0, nil).
-func BulkDismissMotionEvents(db *DB, ids []int64) (int64, error) {
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-	in := strings.Join(placeholders, ",")
-	res, err := db.Exec(`UPDATE motion_events SET dismissed=1 WHERE id IN (`+in+`)`, args...)
-	if err != nil {
-		return 0, fmt.Errorf("dismiss motion events: %w", err)
-	}
-	n, _ := res.RowsAffected()
-	return n, nil
 }
 
 func nullFloat(f float64) sql.NullFloat64 {

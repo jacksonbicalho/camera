@@ -145,12 +145,6 @@ func (s *Server) routeTable() []route {
 		{"PUT", "/api/cameras/{id}/telegram-notify", authCamera, s.handleSetCameraTelegramNotify},
 
 		{"GET", "/api/events/{id}", authFull, s.handleGetEventByID},
-		{"PATCH", "/api/events/{id}/label", authFull, s.handleUpdateEventLabel},
-		{"PUT", "/api/events/{id}/frame", authFull, s.handleUpdateEventFrame},
-		{"DELETE", "/api/events/bulk", authAdmin, s.handleBulkDeleteEvents},
-		{"PATCH", "/api/events/bulk/dismiss", authAdmin, s.handleBulkDismissEvents},
-		{"PATCH", "/api/events/bulk/label", authAdmin, s.handleBulkUpdateEventLabels},
-		{"GET", "/api/cameras/{id}/events", authCamera, s.handlePageEvents},
 
 		{"GET", "/api/cameras/{id}/snapshot", authCamera, s.handleSnapshot},
 		{"GET", "/api/cameras/{id}/event-frame", authCamera, s.handleEventFrame},
