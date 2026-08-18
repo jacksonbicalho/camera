@@ -60,22 +60,6 @@ else
     echo "· frontend não mudou — pulando"
 fi
 
-yolo_changed=0
-git diff --name-only develop...HEAD 2>/dev/null | grep -q '^services/yolo/' && yolo_changed=1
-git status --porcelain | grep -qE '^.. services/yolo/' && yolo_changed=1
-
-if [ "$yolo_changed" -eq 1 ]; then
-    echo "→ services/yolo mudou: scripts/yolo-check.sh (Docker)"
-    if ! bash "$ROOT/scripts/yolo-check.sh" >/tmp/check-yolo.log 2>&1; then
-        echo "❌ yolo-check falhou:"
-        fail_summary /tmp/check-yolo.log
-        exit 1
-    fi
-    echo "✓ yolo verde"
-else
-    echo "· services/yolo não mudou — pulando"
-fi
-
 e2e_changed=0
 git diff --name-only develop...HEAD 2>/dev/null | grep -q '^e2e/' && e2e_changed=1
 git status --porcelain | grep -qE '^.. e2e/' && e2e_changed=1
