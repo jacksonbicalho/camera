@@ -7,10 +7,10 @@ plugável, escolhido por um discriminador `trainers.type` — mesma forma de
 única. Reaproveita `analysis.FinetuneRequest`/`FinetuneStatus` (não inventa
 tipos paralelos).
 
-Escopo deliberadamente restrito a fine-tuning de object detection — o treino
-de state classifiers ([internal/stateengine](../stateengine/README.md),
-dataset por classificador) é estruturalmente diferente (não produz 1 modelo
-global) e fica de fora.
+Escopo restrito a fine-tuning de object detection — a classificação de
+estado (que tinha seu próprio ponteiro pra um trainer cadastrado,
+`analysis.state_trainer_id`) foi removida do backend
+(`chore/remover-classificacao-estados-backend`).
 
 ## Arquivos principais
 - `trainer.go` — `Trainer` (interface `Train`/`Status`/`Cancel`) e
@@ -27,10 +27,7 @@ criação) via `internal/server/trainers.go`
 admin). `internal/server/finetune.go` resolve o trainer cadastrado via
 `trainer_id` (obrigatório no body/query dos endpoints de fine-tuning) —
 detalhe completo de rotas/frontend fica no doc de
-[internal/server](../server/README.md). A classificação de estado usa um
-ponteiro separado (`analysis.state_trainer_id` em `system_config`, resolvido
-por `GetStateClassificationServiceURL`) pra um trainer já cadastrado, em vez
-de duplicar o mecanismo — ver [internal/stateengine](../stateengine/README.md).
+[internal/server](../server/README.md).
 
 ## Ver também
 - [internal/detector](../detector/README.md) — mesma forma (backend plugável por discriminador), pra inferência em vez de treino.

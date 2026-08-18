@@ -79,7 +79,7 @@ Nunca afirmar que os testes do frontend passaram sem ter rodado o comando acima 
 Microserviço Python/FastAPI opcional para análise de gravações e fine-tuning. Expõe:
 - `POST /analyze` — inferência YOLO em arquivo MP4
 - `POST /finetune` / `GET /finetune/status/{id}` / `DELETE /finetune/{id}` — treino assíncrono (detecção)
-- **State classification** (`yolov8n-cls`): `POST /classify` (imagem/crop → `{predictions:[{label,prob}], top}`), `POST /classify/train` (treina a partir de samples `{image_path,label}`, dataset em **pastas por classe**, assíncrono — status pelo mesmo `GET /finetune/status/{id}`; guard de tamanho barra `l`/`x`; treina com **`fliplr=0.0`** — o flip horizontal corromperia classes direcionais, ex.: pessoa entrando vs saindo), `GET /classify/models`.
+- `POST /classify` / `POST /classify/train` / `GET /classify/models` (classificação de estado, `yolov8n-cls`) — ainda expostos pelo serviço, mas **sem chamador no app Go** desde `chore/remover-classificacao-estados-backend`; a capacidade foi removida do frontend e do backend, o serviço em si sai numa história futura dedicada.
 
 **Testes do serviço:** `services/yolo/test_main.py` (pytest). As deps pesadas (torch/ultralytics/cv2) são **stubadas via `sys.modules`** antes de importar `main`, então os testes rodam numa imagem Python slim sem GPU. Rodam via `scripts/yolo-check.sh` (Docker), acionado pelo `scripts/check.sh` quando `services/yolo/` muda, e por um job dedicado no CI (`.github/workflows/ci.yml`).
 
@@ -129,8 +129,7 @@ Suíte Playwright ponta-a-ponta, **independente do resto do projeto**: pacote pr
    - Um `webrtc.Publisher` — entrega o ao-vivo de baixa latência (só câmeras H.264, gateado por `webrtc.ShouldPublish`)
    - Um `motion.Monitor` — detecta movimento via ffmpeg pipe raw (se motion habilitado)
 5. O `server.Server` é levantado em goroutine separada e serve a SPA + API REST; um `notifications.Dispatcher` é construído e injetado nele e no `storage.Cleaner`.
-6. Um `stateengine.Runner` por classificador de estado habilitado sobe quando o serviço YOLO está configurado.
-7. Câmeras adicionadas/removidas via API ativam callbacks `onCameraStart` / `onCameraStop` (em goroutine, para não bloquear o handler HTTP).
+6. Câmeras adicionadas/removidas via API ativam callbacks `onCameraStart` / `onCameraStop` (em goroutine, para não bloquear o handler HTTP).
 
 ### Pacotes internos
 
@@ -148,7 +147,7 @@ Suíte Playwright ponta-a-ponta, **independente do resto do projeto**: pacote pr
 | `internal/zones` | Tipo `Zone` (zonas de exclusão/detecção), sem lógica de detecção. Doc completa: [docs/go-modules/internal/zones/README.md](docs/go-modules/internal/zones/README.md). |
 | `internal/discovery` | Descoberta de câmeras na rede (ONVIF WS-Discovery + varredura de porta 554). Doc completa: [docs/go-modules/internal/discovery/README.md](docs/go-modules/internal/discovery/README.md). |
 | `internal/storage` | `Cleaner`: retenção diferenciada por categoria, sincronização filesystem↔banco, S3, aviso de disco cheio. Doc completa: [docs/go-modules/internal/storage/README.md](docs/go-modules/internal/storage/README.md). |
-| `internal/db` | Acesso ao SQLite (`modernc.org/sqlite`); migrations em `internal/db/migrations/` (doc: [docs/go-modules/internal/db/migrations/README.md](docs/go-modules/internal/db/migrations/README.md)); tabelas de câmeras/usuários/gravações/eventos/state classification; `user_settings` (KV genérico por usuário). Doc completa: [docs/go-modules/internal/db/README.md](docs/go-modules/internal/db/README.md). |
+| `internal/db` | Acesso ao SQLite (`modernc.org/sqlite`); migrations em `internal/db/migrations/` (doc: [docs/go-modules/internal/db/migrations/README.md](docs/go-modules/internal/db/migrations/README.md)); tabelas de câmeras/usuários/gravações/eventos; `user_settings` (KV genérico por usuário). Doc completa: [docs/go-modules/internal/db/README.md](docs/go-modules/internal/db/README.md). |
 | `internal/dbbackup` | Snapshot/restore do banco SQLite (rede de segurança do updater). Doc completa: [docs/go-modules/internal/dbbackup/README.md](docs/go-modules/internal/dbbackup/README.md). |
 | `internal/email` | Envio de e-mail (recuperação de senha; genérico o bastante pra outros usos, ex. sender `email` de notificações). Doc completa: [docs/go-modules/internal/email/README.md](docs/go-modules/internal/email/README.md). |
 | `internal/notifications` | Único ponto da aplicação que sabe como entregar uma notificação (application/email hoje); quem sabe pra quem continua sendo o chamador. Doc completa: [docs/go-modules/internal/notifications/README.md](docs/go-modules/internal/notifications/README.md). |
@@ -163,11 +162,9 @@ Suíte Playwright ponta-a-ponta, **independente do resto do projeto**: pacote pr
 | `internal/extensions/telegram` | Cliente mínimo da Bot API do Telegram — pacote autocontido, não invocado por `main.go` ainda (ativação em Preferências > Extensões não dispara nada nesta história). Doc completa: [docs/go-modules/internal/extensions/telegram/README.md](docs/go-modules/internal/extensions/telegram/README.md). |
 | `internal/trainer` | Despacha jobs de fine-tuning de object detection pra um adapter de backend plugável (`trainers.type`). Doc completa: [docs/go-modules/internal/trainer/README.md](docs/go-modules/internal/trainer/README.md). |
 | `internal/trainer/adapters` | O adapter `Yolo`, único backend de treino hoje. Doc completa: [docs/go-modules/internal/trainer/adapters/README.md](docs/go-modules/internal/trainer/adapters/README.md). |
-| `internal/analysis` | Cliente HTTP do serviço YOLO — tipos/Client compartilhados por detecção, state classification e fine-tuning. Doc completa: [docs/go-modules/internal/analysis/README.md](docs/go-modules/internal/analysis/README.md). |
+| `internal/analysis` | Cliente HTTP do serviço YOLO — tipos/Client compartilhados por detecção e fine-tuning. Doc completa: [docs/go-modules/internal/analysis/README.md](docs/go-modules/internal/analysis/README.md). |
 | `internal/detector` | Despacha inferência de detecção de objetos pra um adapter plugável (yolo/huggingface). Doc completa: [docs/go-modules/internal/detector/README.md](docs/go-modules/internal/detector/README.md). |
 | `internal/detector/adapters` | Os adapters `Yolo` e `HuggingFace`. Doc completa: [docs/go-modules/internal/detector/adapters/README.md](docs/go-modules/internal/detector/adapters/README.md). |
-| `internal/stateclass` | Tipos de domínio da classificação de estado (`Classifier`, `Tracker`). Doc completa: [docs/go-modules/internal/stateclass/README.md](docs/go-modules/internal/stateclass/README.md). |
-| `internal/stateengine` | Roda a inferência de estado: grab → classify → tracker → persist/emit. Doc completa: [docs/go-modules/internal/stateengine/README.md](docs/go-modules/internal/stateengine/README.md). |
 | `internal/config` | Lê o arquivo de bootstrap (`camera.yaml`) com porta, `db_path`, storage e credenciais do admin. Variáveis de ambiente sobrescrevem campos específicos (ver abaixo). Doc completa: [docs/go-modules/internal/config/README.md](docs/go-modules/internal/config/README.md). |
 | `internal/logger` | Constrói o `*slog.Logger` a partir de `config.LogConfig` — `stdout` (JSON) ou `file` (um arquivo por nível, com rotação via lumberjack). Knobs em `camera.yaml`, seção `log:`. Doc completa: [docs/go-modules/internal/logger/README.md](docs/go-modules/internal/logger/README.md). |
 | `frontend/` | SPA React/Vite/Tailwind embutida via `go:embed all:dist`. `ChangePasswordPage` — tela obrigatória no primeiro login; bloqueia acesso ao restante da UI enquanto `must_change_password=true` no JWT. |

@@ -1,6 +1,6 @@
 # internal/storage
 
-`Cleaner`: retenção diferenciada por categoria (com/sem movimento, estado),
+`Cleaner`: retenção diferenciada por categoria (com/sem movimento),
 sincronização do filesystem com o banco, e suporte a drives S3 pra
 arquivamento. Também dono do sender `application` de
 [internal/notifications](../notifications/README.md) via `WithNotifications`
@@ -25,16 +25,11 @@ Ação configurável por categoria (`delete` ou `send_to_drive`):
 `uploadAndPurge()` faz upload S3, apaga o MP4 e chama `purgeMotionAssets()`
 (apaga JPEGs + linhas de `motion_events` órfãs — chamado também pelo caminho
 de chunk corrompido, pra nunca deixar um `_motion.jpg` órfão).
-`sweepOrphanedMotionDirs()`/`sweepOrphanedStateDirs()` são redes de segurança
-em disco, independentes do banco: removem diretórios de eventos/histórico
-cujo dono (câmera/classificador) já não existe mais, com remoção em cascata
-de diretórios de mês/ano vazios (nunca a pasta raiz da câmera).
-`purgeStateHistory()` apaga transições de `camera_state_history` mais velhas
-que a retenção efetiva por classificador (`history_retention_minutes` —
-override nullable — ou o default global `storage.state_history_minutes`,
-`system_config`). `slugify()` translitera acentos (`ã→a`) pro prefixo do
-objeto S3. Sem banco disponível: consulta `motion.ndjson` diretamente (modo
-legado).
+`sweepOrphanedMotionDirs()` é uma rede de segurança em disco, independente
+do banco: remove diretórios de eventos cuja câmera já não existe mais, com
+remoção em cascata de diretórios de mês/ano vazios (nunca a pasta raiz da
+câmera). `slugify()` translitera acentos (`ã→a`) pro prefixo do objeto S3.
+Sem banco disponível: consulta `motion.ndjson` diretamente (modo legado).
 
 ## Segmentos e gravações órfãs no boot
 `CleanOrphanedSegments(segmentsPath, validCameraIDs)` roda no boot (após
@@ -55,6 +50,6 @@ Face, escolhe o melhor snapshot de movimento do intervalo
 (`huggingFaceImagePath`) em vez do frame médio do vídeo.
 
 ## Ver também
-- [internal/db](../db/README.md) — tabelas `recordings`/`motion_events`/`camera_state_history` que este pacote sincroniza/limpa.
+- [internal/db](../db/README.md) — tabelas `recordings`/`motion_events` que este pacote sincroniza/limpa.
 - [internal/recorder](../recorder/README.md) — produz os MP4 que este pacote gerencia.
 - [internal/notifications](../notifications/README.md) — canal do aviso de disco quase cheio.

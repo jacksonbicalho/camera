@@ -46,8 +46,6 @@ completo, o conteúdo chega por cluster.
   - [internal/detector/adapters](internal/detector/adapters/README.md)
 - [internal/trainer](internal/trainer/README.md)
   - [internal/trainer/adapters](internal/trainer/adapters/README.md)
-- [internal/stateclass](internal/stateclass/README.md)
-- [internal/stateengine](internal/stateengine/README.md)
 
 ## Aplicação e entrega
 - [internal/server](internal/server/README.md)

@@ -1,10 +1,11 @@
 # internal/notifications
 
 Único ponto da aplicação que sabe **como entregar** uma notificação — quem
-sabe **para quem** (resolução de destinatários) continua sendo o chamador,
-já que os 3 call sites reais têm lógicas de resolução mutuamente
-incompatíveis (admins fixos / canal configurável + acesso à câmera / admins
-fixos de novo).
+sabe **para quem** (resolução de destinatários) continua sendo o chamador.
+Os 2 call sites reais hoje resolvem pra "todos os admins", mas cada um faz
+essa resolução por si (nenhum utilitário compartilhado) — um chamador
+futuro pode resolver por canal configurável/acesso à câmera sem precisar
+mudar este pacote.
 
 ## Arquivos principais
 - `dispatch.go` — tipo `Notification{UserIDs, Type, Title, Message, Link}`,
@@ -25,11 +26,10 @@ explicitamente em `main.go` e passados pro `Dispatcher`, mesmo espírito de
 - Telegram/Firebase (citados na análise que originou o módulo) ficam de fora por enquanto — a interface `Sender` já os acomoda, mas exigem credencial real pra testar contra; viram histórias futuras.
 
 ## Call sites migrados
-`NotifyUpdateAvailable` (update disponível), `PublishClassifierState`/
-`resolveStateNotifyRecipients` (transição de estado) — ambos em
-[internal/server](../server/README.md) — e `storage.Cleaner.notifyDiskHigh`
-(disco cheio, ver [internal/storage](../storage/README.md)). Nenhum dos 3
-chama `db.InsertUserNotification` diretamente mais — uma 4ª origem futura
+`NotifyUpdateAvailable` (update disponível, em
+[internal/server](../server/README.md)) e `storage.Cleaner.notifyDiskHigh`
+(disco cheio, ver [internal/storage](../storage/README.md)). Nenhum dos 2
+chama `db.InsertUserNotification` diretamente mais — uma 3ª origem futura
 deve chamar `Dispatcher.Notify`, nunca o insert direto.
 
 ## Ver também

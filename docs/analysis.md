@@ -17,11 +17,11 @@ o resultado é exibido na interface web junto ao evento de movimento corresponde
 
 O serviço é totalmente independente do `docker-compose.yml` da câmera — tem
 seu próprio compose file em `services/yolo/`. Ele só precisa (1) estar
-acessível pela URL configurada em quem for usá-lo — detector, trainer ou o
-seletor de classificação de estado (ver "Configuração na interface web"
-abaixo) — e (2) montar o **mesmo diretório de storage** usado pela
-instância da câmera que vai consumi-lo (os paths de arquivo trocados via API, ex. `/data/state_samples/...`,
-são resolvidos dentro do container do YOLO a partir desse volume). Copie
+acessível pela URL configurada em quem for usá-lo — detector ou trainer (ver
+"Configuração na interface web" abaixo) — e (2) montar o **mesmo diretório
+de storage** usado pela instância da câmera que vai consumi-lo (os paths de
+arquivo trocados via API, ex. `/data/recordings/...`, são resolvidos dentro
+do container do YOLO a partir desse volume). Copie
 `services/yolo/.env.example` para `services/yolo/.env` e ajuste
 `YOLO_STORAGE_PATH`/`YOLO_MODELS_PATH` antes de subir.
 
@@ -78,7 +78,6 @@ cadastro, todos apontando pro(s) mesmo(s) container(es) YOLO:
 |---|---|---|
 | **Análise por câmera** (detecção de objetos nas gravações) | Configurações → Detectores de objetos (cadastro do detector) + Configurações → Câmeras → Análise (por câmera) | URL do serviço + modelo (livre, ex. `yolov8n`, `custom+yolov8n`) no detector; habilita/desabilita e escolhe o detector por câmera |
 | **Fine-tuning** (treinar um modelo personalizado) | Configurações → Treinadores | URL do serviço + modelo base (livre, default `yolov8n`) |
-| **Classificação de estado** | Configurações → Análise de vídeo | Escolhe, num `<select>`, qual trainer já cadastrado (acima) fornece o serviço — não digita URL de novo |
 
 ---
 
