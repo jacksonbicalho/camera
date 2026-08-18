@@ -3,7 +3,6 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -15,66 +14,6 @@ type Detection struct {
 	FrameCount  int       `json:"frame_count"`
 	CustomModel bool      `json:"custom_model"`
 	CreatedAt   time.Time `json:"created_at"`
-}
-
-// stateClassificationTrainerIDKey is the system_config key holding which
-// registered trainer (internal/db/trainers.go) state classification should
-// use — replaces video_analysis_config.service_url (T3 removes that table):
-// trainers/detectors already register a service_url each, so state
-// classification just points at one instead of duplicating it.
-const stateClassificationTrainerIDKey = "analysis.state_trainer_id"
-
-// GetStateClassificationTrainerID returns the id of the trainer registered
-// to source state classification's YOLO service URL, or nil when none is
-// configured yet (state classification simply doesn't run — same effect as
-// an empty service_url before) OR when the stored value is unreadable
-// (corrupted/legacy) — same "config ilegível vira default silencioso"
-// idiom already used by StorageSettingsFromDB (config.go).
-func GetStateClassificationTrainerID(d *DB) (*int64, error) {
-	all, err := GetAllConfig(d)
-	if err != nil {
-		return nil, fmt.Errorf("get state classification trainer id: %w", err)
-	}
-	v, ok := all[stateClassificationTrainerIDKey]
-	if !ok || v == "" {
-		return nil, nil
-	}
-	id, err := strconv.ParseInt(v, 10, 64)
-	if err != nil {
-		return nil, nil
-	}
-	return &id, nil
-}
-
-// SetStateClassificationTrainerID persists which trainer state
-// classification should use — nil clears the setting.
-func SetStateClassificationTrainerID(d *DB, trainerID *int64) error {
-	v := ""
-	if trainerID != nil {
-		v = strconv.FormatInt(*trainerID, 10)
-	}
-	return SetConfig(d, stateClassificationTrainerIDKey, v)
-}
-
-// GetStateClassificationServiceURL resolves the YOLO service URL state
-// classification should use right now, by looking up the trainer
-// configured via GetStateClassificationTrainerID. Returns "" (no error)
-// when no trainer is configured, or when the configured trainer was since
-// deleted — callers treat that the same as "not configured", never an
-// error (mesmo comportamento de hoje com o service_url vazio).
-func GetStateClassificationServiceURL(d *DB) (string, error) {
-	id, err := GetStateClassificationTrainerID(d)
-	if err != nil {
-		return "", err
-	}
-	if id == nil {
-		return "", nil
-	}
-	trainer, err := GetTrainer(d, *id)
-	if err != nil {
-		return "", nil
-	}
-	return trainer.Config["service_url"], nil
 }
 
 // CameraAnalysisConfig is a camera's own analysis setup: whether it's on,
