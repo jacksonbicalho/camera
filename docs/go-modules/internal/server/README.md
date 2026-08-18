@@ -119,6 +119,17 @@ e `DELETE /api/cameras/{id}/recordings/{filename}` (`handleDeleteRecording`,
 admin) são endpoints vizinhos no mesmo arquivo, não cobertos por este
 enriquecimento (operam sobre um recording já identificado, não uma listagem).
 
+## Relatórios agregados (`handleEventReport`, `reports.go`)
+`GET /api/reports/events?camera=&bucket=` recebe `camera` como query param,
+não path `{id}` — por isso não passa pela middleware `authCamera` (que só
+enxerga `r.PathValue("id")`, ver "Rotas" acima). O handler chama
+`s.canAccessCamera(r, camera)` manualmente quando `camera != ""` e responde
+`403` antes de qualquer agregação, replicando à mão a mesma proteção que os
+endpoints `{id}`-based ganham de graça via `guard()`. Vale como lembrete
+geral: qualquer rota nova que aceite um ID de câmera fora do path (query
+param ou corpo) precisa desse mesmo cuidado manual — o gate declarativo da
+tabela de rotas não cobre esse caso.
+
 ## Device info (`device_info.go`)
 `GET /api/cameras/{id}/device-info` / `POST .../device-info/refresh`
 (admin) — ver [internal/deviceinfo](../deviceinfo/README.md). Coleta
