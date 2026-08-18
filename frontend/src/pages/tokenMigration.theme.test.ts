@@ -23,7 +23,6 @@ const MIGRATED_FILES = [
   'src/pages/HistoryPage.tsx',
   'src/pages/LoginPage.tsx',
   'src/pages/NotificationsPage.tsx',
-  'src/pages/settings/AnalysisSettingsPage.tsx',
   'src/pages/settings/AppearanceSettingsPage.tsx',
   'src/pages/settings/CameraDetailSettingsPage.tsx',
 ]

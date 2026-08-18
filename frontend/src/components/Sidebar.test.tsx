@@ -192,62 +192,6 @@ describe('CA2: seção "Câmeras e Gravações" (ex-"Sistema") ganha Gravações
     expect(document.getElementById('sidebar-history')?.getAttribute('aria-current')).toBe('page')
   })
 })
-
-// CA3 (história refactor/reorganizar-sidebar-ia): "Movimentos" é renomeada
-// pra "Inteligência Artificial" e fica só com os 3 itens de IA, nesta
-// ordem: Análise de vídeo, Rotular eventos, Detectores de objetos (antes:
-// Detectores de objetos, Análise de vídeo, Rotular eventos + os 3 itens que
-// migraram pra Sistema no CA2 acima).
-describe('CA3: seção "Movimentos" renomeada para "Inteligência Artificial" — só Análise de vídeo/Rotular eventos/Detectores de objetos, nessa ordem', () => {
-  it('admin vê os 3 itens, com os hrefs certos e nessa ordem', () => {
-    renderAt('/')
-    const analysis = document.getElementById('sidebar-analysis')!
-    const labelEvents = document.getElementById('sidebar-label-events')!
-    const detectors = document.getElementById('sidebar-object-detectors')!
-
-    expect(analysis.getAttribute('href')).toBe('/settings/analysis')
-    expect(labelEvents.getAttribute('href')).toBe('/settings/label-events')
-    expect(detectors.getAttribute('href')).toBe('/settings/detectors')
-
-    expect(
-      analysis.compareDocumentPosition(labelEvents) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-    expect(
-      labelEvents.compareDocumentPosition(detectors) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-  })
-
-  it('viewer não vê a seção (admin-only inteira, como "Movimentos" já era)', () => {
-    vi.mocked(getRole).mockReturnValue('viewer')
-    renderAt('/')
-    expect(document.getElementById('sidebar-analysis')).toBeNull()
-    expect(document.getElementById('sidebar-label-events')).toBeNull()
-    expect(document.getElementById('sidebar-object-detectors')).toBeNull()
-  })
-
-  it('"Análise de vídeo" e "Rotular eventos" ficam ativos só na própria rota', () => {
-    renderAt('/settings/analysis')
-    expect(document.getElementById('sidebar-analysis')?.className).toContain('bg-primary')
-    expect(document.getElementById('sidebar-label-events')?.className).not.toContain('bg-primary')
-
-    cleanup()
-    renderAt('/settings/label-events')
-    expect(document.getElementById('sidebar-analysis')?.className).not.toContain('bg-primary')
-    expect(document.getElementById('sidebar-label-events')?.className).toContain('bg-primary')
-  })
-
-  it('o cabeçalho da seção lê "Inteligência" (encurtado de "Inteligência Artificial" — pedido do navigator, corrigia também a quebra de linha do rail), não mais "Movimentos"', () => {
-    renderAt('/')
-    fireEvent.click(document.getElementById('sidebar-collapse')!)
-    const sectionHeaders = Array.from(document.querySelectorAll('#sidebar p.uppercase')).map(
-      (p) => p.textContent,
-    )
-    expect(sectionHeaders).toContain('Inteligência')
-    expect(sectionHeaders).not.toContain('Movimentos')
-    expect(document.body.textContent).not.toContain('Movimentos')
-  })
-})
-
 describe('CA4/CA9: seção "Administração" (admin) — Servidor, Usuários', () => {
   it('admin vê os itens', () => {
     renderAt('/')
@@ -383,26 +327,6 @@ describe('CA4: "Sobre" saiu do Sidebar (agora é o sub-link about-application do
   })
 })
 
-// CA4 (história refactor/reorganizar-sidebar-ia): "Detectores de objetos"
-// passa a ser o ÚLTIMO item de "Inteligência Artificial" (antes era o 1º) —
-// mas a seção como um todo continua vindo antes de "Administração", isso
-// não mudou.
-describe('CA4: "Detectores de objetos" é o último item de "Inteligência Artificial", que segue antes de "Administração"', () => {
-  it('"Detectores de objetos" vem depois de "Rotular eventos" (último da própria seção) e antes de "Servidor" (1º item de Administração)', () => {
-    renderAt('/')
-    const labelEvents = document.getElementById('sidebar-label-events')!
-    const detectors = document.getElementById('sidebar-object-detectors')!
-    const server = document.getElementById('sidebar-server')!
-
-    expect(
-      labelEvents.compareDocumentPosition(detectors) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-    expect(
-      detectors.compareDocumentPosition(server) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-  })
-})
-
 // CA5 (história refactor/reorganizar-sidebar-ia, T2): "Sistema" renomeada
 // pra "Câmeras e Gravações" (feedback do navigator: nome vago pro conteúdo
 // real da seção); cabeçalhos de seção ganham mais destaque visual
@@ -432,48 +356,27 @@ describe('CA5: seção "Sistema" renomeada para "Câmeras e Gravações"; cabeç
   })
 })
 
-// CA2 (história fix/sidebar-divider-ia): a seção "Inteligência Artificial"
-// ficou sem a prop `divider` do SidebarSection por inconsistência — as
-// outras 3 seções (sem cabeçalho/"Ao vivo", "Câmeras e Gravações",
-// "Administração") já têm o separador `border-t` acima do cabeçalho.
-describe('CA2: seção "Inteligência Artificial" tem o mesmo separador (border-t) que as demais seções', () => {
-  it('o wrapper da seção tem border-t, igual a "Câmeras e Gravações" e "Administração"', () => {
-    renderAt('/')
-    fireEvent.click(document.getElementById('sidebar-collapse')!)
-    const header = Array.from(document.querySelectorAll('#sidebar p.uppercase')).find(
-      (p) => p.textContent === 'Inteligência',
-    )!
-    expect(header.parentElement!.className).toContain('border-t')
-  })
-})
-
-// Regressão (feedback do navigator testando a branch de
-// refactor/camera-tabs-para-sidebar-ia no desktop real): "Inteligência
-// Artificial" (label original, depois encurtado pra "Inteligência" — ver
-// CA3 acima) era o label de seção mais longo do rail e quebrava em 2 linhas
-// dentro da largura fixa do rail expandido (w-48) — o cabeçalho nunca tinha
-// whitespace-nowrap/truncate, então o wrap padrão do navegador entrava em
-// ação quando o texto não cabia. `truncate` (nowrap+overflow-hidden+
-// ellipsis) garante uma linha só sempre, independente de métrica de fonte —
-// mantido como garantia estrutural pra QUALQUER label de seção, mesmo após
-// o encurtamento ter aliviado o caso específico que motivou o fix.
-describe('regressão: cabeçalho de seção nunca quebra em 2 linhas (truncate + title pro texto completo)', () => {
-  it('o cabeçalho "Inteligência" tem a classe truncate e o title com o texto completo', () => {
-    renderAt('/')
-    fireEvent.click(document.getElementById('sidebar-collapse')!)
-    const header = Array.from(document.querySelectorAll('#sidebar p.uppercase')).find(
-      (p) => p.textContent === 'Inteligência',
-    )!
-    expect(header.className).toContain('truncate')
-    expect(header.getAttribute('title')).toBe('Inteligência')
-  })
-})
-
 describe('CA3: classificação de estado removida — sem item "Estados"', () => {
   it('não renderiza mais o link #sidebar-states nem o texto "Estados"', () => {
     renderAt('/')
     expect(document.getElementById('sidebar-states')).toBeNull()
     fireEvent.click(document.getElementById('sidebar-collapse')!)
     expect(document.getElementById('sidebar')?.textContent).not.toContain('Estados')
+  })
+})
+
+describe('CA5: análise de objetos removida — sem seção "Inteligência"', () => {
+  it('não renderiza mais os links de análise/detectores/treinadores/rotular eventos, nem o texto correspondente', () => {
+    renderAt('/')
+    expect(document.getElementById('sidebar-analysis')).toBeNull()
+    expect(document.getElementById('sidebar-label-events')).toBeNull()
+    expect(document.getElementById('sidebar-object-detectors')).toBeNull()
+    expect(document.getElementById('sidebar-trainers')).toBeNull()
+    fireEvent.click(document.getElementById('sidebar-collapse')!)
+    const sidebarText = document.getElementById('sidebar')?.textContent
+    expect(sidebarText).not.toContain('Análise de vídeo')
+    expect(sidebarText).not.toContain('Rotular eventos')
+    expect(sidebarText).not.toContain('Detectores de objetos')
+    expect(sidebarText).not.toContain('Treinadores')
   })
 })

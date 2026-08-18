@@ -6,8 +6,8 @@ import { authHeaders } from '../auth'
 
 // CameraCaptureSection — sessão "Nome e Captura" de CameraDetailSettingsPage,
 // história refactor/camera-detail-secoes-aplicar (T2). Sempre editável, com
-// "Aplicar" próprio — mesmo padrão que MotionFormContent/CameraAnalysisSection
-// já usam nesta página, generalizado a pedido do navigator (antes, Nome e
+// "Aplicar" próprio — mesmo padrão que MotionFormContent já usa nesta
+// página, generalizado a pedido do navigator (antes, Nome e
 // Captura viviam dentro do form único CameraForm, atrás de um botão "Editar"
 // que alternava a página inteira entre visualização/edição).
 //

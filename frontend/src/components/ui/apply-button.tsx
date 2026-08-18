@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 // `disabled={saving} / {saving ? 'Aplicando...' : 'Aplicar'}` que existia
 // duplicado byte a byte em toda seção "sempre editável" de câmera
 // (CameraCaptureSection/CameraRecordingSection/CameraTransmissionSection/
-// CameraMotionSection/CameraAnalysisSection/CameraMotionTelegramNotify) e nos
+// CameraMotionSection/CameraMotionTelegramNotify) e nos
 // cards de extensão (TelegramExtensionCard/S3ExtensionCard). `disabled` é
 // combinado com `saving` via OR (ex.: `!hasChanges` nos cards de extensão);
 // `type`/`onClick` cobrem tanto o uso dentro de <form onSubmit> (type

@@ -61,37 +61,6 @@ export function Camera(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-// ObjectDetectorTarget — DUAS exceções deliberadas ao padrão do arquivo: (1) não é
-// path SVG extraído do lucide-react (reconstrução geométrica da imagem de referência
-// do navigator, work_progress/amostras/"criar icone para detectores de objeto.png" —
-// sem lucide-react instalado localmente pra confirmar/reaproveitar o path real de um
-// ícone "Box" da lib, e desenhar um path "de memória" apresentado como extração real
-// seria pior que uma reconstrução simples e verificável); (2) é PREENCHIDO, não
-// contorno — a referência nunca foi um ícone de contorno fino, é sólido (anéis tipo
-// donut, formas cheias). Duas versões em contorno (a original e um ajuste de
-// espaçamento, ambas já mergeadas antes desta correção) ficaram ilegíveis no tamanho
-// real de uso (20px, sidebar) — confirmado por screenshot real do navigator: acumular
-// crosshair + 2 círculos + cubo em traço fino de 2px vira uma mancha nesse tamanho. A
-// MESMA geometria conceitual, preenchida, testada via screenshot real, ficou nítida —
-// daí o override de fill/stroke abaixo (o wrapper Icon já suporta isso, via
-// {...props} espalhado depois dos defaults hardcoded).
-export function ObjectDetectorTarget(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon fill="currentColor" stroke="none" {...props}>
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-2a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z"
-      />
-      <rect x="11" y="1" width="2" height="4" rx="1" />
-      <rect x="11" y="19" width="2" height="4" rx="1" />
-      <rect x="1" y="11" width="4" height="2" rx="1" />
-      <rect x="19" y="11" width="4" height="2" rx="1" />
-      <path d="M12 7 17 9.7v5.4L12 17l-5-1.9V9.7Z" />
-    </Icon>
-  )
-}
-
 export function Cctv(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

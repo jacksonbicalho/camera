@@ -133,18 +133,13 @@ describe('CameraDetailSettingsPage', () => {
     })
   })
 
-  describe('CA2: "Análise por câmera" vira sessão dentro da página, logo abaixo de "Detecção de movimento" (rota /settings/analyses/:id removida)', () => {
-    it('a sessão de análise aparece na mesma página, depois da sessão de movimento', async () => {
+  describe('CA5: análise de objetos removida — sem sessão de análise por câmera', () => {
+    it('não renderiza mais a sessão de análise (id camera-analysis-enabled)', async () => {
       renderAt('/settings/cameras/cam-1')
       await waitFor(() => {
         expect(document.getElementById('motion_enabled')).toBeTruthy()
       })
-      const motion = document.getElementById('motion_enabled')!
-      const analysis = document.getElementById('camera-analysis-enabled')!
-      expect(analysis).toBeTruthy()
-      expect(
-        motion.compareDocumentPosition(analysis) & Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy()
+      expect(document.getElementById('camera-analysis-enabled')).toBeNull()
     })
   })
 

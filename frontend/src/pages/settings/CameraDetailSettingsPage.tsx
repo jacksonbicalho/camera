@@ -9,7 +9,6 @@ import CameraCaptureSection from '../../components/CameraCaptureSection'
 import CameraRecordingSection from '../../components/CameraRecordingSection'
 import CameraTransmissionSection from '../../components/CameraTransmissionSection'
 import { MotionFormContent, MotionReadOnly } from '../../components/CameraMotionSection'
-import CameraAnalysisSection from '../../components/CameraAnalysisSection'
 import { type Camera } from '../../components/cameraFormUtils'
 import { useSettings, type CameraSettings } from '../../hooks/useSettings'
 import { useMotionPeak } from '../../hooks/useMotionPeak'
@@ -221,7 +220,6 @@ export default function CameraDetailSettingsPage() {
           <CameraRecordingSection cam={cam} id={id!} reload={reload} />
           <CameraTransmissionSection cam={cam} id={id!} reload={reload} />
           <MotionFormContent cam={cam} id={id!} peak={peak} reload={reload} />
-          <CameraAnalysisSection id={id!} />
           <DeviceInfoPanel cameraId={id!} isAdmin={isAdmin} />
         </div>
       )}

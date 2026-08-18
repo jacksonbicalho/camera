@@ -23,9 +23,8 @@ describe('CameraSettingsTabs', () => {
   // saem da página de câmera — passam a viver em Inteligência Artificial
   // (/settings/analyses, /settings/states), escolhendo a câmera lá dentro em
   // vez de navegar câmera-primeiro. Só Câmera/Zonas continuam aqui. Análise
-  // voltou pra cá depois (história refactor/mover-analise-para-cadastro-camera)
-  // — não como aba, vira sessão (CameraAnalysisSection) dentro da própria
-  // aba Câmera; Estados continua IA-primeiro, sem mudança.
+  // de objetos e Estados foram removidos do produto depois (histórias
+  // chore/remover-classificacao-estados-* e chore/remover-analise-objetos).
   //
   // CA5 (história feat/camera-form-reshape, T4): "Detecção de movimento" deixa
   // de ser aba própria — vira sessão dentro de /settings/cameras/:id.
