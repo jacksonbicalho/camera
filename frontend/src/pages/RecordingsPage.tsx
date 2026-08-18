@@ -26,12 +26,10 @@ interface ModalTarget {
 }
 
 // sortCategories ordena categorias dinâmicas: pessoa primeiro, movimento depois, resto em
-// ordem alfabética, estados sempre por último — mesma convenção usada em ReportsPage.tsx
-// (`sortCategories` local) e no dropdown do Histórico (HistoryPage.tsx, que não tem
-// `estados` como opção separada, mas segue a mesma prioridade pra pessoa/movimento).
+// ordem alfabética — mesma convenção usada em ReportsPage.tsx (`sortCategories` local) e no
+// dropdown do Histórico (HistoryPage.tsx).
 function sortCategories(categories: Iterable<string>): string[] {
-  const rank = (cat: string) =>
-    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat.startsWith('estados:') ? 3 : 2
+  const rank = (cat: string) => (cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : 2)
   return [...categories].sort((a, b) => {
     const diff = rank(a) - rank(b)
     return diff !== 0 ? diff : a.localeCompare(b)
@@ -126,8 +124,7 @@ export default function RecordingsPage() {
   // T3: filtro client-side (diferente de motionOnly, não afeta paginação do backend —
   // moments já vem com recording_available por item).
   const [recordingOnly, setRecordingOnly] = useState(false)
-  // T4: card sem gravação abre este lightbox (imagem em tamanho cheio) em vez do player —
-  // mesmo padrão de CameraStatesSettingsPage.tsx's ClassifierHistory (state-history-lightbox).
+  // T4: card sem gravação abre este lightbox (imagem em tamanho cheio) em vez do player.
   const [momentLightbox, setMomentLightbox] = useState<Moment | null>(null)
   useEscapeKey(() => setMomentLightbox(null), momentLightbox != null)
   const { moments, hasMore, loaded, categories } = useMoments({

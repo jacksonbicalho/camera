@@ -66,12 +66,6 @@ câmera deixaram de ter rota própria e viraram sessões dentro de
 rotas de API do backend mantêm o id antes do recurso (`/api/cameras/:id/motion/zones`
 etc.) — só as rotas do frontend usam seção-antes-do-id.
 
-State classification foge desse padrão: virou `/settings/states/:id` (seção
-"Inteligência" da `Sidebar`, ver [shell-layout.md](shell-layout.md)), com
-landing própria (`/settings/states`) que resolve a 1ª câmera automaticamente
-(mesmo padrão de `/history`, ver [pages.md](pages.md)) e um `<select>` de
-câmera na própria página pra trocar sem voltar à landing.
-
 ## Ver também
 - [design-system.md](design-system.md) — tokens de tema usados por todo componente
 - [shell-layout.md](shell-layout.md) — `Sidebar`/`SettingsLayout`/`PreferencesLayout`

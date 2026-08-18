@@ -98,6 +98,16 @@ describe('routes', () => {
     expect(paths).not.toContain('/settings/analyses')
     expect(paths).not.toContain('/settings/analyses/:id')
   })
+
+  it('CA2: /settings/states, /settings/states/:id e /settings/states/edit/:cid não estão mais registradas (classificação de estado removida)', () => {
+    const children = (routes as ReactElement<{ children: ReactNode }>).props.children
+    const paths = (Array.isArray(children) ? children : [children])
+      .filter(Boolean)
+      .map((el) => (el as ReactElement<{ path?: string }>).props?.path)
+    expect(paths).not.toContain('/settings/states')
+    expect(paths).not.toContain('/settings/states/:id')
+    expect(paths).not.toContain('/settings/states/edit/:cid')
+  })
 })
 
 describe('routes: auth', () => {

@@ -64,9 +64,6 @@ export interface MotionEvent {
   bbox?: MotionBBox
   label?: string
   color?: string
-  kind?: 'motion' | 'state'
-  classifier_id?: number
-  classifier_name?: string
 }
 
 // sameRecording compara o conteúdo relevante de duas gravações com o mesmo filename.

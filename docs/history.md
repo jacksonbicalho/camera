@@ -10,8 +10,8 @@ trocar de gravação.
   com gravação ou evento ficam habilitados.
 - **Tira de cards** — uma gravação por chunk do dia, mais recente primeiro. Cada card
   mostra a duração e uma cor de borda pela categoria predominante daquele chunk (azul =
-  contínua, sem evento; amarelo = movimento; vermelho = pessoa; roxo = IA; verde =
-  transição de estado). Clicar num card toca aquela gravação.
+  contínua, sem evento; amarelo = movimento; vermelho = pessoa; roxo = IA). Clicar num
+  card toca aquela gravação.
 - **Carregar mais** — pagina gravações mais antigas do mesmo dia sob demanda.
 - **URL compartilhável** — `/history/:cameraId/:recordingId` pré-seleciona a gravação; a
   barra de endereço acompanha sozinha qual gravação está tocando.

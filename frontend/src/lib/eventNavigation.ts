@@ -7,8 +7,7 @@ import { format } from 'date-fns'
 // clique em notificação/momento/evento que só tem câmera+instante (sem id de
 // gravação nem de evento já resolvidos): sino de notificações
 // (MotionNotificationsBell), clique em notificação do navegador
-// (NotificationContext), clique num "momento" (RecordingsPage) e "Ver na
-// gravação" do histórico de estado (CameraStatesSettingsPage).
+// (NotificationContext) e clique num "momento" (RecordingsPage).
 //
 // A notificação/momento só carrega camera_id/time (às vezes score/label) — nem o
 // id numérico do evento (motion_events.id) nem uma gravação. Resolve os dois:

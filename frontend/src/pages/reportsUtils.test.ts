@@ -12,11 +12,11 @@ describe('categoryBuckets', () => {
   it('soma múltiplos labels da mesma categoria', () => {
     expect(categoryBuckets({ pessoa: 2, 'Pessoa com chapéu': 1 }).pessoa).toBe(3)
   })
-  it('inclui estados vindos do byCategory do backend', () => {
-    expect(categoryBuckets({ '': 5, pessoa: 3 }, { estados: 7 })).toEqual({
+  it('inclui categorias vindas do byCategory do backend (não derivadas de label)', () => {
+    expect(categoryBuckets({ '': 5, pessoa: 3 }, { outracategoria: 7 })).toEqual({
       movimento: 5,
       pessoa: 3,
-      estados: 7,
+      outracategoria: 7,
     })
   })
   it('labels distintos (ex.: carro, cachorro) viram entradas PRÓPRIAS, não um bucket "ia" compartilhado', () => {
@@ -40,17 +40,6 @@ describe('categoryDetail', () => {
   })
   it('movimento: total do label vazio, sem linhas de label', () => {
     expect(categoryDetail('movimento', byLabel)).toEqual({ total: 5, labels: [] })
-  })
-  it('estados (bucket bare, retrocompat): total vem do byCategory, sem labels', () => {
-    expect(categoryDetail('estados', byLabel, { estados: 7 })).toEqual({ total: 7, labels: [] })
-  })
-  it('estados:<slug>:<estado> (categoria composta): total vem do byCategory pela CHAVE exata, sem labels', () => {
-    expect(
-      categoryDetail('estados:portão:aberto', byLabel, {
-        'estados:portão:aberto': 4,
-        'estados:portão:fechado': 3,
-      }),
-    ).toEqual({ total: 4, labels: [] })
   })
 })
 

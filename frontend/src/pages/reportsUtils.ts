@@ -6,7 +6,7 @@ export interface EventReport {
   // preenchido só no modo "dia" (bucket=hour): 24 buckets 0..23
   by_hour?: { hour: number; count: number; by_category?: Record<string, number> }[]
   by_label: Record<string, number>
-  // estados (e futuras categorias não derivadas de label) já vêm bucketizadas do backend
+  // categorias que não vêm de label (futuras) já vêm bucketizadas do backend
   by_category?: Record<string, number>
   // preenchido só no bucket=heatmap: uma célula por (dia, hora) para cada dia do período
   // (mapa de atividade dia × hora); date no formato YYYY-MM-DD
@@ -19,18 +19,12 @@ export interface CategoryDetail {
 }
 
 // categoryDetail devolve o total e o detalhamento por label de uma categoria, para o
-// modal: qualquer categoria `estados:*` (composta por classificador+estado) vem de
-// `byCategory` — já é o grão mais fino possível, sem detalhamento por label; as demais
-// somam os labels que caem na categoria (mesma regra do eventCategory), listando-os por
-// contagem desc (o label vazio — base do `movimento` — não vira linha de detalhe).
+// modal: soma os labels que caem na categoria (mesma regra do eventCategory), listando-os
+// por contagem desc (o label vazio — base do `movimento` — não vira linha de detalhe).
 export function categoryDetail(
   cat: EventCategory,
   byLabel: Record<string, number>,
-  byCategory?: Record<string, number>,
 ): CategoryDetail {
-  if (cat === 'estados' || cat.startsWith('estados:')) {
-    return { total: byCategory?.[cat] ?? 0, labels: [] }
-  }
   let total = 0
   const labels: { label: string; count: number }[] = []
   for (const [label, count] of Object.entries(byLabel)) {

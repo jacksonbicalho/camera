@@ -214,9 +214,9 @@ describe('CA5: categorias dinâmicas (barras/donut/modal), não mais um bucket f
                 ],
                 // by_label é a ÚNICA fonte de pessoa/movimento/carro pra categoryBuckets
                 // (usado no total da legenda/modal) — by_category (topo) só carrega
-                // categorias que NÃO vêm de label (hoje só "estados"), nunca duplica o que
-                // já está em by_label. by_hour[].by_category é um campo DIFERENTE (a
-                // composição de CADA hora, usada pelas barras empilhadas).
+                // categorias que NÃO vêm de label, nunca duplica o que já está em by_label.
+                // by_hour[].by_category é um campo DIFERENTE (a composição de CADA hora,
+                // usada pelas barras empilhadas).
                 by_label: { pessoa: 3, '': 2, carro: 5 },
               }),
           })
@@ -273,71 +273,5 @@ describe('CA5: categorias dinâmicas (barras/donut/modal), não mais um bucket f
     expect(modal.textContent).toContain('Carro — 5 eventos')
     expect(modal.textContent).toContain('Detecções classificadas como "Carro"')
     expect(modal.textContent).not.toContain('IA')
-  })
-})
-
-// história feat/estados-categoria-granular — transição de state classifier no relatório
-// deixa de ser o bucket fixo "estados" e vira a categoria composta por
-// (classificador, estado): estados:<slug>:<estado>, com rótulo "Estados: <Nome> · <estado>".
-describe('CA6: categoria de estado no relatório é composta por (classificador, estado)', () => {
-  function stubStateReport() {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        if (url.startsWith('/api/cameras'))
-          return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
-        if (url.startsWith('/api/reports/events') && url.includes('bucket=hour')) {
-          return Promise.resolve({
-            status: 200,
-            json: () =>
-              Promise.resolve({
-                total: 4,
-                by_hour: [
-                  {
-                    hour: 10,
-                    count: 4,
-                    by_category: { carro: 3, 'estados:portão:aberto': 1 },
-                  },
-                ],
-                by_label: { carro: 3 },
-                by_category: { 'estados:portão:aberto': 1 },
-              }),
-          })
-        }
-        return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
-      }),
-    )
-  }
-
-  it('segmento/legenda mostra "Estados: Portão · aberto" e ordena por ÚLTIMO, mesmo perdendo alfabeticamente pra "carro"', async () => {
-    stubStateReport()
-    renderAt('/reports/cam1/2026-06-24/1')
-    await waitFor(() => {
-      expect(document.getElementById('report-bars')).not.toBeNull()
-    })
-    const bar = document.getElementById('report-bars')!.firstElementChild as HTMLElement
-    const segments = Array.from(bar.querySelectorAll('button')).map((b) => b.getAttribute('title'))
-    // "carro" vem antes de "estados" alfabeticamente, mas a categoria de estado sempre
-    // fica por último — mesma convenção de RecordingsPage/HistoryPage.
-    expect(segments).toEqual(['Carro: 3', 'Estados: Portão · aberto: 1'])
-  })
-
-  it('modal do segmento de estado mostra a descrição genérica de transições de estado', async () => {
-    stubStateReport()
-    renderAt('/reports/cam1/2026-06-24/1')
-    await waitFor(() => {
-      expect(document.getElementById('report-bars')).not.toBeNull()
-    })
-    const stateSegment = Array.from(document.querySelectorAll('button')).find(
-      (b) => b.getAttribute('title') === 'Estados: Portão · aberto: 1',
-    )!
-    fireEvent.click(stateSegment)
-    const modal = await waitFor(() => {
-      const el = document.getElementById('report-category-modal')
-      if (!el) throw new Error('modal não abriu')
-      return el
-    })
-    expect(modal.textContent).toContain('Estados: Portão · aberto — 1 evento')
-    expect(modal.textContent).toContain('Transições de classificadores de estado.')
   })
 })

@@ -34,24 +34,20 @@ function parseLocalDate(s: string | undefined): Date {
   return new Date(y, m - 1, d)
 }
 
-// categoryDescription — texto do modal de detalhe da categoria; movimento/pessoa/estados
-// têm frase própria (comportamento conhecido do produto), qualquer outro label (dinâmico,
-// fiel à classificação real do YOLO) usa uma frase genérica com o próprio label — não mais
-// um bucket "Detecções de modelos de IA" que escondia o que foi de fato detectado.
+// categoryDescription — texto do modal de detalhe da categoria; movimento/pessoa têm frase
+// própria (comportamento conhecido do produto), qualquer outro label (dinâmico, fiel à
+// classificação real do YOLO) usa uma frase genérica com o próprio label — não mais um
+// bucket "Detecções de modelos de IA" que escondia o que foi de fato detectado.
 function categoryDescription(cat: string): string {
   if (cat === 'movimento') return 'Movimento detectado por diferença de pixels, sem classificação.'
   if (cat === 'pessoa') return 'Detecções classificadas como pessoa.'
-  if (cat === 'estados' || cat.startsWith('estados:'))
-    return 'Transições de classificadores de estado.'
   return `Detecções classificadas como "${categoryLabel(cat)}".`
 }
 
 // sortCategories ordena a pilha/legenda: pessoa primeiro, movimento depois, resto em
-// ordem alfabética, qualquer `estados:*` sempre por último (mesma convenção do dropdown do
-// Histórico — HistoryPage.tsx —, com `estados:*` adicionalmente empurrado pro fim aqui).
+// ordem alfabética (mesma convenção do dropdown do Histórico — HistoryPage.tsx).
 function sortCategories(categories: Iterable<string>): string[] {
-  const rank = (cat: string) =>
-    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat.startsWith('estados:') ? 3 : 2
+  const rank = (cat: string) => (cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : 2)
   return [...categories].sort((a, b) => {
     const diff = rank(a) - rank(b)
     return diff !== 0 ? diff : a.localeCompare(b)
@@ -207,7 +203,7 @@ export default function ReportsPage() {
 
   const cats = report ? categoryBuckets(report.by_label, report.by_category) : {}
   // Ordem de empilhamento das barras/legenda — dinâmica, derivada das categorias que de
-  // fato aparecem no relatório (pessoa, movimento, resto alfabético, estados por último).
+  // fato aparecem no relatório (pessoa, movimento, resto alfabético).
   const stackOrder = sortCategories(Object.keys(cats))
   const catEntries = Object.entries(cats).filter(([, n]) => n > 0)
   const catTotal = catEntries.reduce((s, [, n]) => s + n, 0) || 1
@@ -489,7 +485,7 @@ export default function ReportsPage() {
         {/* Modal de detalhe da categoria (clique no segmento ou na legenda) */}
         {modalCat &&
           (() => {
-            const det = categoryDetail(modalCat, report?.by_label ?? {}, report?.by_category)
+            const det = categoryDetail(modalCat, report?.by_label ?? {})
             return (
               <div
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
