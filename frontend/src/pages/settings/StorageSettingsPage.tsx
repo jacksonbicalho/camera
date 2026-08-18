@@ -89,8 +89,6 @@ interface StorageOverrides {
   intervalUnit?: 'min' | 'h' | 'd'
   maxSizeGB?: number
   warnPercent?: number
-  stateHistoryValue?: number
-  stateHistoryUnit?: 'min' | 'h' | 'd'
 }
 
 // ── component ────────────────────────────────────────────────────────────────
@@ -151,7 +149,6 @@ export default function StorageSettingsPage() {
         const wm = minutesToParts(s.with_motion_minutes)
         const wom = minutesToParts(s.without_motion_minutes)
         const iv = minutesToParts(s.interval_minutes === 0 ? 60 : s.interval_minutes)
-        const sh = minutesToParts(s.state_history_minutes)
         return {
           withMotionValue: overrides.withMotionValue ?? wm.value,
           withMotionUnit: overrides.withMotionUnit ?? wm.unit,
@@ -161,8 +158,6 @@ export default function StorageSettingsPage() {
           intervalUnit: overrides.intervalUnit ?? iv.unit,
           maxSizeGB: overrides.maxSizeGB ?? s.max_size_gb,
           warnPercent: overrides.warnPercent ?? s.warn_percent,
-          stateHistoryValue: overrides.stateHistoryValue ?? sh.value,
-          stateHistoryUnit: overrides.stateHistoryUnit ?? sh.unit,
         }
       })()
     : null
@@ -201,7 +196,6 @@ export default function StorageSettingsPage() {
         interval_minutes: partsToMinutes(form.intervalValue, form.intervalUnit),
         max_size_gb: form.maxSizeGB,
         warn_percent: form.warnPercent,
-        state_history_minutes: partsToMinutes(form.stateHistoryValue, form.stateHistoryUnit),
       }),
     })
       .then(() => {
@@ -323,14 +317,6 @@ export default function StorageSettingsPage() {
                     : '—',
                 },
                 {
-                  label: 'Histórico de estados (padrão)',
-                  value: s
-                    ? s.state_history_minutes <= 0
-                      ? 'para sempre'
-                      : formatMinutes(s.state_history_minutes)
-                    : '—',
-                },
-                {
                   label: 'Com movimento',
                   value: s
                     ? `${formatMinutes(s.with_motion_minutes)} · ${retentionLabel('with_motion')}`
@@ -401,17 +387,6 @@ export default function StorageSettingsPage() {
                   unit={form.intervalUnit}
                   onValueChange={(v) => set({ intervalValue: v })}
                   onUnitChange={(u) => set({ intervalUnit: u })}
-                />
-              </div>
-              <div>
-                <span className="block text-xs text-muted-foreground mb-1">
-                  Histórico de estados (padrão)
-                </span>
-                <DurationInput
-                  value={form.stateHistoryValue}
-                  unit={form.stateHistoryUnit}
-                  onValueChange={(v) => set({ stateHistoryValue: v })}
-                  onUnitChange={(u) => set({ stateHistoryUnit: u })}
                 />
               </div>
             </div>

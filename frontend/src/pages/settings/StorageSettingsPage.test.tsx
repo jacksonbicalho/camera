@@ -255,3 +255,24 @@ describe('StorageSettingsPage', () => {
     })
   })
 })
+
+describe('CA6: classificação de estado removida — sem campo "Histórico de estados"', () => {
+  it('não mostra mais "Histórico de estados" na visualização nem no formulário de edição', async () => {
+    stubFetch()
+    render(
+      <MemoryRouter initialEntries={['/settings/preferences/storage']}>
+        <StorageSettingsPage />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('Armazenamento')
+    })
+    expect(document.body.textContent).not.toContain('Histórico de estados')
+
+    fireEvent.click(document.getElementById('storage-edit')!)
+    await waitFor(() => {
+      expect(document.getElementById('storage-save')).toBeTruthy()
+    })
+    expect(document.body.textContent).not.toContain('Histórico de estados')
+  })
+})
