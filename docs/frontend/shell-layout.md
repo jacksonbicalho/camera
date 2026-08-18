@@ -65,8 +65,9 @@ pra Extensões/Aparência/Armazenamento).
 O item "Estados" (classificação de estado por câmera, `/settings/states`)
 foi removido junto com toda a UI dedicada (história
 `chore/remover-classificacao-estados-frontend`, 1ª de 3 histórias
-sequenciais — backend Go e serviço YOLO ainda respondem às rotas/endpoints
-correspondentes, só o frontend parou de chamá-los).
+sequenciais que também removeram a capacidade do backend Go e, por fim, os
+próprios endpoints do serviço YOLO — a funcionalidade não existe mais em
+nenhuma camada).
 
 Os 3 itens de Gravações/Histórico/Relatórios já foram admin-only
 (`{isAdmin && (...)}`); o gate foi removido porque escondia páginas cujo

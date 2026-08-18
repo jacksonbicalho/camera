@@ -21,11 +21,6 @@ serviço expõe hoje pro app Go. Não decide QUANDO chamar (isso é
   - `FakeAnalyzer` — implementação fake de `Analyzer` pra testes sem serviço
     YOLO real.
 
-O serviço YOLO ainda expõe `/classify*` (classificação de estado), mas
-nenhum código Go chama mais esses endpoints — a capacidade foi removida do
-app (`chore/remover-classificacao-estados-backend`); o serviço em si sai
-numa história futura dedicada.
-
 ## Ver também
 - [internal/detector](../detector/README.md) — consome `Client.Analyze`/`Detection` (tipo concreto, não a interface `Analyzer`).
 - [internal/trainer](../trainer/README.md) — consome `FinetuneRequest`/`FinetuneStatus`.
