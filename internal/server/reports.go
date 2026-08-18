@@ -33,6 +33,10 @@ func (s *Server) handleEventReport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	camera := r.URL.Query().Get("camera")
+	if camera != "" && !s.canAccessCamera(r, camera) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	var rep db.EventReport
 	var err error
 	switch r.URL.Query().Get("bucket") {
