@@ -93,7 +93,6 @@ func (s *Server) routeTable() []route {
 		{"DELETE", "/api/notifications", authFull, s.handleDeleteAllNotifications},
 
 		// Per-user preferences (theme), scoped to the authenticated user.
-		{"GET", "/api/me/footer-states", authFull, s.handleFooterStates},
 		{"GET", "/api/me/preferences", authFull, s.handleGetPreferences},
 		{"PUT", "/api/me/preferences", authFull, s.handleUpdatePreferences},
 		{"POST", "/api/me/telegram/link", authFull, s.handleTelegramLink},
@@ -164,21 +163,6 @@ func (s *Server) routeTable() []route {
 		{"PUT", "/api/cameras/{id}/motion/zones", authCamera, s.handleMotionZonesPut},
 		{"GET", "/api/cameras/{id}/telegram-notify", authCamera, s.handleGetCameraTelegramNotify},
 		{"PUT", "/api/cameras/{id}/telegram-notify", authCamera, s.handleSetCameraTelegramNotify},
-
-		// State classification: config (admin) + leitura do estado corrente (cameraAccess).
-		// Resolve um classificador só pelo próprio id, sem o id da câmera — usado pelo
-		// deep-link de edição /settings/states/edit/:cid do frontend (história
-		// refactor/camera-tabs-para-sidebar-ia), que não carrega o id da câmera na URL.
-		{"GET", "/api/settings/classifiers/{cid}", authAdmin, s.handleClassifierGet},
-		{"GET", "/api/settings/cameras/{id}/classifiers", authAdmin, s.handleStateClassifiersGet},
-		{"POST", "/api/settings/cameras/{id}/classifiers", authAdmin, s.handleStateClassifierCreate},
-		{"PUT", "/api/settings/cameras/{id}/classifiers/{cid}", authAdmin, s.handleStateClassifierUpdate},
-		{"DELETE", "/api/settings/cameras/{id}/classifiers/{cid}", authAdmin, s.handleStateClassifierDelete},
-		{"POST", "/api/settings/cameras/{id}/classifiers/{cid}/train", authAdmin, s.handleStateClassifierTrain},
-		{"GET", "/api/settings/cameras/{id}/classifiers/{cid}/samples", authAdmin, s.handleStateClassifierSamplesGet},
-		{"POST", "/api/settings/cameras/{id}/classifiers/{cid}/samples", authAdmin, s.handleStateClassifierSamplesSave},
-		{"GET", "/api/cameras/{id}/classifiers/{cid}/state", authCamera, s.handleStateClassifierState},
-		{"GET", "/api/cameras/{id}/classifiers/{cid}/history", authCamera, s.handleStateClassifierHistory},
 
 		{"GET", "/api/events/{id}", authFull, s.handleGetEventByID},
 		{"POST", "/api/events/{id}/annotations", authFull, s.handleCreateAnnotation},

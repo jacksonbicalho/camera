@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"camera/frontend"
-	"camera/internal/analysis"
 	"camera/internal/config"
 	"camera/internal/core"
 	"camera/internal/db"
@@ -36,8 +35,6 @@ import (
 	"camera/internal/recorder"
 	"camera/internal/release"
 	"camera/internal/server"
-	"camera/internal/stateclass"
-	"camera/internal/stateengine"
 	"camera/internal/storage"
 	"camera/internal/transmission/hls"
 	"camera/internal/transmission/webrtc"
@@ -220,13 +217,12 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var (
-		camMu                 sync.Mutex
-		cancelsByID           = make(map[string]context.CancelFunc)
-		motionMonsByID        = make(map[string]*motion.Monitor)
-		streamsByID           = make(map[string]ffprobe.StreamInfo)
-		livePubsByID          = make(map[string]*webrtc.Publisher)
-		classifierCancelsByID = make(map[int64]context.CancelFunc)
-		wg                    sync.WaitGroup
+		camMu          sync.Mutex
+		cancelsByID    = make(map[string]context.CancelFunc)
+		motionMonsByID = make(map[string]*motion.Monitor)
+		streamsByID    = make(map[string]ffprobe.StreamInfo)
+		livePubsByID   = make(map[string]*webrtc.Publisher)
+		wg             sync.WaitGroup
 	)
 
 	// srv is assigned after NewServer; callbacks close over this variable.
@@ -550,86 +546,6 @@ func main() {
 			}
 		}()
 		printStartupURLs(cfg.Server.Port)
-	}
-
-	// State classification: sobe um runner por intervalo para cada classificador
-	// habilitado, se o serviço YOLO estiver configurado. O emit (SSE/notificação)
-	// entra na S5; por ora só persiste o estado confirmado.
-	// Renomeia (idempotente) pastas de classe antigas com espaços/acentos para slug.
-	stateengine.MigrateSampleDirsToSlug(cfg.Storage.Path)
-	if database != nil {
-		if serviceURL, err := db.GetStateClassificationServiceURL(database); err == nil && serviceURL != "" {
-			rtspByID := make(map[string]string, len(cameras))
-			captureTypeByID := make(map[string]string, len(cameras))
-			for _, cam := range cameras {
-				rtspByID[cam.ID] = cam.RTSPURL
-				captureTypeByID[cam.ID] = cam.EffectiveCaptureType()
-			}
-			deps := stateengine.Deps{
-				Grabber: stateengine.NewSnapshotGrabber(takeSnapshot,
-					func(camID string) string { return rtspByID[camID] },
-					func(camID string) string { return captureTypeByID[camID] },
-					cfg.Storage.Path),
-				Classifier: analysis.NewClient(serviceURL),
-				Persist: func(cid int64, state string, conf float64, framePath string) error {
-					return db.RecordStateTransition(database, cid, state, conf, framePath)
-				},
-				Emit: func(c stateclass.Classifier, state string, conf float64) {
-					if srv != nil {
-						srv.PublishClassifierState(c, state, conf)
-					}
-				},
-				StoragePath: cfg.Storage.Path,
-				Log:         slog,
-			}
-
-			// startClassifierRunner/stopClassifierRunner mantêm um runner por
-			// classificador reiniciável em tempo real (sem reiniciar a aplicação) —
-			// mesmo padrão de startCameraProcs/stopCameraProcs acima, com o registro
-			// de cancelFuncs protegido pelo mesmo camMu. StartRunners já filtra por
-			// habilitado+intervalo>0 (SelectIntervalRunners); reaproveitá-lo aqui
-			// evita duplicar esse critério.
-			startClassifierRunner := func(c stateclass.Classifier) bool {
-				cctx, ccancel := context.WithCancel(ctx)
-				if stateengine.StartRunners(cctx, []stateclass.Classifier{c}, deps) == 0 {
-					ccancel()
-					return false
-				}
-				camMu.Lock()
-				classifierCancelsByID[c.ID] = ccancel
-				camMu.Unlock()
-				return true
-			}
-			stopClassifierRunner := func(id int64) {
-				camMu.Lock()
-				cancel := classifierCancelsByID[id]
-				delete(classifierCancelsByID, id)
-				camMu.Unlock()
-				if cancel != nil {
-					cancel()
-				}
-			}
-
-			n := 0
-			for _, cam := range cameras {
-				cs, err := db.ListStateClassifiers(database, cam.ID)
-				if err != nil {
-					continue
-				}
-				for _, c := range cs {
-					if startClassifierRunner(c) {
-						n++
-					}
-				}
-			}
-			if n > 0 {
-				slog.Info("state classifiers running", "count", n)
-			}
-
-			if srv != nil {
-				srv.WithStateClassifierCallbacks(func(c stateclass.Classifier) { startClassifierRunner(c) }, stopClassifierRunner)
-			}
-		}
 	}
 
 	storageCfg := db.StorageSettingsFromDB(database)

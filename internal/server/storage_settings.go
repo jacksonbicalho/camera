@@ -14,14 +14,13 @@ const (
 	keyIntervalMinutes      = "storage.interval_minutes"
 	keyMaxSizeGB            = "storage.max_size_gb"
 	keyWarnPercent          = "storage.warn_percent"
-	keyStateHistoryMinutes  = "storage.state_history_minutes"
 )
 
 // effectiveStorageSettings returns the active storage settings, preferring
 // DB overrides over the values loaded from camera.yaml at startup.
-func (s *Server) effectiveStorageSettings() (withMotion, withoutMotion, interval int, maxGB, warnPct float64, stateHistory int) {
+func (s *Server) effectiveStorageSettings() (withMotion, withoutMotion, interval int, maxGB, warnPct float64) {
 	r := db.StorageSettingsFromDB(s.db)
-	return r.WithMotionMinutes, r.WithoutMotionMinutes, r.IntervalMinutes, r.MaxSizeGB, r.WarnPercent, r.StateHistoryMinutes
+	return r.WithMotionMinutes, r.WithoutMotionMinutes, r.IntervalMinutes, r.MaxSizeGB, r.WarnPercent
 }
 
 func (s *Server) handleUpdateStorageSettings(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +33,6 @@ func (s *Server) handleUpdateStorageSettings(w http.ResponseWriter, r *http.Requ
 		IntervalMinutes      *int     `json:"interval_minutes"`
 		MaxSizeGB            *float64 `json:"max_size_gb"`
 		WarnPercent          *float64 `json:"warn_percent"`
-		StateHistoryMinutes  *int     `json:"state_history_minutes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
@@ -73,17 +71,11 @@ func (s *Server) handleUpdateStorageSettings(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	}
-	if input.StateHistoryMinutes != nil {
-		if err := db.SetConfig(s.db, keyStateHistoryMinutes, strconv.Itoa(*input.StateHistoryMinutes)); err != nil {
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-	}
 	// Trigger an immediate clean so new retention settings take effect right away.
 	if s.cleaner != nil {
 		s.cleaner.ForceClean()
 	}
-	wm, wom, interval, maxGB, warnPct, stateHistory := s.effectiveStorageSettings()
+	wm, wom, interval, maxGB, warnPct := s.effectiveStorageSettings()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"with_motion_minutes":    wm,
@@ -91,7 +83,6 @@ func (s *Server) handleUpdateStorageSettings(w http.ResponseWriter, r *http.Requ
 		"interval_minutes":       interval,
 		"max_size_gb":            maxGB,
 		"warn_percent":           warnPct,
-		"state_history_minutes":  stateHistory,
 	})
 }
 

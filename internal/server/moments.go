@@ -10,11 +10,11 @@ import (
 	"camera/internal/db"
 )
 
-// handleMoments lista "momentos" (eventos de movimento + transições de estado) de TODAS
-// as câmeras acessíveis ao usuário num dia, para o navegador global de gravações
-// (/recordings). Ordena por tempo desc e pagina. Filtros opcionais: `cameras` (csv de
-// ids) e `category` (movimento|pessoa|ia|estados). Cada momento aponta para a câmera +
-// instante, e o frontend abre a CameraPage ali (deep-link de seek).
+// handleMoments lista "momentos" (eventos de movimento) de TODAS as câmeras acessíveis ao
+// usuário num dia, para o navegador global de gravações (/recordings). Ordena por tempo
+// desc e pagina. Filtros opcionais: `cameras` (csv de ids) e `category` (movimento|
+// pessoa|ia). Cada momento aponta para a câmera + instante, e o frontend abre a
+// CameraPage ali (deep-link de seek).
 func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 	if !s.requireDB(w) {
 		return
@@ -142,25 +142,6 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 		}
-		if trs, err := db.ListCameraStateTransitions(s.db, c.ID, dayStart, dayEnd); err == nil {
-			for _, t := range trs {
-				cat := db.StateCategory(t.ClassifierName, t.State)
-				categories[cat] = struct{}{}
-				if catFilter != nil {
-					if _, ok := catFilter[cat]; !ok {
-						continue
-					}
-				}
-				if !matchesQuery(t.State, cat) {
-					continue
-				}
-				moments = append(moments, moment{
-					CameraID: c.ID, CameraName: c.Name, Time: t.ChangedAt.UTC().Format(time.RFC3339),
-					Kind: "state", Label: t.State, Category: cat, Frame: t.FramePath, Score: t.Confidence,
-					RecordingAvailable: recordingCoversPoint(recs, t.ChangedAt),
-				})
-			}
-		}
 	}
 	sort.Slice(moments, func(i, j int) bool { return moments[i].Time > moments[j].Time })
 	catList := make([]string, 0, len(categories))
@@ -204,19 +185,6 @@ func recordingCoversWindow(recs []db.Recording, occurred time.Time, leadSec, tra
 	winEnd := occurred.Add(time.Duration(trailSec) * time.Second)
 	for _, r := range recs {
 		if r.StartedAt.Before(winEnd) && (r.EndedAt.IsZero() || r.EndedAt.After(winStart)) {
-			return true
-		}
-	}
-	return false
-}
-
-// recordingCoversPoint reports whether any recording's [started_at, ended_at)
-// contains t — strict point check, no lead/trail (state transitions never open
-// a clip window, see resolveEventRecordingUrl in the frontend). Same formula
-// as ListStateHistory (internal/db/state_classifiers.go).
-func recordingCoversPoint(recs []db.Recording, t time.Time) bool {
-	for _, r := range recs {
-		if !r.StartedAt.After(t) && (r.EndedAt.IsZero() || t.Before(r.EndedAt)) {
 			return true
 		}
 	}

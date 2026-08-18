@@ -749,8 +749,6 @@ func (c *Cleaner) Clean() {
 		c.cleanFromDB()
 		c.purgeOrphanEvents()
 		c.sweepOrphanedMotionDirs()
-		c.sweepOrphanedStateDirs()
-		c.purgeStateHistory()
 	} else {
 		c.cleanFromFS()
 	}

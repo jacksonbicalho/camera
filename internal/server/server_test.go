@@ -21,7 +21,6 @@ import (
 	"camera/internal/db"
 	"camera/internal/motion"
 	"camera/internal/server"
-	"camera/internal/stateclass"
 	"camera/internal/zones"
 )
 
@@ -1572,150 +1571,71 @@ func TestMotionEventsReturnsEventsForDate(t *testing.T) {
 	}
 }
 
-func TestMotionEventsMergesStateTransitions(t *testing.T) {
-	cameraID := "entrada"
-	database := openServerTestDB(t)
-	if _, err := db.CreateUser(database, "master", "secret", "admin", false); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.CreateCamera(database, config.CameraConfig{ID: cameraID}, nil); err != nil {
-		t.Fatal(err)
-	}
-	// um evento de movimento e uma transição de estado no mesmo dia
-	if err := db.InsertMotionEvent(database, db.MotionEvent{
-		CameraID: cameraID, OccurredAt: time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC), Score: 0.12,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
-		CameraID: cameraID, Name: "Portão", Model: "custom-cls", Threshold: 0.8,
-		Classes: []string{"aberto", "fechado"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := database.Exec(
-		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?, ?, ?, ?, ?)`,
-		cid, "aberto", 0.95, "/recordings/state_history/1/x.jpg", "2026-05-03 11:00:00",
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg := config.ServerConfig{}
-	cameras := []config.CameraConfig{{ID: cameraID}}
-	srv := server.NewServer(cfg, "UTC", cameras, discardLogger(), nil).WithDB(database)
-
-	token := loginAndGetToken(t, srv, "master", "secret")
-	req := httptest.NewRequest(http.MethodGet, "/api/cameras/"+cameraID+"/motion?date=2026-05-03", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-	var resp struct {
-		Events []map[string]any `json:"events"`
-	}
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode error: %v", err)
-	}
-	if len(resp.Events) != 2 {
-		t.Fatalf("expected 2 events (1 motion + 1 state), got %d: %+v", len(resp.Events), resp.Events)
-	}
-	var state map[string]any
-	for _, ev := range resp.Events {
-		if ev["kind"] == "state" {
-			state = ev
+// TestMotionEventsNoLongerMergesStateTransitions cobre a história
+// chore/remover-classificacao-estados-backend — handleMotionEvents (GET
+// /api/cameras/{id}/motion) para de mesclar transições de camera_state_history no feed.
+// Usa SQL bruto (INSERT direto nas tabelas, sem passar por db.CreateStateClassifier)
+// pra não depender do pacote internal/stateclass/db.CreateStateClassifier, que um ticket
+// posterior desta mesma história deleta — este teste sobrevive a esse ticket, e só deixa
+// de fazer sentido quando a migration de DROP das tabelas rodar (último ticket).
+func TestMotionEventsNoLongerMergesStateTransitions(t *testing.T) {
+	t.Run("CA3: handleMotionEvents não mescla mais transições de estado (classificação de estado removida)", func(t *testing.T) {
+		cameraID := "entrada"
+		database := openServerTestDB(t)
+		if _, err := db.CreateUser(database, "master", "secret", "admin", false); err != nil {
+			t.Fatal(err)
 		}
-	}
-	if state == nil {
-		t.Fatalf("nenhum evento kind=state no feed: %+v", resp.Events)
-	}
-	if state["label"] != "aberto" {
-		t.Errorf("label esperado aberto, got %v", state["label"])
-	}
-	if state["frame"] != "/recordings/state_history/1/x.jpg" {
-		t.Errorf("frame esperado caminho absoluto, got %v", state["frame"])
-	}
-	if state["classifier_name"] != "Portão" {
-		t.Errorf("classifier_name esperado Portão, got %v", state["classifier_name"])
-	}
-	if state["time"] != "2026-05-03T11:00:00Z" {
-		t.Errorf("time esperado RFC3339 UTC, got %v", state["time"])
-	}
-}
-
-func TestMoments(t *testing.T) {
-	database := openServerTestDB(t)
-	if _, err := db.CreateUser(database, "master", "secret", "admin", false); err != nil {
-		t.Fatal(err)
-	}
-	cam, err := db.CreateCamera(database, config.CameraConfig{Name: "Corredor"}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// motion event + transição de estado no mesmo dia
-	if err := db.InsertMotionEvent(database, db.MotionEvent{
-		CameraID: cam.ID, OccurredAt: time.Date(2026, 5, 24, 10, 0, 0, 0, time.UTC), Score: 0.4, Label: "pessoa",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
-		CameraID: cam.ID, Name: "Portão", Model: "custom-cls", Threshold: 0.8, Classes: []string{"aberto", "fechado"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := database.Exec(
-		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?, ?, ?, ?, ?)`,
-		cid, "aberto", 0.95, "/recordings/state_history/1/x.jpg", "2026-05-24 11:00:00",
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{{ID: cam.ID}}, discardLogger(), nil).WithDB(database)
-	token := loginAndGetToken(t, srv, "master", "secret")
-	req := httptest.NewRequest(http.MethodGet, "/api/moments?date=2026-05-24", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-	var resp struct {
-		Moments []map[string]any `json:"moments"`
-		Total   int              `json:"total"`
-	}
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if resp.Total != 2 || len(resp.Moments) != 2 {
-		t.Fatalf("esperava 2 momentos, got total=%d len=%d: %+v", resp.Total, len(resp.Moments), resp.Moments)
-	}
-	var motion, state map[string]any
-	for _, m := range resp.Moments {
-		switch m["kind"] {
-		case "motion":
-			motion = m
-		case "state":
-			state = m
+		if _, err := db.CreateCamera(database, config.CameraConfig{ID: cameraID}, nil); err != nil {
+			t.Fatal(err)
 		}
-	}
-	if motion == nil || state == nil {
-		t.Fatalf("faltou motion/state: %+v", resp.Moments)
-	}
-	if motion["camera_name"] != "Corredor" || motion["category"] != "pessoa" {
-		t.Errorf("motion inesperado: %+v", motion)
-	}
-	if state["category"] != "estados:portão:aberto" || state["frame"] != "/recordings/state_history/1/x.jpg" {
-		t.Errorf("state inesperado: %+v", state)
-	}
-	// ordenado por time desc → estado (11:00) antes do motion (10:00)
-	if resp.Moments[0]["kind"] != "state" {
-		t.Errorf("esperava o mais recente (estado) primeiro: %+v", resp.Moments)
-	}
+		if err := db.InsertMotionEvent(database, db.MotionEvent{
+			CameraID: cameraID, OccurredAt: time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC), Score: 0.12,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		res, err := database.Exec(
+			`INSERT INTO camera_state_classifiers (camera_id, name, crop_x, crop_y, crop_w, crop_h) VALUES (?, ?, ?, ?, ?, ?)`,
+			cameraID, "Portão", 0.1, 0.1, 0.3, 0.3,
+		)
+		if err != nil {
+			t.Fatalf("insert classifier: %v", err)
+		}
+		cid, _ := res.LastInsertId()
+		if _, err := database.Exec(
+			`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?, ?, ?, ?, ?)`,
+			cid, "aberto", 0.95, "/recordings/state_history/1/x.jpg", "2026-05-03 11:00:00",
+		); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := config.ServerConfig{}
+		cameras := []config.CameraConfig{{ID: cameraID}}
+		srv := server.NewServer(cfg, "UTC", cameras, discardLogger(), nil).WithDB(database)
+
+		token := loginAndGetToken(t, srv, "master", "secret")
+		req := httptest.NewRequest(http.MethodGet, "/api/cameras/"+cameraID+"/motion?date=2026-05-03", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+		var resp struct {
+			Events []map[string]any `json:"events"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode error: %v", err)
+		}
+		if len(resp.Events) != 1 {
+			t.Fatalf("esperado 1 evento (só movimento, sem merge de estado), got %d: %+v", len(resp.Events), resp.Events)
+		}
+		for _, ev := range resp.Events {
+			if ev["kind"] == "state" {
+				t.Fatalf("evento kind=state não deveria mais aparecer no feed: %+v", resp.Events)
+			}
+		}
+	})
 }
 
 // TestSPARecordingsRouteServesIndex cobre a colisão entre a rota de página /recordings
@@ -2113,7 +2033,7 @@ func TestMomentsSearchQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// dois eventos de movimento com labels distintas + uma transição de estado
+	// dois eventos de movimento com labels distintas
 	if err := db.InsertMotionEvent(database, db.MotionEvent{
 		CameraID: cam.ID, OccurredAt: time.Date(2026, 5, 24, 10, 0, 0, 0, time.UTC), Score: 0.4, Label: "jardim",
 	}); err != nil {
@@ -2122,18 +2042,6 @@ func TestMomentsSearchQuery(t *testing.T) {
 	if err := db.InsertMotionEvent(database, db.MotionEvent{
 		CameraID: cam.ID, OccurredAt: time.Date(2026, 5, 24, 10, 5, 0, 0, time.UTC), Score: 0.4, Label: "pessoa na garagem",
 	}); err != nil {
-		t.Fatal(err)
-	}
-	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
-		CameraID: cam.ID, Name: "Portão", Model: "custom-cls", Threshold: 0.8, Classes: []string{"aberto", "fechado"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := database.Exec(
-		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?, ?, ?, ?, ?)`,
-		cid, "aberto", 0.95, "/recordings/state_history/1/x.jpg", "2026-05-24 11:00:00",
-	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2171,26 +2079,13 @@ func TestMomentsSearchQuery(t *testing.T) {
 	if r := query("pessoa"); r.Total != 1 || r.Moments[0]["category"] != "pessoa" {
 		t.Errorf("q=pessoa esperava 1 momento pessoa, got total=%d: %+v", r.Total, r.Moments)
 	}
-	// casa o estado pelo label
-	if r := query("aberto"); r.Total != 1 || r.Moments[0]["kind"] != "state" {
-		t.Errorf("q=aberto esperava 1 estado, got total=%d: %+v", r.Total, r.Moments)
-	}
-	// casa pelo nome da categoria composta "estados:<slug>:<estado>"
-	if r := query("estados"); r.Total != 1 || r.Moments[0]["category"] != "estados:portão:aberto" {
-		t.Errorf("q=estados esperava 1 momento de estado, got total=%d: %+v", r.Total, r.Moments)
-	}
-	// casa pelo nome do classificador embutido na categoria composta (achado novo desta
-	// história — antes "estados" era um bucket cego, sem nome de classificador pra buscar)
-	if r := query("portão"); r.Total != 1 || r.Moments[0]["category"] != "estados:portão:aberto" {
-		t.Errorf("q=portão esperava 1 momento de estado, got total=%d: %+v", r.Total, r.Moments)
-	}
 	// sem casamento → vazio
 	if r := query("inexistente"); r.Total != 0 || len(r.Moments) != 0 {
 		t.Errorf("q=inexistente esperava 0, got total=%d: %+v", r.Total, r.Moments)
 	}
 	// q vazio → todos (sem regressão)
-	if r := query(""); r.Total != 3 {
-		t.Errorf("q vazio esperava 3 momentos, got total=%d", r.Total)
+	if r := query(""); r.Total != 2 {
+		t.Errorf("q vazio esperava 2 momentos, got total=%d", r.Total)
 	}
 }
 
@@ -2213,18 +2108,6 @@ func TestMomentsCategoryFilter(t *testing.T) {
 	if err := db.InsertMotionEvent(database, db.MotionEvent{
 		CameraID: cam.ID, OccurredAt: time.Date(2026, 5, 24, 10, 5, 0, 0, time.UTC), Score: 0.4, Label: "carro",
 	}); err != nil {
-		t.Fatal(err)
-	}
-	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
-		CameraID: cam.ID, Name: "Portão", Model: "custom-cls", Threshold: 0.8, Classes: []string{"aberto", "fechado"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := database.Exec(
-		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?, ?, ?, ?, ?)`,
-		cid, "aberto", 0.95, "/recordings/state_history/1/x.jpg", "2026-05-24 11:00:00",
-	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2262,9 +2145,9 @@ func TestMomentsCategoryFilter(t *testing.T) {
 		return set
 	}
 
-	t.Run("CA2: sem category → todos os 3 momentos", func(t *testing.T) {
-		if r := query(""); r.Total != 3 {
-			t.Errorf("esperava 3, got total=%d: %+v", r.Total, r.Moments)
+	t.Run("CA2: sem category → todos os 2 momentos", func(t *testing.T) {
+		if r := query(""); r.Total != 2 {
+			t.Errorf("esperava 2, got total=%d: %+v", r.Total, r.Moments)
 		}
 	})
 
@@ -2275,26 +2158,11 @@ func TestMomentsCategoryFilter(t *testing.T) {
 		}
 	})
 
-	t.Run("CA2: category=estados:portão:aberto (composta por classificador+estado) → só estado", func(t *testing.T) {
-		r := query("category=" + url.QueryEscape("estados:portão:aberto"))
-		if r.Total != 1 || !categories(r)["estados:portão:aberto"] {
-			t.Errorf("esperava só estados:portão:aberto, got total=%d: %+v", r.Total, r.Moments)
-		}
-	})
-
-	t.Run("CA2: category=pessoa,carro (CSV multi-motion) → pessoa+carro, sem estados", func(t *testing.T) {
+	t.Run("CA2: category=pessoa,carro (CSV multi-motion) → pessoa+carro", func(t *testing.T) {
 		r := query("category=pessoa,carro")
 		cats := categories(r)
-		if r.Total != 2 || !cats["pessoa"] || !cats["carro"] || cats["estados:portão:aberto"] {
+		if r.Total != 2 || !cats["pessoa"] || !cats["carro"] {
 			t.Errorf("esperava pessoa+carro, got total=%d: %+v", r.Total, r.Moments)
-		}
-	})
-
-	t.Run("CA2: category=pessoa,estados:portão:aberto (CSV cruzando motion+estado) → pessoa+estado, sem carro", func(t *testing.T) {
-		r := query("category=" + url.QueryEscape("pessoa,estados:portão:aberto"))
-		cats := categories(r)
-		if r.Total != 2 || !cats["pessoa"] || !cats["estados:portão:aberto"] || cats["carro"] {
-			t.Errorf("esperava pessoa+estados, got total=%d: %+v", r.Total, r.Moments)
 		}
 	})
 
@@ -2325,7 +2193,7 @@ func TestMomentsCategoriesField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// cam1: motion "pessoa" + transição de estado. cam2: só motion "carro".
+	// cam1: motion "pessoa". cam2: só motion "carro".
 	if err := db.InsertMotionEvent(database, db.MotionEvent{
 		CameraID: cam1.ID, OccurredAt: time.Date(2026, 5, 24, 10, 0, 0, 0, time.UTC), Score: 0.4, Label: "pessoa",
 	}); err != nil {
@@ -2334,18 +2202,6 @@ func TestMomentsCategoriesField(t *testing.T) {
 	if err := db.InsertMotionEvent(database, db.MotionEvent{
 		CameraID: cam2.ID, OccurredAt: time.Date(2026, 5, 24, 10, 5, 0, 0, time.UTC), Score: 0.4, Label: "carro",
 	}); err != nil {
-		t.Fatal(err)
-	}
-	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
-		CameraID: cam1.ID, Name: "Portão", Model: "custom-cls", Threshold: 0.8, Classes: []string{"aberto", "fechado"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := database.Exec(
-		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?, ?, ?, ?, ?)`,
-		cid, "aberto", 0.95, "/recordings/state_history/1/x.jpg", "2026-05-24 11:00:00",
-	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2387,109 +2243,31 @@ func TestMomentsCategoriesField(t *testing.T) {
 		return true
 	}
 
-	t.Run("CA2: sem filtro → todas as 3 categorias do dia", func(t *testing.T) {
+	t.Run("CA2: sem filtro → as 2 categorias do dia", func(t *testing.T) {
 		r := query("")
-		if got := sorted(r.Categories); !eq(got, []string{"carro", "estados:portão:aberto", "pessoa"}) {
-			t.Errorf("esperava [carro estados:portão:aberto pessoa], got %v", got)
+		if got := sorted(r.Categories); !eq(got, []string{"carro", "pessoa"}) {
+			t.Errorf("esperava [carro pessoa], got %v", got)
 		}
 	})
 
-	t.Run("CA2: REGRESSÃO — com category=pessoa ativo, categories continua com as 3 (não encolhe pro filtro)", func(t *testing.T) {
+	t.Run("CA2: REGRESSÃO — com category=pessoa ativo, categories continua com as 2 (não encolhe pro filtro)", func(t *testing.T) {
 		r := query("category=pessoa")
-		if got := sorted(r.Categories); !eq(got, []string{"carro", "estados:portão:aberto", "pessoa"}) {
-			t.Errorf("esperava [carro estados:portão:aberto pessoa] mesmo filtrado, got %v", got)
-		}
-	})
-
-	t.Run("CA2: REGRESSÃO — com category=estados:portão:aberto (só o especial), categories ainda mostra as categorias de motion", func(t *testing.T) {
-		r := query("category=" + url.QueryEscape("estados:portão:aberto"))
-		if got := sorted(r.Categories); !eq(got, []string{"carro", "estados:portão:aberto", "pessoa"}) {
-			t.Errorf("esperava [carro estados:portão:aberto pessoa] mesmo com filtro=estados:portão:aberto, got %v", got)
+		if got := sorted(r.Categories); !eq(got, []string{"carro", "pessoa"}) {
+			t.Errorf("esperava [carro pessoa] mesmo filtrado, got %v", got)
 		}
 	})
 
 	t.Run("CA2: q (busca textual) não afeta categories", func(t *testing.T) {
 		r := query("q=inexistente")
-		if got := sorted(r.Categories); !eq(got, []string{"carro", "estados:portão:aberto", "pessoa"}) {
-			t.Errorf("esperava [carro estados:portão:aberto pessoa] mesmo com q sem match, got %v", got)
+		if got := sorted(r.Categories); !eq(got, []string{"carro", "pessoa"}) {
+			t.Errorf("esperava [carro pessoa] mesmo com q sem match, got %v", got)
 		}
 	})
 
 	t.Run("CA2: cameras filtra o universo de categorias (só as câmeras selecionadas contam)", func(t *testing.T) {
 		r := query("cameras=" + cam1.ID)
-		if got := sorted(r.Categories); !eq(got, []string{"estados:portão:aberto", "pessoa"}) {
-			t.Errorf("esperava [estados:portão:aberto pessoa] (só cam1), got %v", got)
-		}
-	})
-}
-
-// TestMomentsStateCategoryComposite cobre a história feat/estados-categoria-granular: a
-// categoria de uma transição de state classifier em /api/moments deixa de ser o bucket
-// fixo "estados" e vira uma chave composta por (classificador, estado) —
-// estados:<slug-do-nome>:<estado> — tanto no item quanto na lista `categories`.
-func TestMomentsStateCategoryComposite(t *testing.T) {
-	database := openServerTestDB(t)
-	if _, err := db.CreateUser(database, "master", "secret", "admin", false); err != nil {
-		t.Fatal(err)
-	}
-	cam1, err := db.CreateCamera(database, config.CameraConfig{Name: "Corredor"}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cid, err := db.CreateStateClassifier(database, stateclass.Classifier{
-		CameraID: cam1.ID, Name: "Pessoa", Model: "custom-cls", Threshold: 0.8, Classes: []string{"entrando", "saindo"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := database.Exec(
-		`INSERT INTO camera_state_history (classifier_id, state, confidence, frame_path, changed_at) VALUES (?, ?, ?, ?, ?)`,
-		cid, "saindo", 0.95, "/recordings/state_history/1/x.jpg", "2026-05-24 11:00:00",
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	srv := server.NewServer(config.ServerConfig{}, "UTC", []config.CameraConfig{{ID: cam1.ID}}, discardLogger(), nil).WithDB(database)
-	token := loginAndGetToken(t, srv, "master", "secret")
-
-	req := httptest.NewRequest(http.MethodGet, "/api/moments?date=2026-05-24", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-	var resp struct {
-		Moments []struct {
-			Category string `json:"category"`
-		} `json:"moments"`
-		Categories []string `json:"categories"`
-	}
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-
-	t.Run("CA5: o item da transição de estado usa a categoria composta, não o bucket genérico \"estados\"", func(t *testing.T) {
-		if len(resp.Moments) != 1 {
-			t.Fatalf("esperava 1 moment, got %d: %+v", len(resp.Moments), resp.Moments)
-		}
-		if resp.Moments[0].Category != "estados:pessoa:saindo" {
-			t.Errorf("category = %q, want %q", resp.Moments[0].Category, "estados:pessoa:saindo")
-		}
-	})
-
-	t.Run("CA5: a lista categories expõe a categoria composta, não mais \"estados\" bare", func(t *testing.T) {
-		found := false
-		for _, c := range resp.Categories {
-			if c == "estados" {
-				t.Errorf("categories ainda contém o bucket genérico \"estados\": %v", resp.Categories)
-			}
-			if c == "estados:pessoa:saindo" {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("categories não contém \"estados:pessoa:saindo\": %v", resp.Categories)
+		if got := sorted(r.Categories); !eq(got, []string{"pessoa"}) {
+			t.Errorf("esperava [pessoa] (só cam1), got %v", got)
 		}
 	})
 }
@@ -2780,7 +2558,7 @@ func TestCamerasIncludesMotionThreshold(t *testing.T) {
 	threshold03 := 0.03
 	motionFPS := 2
 	cameras := []config.CameraConfig{{
-		ID: "cam1",
+		ID:     "cam1",
 		Motion: &config.MotionConfig{Enabled: true, Threshold: threshold03, FPS: motionFPS},
 	}}
 	srv := server.NewServer(cfg, "UTC", cameras, discardLogger(), nil)
@@ -2892,48 +2670,6 @@ func TestGetSettingsReturnsFullConfig(t *testing.T) {
 	}
 	if resp.Cameras[1].VideoCodec != "h264" {
 		t.Errorf("expected video_codec h264, got %q", resp.Cameras[1].VideoCodec)
-	}
-}
-
-// PUT /api/settings/storage aceita e persiste state_history_minutes
-// isoladamente (sem exigir os outros campos), e o valor volta tanto na
-// resposta do PUT quanto no GET /api/settings subsequente — os demais campos
-// de storage mantêm seus defaults, confirmando que é um update parcial.
-func TestUpdateStorageSettings_PersistsStateHistoryMinutes(t *testing.T) {
-	database := openServerTestDB(t)
-	if _, err := db.CreateUser(database, "admin", "pw", "admin", false); err != nil {
-		t.Fatal(err)
-	}
-	srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
-	token := loginAndGetToken(t, srv, "admin", "pw")
-
-	w := doJSON(t, srv, http.MethodPut, "/api/settings/storage", token, map[string]any{
-		"state_history_minutes": 43200,
-	})
-	if w.Code != http.StatusOK {
-		t.Fatalf("PUT storage: %d %s", w.Code, w.Body.String())
-	}
-	var putResp struct {
-		StateHistoryMinutes int `json:"state_history_minutes"`
-	}
-	json.Unmarshal(w.Body.Bytes(), &putResp)
-	if putResp.StateHistoryMinutes != 43200 {
-		t.Fatalf("PUT response: expected state_history_minutes 43200, got %d", putResp.StateHistoryMinutes)
-	}
-
-	w = doJSON(t, srv, http.MethodGet, "/api/settings", token, nil)
-	var getResp struct {
-		Storage struct {
-			StateHistoryMinutes int `json:"state_history_minutes"`
-			WithMotionMinutes   int `json:"with_motion_minutes"`
-		} `json:"storage"`
-	}
-	json.Unmarshal(w.Body.Bytes(), &getResp)
-	if getResp.Storage.StateHistoryMinutes != 43200 {
-		t.Fatalf("GET storage.state_history_minutes: expected 43200, got %d", getResp.Storage.StateHistoryMinutes)
-	}
-	if getResp.Storage.WithMotionMinutes != 10080 {
-		t.Fatalf("GET storage.with_motion_minutes: expected default 10080 unchanged, got %d", getResp.Storage.WithMotionMinutes)
 	}
 }
 

@@ -859,7 +859,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			"recordings_path": s.cfg.RecordingsPath,
 		},
 		"storage": func() map[string]any {
-			wm, wom, interval, maxGB, warnPct, stateHistory := s.effectiveStorageSettings()
+			wm, wom, interval, maxGB, warnPct := s.effectiveStorageSettings()
 			return map[string]any{
 				"path":                   s.storageCfg.Path,
 				"with_motion_minutes":    wm,
@@ -867,7 +867,6 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 				"interval_minutes":       interval,
 				"max_size_gb":            maxGB,
 				"warn_percent":           warnPct,
-				"state_history_minutes":  stateHistory,
 			}
 		}(),
 		"defaults": map[string]any{
@@ -1549,7 +1548,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		diskTotal, diskFree = diskStats(s.cfg.RecordingsPath)
 	}
 
-	_, _, _, maxGB, warnPct, _ := s.effectiveStorageSettings()
+	_, _, _, maxGB, warnPct := s.effectiveStorageSettings()
 	maxSizeBytes := int64(maxGB * 1024 * 1024 * 1024)
 
 	chunkSec := int64(config.DefaultChunkDuration.Seconds())
@@ -2178,23 +2177,6 @@ func (s *Server) handleMotionEvents(w http.ResponseWriter, r *http.Request) {
 					entry["color"] = ev.Color
 				}
 				events = append(events, entry)
-			}
-		}
-		// Mescla as transições de estado (todos os classificadores da câmera) no
-		// mesmo feed, marcadas com kind="state". O frame já é um caminho servível
-		// absoluto; o id é negativado para não colidir com motion_events.
-		if transitions, err := db.ListCameraStateTransitions(s.db, id, dayStart, dayEnd); err == nil {
-			for _, tr := range transitions {
-				events = append(events, map[string]any{
-					"kind":            "state",
-					"id":              -tr.ID,
-					"time":            tr.ChangedAt.UTC().Format(time.RFC3339),
-					"score":           tr.Confidence,
-					"frame":           tr.FramePath,
-					"label":           tr.State,
-					"classifier_id":   tr.ClassifierID,
-					"classifier_name": tr.ClassifierName,
-				})
 			}
 		}
 		sort.Slice(events, func(i, j int) bool {
