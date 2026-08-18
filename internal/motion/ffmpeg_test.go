@@ -2,10 +2,7 @@ package motion
 
 import (
 	"reflect"
-	"strconv"
 	"testing"
-
-	"camera/internal/capturer/mjpeg"
 )
 
 func TestFFmpegArgsCaptureType(t *testing.T) {
@@ -29,36 +26,14 @@ func TestFFmpegArgsCaptureType(t *testing.T) {
 		}
 	})
 
-	// --- capture_type=mjpeg (história feat/capture-mjpeg) ---
+	// --- MJPEG removido (história chore/remover-mjpeg-backend) ---
 
-	t.Run("CA2: capture_type=mjpeg omite -rtsp_transport tcp, mesmo tratamento que hls", func(t *testing.T) {
-		args := ffmpegArgs("https://195.196.36.242/mjpg/video.mjpg", 640, 360, 5, "mjpeg")
-		for i := 0; i < len(args)-1; i++ {
-			if args[i] == "-rtsp_transport" {
-				t.Fatalf("capture_type=mjpeg não deve emitir -rtsp_transport, got args %v", args)
-			}
-		}
-	})
-
-	// --- timeout de leitura de rede pra MJPEG (história fix/mjpeg-read-timeout) ---
-
-	t.Run("CA3: capture_type=mjpeg inclui -rw_timeout (mjpeg.ReadTimeout) antes de -i <url>", func(t *testing.T) {
-		want := []string{
-			"-rw_timeout", strconv.FormatInt(mjpeg.ReadTimeout.Microseconds(), 10),
-			"-i", "https://195.196.36.242/mjpg/video.mjpg",
-		}
-		got := ffmpegArgs("https://195.196.36.242/mjpg/video.mjpg", 640, 360, 5, "mjpeg")
-		if !reflect.DeepEqual(got[:4], want) {
-			t.Errorf("got %v, want prefix %v", got, want)
-		}
-	})
-
-	t.Run("CA4: capture_type hls/rtsp/default NAO ganham -rw_timeout (desacoplamento do fix de MJPEG)", func(t *testing.T) {
-		for _, ct := range []string{"hls", "rtsp", ""} {
+	t.Run("CA2: -rw_timeout nunca aparece, pra nenhum capture_type (a flag era exclusiva do protocolo mjpeg, removido)", func(t *testing.T) {
+		for _, ct := range []string{"hls", "rtsp", "mjpeg", ""} {
 			args := ffmpegArgs("url", 640, 360, 5, ct)
 			for _, a := range args {
 				if a == "-rw_timeout" {
-					t.Errorf("capture_type=%q não deveria ter -rw_timeout, got args %v", ct, args)
+					t.Errorf("capture_type=%q não deveria mais ter -rw_timeout, got args %v", ct, args)
 				}
 			}
 		}

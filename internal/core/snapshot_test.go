@@ -51,16 +51,14 @@ func TestSnapshot(t *testing.T) {
 		}
 	})
 
-	// --- capture_type=mjpeg (história feat/capture-mjpeg, T4) ---
-
-	t.Run("CA6: capture_type=mjpeg não emite -rtsp_transport tcp, mesmo tratamento que hls", func(t *testing.T) {
+	t.Run("CA6: capture_type=hls não emite -rtsp_transport tcp", func(t *testing.T) {
 		fake := &fakeSnapshotExecutor{out: []byte("jpeg-bytes")}
-		_, err := core.Snapshot(context.Background(), "https://195.196.36.242/mjpg/video.mjpg", "mjpeg", fake)
+		_, err := core.Snapshot(context.Background(), "https://cam.example.com/stream/playlist.m3u8", "hls", fake)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		want := []string{
-			"-i", "https://195.196.36.242/mjpg/video.mjpg",
+			"-i", "https://cam.example.com/stream/playlist.m3u8",
 			"-frames:v", "1", "-f", "image2", "-vcodec", "mjpeg", "-",
 		}
 		if !reflect.DeepEqual(fake.args, want) {

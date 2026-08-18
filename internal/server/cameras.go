@@ -199,7 +199,7 @@ func normalizeLiveTransport(s string) string {
 // capture_type existed) for empty or unknown input.
 func normalizeCaptureType(s string) string {
 	switch s {
-	case "rtsp", "hls", "mjpeg":
+	case "rtsp", "hls":
 		return s
 	default:
 		return "rtsp"

@@ -14,8 +14,10 @@ func InputArgs(url string) []string {
 
 // NeedsRTSPTransport reporta se o capture_type exige a flag
 // "-rtsp_transport tcp" do ffmpeg/ffprobe — só o protocolo RTSP precisa
-// (default quando capture_type está vazio); HLS e MJPEG são servidos sobre
-// HTTP puro, onde essa flag é erro fatal do ffmpeg, não um no-op.
+// (default quando capture_type está vazio); HLS é servido sobre HTTP puro,
+// onde essa flag é erro fatal do ffmpeg, não um no-op — qualquer outro valor
+// (inclusive um capture_type não reconhecido, ex. "mjpeg" legado no banco
+// depois da história chore/remover-mjpeg-backend) cai no mesmo tratamento.
 func NeedsRTSPTransport(captureType string) bool {
 	return captureType == "" || captureType == "rtsp"
 }

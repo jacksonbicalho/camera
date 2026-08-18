@@ -91,14 +91,18 @@ id" e o carve-out sempre-editável desta página.
   da URL que dependiam dela; qualquer valor não reconhecido (inclusive
   `mjpeg` legado) cai no fallback `'RTSP URL'`. `captureTypeLabel`
   (`CameraDetailSettingsPage.tsx`) segue o mesmo fallback: câmeras salvas
-  antes desta história com `capture_type=mjpeg` no banco exibem "RTSP" na
-  tela de detalhe, não "MJPEG" e não um valor confuso. Isso é só a metade
-  frontend de uma remoção planejada em 2 histórias — o backend
-  (`internal/capturer/mjpeg`, `internal/motion`, `internal/recorder`,
-  `internal/transmission/hls`/`webrtc`, `internal/server`) ainda captura
-  mjpeg normalmente até a história companheira (backend) ser feita; até lá,
-  câmeras `mjpeg` legadas continuam funcionando de verdade, só a exibição na
-  UI muda.
+  antes dessa história com `capture_type=mjpeg` no banco exibem "RTSP" na
+  tela de detalhe, não "MJPEG" e não um valor confuso. A remoção foi
+  planejada em 2 histórias — essa (frontend) e a companheira de backend
+  (`chore/remover-mjpeg-backend`, já mergeada), que apagou
+  `internal/capturer/mjpeg` e o tratamento especial em
+  `internal/motion`/`internal/recorder`/`internal/transmission/hls`/`webrtc`/
+  `internal/server`. Câmeras com `capture_type=mjpeg` remanescentes no banco
+  (não migradas automaticamente — URLs de protocolos diferentes não se
+  convertem entre si) agora caem no caminho `default` (rtsp) de cada
+  processo de captura: sem crash, mas sem captura funcionando (tenta RTSP
+  numa URL HTTP), até o usuário reconfigurar a câmera pra RTSP/HLS de
+  verdade ou apagá-la.
 - **`CameraDetailSettingsPage` abandonou o modo Editar** (história
   `refactor/camera-detail-secoes-aplicar`): o navigator reportou que
   alternar pra "Editar" abria todas as seções de uma vez sem deixar claro

@@ -3461,10 +3461,8 @@ func TestSnapshotRequiresAuth(t *testing.T) {
 	}
 }
 
-// --- capture_type=mjpeg (história feat/capture-mjpeg, T4) ---
-
 func TestSnapshotPassesCameraCaptureType(t *testing.T) {
-	t.Run("CA6: repassa o capture_type real da câmera pro snapFn (mjpeg, não hardcoded)", func(t *testing.T) {
+	t.Run("CA6: repassa o capture_type real da câmera pro snapFn (hls, não hardcoded)", func(t *testing.T) {
 		fakeJPEG := []byte{0xFF, 0xD8, 0xFF, 0xD9}
 		var gotCaptureType string
 		snapFn := func(_ context.Context, _, captureType string) ([]byte, error) {
@@ -3473,13 +3471,13 @@ func TestSnapshotPassesCameraCaptureType(t *testing.T) {
 		}
 
 		cfg := config.ServerConfig{}
-		cameras := []config.CameraConfig{{ID: "cam-mjpeg", RTSPURL: "https://195.196.36.242/mjpg/video.mjpg", CaptureType: "mjpeg"}}
+		cameras := []config.CameraConfig{{ID: "cam-hls", RTSPURL: "https://cam.example.com/stream/playlist.m3u8", CaptureType: "hls"}}
 		srv := server.NewServer(cfg, "UTC", cameras, discardLogger(), nil).
 			WithSnapshotter(snapFn)
 		srv = withTestUsers(t, srv)
 		token := loginAndGetToken(t, srv, "u", "p")
 
-		req := httptest.NewRequest(http.MethodGet, "/api/cameras/cam-mjpeg/snapshot", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/cameras/cam-hls/snapshot", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		srv.ServeHTTP(w, req)
@@ -3487,8 +3485,8 @@ func TestSnapshotPassesCameraCaptureType(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d", w.Code)
 		}
-		if gotCaptureType != "mjpeg" {
-			t.Errorf("capture_type repassado ao snapFn = %q, want mjpeg", gotCaptureType)
+		if gotCaptureType != "hls" {
+			t.Errorf("capture_type repassado ao snapFn = %q, want hls", gotCaptureType)
 		}
 	})
 }

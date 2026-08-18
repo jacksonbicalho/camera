@@ -713,9 +713,9 @@ func TestCameraCaptureType(t *testing.T) {
 		}
 	})
 
-	// --- capture_type=mjpeg (história feat/capture-mjpeg) ---
+	// --- MJPEG removido (história chore/remover-mjpeg-backend) ---
 
-	t.Run("CA3: POST com capture_type=mjpeg persiste e retorna mjpeg", func(t *testing.T) {
+	t.Run("CA6: POST com capture_type=mjpeg é normalizado pra rtsp (protocolo removido)", func(t *testing.T) {
 		srv, adminToken, _, _, _ := setupCamerasServer(t)
 
 		body := `{"name":"cam-mjpeg","rtsp_url":"https://195.196.36.242/mjpg/video.mjpg","capture_type":"mjpeg"}`
@@ -730,8 +730,8 @@ func TestCameraCaptureType(t *testing.T) {
 		}
 		var resp map[string]any
 		json.NewDecoder(w.Body).Decode(&resp)
-		if resp["capture_type"] != "mjpeg" {
-			t.Errorf("expected capture_type=mjpeg, got %v", resp["capture_type"])
+		if resp["capture_type"] != "rtsp" {
+			t.Errorf("expected capture_type normalizado pra rtsp, got %v", resp["capture_type"])
 		}
 	})
 }

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	capturehls "camera/internal/capturer/hls"
-	capturemjpeg "camera/internal/capturer/mjpeg"
 	"camera/internal/capturer/rtsp"
 	"camera/internal/config"
 	"camera/internal/core"
@@ -61,8 +60,6 @@ func (s *HLSStreamer) Start() error {
 	switch captureType {
 	case "hls":
 		args = append(args, capturehls.ConnectArgs(s.camera.RTSPURL)...)
-	case "mjpeg":
-		args = append(args, capturemjpeg.ConnectArgs(s.camera.RTSPURL)...)
 	default:
 		args = append(args, core.InputArgs(s.camera.RTSPURL)...)
 	}

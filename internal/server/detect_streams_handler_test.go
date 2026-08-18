@@ -55,14 +55,14 @@ func TestDetectStreams_RecommendsHLSForH265(t *testing.T) {
 	}
 }
 
-// --- capture_type propagado pro /detect-streams (história feat/capture-mjpeg) ---
+// --- capture_type propagado pro /detect-streams (história feat/hls-capture-backend-completo) ---
 
 func TestDetectStreams_CaptureType(t *testing.T) {
-	t.Run("CA5: capture_type=mjpeg não emite -rtsp_transport tcp (bug pré-existente, também afetava hls)", func(t *testing.T) {
-		exec := &fakeSubExecutor{out: []byte(`{"streams":[{"codec_type":"video","codec_name":"mjpeg","width":3072,"height":1728}]}`)}
+	t.Run("CA5: capture_type=hls não emite -rtsp_transport tcp", func(t *testing.T) {
+		exec := &fakeSubExecutor{out: []byte(`{"streams":[{"codec_type":"video","codec_name":"h264","width":1920,"height":1080}]}`)}
 		srv, token := newDetectServer(t, ffprobe.NewProber(exec))
 
-		body := `{"rtsp_url":"https://195.196.36.242/mjpg/video.mjpg","capture_type":"mjpeg"}`
+		body := `{"rtsp_url":"https://cam.example.com/stream/playlist.m3u8","capture_type":"hls"}`
 		req := httptest.NewRequest(http.MethodPost, "/api/settings/cameras/detect-streams", bytes.NewBufferString(body))
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.Header.Set("Content-Type", "application/json")
@@ -71,12 +71,12 @@ func TestDetectStreams_CaptureType(t *testing.T) {
 
 		var resp map[string]any
 		json.NewDecoder(w.Body).Decode(&resp)
-		if resp["codec"] != "mjpeg" {
-			t.Fatalf("codec = %v, want mjpeg (probe deve ter funcionado, sem flag fatal)", resp["codec"])
+		if resp["codec"] != "h264" {
+			t.Fatalf("codec = %v, want h264 (probe deve ter funcionado, sem flag fatal)", resp["codec"])
 		}
 		for _, a := range exec.capturedArgs {
 			if a == "-rtsp_transport" {
-				t.Errorf("capture_type=mjpeg não deve emitir -rtsp_transport, got args %v", exec.capturedArgs)
+				t.Errorf("capture_type=hls não deve emitir -rtsp_transport, got args %v", exec.capturedArgs)
 			}
 		}
 	})
