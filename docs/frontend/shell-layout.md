@@ -54,13 +54,20 @@ usa, e as camadas de navegação de `/settings/*`.
 ## Sidebar: seções e itens (estado atual)
 
 De cima pra baixo: 1ª seção sem cabeçalho visível (só "Ao vivo", `end: true`,
-aponta pra `/`); `Câmeras e Gravações` (Câmeras — todos; Gravações
-`/recordings`, Histórico `/history`, Relatórios `/reports` — admin-only);
-`Inteligência` (admin: Análise de vídeo, Rotular eventos — âncora na mesma
-página —, Detectores de objetos, Treinadores, Estados); `Administração`
-(admin: Servidor, Rastrear câmeras, Usuários, Preferências —
-`/settings/preferences/extensions`, ponto de entrada único pra
-Extensões/Aparência/Armazenamento).
+aponta pra `/`); `Câmeras e Gravações` (Câmeras, Gravações `/recordings`,
+Histórico `/history`, Relatórios `/reports` — **todos os itens visíveis pra
+qualquer role**, sem gate `isAdmin`); `Inteligência` (admin: Análise de
+vídeo, Rotular eventos — âncora na mesma página —, Detectores de objetos,
+Treinadores, Estados); `Administração` (admin: Servidor, Rastrear câmeras,
+Usuários, Preferências — `/settings/preferences/extensions`, ponto de
+entrada único pra Extensões/Aparência/Armazenamento).
+
+Os 3 itens de Gravações/Histórico/Relatórios já foram admin-only
+(`{isAdmin && (...)}`); o gate foi removido porque escondia páginas cujo
+backend já filtrava corretamente os dados por câmera concedida (viewer sem
+acesso nenhuma câmera só via listas vazias, mesmo comportamento que
+"Câmeras" já tinha). Não reintroduzir o gate sem que o backend também
+regrida — os dois andam juntos.
 
 `SidebarNavLink` aceita `matchHash?: string` — só necessário quando dois
 itens da mesma seção compartilham pathname e diferem só pelo hash (Análise
