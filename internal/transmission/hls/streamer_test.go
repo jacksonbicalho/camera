@@ -611,9 +611,9 @@ func TestHLSStreamerCaptureType(t *testing.T) {
 		}
 	})
 
-	// --- capture_type=mjpeg (história feat/capture-mjpeg) ---
+	// --- MJPEG removido (história chore/remover-mjpeg-backend) ---
 
-	t.Run("CA2: capture_type=mjpeg usa -i puro (sem -rtsp_transport tcp), mesmo tratamento que hls", func(t *testing.T) {
+	t.Run("CA4: capture_type=mjpeg não inclui mais -rw_timeout (única diferença real do default agora)", func(t *testing.T) {
 		camera := config.CameraConfig{
 			ID:          "cam-mjpeg",
 			RTSPURL:     "https://195.196.36.242/mjpg/video.mjpg",
@@ -625,8 +625,10 @@ func TestHLSStreamerCaptureType(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		args := cmd.calls[0]
-		if containsSequence(args, "-rtsp_transport", "tcp") {
-			t.Error("capture_type=mjpeg não deve emitir -rtsp_transport tcp")
+		for _, a := range args {
+			if a == "-rw_timeout" {
+				t.Errorf("capture_type=mjpeg não deveria mais ter -rw_timeout, got args %v", args)
+			}
 		}
 		if !containsSequence(args, "-i", "https://195.196.36.242/mjpg/video.mjpg") {
 			t.Error("expected -i <url> in args")
