@@ -16,7 +16,7 @@ ingênuo (só `strings.Split` por `;`), então um `;` dentro de um `--
 comentário` corta o statement no meio e quebra todas as migrations
 seguintes — já causou incidente real.
 
-52 migrations até agora (`0001_initial.sql` … `0052_cleanup_orphaned_camera_grants.sql`).
+53 migrations até agora (`0001_initial.sql` … `0053_drop_state_classification.sql`).
 
 ## Ver também
 - [internal/db](../README.md) — `Open`/`applyMigrations`, as tabelas resultantes.

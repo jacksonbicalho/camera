@@ -33,10 +33,7 @@ implementa `notifications/application.LivePush` via `Push(userID int64)`,
 delegando ao `notifHub` privado (`notif_hub.go` — fan-out de SSE por
 usuário, `GET /api/notifications/live`). `NotifyUpdateAvailable`
 (`update_notify.go`) resolve os admins e despacha via `Dispatcher` — no
-máximo uma vez por versão `latest` (dedup em memória). `PublishClassifierState`/
-`resolveStateNotifyRecipients` (`state_notify.go`) resolvem os destinatários
-de uma transição de estado (canal `NotifyUserIDs` ∩ acesso à câmera; admin
-sempre tem) e despacham do mesmo jeito. Endpoints de leitura:
+máximo uma vez por versão `latest` (dedup em memória). Endpoints de leitura:
 `GET /api/notifications` (lista + `unread_count`),
 `POST /api/notifications/{id}/read`, `POST /api/notifications/read-all`,
 `DELETE /api/notifications/{id}`, `DELETE /api/notifications`.
@@ -137,14 +134,7 @@ tabela de rotas não cobre esse caso.
 dispara automaticamente em background no cadastro
 (`captureDeviceInfoAsync`).
 
-## State classification (`state_classifiers.go`, `state_notify.go`, `finetune.go`, `trainers.go`)
-CRUD de classificadores (admin) + `POST .../train` (dispara `/classify/train`
-no serviço YOLO — um modelo por classificador, `Classifier.ModelName()`,
-nunca compartilhado). `GET /api/cameras/{id}/classifiers/{cid}/state`
-(cameraAccess). `GET /api/me/footer-states` devolve, pro usuário do JWT, os
-classificadores `footer_enabled` em que ele é destinatário — **sem
-consumidor no frontend hoje** (o rodapé que exibia isso foi removido junto
-com o `AppLayout` legado; endpoint funcional, órfão do lado do cliente).
+## Trainers e fine-tuning (`trainers.go`, `finetune.go`)
 `trainers.go`/`finetune.go` — CRUD de trainers e disparo de fine-tuning de
 object detection, ver [internal/trainer](../trainer/README.md).
 
@@ -155,4 +145,4 @@ object detection, ver [internal/trainer](../trainer/README.md).
 do `updateChecker`, que só vê a "latest").
 
 ## Ver também
-- [internal/notifications](../notifications/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md), [internal/stateclass](../stateclass/README.md), [internal/trainer](../trainer/README.md) — os domínios que este pacote expõe via HTTP.
+- [internal/notifications](../notifications/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md), [internal/trainer](../trainer/README.md) — os domínios que este pacote expõe via HTTP.

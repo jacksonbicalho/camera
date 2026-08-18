@@ -1,6 +1,9 @@
 package server_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -40,6 +43,21 @@ func openServerTestDB(t *testing.T) *db.DB {
 // openServerTestDB and call srv.WithDB(database) directly.
 func withTestUsers(t *testing.T, srv *server.Server) *server.Server {
 	return withTestUsersAndCameras(t, srv, nil)
+}
+
+// doJSON issues an HTTP request against srv with an optional JSON body and a
+// bearer token — shared helper for tests that exercise the router directly.
+func doJSON(t *testing.T, srv *server.Server, method, path, token string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	if body != nil {
+		json.NewEncoder(&buf).Encode(body)
+	}
+	req := httptest.NewRequest(method, path, &buf)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	return w
 }
 
 // withTestUsersAndCameras is like withTestUsers but also seeds cameras into the DB.

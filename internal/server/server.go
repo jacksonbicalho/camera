@@ -30,7 +30,6 @@ import (
 	"camera/internal/motion"
 	"camera/internal/notifications"
 	"camera/internal/release"
-	"camera/internal/stateclass"
 	"camera/internal/storage"
 	"camera/internal/zones"
 )
@@ -95,55 +94,53 @@ func (b *broadcaster) run(src <-chan motion.Event) {
 }
 
 type Server struct {
-	cfg                    config.ServerConfig
-	storageCfg             config.StorageConfig
-	logCfg                 config.LogConfig
-	extensionsCfg          config.ExtensionsConfig
-	debug                  bool
-	timezone               string
-	version                string
-	commit                 string
-	builtAt                string
-	startTime              time.Time
-	cameras                []config.CameraConfig
-	log                    *slog.Logger
-	secret                 []byte
-	frontend               fs.FS
-	mux                    *http.ServeMux
-	mu                     sync.Mutex
-	streamSeen             map[string]time.Time
-	motionBroadcasters     map[string]*broadcaster
-	rawBroadcasters        map[string]*broadcaster
-	notifHub               *notifHub
-	peakMu                 sync.RWMutex
-	dailyPeakRaw           map[string]float64
-	dailyPeakDate          map[string]string
-	snapFn                 func(ctx context.Context, rtspURL, captureType string) ([]byte, error)
-	frameFn                func(ctx context.Context, path string, offsetSeconds float64) ([]byte, error)
-	probedStreams          map[string]ffprobe.StreamInfo
-	db                     *db.DB
-	prober                 *ffprobe.Prober
-	onCameraStart          func(config.CameraConfig)
-	onCameraStop           func(string)
-	onStateClassifierStart func(stateclass.Classifier)
-	onStateClassifierStop  func(int64)
-	monitors               map[string]*motion.Monitor
-	livePublishers         map[string]livePublisher
-	telegramBotUsername    string // cached lazily — GetMe() resolved once, never changes for a given bot_token
-	telegramBotUsernameMu  sync.Mutex
-	cpu                    cpuTracker
-	net                    netTracker
-	cleaner                interface{ ForceClean() }
-	deviceCollectors       []deviceinfo.Collector
-	updateChecker          updateStatuser
-	releaseNotesFetcher    releaseNotesFetcher
-	applyMode              string
-	applier                applyRunner
-	updateNotifyMu         sync.Mutex
-	updateNotified         string // última versão latest já notificada (dedup)
-	emailSender            emailSender
-	notifications          *notifications.Dispatcher
-	telegramSender         telegramSender
+	cfg                   config.ServerConfig
+	storageCfg            config.StorageConfig
+	logCfg                config.LogConfig
+	extensionsCfg         config.ExtensionsConfig
+	debug                 bool
+	timezone              string
+	version               string
+	commit                string
+	builtAt               string
+	startTime             time.Time
+	cameras               []config.CameraConfig
+	log                   *slog.Logger
+	secret                []byte
+	frontend              fs.FS
+	mux                   *http.ServeMux
+	mu                    sync.Mutex
+	streamSeen            map[string]time.Time
+	motionBroadcasters    map[string]*broadcaster
+	rawBroadcasters       map[string]*broadcaster
+	notifHub              *notifHub
+	peakMu                sync.RWMutex
+	dailyPeakRaw          map[string]float64
+	dailyPeakDate         map[string]string
+	snapFn                func(ctx context.Context, rtspURL, captureType string) ([]byte, error)
+	frameFn               func(ctx context.Context, path string, offsetSeconds float64) ([]byte, error)
+	probedStreams         map[string]ffprobe.StreamInfo
+	db                    *db.DB
+	prober                *ffprobe.Prober
+	onCameraStart         func(config.CameraConfig)
+	onCameraStop          func(string)
+	monitors              map[string]*motion.Monitor
+	livePublishers        map[string]livePublisher
+	telegramBotUsername   string // cached lazily — GetMe() resolved once, never changes for a given bot_token
+	telegramBotUsernameMu sync.Mutex
+	cpu                   cpuTracker
+	net                   netTracker
+	cleaner               interface{ ForceClean() }
+	deviceCollectors      []deviceinfo.Collector
+	updateChecker         updateStatuser
+	releaseNotesFetcher   releaseNotesFetcher
+	applyMode             string
+	applier               applyRunner
+	updateNotifyMu        sync.Mutex
+	updateNotified        string // última versão latest já notificada (dedup)
+	emailSender           emailSender
+	notifications         *notifications.Dispatcher
+	telegramSender        telegramSender
 }
 
 // emailSender envia e-mail (esqueci-a-senha hoje). Definido aqui no
@@ -227,10 +224,10 @@ func (s *Server) WithEmailSender(sender emailSender) *Server {
 	return s
 }
 
-// WithNotifications wires the Dispatcher used by NotifyUpdateAvailable and
-// PublishClassifierState to fan a notification out to every configured
-// sender (application, e-mail, ...). Without it, both are no-ops beyond
-// their own recipient-resolution logic — nobody is actually notified.
+// WithNotifications wires the Dispatcher used by NotifyUpdateAvailable to
+// fan a notification out to every configured sender (application, e-mail,
+// ...). Without it, it's a no-op beyond its own recipient-resolution logic
+// — nobody is actually notified.
 func (s *Server) WithNotifications(d *notifications.Dispatcher) *Server {
 	s.notifications = d
 	return s
@@ -255,16 +252,6 @@ func (s *Server) Push(userID int64) {
 func (s *Server) WithCameraCallbacks(start func(config.CameraConfig), stop func(string)) *Server {
 	s.onCameraStart = start
 	s.onCameraStop = stop
-	return s
-}
-
-// WithStateClassifierCallbacks wires the hooks that start/stop a
-// stateengine.Runner for a single classifier at runtime — mirrors
-// WithCameraCallbacks, so create/update/delete take effect immediately
-// instead of only on the next application restart.
-func (s *Server) WithStateClassifierCallbacks(start func(stateclass.Classifier), stop func(int64)) *Server {
-	s.onStateClassifierStart = start
-	s.onStateClassifierStop = stop
 	return s
 }
 
@@ -603,36 +590,21 @@ func (s *Server) requireRecordingsAccess(next http.Handler) http.HandlerFunc {
 	return s.requirePrefixCameraAccess("/recordings/", next)
 }
 
-// recordingsSpecialSegments — namespaces sob /recordings/ que NÃO são um id de câmera mas
-// ainda são arquivo de verdade (gated), não rota da SPA: thumbnails/amostras de state
-// classification, servidos sob o mesmo prefixo por conveniência (storage compartilhado).
-// state_train fica de fora de propósito — usado só internamente pelo container YOLO via
-// volume compartilhado, nunca servido por HTTP pro browser. Ver internal/stateengine/
-// history.go (state_history) e samples.go (state_samples) pra onde essas URLs nascem.
-var recordingsSpecialSegments = map[string]bool{
-	"state_history": true,
-	"state_samples": true,
-}
-
-// recordingsOrSPA distingue uma requisição de ARQUIVO real (1º segmento = câmera que existe,
-// ou um dos namespaces especiais em recordingsSpecialSegments) de uma rota de página da SPA
-// sob o mesmo prefixo /recordings/ (RecordingsPage: data, hora, view — qualquer profundidade,
-// com ou sem barra final): a auth só se aplica ao primeiro caso; o segundo é sempre servido
-// como a SPA — estático (index.html), sem precisar de auth aqui, já que o RequireAuth do React
-// cuida da página depois de carregada, igual toda outra rota protegida do app. Datas (ex.
-// "2026-07-27") nunca colidem com um ID de câmera nem com os namespaces especiais, então
+// recordingsOrSPA distingue uma requisição de ARQUIVO real (1º segmento = câmera que existe)
+// de uma rota de página da SPA sob o mesmo prefixo /recordings/ (RecordingsPage: data, hora,
+// view — qualquer profundidade, com ou sem barra final): a auth só se aplica ao primeiro
+// caso; o segundo é sempre servido como a SPA — estático (index.html), sem precisar de auth
+// aqui, já que o RequireAuth do React cuida da página depois de carregada, igual toda outra
+// rota protegida do app. Datas (ex. "2026-07-27") nunca colidem com um ID de câmera, então
 // qualquer profundidade cai pra SPA automaticamente, sem precisar registrar uma rota exata por
 // formato (a abordagem anterior — rotas exatas por profundidade — não generalizava: uma barra
 // final depois da data, ou uma profundidade futura nova, escapava e caía de volta no gate;
-// achado real do navigator testando /recordings/2026-07-27/). REGRESSÃO real já causada por
-// esta função antes do allowlist existir: state_history/state_samples nunca batem com uma
-// câmera, então caíam pra SPA (servindo o index.html em vez do JPEG — thumbnails quebradas em
-// RecordingsPage/CameraStatesSettingsPage).
+// achado real do navigator testando /recordings/2026-07-27/).
 func (s *Server) recordingsOrSPA(fileHandler http.Handler) http.HandlerFunc {
 	gated := s.requireRecordingsAccess(fileHandler)
 	return func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/recordings/"), "/", 2)
-		if parts[0] != "" && (s.cameraExists(parts[0]) || recordingsSpecialSegments[parts[0]]) {
+		if parts[0] != "" && s.cameraExists(parts[0]) {
 			gated(w, r)
 			return
 		}
@@ -859,7 +831,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			"recordings_path": s.cfg.RecordingsPath,
 		},
 		"storage": func() map[string]any {
-			wm, wom, interval, maxGB, warnPct, stateHistory := s.effectiveStorageSettings()
+			wm, wom, interval, maxGB, warnPct := s.effectiveStorageSettings()
 			return map[string]any{
 				"path":                   s.storageCfg.Path,
 				"with_motion_minutes":    wm,
@@ -867,7 +839,6 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 				"interval_minutes":       interval,
 				"max_size_gb":            maxGB,
 				"warn_percent":           warnPct,
-				"state_history_minutes":  stateHistory,
 			}
 		}(),
 		"defaults": map[string]any{
@@ -1549,7 +1520,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		diskTotal, diskFree = diskStats(s.cfg.RecordingsPath)
 	}
 
-	_, _, _, maxGB, warnPct, _ := s.effectiveStorageSettings()
+	_, _, _, maxGB, warnPct := s.effectiveStorageSettings()
 	maxSizeBytes := int64(maxGB * 1024 * 1024 * 1024)
 
 	chunkSec := int64(config.DefaultChunkDuration.Seconds())
@@ -2178,23 +2149,6 @@ func (s *Server) handleMotionEvents(w http.ResponseWriter, r *http.Request) {
 					entry["color"] = ev.Color
 				}
 				events = append(events, entry)
-			}
-		}
-		// Mescla as transições de estado (todos os classificadores da câmera) no
-		// mesmo feed, marcadas com kind="state". O frame já é um caminho servível
-		// absoluto; o id é negativado para não colidir com motion_events.
-		if transitions, err := db.ListCameraStateTransitions(s.db, id, dayStart, dayEnd); err == nil {
-			for _, tr := range transitions {
-				events = append(events, map[string]any{
-					"kind":            "state",
-					"id":              -tr.ID,
-					"time":            tr.ChangedAt.UTC().Format(time.RFC3339),
-					"score":           tr.Confidence,
-					"frame":           tr.FramePath,
-					"label":           tr.State,
-					"classifier_id":   tr.ClassifierID,
-					"classifier_name": tr.ClassifierName,
-				})
 			}
 		}
 		sort.Slice(events, func(i, j int) bool {

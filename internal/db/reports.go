@@ -8,7 +8,7 @@ import (
 )
 
 // DayCount is the event count for one calendar day (UTC), com a quebra por categoria
-// (movimento/pessoa/estados + qualquer label real detectado) para as barras empilhadas.
+// (movimento/pessoa + qualquer label real detectado) para as barras empilhadas.
 type DayCount struct {
 	Day        string           `json:"day"` // YYYY-MM-DD
 	Count      int64            `json:"count"`
@@ -32,18 +32,6 @@ func MotionCategory(label string) string {
 	return strings.ToLower(trimmed)
 }
 
-// StateCategory monta a chave composta de categoria de uma transição de state
-// classifier — estados:<slug-do-nome>:<estado> — mesma regra do `eventCategory` no
-// frontend (frontend/src/pages/eventCategory.ts): o slug é o nome do classificador
-// normalizado (trim+lowercase, mesma normalização de MotionCategory acima). Nome é
-// único POR CÂMERA (migration 0048), então a chave nunca fica ambígua dentro da mesma
-// câmera; classificadores homônimos em câmeras diferentes compartilham a mesma chave
-// de propósito (mesma UX de `MotionCategory`, que já agrega todas as câmeras).
-func StateCategory(classifierName, state string) string {
-	slug := strings.ToLower(strings.TrimSpace(classifierName))
-	return "estados:" + slug + ":" + strings.TrimSpace(state)
-}
-
 // HourCount is the event count for one hour-of-day (0..23) no fuso pedido, com a quebra
 // por categoria — usado no modo "dia" (barras por hora).
 type HourCount struct {
@@ -64,8 +52,7 @@ type DayHourCell struct {
 // EventReport aggregates events of a single camera over a period: total, per day
 // (ordered), per raw motion label and per category. As categorias movimento/pessoa e
 // qualquer outro label real são derivadas do label via MotionCategory (mesma regra do
-// eventCategory no frontend); `estados` (que não vem de label) é contada aqui em
-// ByCategory a partir de camera_state_history.
+// eventCategory no frontend).
 // ByHour só é preenchido no modo por hora (AggregateMotionEventsHourly); ByDay no diário.
 type EventReport struct {
 	Total      int64            `json:"total"`
@@ -76,10 +63,8 @@ type EventReport struct {
 	Heatmap    []DayHourCell    `json:"heatmap,omitempty"`
 }
 
-// AggregateMotionEvents conta os eventos de UMA câmera em [from, to): motion_events
-// (por dia e por label cru) somados às transições de estado (camera_state_history,
-// contabilizadas na categoria "estados"). occurred_at é RFC3339; changed_at é
-// 'YYYY-MM-DD HH:MM:SS', por isso a comparação de tempo do histórico passa por datetime().
+// AggregateMotionEvents conta os eventos de UMA câmera em [from, to): motion_events por
+// dia e por label cru. occurred_at é RFC3339.
 func AggregateMotionEvents(db *DB, from, to time.Time, cameraID string) (EventReport, error) {
 	dayCat := map[string]map[string]int64{}
 	addDay := func(d, cat string) {
@@ -115,35 +100,6 @@ func AggregateMotionEvents(db *DB, from, to time.Time, cameraID string) (EventRe
 		return EventReport{}, err
 	}
 
-	const tsLayout = "2006-01-02 15:04:05"
-	hRows, err := db.Query(
-		`SELECT h.changed_at, c.name, h.state
-		 FROM camera_state_history h
-		 JOIN camera_state_classifiers c ON c.id = h.classifier_id
-		 WHERE c.camera_id = ?
-		   AND datetime(h.changed_at) >= datetime(?)
-		   AND datetime(h.changed_at) < datetime(?)`,
-		cameraID, from.UTC().Format(tsLayout), to.UTC().Format(tsLayout),
-	)
-	if err != nil {
-		return EventReport{}, fmt.Errorf("aggregate state history: %w", err)
-	}
-	defer hRows.Close()
-	for hRows.Next() {
-		var changedAt time.Time
-		var classifierName, state string
-		if err := hRows.Scan(&changedAt, &classifierName, &state); err != nil {
-			return EventReport{}, fmt.Errorf("scan state row: %w", err)
-		}
-		total++
-		cat := StateCategory(classifierName, state)
-		addDay(changedAt.UTC().Format("2006-01-02"), cat)
-		byCategory[cat]++
-	}
-	if err := hRows.Err(); err != nil {
-		return EventReport{}, err
-	}
-
 	// Preenche TODOS os dias UTC da janela [from, to) — inclusive os sem evento — para
 	// o gráfico virar uma linha do tempo contínua (dias vazios = barra zero).
 	byDay := []DayCount{}
@@ -165,8 +121,8 @@ func AggregateMotionEvents(db *DB, from, to time.Time, cameraID string) (EventRe
 
 // AggregateMotionEventsHourly conta os eventos de UMA câmera em [from, to) — tipicamente
 // um único dia — agrupando por hora-do-dia (0..23) no fuso `loc`, com a mesma quebra por
-// categoria do diário (motion via label + estados de camera_state_history). Devolve 24
-// buckets (zero-fill) em ByHour; ByDay fica nil.
+// categoria do diário (motion via label). Devolve 24 buckets (zero-fill) em ByHour; ByDay
+// fica nil.
 func AggregateMotionEventsHourly(db *DB, from, to time.Time, cameraID string, loc *time.Location) (EventReport, error) {
 	if loc == nil {
 		loc = time.UTC
@@ -205,35 +161,6 @@ func AggregateMotionEventsHourly(db *DB, from, to time.Time, cameraID string, lo
 		return EventReport{}, err
 	}
 
-	const tsLayout = "2006-01-02 15:04:05"
-	hRows, err := db.Query(
-		`SELECT h.changed_at, c.name, h.state
-		 FROM camera_state_history h
-		 JOIN camera_state_classifiers c ON c.id = h.classifier_id
-		 WHERE c.camera_id = ?
-		   AND datetime(h.changed_at) >= datetime(?)
-		   AND datetime(h.changed_at) < datetime(?)`,
-		cameraID, from.UTC().Format(tsLayout), to.UTC().Format(tsLayout),
-	)
-	if err != nil {
-		return EventReport{}, fmt.Errorf("aggregate state history (hourly): %w", err)
-	}
-	defer hRows.Close()
-	for hRows.Next() {
-		var changedAt time.Time
-		var classifierName, state string
-		if err := hRows.Scan(&changedAt, &classifierName, &state); err != nil {
-			return EventReport{}, fmt.Errorf("scan state row: %w", err)
-		}
-		total++
-		cat := StateCategory(classifierName, state)
-		addHour(changedAt.In(loc).Hour(), cat)
-		byCategory[cat]++
-	}
-	if err := hRows.Err(); err != nil {
-		return EventReport{}, err
-	}
-
 	byHour := make([]HourCount, 24)
 	for h := 0; h < 24; h++ {
 		counts := hourCat[h]
@@ -250,10 +177,9 @@ func AggregateMotionEventsHourly(db *DB, from, to time.Time, cameraID string, lo
 }
 
 // AggregateMotionEventsDayHour conta os eventos de UMA câmera em [from, to) agrupando por
-// (data-local, hora-do-dia) no fuso `loc` — mesmo conjunto de fontes dos demais
-// agregadores (motion_events + camera_state_history). Devolve uma célula por (dia, hora)
-// para CADA dia do período (zero-fill ×24), ordenadas por data e depois hora. O nº de
-// dias acompanha a janela. Total = soma das células.
+// (data-local, hora-do-dia) no fuso `loc`. Devolve uma célula por (dia, hora) para CADA
+// dia do período (zero-fill ×24), ordenadas por data e depois hora. O nº de dias
+// acompanha a janela. Total = soma das células.
 func AggregateMotionEventsDayHour(db *DB, from, to time.Time, cameraID string, loc *time.Location) (EventReport, error) {
 	if loc == nil {
 		loc = time.UTC
@@ -285,33 +211,6 @@ func AggregateMotionEventsDayHour(db *DB, from, to time.Time, cameraID string, l
 		total++
 	}
 	if err := rows.Err(); err != nil {
-		return EventReport{}, err
-	}
-
-	const tsLayout = "2006-01-02 15:04:05"
-	hRows, err := db.Query(
-		`SELECT h.changed_at
-		 FROM camera_state_history h
-		 JOIN camera_state_classifiers c ON c.id = h.classifier_id
-		 WHERE c.camera_id = ?
-		   AND datetime(h.changed_at) >= datetime(?)
-		   AND datetime(h.changed_at) < datetime(?)`,
-		cameraID, from.UTC().Format(tsLayout), to.UTC().Format(tsLayout),
-	)
-	if err != nil {
-		return EventReport{}, fmt.Errorf("aggregate state history (day-hour): %w", err)
-	}
-	defer hRows.Close()
-	for hRows.Next() {
-		var changedAt time.Time
-		if err := hRows.Scan(&changedAt); err != nil {
-			return EventReport{}, fmt.Errorf("scan state row: %w", err)
-		}
-		lt := changedAt.In(loc)
-		cell[key{lt.Format("2006-01-02"), lt.Hour()}]++
-		total++
-	}
-	if err := hRows.Err(); err != nil {
 		return EventReport{}, err
 	}
 
