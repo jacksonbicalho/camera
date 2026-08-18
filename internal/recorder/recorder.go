@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"camera/internal/capturer/hls"
-	"camera/internal/capturer/mjpeg"
 	"camera/internal/capturer/rtsp"
 	"camera/internal/config"
 	"camera/internal/core"
@@ -54,8 +53,6 @@ func (r *Recorder) Start(now time.Time) error {
 	switch r.camera.EffectiveCaptureType() {
 	case "hls":
 		args = hls.ConnectArgs(r.camera.RTSPURL)
-	case "mjpeg":
-		args = mjpeg.ConnectArgs(r.camera.RTSPURL)
 	default:
 		args = rtsp.ConnectArgs(r.camera.RTSPURL)
 	}
