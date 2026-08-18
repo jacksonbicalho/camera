@@ -1,7 +1,8 @@
 // Package rtsp centraliza a captura de câmeras via RTSP — protocolo irmão de
-// internal/capturer/hls e internal/capturer/mjpeg, os 3 protocolos de captura
-// de 1ª classe do projeto — args/decisões compartilhadas entre
-// internal/recorder e internal/transmission/hls. internal/motion (pipe
+// internal/capturer/hls, os 2 protocolos de captura de 1ª classe do projeto
+// (o irmão MJPEG existiu até a história chore/remover-mjpeg-backend) — args/
+// decisões compartilhadas entre internal/recorder e
+// internal/transmission/hls. internal/motion (pipe
 // contínuo de frames), internal/transmission/webrtc (WebRTC, via gortsplib) e
 // internal/core/snapshot.go (captura de 1 frame JPEG) ficam fora de
 // propósito — mecanismos de captura genuinamente diferentes (o último por
