@@ -284,8 +284,38 @@ func main() {
 		}
 		// motionEventID só é confiável quando o insert acima teve sucesso —
 		// sem isso, o link da notificação apontaria pro evento errado (id 0).
-		if srv != nil && insertErr == nil {
-			srv.NotifyCameraMotion(cameraID, t, score, frame, rec.ID, motionEventID)
+		notifyReady := srv != nil && insertErr == nil
+		if !rec.EndedAt.IsZero() {
+			// Linha já fechada: cobertura confirmada, notifica na hora — é o
+			// caso comum/saudável, sem nenhum atraso.
+			if notifyReady {
+				srv.NotifyCameraMotion(cameraID, t, score, frame, rec.ID, motionEventID)
+			}
+		} else if notifyReady {
+			// Linha ainda aberta: a checagem síncrona é uma aposta sobre o
+			// futuro próximo (ver work_progress/analysis/202608172149_...) —
+			// adia a notificação persistente (sino/Telegram) num recheck
+			// assíncrono, sem bloquear este loop de frames do motion. O
+			// flash ao vivo (retorno abaixo) já disparou, sem esperar isso.
+			ticker := time.NewTicker(deferredNotifyPollInterval)
+			go func() {
+				defer ticker.Stop()
+				deferredNotifyMotion(
+					func() (db.Recording, bool) {
+						r, ok, err := db.FindRecordingCoveringMotion(database, cameraID, t, lead, trail)
+						if err != nil {
+							slog.Warn("failed to recheck for a covering recording", "camera", cameraID, "error", err)
+							return db.Recording{}, false
+						}
+						return r, ok
+					},
+					ticker.C,
+					deferredNotifyMaxTicks,
+					func(r db.Recording) {
+						srv.NotifyCameraMotion(cameraID, t, score, frame, r.ID, motionEventID)
+					},
+				)
+			}()
 		}
 		return true
 	}
