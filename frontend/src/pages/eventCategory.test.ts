@@ -12,7 +12,6 @@ import {
   categoryStrokeColor,
   categoryLabel,
 } from './eventCategory'
-import type { MotionEvent } from './cameraUtils'
 
 describe('recordingCategory', () => {
   const recAt = (ms: number) => ({ start: new Date(ms).toISOString() })
@@ -29,45 +28,6 @@ describe('recordingCategory', () => {
   it('ignora eventos fora do intervalo do chunk', () => {
     const events = [{ time: new Date(400_000).toISOString(), label: 'pessoa' }]
     expect(recordingCategory(recAt(0), events, 300_000)).toBe('continua')
-  })
-  it('chunk só com transição de estado (kind=state) → estados:<slug>:<estado> (verde)', () => {
-    const events = [
-      {
-        time: new Date(60_000).toISOString(),
-        label: 'aberto',
-        kind: 'state' as const,
-        classifier_name: 'Portão',
-      },
-    ]
-    expect(recordingCategory(recAt(0), events, 300_000)).toBe('estados:portão:aberto')
-  })
-  it('detecção real predomina sobre estado no mesmo chunk', () => {
-    const events = [
-      { time: new Date(60_000).toISOString(), label: 'aberto', kind: 'state' as const },
-      { time: new Date(90_000).toISOString(), label: '' },
-    ]
-    expect(recordingCategory(recAt(0), events, 300_000)).toBe('movimento')
-  })
-  it('estado tem prioridade sobre continua mas perde para pessoa/movimento/label específico', () => {
-    const stateOnly = [
-      {
-        time: new Date(60_000).toISOString(),
-        label: 'fechado',
-        kind: 'state' as const,
-        classifier_name: 'Portão',
-      },
-    ]
-    expect(recordingCategory(recAt(0), stateOnly, 300_000)).toBe('estados:portão:fechado')
-    const withPerson = [
-      {
-        time: new Date(60_000).toISOString(),
-        label: 'fechado',
-        kind: 'state' as const,
-        classifier_name: 'Portão',
-      },
-      { time: new Date(90_000).toISOString(), label: 'pessoa' },
-    ]
-    expect(recordingCategory(recAt(0), withPerson, 300_000)).toBe('pessoa')
   })
 
   describe('CA4: prioridade entre labels específicos, pessoa e movimento no mesmo chunk', () => {
@@ -105,13 +65,6 @@ describe('recordingCategory', () => {
         { time: new Date(20_000).toISOString(), label: 'gato' },
       ]
       expect(recordingCategory(recAt(0), reversed, 300_000)).toBe('carro')
-    })
-    it('estados sempre perde pra movimento (label vazio) no mesmo chunk', () => {
-      const events = [
-        { time: new Date(60_000).toISOString(), label: 'fechado', kind: 'state' as const },
-        { time: new Date(90_000).toISOString(), label: '' },
-      ]
-      expect(recordingCategory(recAt(0), events, 300_000)).toBe('movimento')
     })
   })
 
@@ -162,25 +115,13 @@ describe('eventCategory', () => {
       expect(eventCategory({ label: 'Cachorro' })).toBe('cachorro')
     })
   })
-  it('kind=state vira sempre estados:<slug>:<estado> — nunca cai em pessoa/movimento mesmo se o label disser isso', () => {
-    expect(eventCategory({ kind: 'state', label: 'aberto', classifier_name: 'Portão' })).toBe(
-      'estados:portão:aberto',
-    )
-    expect(eventCategory({ kind: 'state', label: 'pessoa', classifier_name: 'Sensor' })).toBe(
-      'estados:sensor:pessoa',
-    )
-    expect(eventCategory({ kind: 'state', label: '', classifier_name: 'Sensor' })).toBe(
-      'estados:sensor:',
-    )
-  })
 })
 
 describe('categoryColor', () => {
   describe('CA3: cores por categoria são fixas (conhecidas) e determinísticas (arbitrárias)', () => {
-    it('movimento/pessoa/estados/continua têm cor fixa conhecida', () => {
+    it('movimento/pessoa/continua têm cor fixa conhecida', () => {
       expect(categoryColor('movimento')).toBe('bg-amber-400')
       expect(categoryColor('pessoa')).toBe('bg-red-500')
-      expect(categoryColor('estados')).toBe('bg-green-500')
       expect(categoryColor('continua')).toBe('bg-blue-500')
     })
     it('um label arbitrário sempre devolve a MESMA cor (determinístico)', () => {
@@ -204,7 +145,6 @@ describe('categoryLabel', () => {
   it('capitaliza a 1ª letra pra exibição — mesma função pra categorias conhecidas e arbitrárias', () => {
     expect(categoryLabel('movimento')).toBe('Movimento')
     expect(categoryLabel('pessoa')).toBe('Pessoa')
-    expect(categoryLabel('estados')).toBe('Estados')
     expect(categoryLabel('carro')).toBe('Carro')
   })
   it('string vazia devolve vazia (sem quebrar)', () => {
@@ -216,7 +156,6 @@ describe('categoryBorderColor', () => {
   it('mesmo tom de categoryColor pra categorias conhecidas, só troca bg- por border-', () => {
     expect(categoryBorderColor('movimento')).toBe('border-amber-400')
     expect(categoryBorderColor('pessoa')).toBe('border-red-500')
-    expect(categoryBorderColor('estados')).toBe('border-green-500')
     expect(categoryBorderColor('continua')).toBe('border-blue-500')
   })
   it('label arbitrário: determinístico, e o MESMO tom de categoryColor pra essa categoria', () => {
@@ -231,7 +170,6 @@ describe('categoryStrokeColor', () => {
   it('mesmo tom de categoryColor pra categorias conhecidas, só troca bg- por stroke-', () => {
     expect(categoryStrokeColor('movimento')).toBe('stroke-amber-400')
     expect(categoryStrokeColor('pessoa')).toBe('stroke-red-500')
-    expect(categoryStrokeColor('estados')).toBe('stroke-green-500')
     expect(categoryStrokeColor('continua')).toBe('stroke-blue-500')
   })
   it('label arbitrário: determinístico, e o MESMO tom de categoryColor/categoryBorderColor pra essa categoria', () => {
@@ -249,7 +187,7 @@ describe('categoryStrokeColor', () => {
     // vitest/jsdom), mas documenta e trava o contrato: os 3 tons de uma mesma
     // categoria SEMPRE compartilham a cor (nunca um tom pra bg e outro pra
     // border/stroke), o que só é garantido pela estrutura de paleta com literais.
-    for (const cat of ['movimento', 'pessoa', 'estados', 'continua', 'carro', 'cachorro']) {
+    for (const cat of ['movimento', 'pessoa', 'continua', 'carro', 'cachorro']) {
       const tone = (cls: string) => cls.replace(/^(bg|border|stroke)-/, '')
       expect(tone(categoryBorderColor(cat))).toBe(tone(categoryColor(cat)))
       expect(tone(categoryStrokeColor(cat))).toBe(tone(categoryColor(cat)))
@@ -281,27 +219,12 @@ describe('firstEventInChunk', () => {
     const events = [ev(9, 400_000)]
     expect(firstEventInChunk(recAt(0), events, 300_000)).toBeNull()
   })
-  it('inclui transições de estado (kind=state)', () => {
-    const events = [ev(5, 90_000, { kind: 'state', label: 'aberto' })]
-    expect(firstEventInChunk(recAt(0), events, 300_000)?.id).toBe(5)
-  })
   it('sem eventos → null', () => {
     expect(firstEventInChunk(recAt(0), [], 300_000)).toBeNull()
   })
 })
 
 describe('eventCardLines', () => {
-  it('estado: classificador no título, estado no subtítulo (Janela / apagada)', () => {
-    expect(
-      eventCardLines({ kind: 'state', label: 'apagada', classifier_name: 'Janela' }, 'Cam1'),
-    ).toEqual({ title: 'Janela', subtitle: 'apagada' })
-  })
-  it('estado sem classifier_name cai pra câmera no título', () => {
-    expect(eventCardLines({ kind: 'state', label: 'apagada' }, 'Cam1')).toEqual({
-      title: 'Cam1',
-      subtitle: 'apagada',
-    })
-  })
   it('movimento: descrição no título, câmera no subtítulo', () => {
     expect(eventCardLines({ label: '' }, 'Cam1')).toEqual({
       title: 'Movimento detectado',
@@ -319,10 +242,9 @@ describe('filterEventsByCategory', () => {
     { id: 2, label: 'pessoa' },
     { id: 3, label: 'carro' },
     { id: 4, label: 'Pessoa detectada' },
-    { id: 5, label: 'aberto', kind: 'state' as const, classifier_name: 'Portão' },
   ]
   it('todos devolve tudo', () => {
-    expect(filterEventsByCategory(evs, 'todos')).toHaveLength(5)
+    expect(filterEventsByCategory(evs, 'todos')).toHaveLength(4)
   })
   it('filtra por movimento', () => {
     expect(filterEventsByCategory(evs, 'movimento').map((e) => e.id)).toEqual([1])
@@ -333,9 +255,6 @@ describe('filterEventsByCategory', () => {
   it('filtra por um label específico (ex.: carro) — fiel ao label real, não mais um bucket "ia"', () => {
     expect(filterEventsByCategory(evs, 'carro').map((e) => e.id)).toEqual([3])
   })
-  it('filtra por estados (transições kind=state) — categoria composta por classificador+estado', () => {
-    expect(filterEventsByCategory(evs, 'estados:portão:aberto').map((e) => e.id)).toEqual([5])
-  })
 })
 
 describe('matchesTimelineFilter', () => {
@@ -343,7 +262,6 @@ describe('matchesTimelineFilter', () => {
     expect(matchesTimelineFilter('continua', 'todos')).toBe(true)
     expect(matchesTimelineFilter('movimento', 'todos')).toBe(true)
     expect(matchesTimelineFilter('pessoa', 'todos')).toBe(true)
-    expect(matchesTimelineFilter('estados', 'todos')).toBe(true)
     expect(matchesTimelineFilter('carro', 'todos')).toBe(true)
   })
   describe('CA6: fora de "todos", o dropdown casa por igualdade estrita entre categoria e filtro (labels reais, não dicotomias amplas)', () => {
@@ -355,14 +273,12 @@ describe('matchesTimelineFilter', () => {
       expect(matchesTimelineFilter('movimento', 'movimento')).toBe(true)
       expect(matchesTimelineFilter('pessoa', 'movimento')).toBe(false)
       expect(matchesTimelineFilter('carro', 'movimento')).toBe(false)
-      expect(matchesTimelineFilter('estados', 'movimento')).toBe(false)
       expect(matchesTimelineFilter('continua', 'movimento')).toBe(false)
     })
     it('"pessoa" casa só com a categoria pessoa', () => {
       expect(matchesTimelineFilter('pessoa', 'pessoa')).toBe(true)
       expect(matchesTimelineFilter('movimento', 'pessoa')).toBe(false)
       expect(matchesTimelineFilter('carro', 'pessoa')).toBe(false)
-      expect(matchesTimelineFilter('estados', 'pessoa')).toBe(false)
       expect(matchesTimelineFilter('continua', 'pessoa')).toBe(false)
     })
     it('"continua" casa só com a categoria continua', () => {
@@ -379,37 +295,16 @@ describe('matchesTimelineFilter', () => {
   })
 })
 
-// história feat/estados-categoria-granular — a categoria de uma transição de state
-// classifier deixa de ser o bucket fixo 'estados' e vira uma chave composta por
-// (classificador, estado): estados:<slug-do-nome>:<estado>. `ev` é tipado via
-// Pick<MotionEvent, ...> (variável, não literal solto) pra `classifier_name` passar sem
-// disparar excess-property-check contra a assinatura ainda não-alterada de eventCategory.
-describe('CA3: categoria composta de transição de estado (estados:<slug>:<estado>)', () => {
-  const stateEvent = (
-    classifierName: string,
-    state: string,
-  ): Pick<MotionEvent, 'label' | 'kind' | 'classifier_name'> => ({
-    label: state,
-    kind: 'state',
-    classifier_name: classifierName,
+// chore/remover-classificacao-estados-frontend — classificação de estado sai por
+// completo: "estados"/"estados:*" deixa de ser uma categoria conhecida (cor fixa,
+// formatação especial) em todo o motor de categoria. `kind`/`classifier_name` também
+// saem do tipo MotionEvent (cameraUtils.ts) neste mesmo ticket.
+describe('CA4: classificação de estado removida — "estados"/"estados:*" deixam de ser categoria conhecida', () => {
+  it('categoryLabel não formata mais "estados:*" como "Estados: <Nome> · <estado>" — vira um label comum, capitalizado por inteiro', () => {
+    expect(categoryLabel('estados:pessoa:saindo')).toBe('Estados:pessoa:saindo')
   })
-
-  it('eventCategory computa a chave composta a partir do nome do classificador + estado', () => {
-    expect(eventCategory(stateEvent('Pessoa', 'saindo'))).toBe('estados:pessoa:saindo')
-    expect(eventCategory(stateEvent('Pessoa', 'entrando'))).toBe('estados:pessoa:entrando')
-    expect(eventCategory(stateEvent('Portão', 'aberto'))).toBe('estados:portão:aberto')
-  })
-
-  it('categoryLabel formata a categoria composta como "Estados: <Nome> · <estado>"', () => {
-    expect(categoryLabel('estados:pessoa:saindo')).toBe('Estados: Pessoa · saindo')
-    expect(categoryLabel('estados:portão:aberto')).toBe('Estados: Portão · aberto')
-  })
-
-  it('categoryColor/categoryBorderColor/categoryStrokeColor tratam QUALQUER estados:* como o mesmo verde fixo', () => {
-    expect(categoryColor('estados:pessoa:saindo')).toBe('bg-green-500')
-    expect(categoryColor('estados:portao:fechado')).toBe('bg-green-500')
-    expect(categoryColor('estados:pessoa:saindo')).toBe(categoryColor('estados:portao:fechado'))
-    expect(categoryBorderColor('estados:pessoa:saindo')).toBe('border-green-500')
-    expect(categoryStrokeColor('estados:pessoa:saindo')).toBe('stroke-green-500')
+  it('categoryColor não trata mais "estados"/"estados:*" como cor fixa verde — cai na paleta por hash, como qualquer label arbitrário', () => {
+    expect(categoryColor('estados')).not.toBe('bg-green-500')
+    expect(categoryColor('estados:pessoa:saindo')).not.toBe('bg-green-500')
   })
 })

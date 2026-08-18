@@ -6,7 +6,7 @@ export interface Moment {
   camera_id: string
   camera_name: string
   time: string
-  kind: 'motion' | 'state'
+  kind: 'motion'
   label?: string
   category: string
   frame?: string
@@ -29,7 +29,7 @@ interface UseMomentsResult {
   categories: string[]
 }
 
-// useMoments busca eventos de movimento/pessoa/ia/estados agregados de todas as câmeras
+// useMoments busca eventos de movimento/pessoa/ia agregados de todas as câmeras
 // (GET /api/moments) — extraído de RecordingsPage.tsx (aba "Momentos") pra ser reaproveitado
 // também pela MotionsPage (página dedicada). `page` é controlado por quem chama (não interno
 // ao hook): resetar via um efeito próprio do hook introduziria um ciclo de render a mais (a
@@ -84,9 +84,9 @@ export function useMoments({
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-// momentThumb resolve a URL do thumbnail: estado já vem como caminho absoluto
-// (/recordings/state_history/...); movimento é só o nome do arquivo, montado a partir
-// da câmera + dia UTC do instante.
+// momentThumb resolve a URL do thumbnail a partir do nome do arquivo (`frame`), montado a
+// partir da câmera + dia UTC do instante; um `frame` que já vier como caminho absoluto é
+// usado como está.
 export function momentThumb(m: Moment): string | null {
   if (!m.frame) return null
   if (m.frame.startsWith('/')) return `${m.frame}?token=${getToken()}`

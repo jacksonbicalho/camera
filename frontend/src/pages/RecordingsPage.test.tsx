@@ -70,10 +70,10 @@ const moments = [
     camera_id: 'cam1',
     camera_name: 'Corredor',
     time: '2026-06-23T08:08:05Z',
-    kind: 'state',
+    kind: 'motion',
     label: 'aberto',
-    category: 'estados:portão:aberto',
-    frame: '/recordings/state_history/1/x.jpg',
+    category: 'aberto',
+    frame: '20260623080805_motion.jpg',
     score: 0.9,
     recording_available: true,
   },
@@ -326,7 +326,7 @@ describe('RecordingsPage', () => {
 
   describe('CA5: filtro de categoria dinâmico (modo Momentos)', () => {
     // Momentos com um label específico dinâmico (ex.: "carro") além dos 2 padrão
-    // (estados/pessoa) — servidor filtra por `category` quando presente, igual à API real.
+    // (aberto/pessoa) — servidor filtra por `category` quando presente, igual à API real.
     const dynamicMoments = [
       ...moments,
       {
@@ -376,60 +376,6 @@ describe('RecordingsPage', () => {
       )
     }
 
-    it('REGRESSÃO: "estados" sempre fica por ÚLTIMO na ordenação, mesmo perdendo alfabeticamente pra outro label dinâmico', async () => {
-      // "estados" vem antes de "zebra" em ordem alfabética pura ('e' < 'z') — a regra da
-      // story exige "estados" sempre por último, independente disso (mesma convenção de
-      // ReportsPage.tsx). Reproduz com fetch próprio (não usa `dynamicMoments`/
-      // `stubMomentsFetch` do describe, que só tem "carro" — alfabeticamente ANTES de
-      // "estados", não pegaria a regressão).
-      vi.stubGlobal(
-        'fetch',
-        vi.fn((url: string) => {
-          if (url.startsWith('/api/moments')) {
-            const withZebra = [
-              ...moments,
-              {
-                camera_id: 'cam1',
-                camera_name: 'Corredor',
-                time: '2026-06-23T09:00:00Z',
-                kind: 'motion' as const,
-                label: 'zebra',
-                category: 'zebra',
-                frame: '20260623090000_motion.jpg',
-                score: 0.7,
-              },
-            ]
-            return Promise.resolve({
-              status: 200,
-              json: () =>
-                Promise.resolve({
-                  moments: withZebra,
-                  total: withZebra.length,
-                  hasMore: false,
-                  categories: [...new Set(withZebra.map((m) => m.category))],
-                }),
-            })
-          }
-          if (url.startsWith('/api/cameras'))
-            return Promise.resolve({ status: 200, json: () => Promise.resolve(cameras) })
-          return Promise.resolve({ status: 404, json: () => Promise.resolve({}) })
-        }),
-      )
-      renderRecordings()
-      await waitFor(() => {
-        expect(document.getElementById('moment-0')).not.toBeNull()
-      })
-      const chips = Array.from(
-        document.getElementById('recordings-category-chips')!.querySelectorAll('button'),
-      ).map((b) => b.id)
-      expect(chips).toEqual([
-        'recordings-cat-todos',
-        'recordings-cat-pessoa',
-        'recordings-cat-zebra',
-        'recordings-cat-estados:portão:aberto',
-      ])
-    })
-
     it('as opções do filtro são dinâmicas — refletem as categorias REAIS dos momentos carregados, não um array fixo', async () => {
       stubMomentsFetch()
       renderRecordings()
@@ -439,12 +385,12 @@ describe('RecordingsPage', () => {
       const chips = Array.from(
         document.getElementById('recordings-category-chips')!.querySelectorAll('button'),
       ).map((b) => b.id)
-      // pessoa primeiro, "carro" (alfabético entre os específicos) antes de "estados".
+      // pessoa primeiro, resto em ordem alfabética ("aberto" antes de "carro").
       expect(chips).toEqual([
         'recordings-cat-todos',
         'recordings-cat-pessoa',
+        'recordings-cat-aberto',
         'recordings-cat-carro',
-        'recordings-cat-estados:portão:aberto',
       ])
     })
 
@@ -470,7 +416,7 @@ describe('RecordingsPage', () => {
       })
     })
 
-    it('rótulos dos chips são capitalizados (categoryLabel) — "Todos"/"Pessoa"/"Carro"/"Estados: Portão · aberto"', async () => {
+    it('rótulos dos chips são capitalizados (categoryLabel) — "Todos"/"Pessoa"/"Aberto"/"Carro"', async () => {
       stubMomentsFetch()
       renderRecordings()
       await waitFor(() => {
@@ -479,7 +425,7 @@ describe('RecordingsPage', () => {
       const labels = Array.from(
         document.getElementById('recordings-category-chips')!.querySelectorAll('button'),
       ).map((b) => b.textContent?.trim())
-      expect(labels).toEqual(['Todos', 'Pessoa', 'Carro', 'Estados: Portão · aberto'])
+      expect(labels).toEqual(['Todos', 'Pessoa', 'Aberto', 'Carro'])
     })
 
     it('o chip da categoria ATIVA nunca desaparece, mesmo quando o servidor filtra a resposta pra só ela', async () => {
@@ -493,13 +439,13 @@ describe('RecordingsPage', () => {
         expect(document.getElementById('moment-1')).toBeNull() // já filtrado, só 1 momento
       })
       // mesmo com a resposta de `moments` contendo só "carro", o chip "carro" continua na
-      // lista (é o próprio filtro ativo) — e os demais (pessoa/estados) TAMBÉM continuam
+      // lista (é o próprio filtro ativo) — e os demais (pessoa/aberto) TAMBÉM continuam
       // visíveis, já que `filterOptions` deriva de `categories` (universo fixo do dia),
       // não da resposta filtrada (ver story fix-chips-categoria-somem-multiselecao).
       expect(document.getElementById('recordings-cat-carro')).not.toBeNull()
       expect(document.getElementById('recordings-cat-todos')).not.toBeNull()
       expect(document.getElementById('recordings-cat-pessoa')).not.toBeNull()
-      expect(document.getElementById('recordings-cat-estados:portão:aberto')).not.toBeNull()
+      expect(document.getElementById('recordings-cat-aberto')).not.toBeNull()
     })
   })
 
@@ -625,7 +571,7 @@ describe('RecordingsPage', () => {
   })
 
   describe('CA3: chips de categoria não desaparecem com filtro ativo (fix multi-seleção)', () => {
-    // Mesmas 3 categorias de CA3 acima (pessoa/carro/estados), mas o servidor devolve o
+    // Mesmas 3 categorias de CA3 acima (pessoa/carro/aberto), mas o servidor devolve o
     // universo FIXO de categorias do dia via `categories` — independente do `category`
     // ativo na query, ao contrário de `moments` (que o servidor real filtra de verdade).
     const stableMoments = [
@@ -659,7 +605,7 @@ describe('RecordingsPage', () => {
                   moments: filtered,
                   total: filtered.length,
                   hasMore: false,
-                  categories: ['carro', 'estados:portão:aberto', 'pessoa'],
+                  categories: ['carro', 'aberto', 'pessoa'],
                 }),
             })
           }
@@ -685,7 +631,7 @@ describe('RecordingsPage', () => {
         expect(document.getElementById('moment-1')).toBeNull()
       })
       expect(document.getElementById('recordings-cat-carro')).not.toBeNull()
-      expect(document.getElementById('recordings-cat-estados:portão:aberto')).not.toBeNull()
+      expect(document.getElementById('recordings-cat-aberto')).not.toBeNull()
     })
 
     it('permite adicionar uma 2ª categoria DEPOIS que o fetch da 1ª já resolveu (fluxo real, não uma corrida de timing)', async () => {

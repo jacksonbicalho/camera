@@ -171,8 +171,6 @@ function stubFetch(
     time: string
     score?: number
     label?: string
-    kind?: 'motion' | 'state'
-    classifier_name?: string
   }> = [],
   cameraList: typeof cameras = cameras,
 ) {
@@ -1141,34 +1139,6 @@ describe('HistoryPage', () => {
         // Não é só o <select> mentindo — o filtro de VERDADE (estado React) também voltou pra
         // "Tudo": o card do dia novo continua visível (nada some por engano).
         expect(document.getElementById('history-recording-3')).not.toBeNull()
-      })
-    })
-
-    describe('CA4: transição de state classifier vira uma opção própria do dropdown, "Estados: <Nome> · <estado>"', () => {
-      it('o dropdown ganha uma opção "estados:<slug>:<estado>" com o rótulo "Estados: <Nome> · <estado>"', async () => {
-        stubFetch(recordings, [
-          {
-            time: '2026-07-05T08:03:30Z',
-            label: 'saindo',
-            kind: 'state',
-            classifier_name: 'Pessoa',
-          },
-        ])
-        renderAt('/history/cam1')
-        await waitFor(() => {
-          expect(document.getElementById('history-recording-1')).not.toBeNull()
-        })
-        const select = document.getElementById('history-filter-dropdown') as HTMLSelectElement
-        const options = Array.from(select.options).map((o) => ({
-          value: o.value,
-          label: o.textContent,
-        }))
-        expect(options).toContainEqual({
-          value: 'estados:pessoa:saindo',
-          label: 'Estados: Pessoa · saindo',
-        })
-        // não sobra mais a opção genérica "estados" (bucket antigo, indistinto)
-        expect(options.some((o) => o.value === 'estados')).toBe(false)
       })
     })
 

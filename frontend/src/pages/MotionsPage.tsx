@@ -11,10 +11,9 @@ import { categoryColor, categoryLabel } from './eventCategory'
 import { useMoments, momentThumb } from '../hooks/useMoments'
 
 // sortCategories/parseLocalDate — mesma lógica de RecordingsPage.tsx/ReportsPage.tsx
-// (pessoa primeiro, movimento depois, resto alfabético, estados sempre por último).
+// (pessoa primeiro, movimento depois, resto alfabético).
 function sortCategories(categories: Iterable<string>): string[] {
-  const rank = (cat: string) =>
-    cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : cat.startsWith('estados:') ? 3 : 2
+  const rank = (cat: string) => (cat === 'pessoa' ? 0 : cat === 'movimento' ? 1 : 2)
   return [...categories].sort((a, b) => {
     const diff = rank(a) - rank(b)
     return diff !== 0 ? diff : a.localeCompare(b)
@@ -32,7 +31,7 @@ interface CameraOption {
   name: string
 }
 
-// MotionsPage — página dedicada aos "momentos" (eventos de movimento/pessoa/ia/estados
+// MotionsPage — página dedicada aos "momentos" (eventos de movimento/pessoa/ia
 // agregados de todas as câmeras), sem janela de horas (a busca é só por dia). Coexiste com a
 // aba "Momentos" já existente dentro de RecordingsPage — mesmo dado (GET /api/moments, via
 // useMoments compartilhado), UI própria.
@@ -124,7 +123,7 @@ export default function MotionsPage() {
       <div id="motions-content" className="page-content space-y-4">
         <PageHeader
           title="Momentos"
-          subtitle="Eventos de movimento, pessoa, IA e estados de todas as câmeras — clique para abrir na gravação."
+          subtitle="Eventos de movimento, pessoa e IA de todas as câmeras — clique para abrir na gravação."
           actions={
             <>
               <input
