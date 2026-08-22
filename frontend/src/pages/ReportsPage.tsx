@@ -35,9 +35,9 @@ function parseLocalDate(s: string | undefined): Date {
 }
 
 // categoryDescription — texto do modal de detalhe da categoria; movimento/pessoa têm frase
-// própria (comportamento conhecido do produto), qualquer outro label (dinâmico, fiel à
-// classificação real do YOLO) usa uma frase genérica com o próprio label — não mais um
-// bucket "Detecções de modelos de IA" que escondia o que foi de fato detectado.
+// própria (comportamento conhecido do produto), qualquer outro label (dinâmico) usa uma
+// frase genérica com o próprio label — não mais um bucket "Detecções de modelos de IA"
+// que escondia o que foi de fato detectado.
 function categoryDescription(cat: string): string {
   if (cat === 'movimento') return 'Movimento detectado por diferença de pixels, sem classificação.'
   if (cat === 'pessoa') return 'Detecções classificadas como pessoa.'

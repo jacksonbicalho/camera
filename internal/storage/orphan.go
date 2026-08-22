@@ -12,7 +12,8 @@ import (
 //
 // Must be called at startup before the recorder and cleaner begin so that
 // syncRecordings cannot assign ended_at to these files and make them eligible
-// for YOLO analysis with a corrupt or incomplete MP4.
+// for has_motion association and retention processing (internal/storage/cleaner.go)
+// with a corrupt or incomplete MP4.
 //
 // Returns the number of recording rows successfully removed from the database.
 func CleanOrphanedRecordings(database *db.DB, log *slog.Logger) int {
