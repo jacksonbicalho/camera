@@ -178,8 +178,7 @@ func (s *Server) handleMoments(w http.ResponseWriter, r *http.Request) {
 // recordingCoversWindow reports whether any recording overlaps
 // [occurred-lead, occurred+trail] — same formula internal/storage/cleaner.go
 // already uses to associate has_motion. A recording with a zero EndedAt (still
-// open) is treated as covering up to and beyond "now", same as ended_at IS
-// NULL in ListStateHistory (internal/db/state_classifiers.go).
+// open) is treated as covering up to and beyond "now".
 func recordingCoversWindow(recs []db.Recording, occurred time.Time, leadSec, trailSec int) bool {
 	winStart := occurred.Add(-time.Duration(leadSec) * time.Second)
 	winEnd := occurred.Add(time.Duration(trailSec) * time.Second)

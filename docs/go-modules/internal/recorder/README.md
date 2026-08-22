@@ -5,9 +5,10 @@ Grava o stream RTSP/HLS de uma câmera em chunks MP4 **não fragmentados**
 detectado exigirem). Armazena em
 `{storage}/{camera_id}/{YYYY/MM/DD}/{YYYYMMDDHHmmss}.mp4`.
 
-MP4 não fragmentado é uma escolha deliberada: fragmentado quebra
-OpenCV/YOLO na análise posterior — não propor mudar isso sem revisitar essa
-decisão.
+MP4 não fragmentado é uma escolha deliberada: fragmentado atrasa a escrita do
+moov atom pro fim do arquivo, quebrando a duração/reprodução de um chunk lido
+enquanto ainda está sendo gravado (ver `internal/server/server.go`,
+`noCacheRecordings`) — não propor mudar isso sem revisitar essa decisão.
 
 ## Arquivos principais
 - `recorder.go` — `Recorder`/`NewRecorder`. `Start` monta os args

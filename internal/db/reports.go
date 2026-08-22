@@ -19,8 +19,8 @@ var personRe = regexp.MustCompile(`(?i)pessoa|person`)
 
 // MotionCategory deriva a categoria de um motion event pelo label — mesma regra do
 // eventCategory no frontend: vazio→movimento, pessoa/person→pessoa, resto→o próprio
-// label (normalizado por trim+lowercase) — fiel à classificação real do YOLO (ex.:
-// "car"/"Dog "), não mais um bucket genérico "ia" que descartava o que foi detectado.
+// label (normalizado por trim+lowercase, ex.: "car"/"Dog "), não mais um bucket
+// genérico "ia" que descartava o que foi detectado.
 func MotionCategory(label string) string {
 	trimmed := strings.TrimSpace(label)
 	if trimmed == "" {

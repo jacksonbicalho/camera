@@ -85,8 +85,7 @@ function formatClock(ms: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-// eventFrameURL monta a URL do frame limpo extraído no instante dado — mesmo padrão de
-// CameraStatesSettingsPage.tsx.
+// eventFrameURL monta a URL do frame limpo extraído no instante dado.
 function eventFrameURL(cameraId: string, ms: number): string {
   return `/api/cameras/${cameraId}/event-frame?time=${encodeURIComponent(new Date(ms).toISOString())}&token=${getToken()}`
 }

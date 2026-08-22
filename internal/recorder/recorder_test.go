@@ -180,7 +180,7 @@ func TestRecorderStartsFFmpegWithCorrectArguments(t *testing.T) {
 		t.Error("expected -avoid_negative_ts make_zero in args")
 	}
 	if containsArg(args, "-segment_format_options") {
-		t.Error("recorder must not use -segment_format_options (fragmented MP4 breaks OpenCV/YOLO)")
+		t.Error("recorder must not use -segment_format_options (fragmented MP4 delays the moov atom, breaking duration/playback until the chunk closes)")
 	}
 	if !containsSequence(args, "-strftime", "1") {
 		t.Error("expected -strftime 1 in args")

@@ -56,7 +56,7 @@ func TestMomentsRecordingAvailable(t *testing.T) {
 		}
 
 		// Evento coberto por uma gravação AINDA ABERTA (EndedAt zero) — deve contar como
-		// cobertura, mesmo tratamento que ListStateHistory já dá a ended_at IS NULL.
+		// cobertura (mesmo tratamento de ended_at IS NULL que recordingCoversWindow acima já dá).
 		openEnded := day.Add(14*time.Hour + 30*time.Second)
 		if err := db.InsertMotionEvent(database, db.MotionEvent{
 			CameraID: "cam1", OccurredAt: openEnded, Score: 0.5, FramePath: "c.jpg",
