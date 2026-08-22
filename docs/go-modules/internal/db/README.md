@@ -4,9 +4,8 @@ Acesso ao SQLite (`modernc.org/sqlite`, driver puro Go — sem cgo). Executa
 migrations em `internal/db/migrations/` na inicialização (ver
 [db/migrations](migrations/README.md)). Cada arquivo do pacote agrupa os
 accessors de um domínio (`cameras.go`, `users.go`, `recordings.go`,
-`motion_events.go`, `drives.go`, `trainers.go`,
-`detectors.go`, `device_info.go`, `zones.go`, `analysis.go`,
-`content_days.go`, `annotations.go`, `reports.go`, `config.go`, `logging.go`,
+`motion_events.go`, `drives.go`, `device_info.go`, `zones.go`,
+`content_days.go`, `reports.go`, `config.go`, `logging.go`,
 `emailchange.go`, `passwordreset.go`, `theme.go`, `notifications.go`,
 `seed.go`).
 

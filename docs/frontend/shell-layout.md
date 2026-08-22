@@ -56,18 +56,24 @@ usa, e as camadas de navegação de `/settings/*`.
 De cima pra baixo: 1ª seção sem cabeçalho visível (só "Ao vivo", `end: true`,
 aponta pra `/`); `Câmeras e Gravações` (Câmeras, Gravações `/recordings`,
 Histórico `/history`, Relatórios `/reports` — **todos os itens visíveis pra
-qualquer role**, sem gate `isAdmin`); `Inteligência` (admin: Análise de
-vídeo, Rotular eventos — âncora na mesma página —, Detectores de objetos,
-Treinadores); `Administração` (admin: Servidor, Rastrear câmeras, Usuários,
-Preferências — `/settings/preferences/extensions`, ponto de entrada único
-pra Extensões/Aparência/Armazenamento).
+qualquer role**, sem gate `isAdmin`); `Administração` (admin: Servidor,
+Rastrear câmeras, Usuários, Preferências —
+`/settings/preferences/extensions`, ponto de entrada único pra
+Extensões/Aparência/Armazenamento).
 
-O item "Estados" (classificação de estado por câmera, `/settings/states`)
-foi removido junto com toda a UI dedicada (história
+A seção `Inteligência` (Análise de vídeo, Rotular eventos, Detectores de
+objetos, Treinadores) foi removida por inteiro junto com toda a
+funcionalidade de análise/detecção de objetos (história
+`chore/remover-analise-objetos`), que também removeu a capacidade
+equivalente do backend Go e o serviço YOLO — mesmo padrão da remoção
+anterior do item "Estados" (classificação de estado por câmera,
 `chore/remover-classificacao-estados-frontend`, 1ª de 3 histórias
-sequenciais que também removeram a capacidade do backend Go e, por fim, os
-próprios endpoints do serviço YOLO — a funcionalidade não existe mais em
-nenhuma camada).
+sequenciais que também removeram a capacidade do backend Go e os próprios
+endpoints do serviço YOLO). Nenhuma das duas funcionalidades existe mais em
+nenhuma camada. `SidebarNavLink`/`NavItemDef` não têm mais o campo
+`matchHash` — existia só pra diferenciar Análise de vídeo/Rotular eventos,
+que compartilhavam pathname com hash diferente; sem esses itens, todo
+`isActive` volta a usar o comportamento nativo do `NavLink`.
 
 Os 3 itens de Gravações/Histórico/Relatórios já foram admin-only
 (`{isAdmin && (...)}`); o gate foi removido porque escondia páginas cujo
@@ -75,11 +81,6 @@ backend já filtrava corretamente os dados por câmera concedida (viewer sem
 acesso nenhuma câmera só via listas vazias, mesmo comportamento que
 "Câmeras" já tinha). Não reintroduzir o gate sem que o backend também
 regrida — os dois andam juntos.
-
-`SidebarNavLink` aceita `matchHash?: string` — só necessário quando dois
-itens da mesma seção compartilham pathname e diferem só pelo hash (Análise
-de vídeo/Rotular eventos), já que o `isActive` nativo do `NavLink` ignora
-hash.
 
 ## Largura do conteúdo (`.page-content`)
 

@@ -17,7 +17,6 @@ Sistema de monitoramento residencial via RTSP. Um único binário estático grav
 - **Configuração via UI** — câmeras, motion e zonas de exclusão gerenciados pela interface web, sem editar arquivos
 - **Interface web embarcada** — React/Tailwind embutido no binário, zero dependências de assets externos
 - **Multi-câmera** — número ilimitado de câmeras, cada uma com overrides individuais de codec, resolução e detecção
-- **Análise de vídeo (YOLO)** — serviço opcional que analisa cada gravação com modelos YOLO; suporta fine-tuning com seus próprios snapshots anotados; compatível com GPU NVIDIA via docker-compose override
 - **Binário único** — dependências: `ffmpeg` no sistema + SQLite embutido no binário
 
 ---
@@ -34,7 +33,6 @@ Sistema de monitoramento residencial via RTSP. Um único binário estático grav
 | [Detecção de movimento](docs/motion.md) | Threshold, zonas, buffer pré/pós-evento |
 | [Armazenamento](docs/storage.md) | Retenção, limpeza e limites de disco |
 | [Usuários](docs/users.md) | Papéis, permissões e autenticação |
-| [Análise de vídeo](docs/analysis.md) | Serviço YOLO, GPU, fine-tuning e modelos disponíveis |
 
 ---
 
