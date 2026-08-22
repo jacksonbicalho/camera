@@ -321,7 +321,6 @@ function StatusBadges({ cam }: { cam: Camera }) {
     <>
       {cam.motion?.enabled && <Badge variant="success">Detecção</Badge>}
       {cam.recording_enabled && <Badge variant="danger">Gravando</Badge>}
-      {cam.analysis_enabled && <Badge variant="info">Análise de objetos</Badge>}
     </>
   )
 }

@@ -55,14 +55,14 @@ func formatDuration(d time.Duration) string {
 }
 
 type motionConfigDTO struct {
-	Enabled             bool    `json:"enabled"`
-	Threshold           float64 `json:"threshold"`
-	FPS                 int     `json:"fps"`
-	CooldownSeconds     int     `json:"cooldown_seconds"`
-	CaptureWidth         int `json:"capture_width,omitempty"`
-	CaptureHeight        int `json:"capture_height,omitempty"`
-	PlaybackLeadSeconds  int `json:"playback_lead_seconds"`
-	PlaybackTrailSeconds int `json:"playback_trail_seconds"`
+	Enabled              bool    `json:"enabled"`
+	Threshold            float64 `json:"threshold"`
+	FPS                  int     `json:"fps"`
+	CooldownSeconds      int     `json:"cooldown_seconds"`
+	CaptureWidth         int     `json:"capture_width,omitempty"`
+	CaptureHeight        int     `json:"capture_height,omitempty"`
+	PlaybackLeadSeconds  int     `json:"playback_lead_seconds"`
+	PlaybackTrailSeconds int     `json:"playback_trail_seconds"`
 }
 
 type cameraConfigDTO struct {
@@ -87,7 +87,6 @@ type cameraConfigDTO struct {
 	RecordingEnabled  bool             `json:"recording_enabled"`
 	LiveEnabled       bool             `json:"live_enabled"`
 	Motion            *motionConfigDTO `json:"motion"`
-	AnalysisEnabled   bool             `json:"analysis_enabled"`
 }
 
 func cameraToDTO(cam config.CameraConfig) cameraConfigDTO {
@@ -170,13 +169,6 @@ func (s *Server) handleListSettingsCameras(w http.ResponseWriter, r *http.Reques
 	list := make([]cameraConfigDTO, len(cams))
 	for i, c := range cams {
 		dto := cameraToDTO(c)
-		if cfg, err := db.GetCameraAnalysisConfig(s.db, c.ID); err == nil {
-			// AnalysisEnabled reflects whether the camera is actually
-			// analyzed (same criteria analyzeNewRecordings uses to pick
-			// candidates), not just the raw Enabled bit — a camera with no
-			// detector chosen is never analyzed regardless of Enabled.
-			dto.AnalysisEnabled = cfg.Enabled && cfg.DetectorID != nil
-		}
 		list[i] = dto
 	}
 	w.Header().Set("Content-Type", "application/json")

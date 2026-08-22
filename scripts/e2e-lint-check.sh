@@ -4,7 +4,7 @@
 # e2e/docker-compose.yml — mas SEM subir o harness (não depende de câmera
 # nem Playwright instalado), então é rápido o bastante pra rodar em todo PR
 # que toque e2e/, chamado por scripts/check.sh (mesmo padrão de
-# frontend-check.sh/yolo-check.sh).
+# frontend-check.sh).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

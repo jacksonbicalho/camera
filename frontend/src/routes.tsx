@@ -22,15 +22,6 @@ const CamerasSettingsPage = lazy(() => import('./pages/settings/CamerasSettingsP
 const CameraDetailSettingsPage = lazy(() => import('./pages/settings/CameraDetailSettingsPage'))
 const CameraZonesSettingsPage = lazy(() => import('./pages/settings/CameraZonesSettingsPage'))
 const DiscoverPage = lazy(() => import('./pages/settings/DiscoverPage'))
-const AnalysisSettingsPage = lazy(() => import('./pages/settings/AnalysisSettingsPage'))
-const LabelEventsPage = lazy(() => import('./pages/settings/LabelEventsPage'))
-const ObjectDetectorsSettingsPage = lazy(
-  () => import('./pages/settings/ObjectDetectorsSettingsPage'),
-)
-const ObjectDetectorFormPage = lazy(() => import('./pages/settings/ObjectDetectorFormPage'))
-const ObjectDetectorTestPage = lazy(() => import('./pages/settings/ObjectDetectorTestPage'))
-const TrainersSettingsPage = lazy(() => import('./pages/settings/TrainersSettingsPage'))
-const TrainerFormPage = lazy(() => import('./pages/settings/TrainerFormPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -245,62 +236,6 @@ export const routes = (
       }
     />
     <Route
-      path="/settings/detectors"
-      element={
-        <Lazy>
-          <ObjectDetectorsSettingsPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/detectors/new"
-      element={
-        <Lazy>
-          <ObjectDetectorsSettingsPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/detectors/edit/:id"
-      element={
-        <Lazy>
-          <ObjectDetectorFormPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/detectors/test/:id"
-      element={
-        <Lazy>
-          <ObjectDetectorTestPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/trainers"
-      element={
-        <Lazy>
-          <TrainersSettingsPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/trainers/new"
-      element={
-        <Lazy>
-          <TrainersSettingsPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/trainers/edit/:id"
-      element={
-        <Lazy>
-          <TrainerFormPage />
-        </Lazy>
-      }
-    />
-    <Route
       path="/settings/preferences/extensions"
       element={
         <Lazy>
@@ -361,22 +296,6 @@ export const routes = (
       element={
         <Lazy>
           <DiscoverPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/analysis"
-      element={
-        <Lazy>
-          <AnalysisSettingsPage />
-        </Lazy>
-      }
-    />
-    <Route
-      path="/settings/label-events"
-      element={
-        <Lazy>
-          <LabelEventsPage />
         </Lazy>
       }
     />

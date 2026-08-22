@@ -39,15 +39,9 @@ id" e o carve-out sempre-editável desta página.
   aqui. Título/borda vivem num wrapper privado `MotionPanel`; sub-blocos
   usam `FieldGroup` (privado, sem `Card` próprio) em vez de `SettingsSection`
   aninhado (evita painel-dentro-de-painel).
-- `components/CameraAnalysisSection.tsx` — sessão "Detector de objetos"
-  (título exibido; nome do componente/arquivo continua `Analysis`, ligado à
-  API por trás). **Só no branch admin** (a API é `authAdmin`, viewer não
-  teria dado pra mostrar). Checkbox Habilitado + select Detector + slider de
-  Limiar + botão "Aplicar" próprio (`camera-analysis-save`), mesmo padrão
-  das outras seções (`size="sm"`, alinhamento à esquerda).
 - `pages/settings/CameraDetailSettingsPage.tsx` — branch **admin**: monta
   `CameraCaptureSection`+`CameraRecordingSection`+`CameraTransmissionSection`
-  +`MotionFormContent`+`CameraAnalysisSection`, as 5 seções sempre
+  +`MotionFormContent`, as 4 seções sempre
   editáveis, cada uma com seu próprio "Aplicar". `SettingsSection`
   "Identificação" mostra só o ID (Nome vive em `CameraCaptureSection`).
   `PageHeader.actions` tem o botão "+ Nova câmera" (id `camera-create`, só
@@ -75,7 +69,7 @@ id" e o carve-out sempre-editável desta página.
   empilhadas (história `refactor/camera-list-cards`). Cada card tem id
   `camera-card-<id>`. Thumbnail do snapshot em destaque no topo (dentro do
   `Link` pro detalhe). Badges condicionais ("Detecção" verde, "Gravando"
-  vermelho, "Análise de objetos" azul). No branch admin, `children` = botões
+  vermelho). No branch admin, `children` = botões
   **Configurar** (ícone `Settings`, mesmo rótulo/ícone que
   `S3ExtensionCard` já usa — reforça o "mesmo modelo de extensões") e
   **Excluir**; drag-and-drop pra reordenar (`PUT

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -53,7 +54,7 @@ func setupEventByIDTest(t *testing.T) (srv *server.Server, token string, eventID
 func TestGetEventByID_ReturnsEvent(t *testing.T) {
 	srv, token, eventID := setupEventByIDTest(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/events/"+itoa(eventID), nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/events/"+strconv.FormatInt(eventID, 10), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, req)

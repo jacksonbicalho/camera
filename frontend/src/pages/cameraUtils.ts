@@ -15,12 +15,6 @@ export interface Recording {
   url: string
   is_recording: boolean
   has_motion: boolean
-  detections?: Array<{
-    label: string
-    confidence: number
-    frame_count: number
-    custom_model?: boolean
-  }>
 }
 
 // recordingDurationMs calcula a duração REAL de um chunk: usa `end` quando presente,
@@ -43,17 +37,6 @@ export interface MotionBBox {
   y: number
   w: number
   h: number
-}
-
-export interface Annotation {
-  id: number
-  event_id: number
-  label: string
-  bbox_x: number
-  bbox_y: number
-  bbox_w: number
-  bbox_h: number
-  created_at: string
 }
 
 export interface MotionEvent {
@@ -82,8 +65,7 @@ function sameRecording(a: Recording, b: Recording): boolean {
     a.end === b.end &&
     a.url === b.url &&
     a.is_recording === b.is_recording &&
-    a.has_motion === b.has_motion &&
-    JSON.stringify(a.detections) === JSON.stringify(b.detections)
+    a.has_motion === b.has_motion
   )
 }
 

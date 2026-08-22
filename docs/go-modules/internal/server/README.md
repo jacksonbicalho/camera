@@ -134,10 +134,6 @@ tabela de rotas não cobre esse caso.
 dispara automaticamente em background no cadastro
 (`captureDeviceInfoAsync`).
 
-## Trainers e fine-tuning (`trainers.go`, `finetune.go`)
-`trainers.go`/`finetune.go` — CRUD de trainers e disparo de fine-tuning de
-object detection, ver [internal/trainer](../trainer/README.md).
-
 ## Build info e atualização (`server.go`, via [internal/release](../release/README.md))
 `GET /api/about` expõe `version`/`commit`/`builtAt` (`-ldflags`) +
 `uptime_seconds`/`go_version` + `release_notes_version`/`release_notes_md`
@@ -145,4 +141,4 @@ object detection, ver [internal/trainer](../trainer/README.md).
 do `updateChecker`, que só vê a "latest").
 
 ## Ver também
-- [internal/notifications](../notifications/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md), [internal/trainer](../trainer/README.md) — os domínios que este pacote expõe via HTTP.
+- [internal/notifications](../notifications/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md) — os domínios que este pacote expõe via HTTP.

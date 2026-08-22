@@ -17,8 +17,7 @@ mudar este pacote.
 
 Um sender por subpacote, **sem registry global nem `init()`** (diferente de
 um padrão de plugin auto-registrado) — os senders são construídos
-explicitamente em `main.go` e passados pro `Dispatcher`, mesmo espírito de
-[internal/trainer](../trainer/README.md)/[internal/detector](../detector/README.md).
+explicitamente em `main.go` e passados pro `Dispatcher`.
 
 ## Subpacotes
 - [application](application/README.md) — o canal que já existia antes deste módulo (persistência + push ao vivo).

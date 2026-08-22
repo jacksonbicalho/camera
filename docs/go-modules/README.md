@@ -2,7 +2,7 @@
 
 Documentação por pacote Go do os-camera — um `README.md` por diretório real de
 `internal/`, incluindo os diretórios "pai" que agrupam mais de um subpacote
-(`capture`, `transmission`, `detector`, `trainer`, `notifications`, `db`).
+(`capture`, `transmission`, `notifications`, `db`).
 
 **Esta árvore é a fonte de verdade** sobre cada pacote — o `CLAUDE.md` só
 referencia o arquivo/seção correspondente quando precisa do assunto, nunca
@@ -39,13 +39,6 @@ completo, o conteúdo chega por cluster.
 - [internal/dbbackup](internal/dbbackup/README.md)
 - [internal/storage](internal/storage/README.md)
 - [internal/deviceinfo](internal/deviceinfo/README.md)
-
-## IA e análise
-- [internal/analysis](internal/analysis/README.md)
-- [internal/detector](internal/detector/README.md)
-  - [internal/detector/adapters](internal/detector/adapters/README.md)
-- [internal/trainer](internal/trainer/README.md)
-  - [internal/trainer/adapters](internal/trainer/adapters/README.md)
 
 ## Aplicação e entrega
 - [internal/server](internal/server/README.md)

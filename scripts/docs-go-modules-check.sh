@@ -20,7 +20,7 @@ mapfile -t leaf_pkgs < <(find internal -type f -name '*.go' ! -name '*_test.go' 
 # Diretórios "pai" que agrupam filhos e também ganham um README próprio
 # (não descobertos por `find` porque não têm .go direto) — lista curta,
 # atualizada manualmente quando um novo agrupamento desse tipo nascer.
-parent_pkgs=(capture transmission detector trainer notifications db)
+parent_pkgs=(capture transmission notifications db)
 
 # Diretórios com README próprio mas sem nenhum .go (ex.: só .sql) — não
 # descobertos por `find` nem são um "pai" de subpacotes Go. Lista curta,
@@ -31,20 +31,18 @@ non_go_pkgs=(db/migrations)
 cluster_infra=(core config exec ffprobe logger)
 cluster_captura=(capture capture/rtsp capture/hls recorder transmission transmission/hls transmission/webrtc motion zones discovery)
 cluster_dados=(db db/migrations dbbackup storage deviceinfo)
-cluster_ia=(analysis detector detector/adapters trainer trainer/adapters stateclass stateengine)
 cluster_aplicacao=(server notifications notifications/application notifications/email email release updater)
 
 cluster=""
 if [ "${1:-}" = "--cluster" ]; then
     cluster="${2:-}"
-    [ -n "$cluster" ] || { echo "❌ --cluster exige um nome (infra|captura|dados|ia|aplicacao)"; exit 1; }
+    [ -n "$cluster" ] || { echo "❌ --cluster exige um nome (infra|captura|dados|aplicacao)"; exit 1; }
 fi
 
 case "$cluster" in
     infra) pkgs=("${cluster_infra[@]}") ;;
     captura) pkgs=("${cluster_captura[@]}") ;;
     dados) pkgs=("${cluster_dados[@]}") ;;
-    ia) pkgs=("${cluster_ia[@]}") ;;
     aplicacao) pkgs=("${cluster_aplicacao[@]}") ;;
     "")
         # Árvore completa: todo pacote-folha real + os pais conhecidos + os

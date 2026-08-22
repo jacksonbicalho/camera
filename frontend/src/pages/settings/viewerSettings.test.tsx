@@ -57,7 +57,7 @@ describe('viewer — restricted pages', () => {
 })
 
 describe('viewer — CamerasSettingsPage', () => {
-  it('CA5: fetches from /api/cameras and shows camera list as cards with Detecção/Gravando/Análise de objetos badges', async () => {
+  it('CA5: fetches from /api/cameras and shows camera list as cards with Detecção/Gravando badges', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
@@ -67,7 +67,6 @@ describe('viewer — CamerasSettingsPage', () => {
           name: 'Hall',
           recording_enabled: true,
           motion: { enabled: true },
-          analysis_enabled: true,
         },
         { id: 'cam2', name: 'Quintal', recording_enabled: false, motion: null },
       ],
@@ -84,12 +83,11 @@ describe('viewer — CamerasSettingsPage', () => {
     await waitFor(() => expect(screen.getByText('Hall')).toBeTruthy())
     expect(screen.getByText('Quintal')).toBeTruthy()
 
-    // cam1: motion habilitado, gravando, análise de objetos habilitada — os 3 badges.
+    // cam1: motion habilitado, gravando — os 2 badges.
     expect(screen.getByText('Detecção')).toBeTruthy()
     expect(screen.getByText('Gravando')).toBeTruthy()
-    expect(screen.getByText('Análise de objetos')).toBeTruthy()
 
-    // cam2: motion desabilitado, não grava, sem análise — nenhum dos 3 badges (o rótulo
+    // cam2: motion desabilitado, não grava — nenhum dos 2 badges (o rótulo
     // negativo antigo "rec off" não existe mais, a polaridade virou positiva).
     expect(screen.queryByText('motion')).toBeNull()
     expect(screen.queryByText('rec off')).toBeNull()

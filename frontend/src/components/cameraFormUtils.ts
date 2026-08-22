@@ -30,7 +30,6 @@ export interface Camera {
   recording_enabled: boolean
   live_enabled?: boolean
   motion: MotionConfig | null
-  analysis_enabled?: boolean
 }
 
 export interface CameraFormData {

@@ -37,7 +37,7 @@ function renderPage() {
 }
 
 describe('CA5: CamerasSettingsPage (admin) — Card com badges e ações com texto', () => {
-  it('exibe cada câmera em Card com badges Detecção/Gravando/Análise de objetos e botões Configurar/Excluir com texto', async () => {
+  it('exibe cada câmera em Card com badges Detecção/Gravando e botões Configurar/Excluir com texto', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
@@ -47,14 +47,12 @@ describe('CA5: CamerasSettingsPage (admin) — Card com badges e ações com tex
           name: 'Corredor de Entrada',
           recording_enabled: true,
           motion: { enabled: true },
-          analysis_enabled: true,
         },
         {
           id: 'cam2',
           name: 'Quintal',
           recording_enabled: false,
           motion: null,
-          analysis_enabled: false,
         },
       ],
     })
@@ -63,12 +61,11 @@ describe('CA5: CamerasSettingsPage (admin) — Card com badges e ações com tex
 
     await waitFor(() => expect(screen.getByText('Corredor de Entrada')).toBeTruthy())
 
-    // cam1: os 3 badges positivos, cada um com uma cor (variante) distinta.
+    // cam1: os 2 badges positivos, cada um com uma cor (variante) distinta.
     expect(screen.getByText('Detecção').className).toContain('green')
     expect(screen.getByText('Gravando').className).toContain('red')
-    expect(screen.getByText('Análise de objetos').className).toContain('blue')
 
-    // cam2: nenhum badge (motion desabilitado, não grava, sem análise).
+    // cam2: nenhum badge (motion desabilitado, não grava).
     expect(screen.getByText('Quintal')).toBeTruthy()
 
     // ações com texto visível (não só ícone) — um Configurar/Excluir por câmera.
@@ -81,7 +78,7 @@ describe('CA5: CamerasSettingsPage (admin) — Card com badges e ações com tex
     expect(configureLinks[0].getAttribute('href')).toBe('/settings/cameras/cam1')
   })
 
-  it('CA5: sem nenhum badge quando motion/gravação/análise estão desabilitados', async () => {
+  it('CA5: sem nenhum badge quando motion/gravação estão desabilitados', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
@@ -93,7 +90,6 @@ describe('CA5: CamerasSettingsPage (admin) — Card com badges e ações com tex
     await waitFor(() => expect(screen.getByText('Quintal')).toBeTruthy())
     expect(screen.queryByText('Detecção')).toBeNull()
     expect(screen.queryByText('Gravando')).toBeNull()
-    expect(screen.queryByText('Análise de objetos')).toBeNull()
     // rótulos antigos não devem mais existir.
     expect(screen.queryByText('motion')).toBeNull()
     expect(screen.queryByText('rec off')).toBeNull()
@@ -162,7 +158,6 @@ describe('CA2: lista de câmeras (admin) usa CameraCard em grade lado a lado, me
           name: 'Corredor',
           recording_enabled: true,
           motion: { enabled: true },
-          analysis_enabled: false,
         },
       ],
     })
@@ -190,7 +185,6 @@ describe('CA2: lista de câmeras (admin) usa CameraCard em grade lado a lado, me
           name: 'Corredor',
           recording_enabled: false,
           motion: null,
-          analysis_enabled: false,
         },
       ],
     })
@@ -216,7 +210,6 @@ describe('CA2: lista de câmeras (admin) usa CameraCard em grade lado a lado, me
           name: 'Corredor',
           recording_enabled: false,
           motion: null,
-          analysis_enabled: false,
         },
       ],
     })
@@ -243,7 +236,6 @@ describe('CA2: lista de câmeras (admin) usa CameraCard em grade lado a lado, me
           name: 'Corredor',
           recording_enabled: false,
           motion: null,
-          analysis_enabled: false,
         },
       ],
     })
@@ -273,7 +265,6 @@ describe('CA3: lista de câmeras (viewer) também usa CameraCard em grade, sem a
           name: 'Quintal',
           recording_enabled: false,
           motion: null,
-          analysis_enabled: false,
         },
       ],
     })
@@ -300,7 +291,6 @@ describe('CA3: lista de câmeras (viewer) também usa CameraCard em grade, sem a
           name: 'Quintal',
           recording_enabled: false,
           motion: null,
-          analysis_enabled: false,
         },
       ],
     })
@@ -327,14 +317,12 @@ describe('CA4: drag-and-drop de reordenação continua funcional na grade (admin
           name: 'Primeira',
           recording_enabled: false,
           motion: null,
-          analysis_enabled: false,
         },
         {
           id: 'cam2',
           name: 'Segunda',
           recording_enabled: false,
           motion: null,
-          analysis_enabled: false,
         },
       ],
     })

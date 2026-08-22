@@ -1,27 +1,12 @@
 import { type ReactNode } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { getRole } from '../auth'
 import { useDisplayMode, useSetDisplayMode } from '../contexts/DisplayModeContext'
 import { useMobileNav } from '../contexts/MobileNavContext'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { navItemClass } from './sidebarFlyout'
-import {
-  BarChart2,
-  Cctv,
-  Eye,
-  Film,
-  Gauge,
-  History,
-  Menu,
-  ObjectDetectorTarget,
-  Pencil,
-  Search,
-  Server,
-  Settings,
-  Users,
-  Zap,
-} from './Icons'
+import { BarChart2, Cctv, Eye, Film, History, Menu, Search, Server, Settings, Users } from './Icons'
 
 interface NavItemDef {
   id: string
@@ -30,21 +15,11 @@ interface NavItemDef {
   icon: ReactNode
   /** `/` só fica ativo na rota exata (senão casaria toda rota). */
   end?: boolean
-  /**
-   * Só relevante quando outro item da mesma seção aponta pro MESMO pathname
-   * com um hash diferente (ex.: "Análise de vídeo" `/settings/analysis` e
-   * "Rotular eventos" `/settings/analysis#label-events`) — o `isActive`
-   * nativo do NavLink ignora o hash, então os dois acenderiam juntos sem
-   * isso. Quando definido, o item só fica ativo se `location.hash` bater
-   * exatamente com este valor (`''` = sem hash nenhum).
-   */
-  matchHash?: string
 }
 
 // SidebarNavLink — item de navegação comum (NavLink), usado dentro das
 // seções do rail.
 function SidebarNavLink({ item, showLabel }: { item: NavItemDef; showLabel: boolean }) {
-  const location = useLocation()
   return (
     <NavLink
       id={item.id}
@@ -52,11 +27,7 @@ function SidebarNavLink({ item, showLabel }: { item: NavItemDef; showLabel: bool
       end={item.end}
       title={item.label}
       aria-label={item.label}
-      className={({ isActive }) => {
-        const active =
-          item.matchHash !== undefined ? isActive && location.hash === item.matchHash : isActive
-        return navItemClass(active, showLabel)
-      }}
+      className={({ isActive }) => navItemClass(isActive, showLabel)}
     >
       {item.icon}
       {showLabel && <span className="truncate text-sm">{item.label}</span>}
@@ -106,8 +77,7 @@ function SidebarSection({
 // cabeçalhos de seção e rola (scrollbar-thin) quando o conteúdo excede a
 // altura da viewport. Só "Câmeras" (dentro de "Câmeras e Gravações") fica
 // visível pra todo mundo — o resto de Câmeras e Gravações (Gravações/
-// Histórico/Relatórios), a seção Inteligência inteira (Análise de vídeo/
-// Rotular eventos/Detectores de objetos) e Administração (inclui
+// Histórico/Relatórios) e Administração (inclui
 // "Rastrear câmeras" e "Aparência") são admin-only, mesma regra de acesso
 // que essas páginas já tinham. Nem o logo, nem o
 // avatar do usuário, nem o item
@@ -231,47 +201,6 @@ export default function Sidebar() {
               showLabel={showLabel}
             />
           </SidebarSection>
-
-          {isAdmin && (
-            <SidebarSection label="Inteligência" showLabel={showLabel} divider>
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-analysis',
-                  to: '/settings/analysis',
-                  label: 'Análise de vídeo',
-                  icon: <Zap className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-label-events',
-                  to: '/settings/label-events',
-                  label: 'Rotular eventos',
-                  icon: <Pencil className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-object-detectors',
-                  to: '/settings/detectors',
-                  label: 'Detectores de objetos',
-                  icon: <ObjectDetectorTarget className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-              <SidebarNavLink
-                item={{
-                  id: 'sidebar-trainers',
-                  to: '/settings/trainers',
-                  label: 'Treinadores',
-                  icon: <Gauge className="h-5 w-5 shrink-0" />,
-                }}
-                showLabel={showLabel}
-              />
-            </SidebarSection>
-          )}
 
           {isAdmin && (
             <SidebarSection label="Administração" showLabel={showLabel} divider>

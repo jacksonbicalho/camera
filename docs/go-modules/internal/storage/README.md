@@ -37,17 +37,8 @@ carregar câmeras) e apaga dirs de `segments_path` sem câmera correspondente
 no banco. `CleanOrphanedRecordings` (`orphan.go`, chamada ANTES do
 recorder/cleaner subirem) apaga MP4s incompletos deixados no disco quando o
 sistema parou no meio de uma gravação (`ended_at IS NULL`) — precisa rodar
-antes pra `syncRecordings()` não atribuir um `ended_at` a esses arquivos e
-torná-los elegíveis pra análise YOLO com um MP4 corrompido/incompleto.
-
-## Análise automática de novas gravações
-`AnalyzeNew`/`analyzeNewRecordings` (`cleaner.go`, chamada periodicamente
-dentro de `Run()`) consulta gravações com `has_motion=1` e
-`camera_analysis_config.enabled=1` sem detecção ainda, dispara o detector
-configurado (YOLO ou Hugging Face, via `WithAnalyzer`/`WithDetectorFactory`),
-grava as `detections` e rotula eventos de movimento sem label — pra Hugging
-Face, escolhe o melhor snapshot de movimento do intervalo
-(`huggingFaceImagePath`) em vez do frame médio do vídeo.
+antes pra `syncRecordings()` não atribuir um `ended_at` a esses arquivos com
+um MP4 corrompido/incompleto.
 
 ## Ver também
 - [internal/db](../db/README.md) — tabelas `recordings`/`motion_events` que este pacote sincroniza/limpa.
