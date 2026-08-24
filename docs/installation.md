@@ -10,7 +10,6 @@ inclui; o `install.sh` instala automaticamente quando possível.
 | Servidor/desktop Linux, x86 ou Raspberry Pi | **[Docker](#docker-recomendado)** (imagem Docker Hub) |
 | Linux bare-metal com systemd | **[`install.sh`](#linux--script-de-instalação)** (serviço systemd) |
 | Container/host sem systemd, ou sem root | **`install.sh --user` / `--no-service`**, ou Docker |
-| Termux / Android | **[Termux](#termux-android)** (`install.sh` automatiza via proot-distro) |
 | Offline / airgapped | **`install.sh --binary=<arquivo>`** |
 
 ## Docker (recomendado)
@@ -132,9 +131,9 @@ sudo bash /tmp/camera-install.sh --binary ./camera-linux-arm64
 | `--install-dir` `--config-dir` `--data-dir` `--segments-dir` `--state-dir` | Caminhos |
 | `--service-name=NOME` | Nome do serviço systemd |
 
-> **ffmpeg:** o script instala via `apt`/`dnf`/`pacman`/`zypper`/`apk` (root) ou `pkg`
-> (Termux). Sem permissão, ele imprime o comando exato da sua distro e aborta. Use
-> `--skip-deps` para pular.
+> **ffmpeg:** o script instala via `apt`/`dnf`/`pacman`/`zypper`/`apk` (root). Sem
+> permissão, ele imprime o comando exato da sua distro e aborta. Use `--skip-deps`
+> para pular.
 
 ### Desinstalar
 
@@ -147,47 +146,6 @@ camera-uninstall --remove-all             # tudo (config + dados); vale para qua
 
 > O desinstalador respeita o modo da instalação: numa instalação de usuário não pede root
 > nem mexe em systemd.
-
----
-
-## Termux (Android)
-
-Roda no celular via [Termux](https://termux.dev). O binário Go é glibc (PIE) e **não roda
-direto** no Android (bionic) — então o `install.sh` instala dentro de um **Debian via
-[proot-distro](https://github.com/termux/proot-distro)** (ambiente glibc por cima do
-Termux). Tudo é automático: ele detecta o Termux, garante o `proot-distro`, baixa o
-Debian, instala a app lá dentro (com ffmpeg + wizard) e configura **autostart** via
-`termux-services`.
-
-```bash
-pkg update && pkg install -y curl
-curl -fsSL https://raw.githubusercontent.com/jacksonbicalho/os-camera/master/scripts/install.sh -o install.sh
-bash install.sh
-```
-
-> **Atenção:** o `proot-distro install debian` baixa um rootfs de **algumas centenas de
-> MB** — pode demorar na primeira vez.
-
-Durante a instalação o **wizard** roda dentro do Debian (porta, fuso, senha do admin).
-Acesso depois: `http://localhost:<porta>` no navegador do celular (login `admin`).
-
-Comandos úteis:
-
-```bash
-# rodar na hora (primeiro plano):
-proot-distro login debian -- camera --config /etc/camera/camera.yaml
-# editar a config:
-proot-distro login debian -- nano /etc/camera/camera.yaml
-```
-
-> **Autostart:** feito por `termux-services` (runit) — o serviço (`run` → `proot-distro
-> login debian -- camera …`) é **habilitado** com `sv-enable`, mas o supervisor
-> (`runsvdir`) só sobe ao (re)abrir o Termux. **Feche e reabra o Termux** para iniciar;
-> depois `sv status camera`. Para boot do aparelho, use o app **Termux:Boot** (F-Droid).
-> Pular o autostart: `bash install.sh --no-service`.
-
-Desinstalar: `camera-uninstall` (remove o serviço de autostart). Para remover a app e os
-dados por completo: `proot-distro remove debian`.
 
 ---
 
@@ -211,7 +169,7 @@ retranscodificação.
 
 ## Download manual (binário)
 
-Sem Docker e sem systemd (ex.: Termux/Android, ambientes restritos): baixe o binário em
+Sem Docker e sem systemd (ambientes restritos): baixe o binário em
 [github.com/jacksonbicalho/os-camera/releases](https://github.com/jacksonbicalho/os-camera/releases).
 
 | Plataforma | Arquivo |
@@ -228,7 +186,7 @@ chmod +x camera-linux-amd64
 ```
 
 O binário é estático (não depende de libc), mas o **ffmpeg precisa estar instalado** no
-sistema (ex.: `apt install ffmpeg`, ou `pkg install ffmpeg` no Termux).
+sistema (ex.: `apt install ffmpeg`).
 
 O wizard pergunta o destino dos logs (`stdout` ou `file`). Ao escolher `file`, ele
 também pergunta o diretório e os parâmetros de **rotação**: tamanho de rotação

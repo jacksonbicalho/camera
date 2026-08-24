@@ -54,7 +54,7 @@ jobs:
           mkdir -p dist
           COMMIT=$(git rev-parse --short HEAD)
           BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          # PIE (ET_DYN) é obrigatório no Android/Termux. amd64/arm64 buildam PIE com
+          # PIE (ET_DYN) é hardening padrão (ASLR do binário). amd64/arm64 buildam PIE com
           # linker interno (sem cgo); arm 32-bit exigiria toolchain C → segue não-PIE.
           BUILDMODE=""
           [ "${GOARCH}" != "arm" ] && BUILDMODE="-buildmode=pie"

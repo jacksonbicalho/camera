@@ -25,7 +25,7 @@ Sistema de monitoramento residencial via RTSP. Um único binário estático grav
 
 | | |
 |---|---|
-| [Instalação](docs/installation.md) | Docker, script (systemd/usuário/offline), Termux, Raspberry Pi, download manual |
+| [Instalação](docs/installation.md) | Docker, script (systemd/usuário/offline), Raspberry Pi, download manual |
 | [Configuração](docs/configuration.md) | Referência completa do `camera.yaml` |
 | [Câmeras](docs/cameras.md) | Adicionar, descobrir e configurar câmeras |
 | [Ao vivo](docs/live.md) | WebRTC/HLS, transporte por câmera, reprodução de gravações |
@@ -54,7 +54,7 @@ curl -fsSL https://raw.githubusercontent.com/jacksonbicalho/os-camera/master/scr
 sudo bash /tmp/camera-install.sh
 ```
 
-→ **Guia completo de instalação** — sem root, **Termux/Android**, offline, Raspberry Pi, download manual e desinstalação: **[docs/installation.md](docs/installation.md)**.
+→ **Guia completo de instalação** — sem root, offline, Raspberry Pi, download manual e desinstalação: **[docs/installation.md](docs/installation.md)**.
 
 ---
 
