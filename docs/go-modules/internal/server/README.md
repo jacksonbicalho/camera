@@ -138,7 +138,19 @@ dispara automaticamente em background no cadastro
 `GET /api/about` expõe `version`/`commit`/`builtAt` (`-ldflags`) +
 `uptime_seconds`/`go_version` + `release_notes_version`/`release_notes_md`
 (a versão EXATA instalada, via `internal/release.NotesFetcher` — diferente
-do `updateChecker`, que só vê a "latest").
+do `updateChecker`, que só vê a "latest"). `commit` também é o valor que o
+frontend usa pra detectar build divergente (`useForceReloadOnStaleBuild`,
+ver [docs/frontend/README.md](../../../frontend/README.md)).
+
+`spaHandler` (também em `server.go`) seta `Cache-Control: no-cache,
+must-revalidate` na resposta de `index.html` (não `no-store`: permite
+revalidação condicional, só nunca serve uma cópia em cache sem checar o
+servidor primeiro). Existe pra garantir que um `window.location.reload()`
+disparado pelo frontend por build divergente realmente busque HTML fresco —
+sem isso o reload podia servir uma cópia em cache no meio do caminho e não
+resolver nada. Não afeta cache dos assets JS/CSS com hash de conteúdo do
+Vite (esses continuam cacheáveis à vontade, já são imunes a staleness pelo
+próprio nome do arquivo).
 
 ## Ver também
 - [internal/notifications](../notifications/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md) — os domínios que este pacote expõe via HTTP.

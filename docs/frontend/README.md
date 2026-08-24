@@ -66,6 +66,21 @@ repita o mesmo erro, mantenha, mas em 1-2 frases, não um parágrafo.
 `useStats()` — busca `/api/stats` com polling de 30s. `useSettings()` /
 `useAbout()` — buscam `/api/settings` e `/api/about`.
 
+`useForceReloadOnStaleBuild()` (`hooks/useForceReloadOnStaleBuild.ts`,
+montado uma vez em `App.tsx`) — resolve um PWA reaberto do ícone da tela
+inicial que só retoma uma aba suspensa pelo SO sem requisição de rede nova
+(o JS antigo continua rodando na memória mesmo com bundles JS/CSS já imunes
+a cache obsoleto via hash de conteúdo do Vite). No mount, guarda o `commit`
+do primeiro `GET /api/about` bem-sucedido como baseline em memória; a cada
+`document.visibilitychange` que torna a página visível, refaz o fetch e
+compara — divergiu do baseline (servidor já rodou build mais novo) →
+`window.location.reload()`. Fail-open: 401 (sessão expirada) ou erro de
+rede não recarrega e não sobrescreve um baseline já estabelecido. Depende de
+`internal/server` (`spaHandler`, ver
+[docs/go-modules/internal/server/README.md](../go-modules/internal/server/README.md))
+setar `Cache-Control: no-cache` no `index.html`, senão o reload podia servir
+HTML em cache no meio do caminho e não resolver nada.
+
 `SettingsSection` (card com lista de campos label/valor), `ConfirmDialog`
 (modal fixo de confirmação pra ações destrutivas; prop `danger` alterna
 botão vermelho/azul), `MotionScoreChart` (gráfico SVG em tempo real dos
