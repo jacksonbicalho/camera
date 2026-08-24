@@ -3,7 +3,7 @@ COMMIT   := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILT_AT := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS  := -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X 'main.builtAt=$(BUILT_AT)'"
 BUILD   := CGO_ENABLED=0 go build $(LDFLAGS)
-# PIE (ET_DYN) é obrigatório para rodar no Android/Termux. amd64/arm64 buildam PIE com
+# PIE (ET_DYN) é hardening padrão (ASLR do binário). amd64/arm64 buildam PIE com
 # linker interno (sem cgo); arm 32-bit exigiria toolchain C, então segue não-PIE.
 BUILD_PIE := CGO_ENABLED=0 go build -buildmode=pie $(LDFLAGS)
 OUTDIR  := dist
