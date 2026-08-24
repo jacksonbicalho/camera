@@ -36,6 +36,13 @@ func telegramServer(t *testing.T, botUsername string) (*server.Server, string) {
 	t.Cleanup(stub.Close)
 	t.Cleanup(telegram.StubAPIBase(stub.URL))
 
+	// Ativa a extensão (toggle "Ativado" em Preferências > Extensões) — sem
+	// isso, db.GetExtensionActive volta false por padrão (nunca configurado)
+	// e todo teste que assume um setup "disponível e funcionando" quebraria.
+	if err := db.SetExtensionActive(database, "telegram", true); err != nil {
+		t.Fatalf("set extension active: %v", err)
+	}
+
 	srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).
 		WithDB(database).
 		WithExtensionsConfig(config.ExtensionsConfig{
@@ -170,10 +177,37 @@ func TestTelegramLinkEndpoint(t *testing.T) {
 		}
 	})
 
+	t.Run("CA3: extensão desativada (Active=false) mesmo com Available=true devolve 503", func(t *testing.T) {
+		database := openServerTestDB(t)
+		if _, err := db.CreateUser(database, "u1", "pw", "viewer", false); err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		// Available=true (Enabled + bot_token), mas o toggle "Ativado" da
+		// instância (db.SetExtensionActive) nunca foi ligado — deve bloquear
+		// o link mesmo a extensão sendo permitida no sistema.
+		srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).
+			WithDB(database).
+			WithExtensionsConfig(config.ExtensionsConfig{
+				Telegram: config.TelegramConfig{Enabled: true, BotToken: "TESTTOKEN"},
+			})
+		token := loginAndGetToken(t, srv, "u1", "pw")
+
+		req := httptest.NewRequest(http.MethodPost, "/api/me/telegram/link", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected 503, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
 	t.Run("CA3: falha ao resolver o @username do bot devolve 502", func(t *testing.T) {
 		database := openServerTestDB(t)
 		if _, err := db.CreateUser(database, "u1", "pw", "viewer", false); err != nil {
 			t.Fatalf("create user: %v", err)
+		}
+		if err := db.SetExtensionActive(database, "telegram", true); err != nil {
+			t.Fatalf("set extension active: %v", err)
 		}
 		stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)

@@ -30,6 +30,10 @@ function mockFetch(opts: {
   telegramUsername?: string
   telegramFirstName?: string
   telegramBotUsername?: string
+  // Reflete telegram_active (toggle "Ativado" em Preferências > Extensões,
+  // distinto de "disponível no sistema") — default true pra não quebrar os
+  // testes acima, todos escritos assumindo uma extensão ativa/funcionando.
+  telegramActive?: boolean
 }) {
   FakeEventSource.instances = []
   vi.stubGlobal('EventSource', FakeEventSource as unknown as typeof EventSource)
@@ -43,6 +47,7 @@ function mockFetch(opts: {
             theme: 'dark',
             accent: 'default',
             telegram_linked: opts.linked,
+            telegram_active: opts.telegramActive ?? true,
             telegram_username: opts.telegramUsername ?? '',
             telegram_first_name: opts.telegramFirstName ?? '',
             telegram_bot_username: opts.telegramBotUsername ?? '',
@@ -198,6 +203,32 @@ describe('CA3: vinculado, mostra os dados do chat vinculado e um link "Abrir cha
 
     await screen.findByRole('button', { name: /^vincular$/i })
     expect(screen.queryByRole('link', { name: /abrir chat/i })).toBeNull()
+  })
+})
+
+describe('CA2: só aparece quando a extensão está ativa ou o usuário já vinculou a conta', () => {
+  it('extensão desativada e nunca vinculado: não renderiza nada', async () => {
+    mockFetch({ linked: false, telegramActive: false })
+    const { container } = render(<TelegramLinkSection />)
+
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled())
+    expect(container.querySelector('#telegram-link-section')).toBeNull()
+    expect(screen.queryByRole('button', { name: /vincular/i })).toBeNull()
+  })
+
+  it('extensão desativada mas já vinculado: continua visível, só com "Desvincular" (nunca "Vincular")', async () => {
+    mockFetch({ linked: true, telegramActive: false, telegramFirstName: 'Jane' })
+    render(<TelegramLinkSection />)
+
+    await screen.findByRole('button', { name: /desvincular/i })
+    expect(screen.queryByRole('button', { name: /^vincular$/i })).toBeNull()
+  })
+
+  it('extensão ativa e nunca vinculado: continua oferecendo "Vincular" normalmente', async () => {
+    mockFetch({ linked: false, telegramActive: true })
+    render(<TelegramLinkSection />)
+
+    expect(await screen.findByRole('button', { name: /^vincular$/i })).toBeTruthy()
   })
 })
 

@@ -10,12 +10,16 @@ import { useEventSource } from '@/hooks/useEventSource'
 // espírito de "Alterar e-mail"/"Alterar senha" em ProfilePage), não uma
 // config de instância — por isso lê/grava via /api/me/*, não
 // /api/settings/extensions/telegram (esse é só o toggle "Ativado"
-// system-wide, ver TelegramExtensionCard). Não checa se a extensão está
-// "disponível" antes de mostrar "Vincular" — GET /api/settings/extensions
-// é authAdmin (um viewer não pode chamá-lo) e não existe hoje um endpoint
-// equivalente não-admin; em vez de gatear a visibilidade, um POST /link
-// que falhar (extensão indisponível) surfaça o erro (`error`/role=alert)
-// em vez de falhar em silêncio.
+// system-wide, ver TelegramExtensionCard).
+//
+// Visibilidade gateada por telegram_active (história
+// fix/gate-telegram-link-por-extensao-ativa) — o mesmo campo que
+// /api/me/preferences já expõe pra CameraMotionTelegramNotify.tsx. Mostra
+// "Vincular" só quando a extensão está ativa; um usuário que já tinha
+// vinculado antes de ela ser desativada continua vendo a seção (só com
+// "Desvincular") — sem isso, o chat_id ficaria órfão no banco sem forma de
+// desvincular pela UI. O backend (handleTelegramLink) também valida
+// Active — este gate é só UX, não a garantia real.
 //
 // Vincular: POST /api/me/telegram/link gera um código de uso único e
 // devolve a URL do deep-link (t.me/<bot>?start=<código>) — abrir essa URL
@@ -41,6 +45,7 @@ function telegramDisplayName(firstName: string, username: string): string {
 
 export default function TelegramLinkSection() {
   const [linked, setLinked] = useState(false)
+  const [telegramActive, setTelegramActive] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [linking, setLinking] = useState(false)
   const [unlinking, setUnlinking] = useState(false)
@@ -63,6 +68,7 @@ export default function TelegramLinkSection() {
         (
           prefs: {
             telegram_linked?: boolean
+            telegram_active?: boolean
             telegram_username?: string
             telegram_first_name?: string
             telegram_bot_username?: string
@@ -70,6 +76,7 @@ export default function TelegramLinkSection() {
         ) => {
           if (!prefs) return
           setLinked(prefs.telegram_linked ?? false)
+          setTelegramActive(prefs.telegram_active ?? false)
           setTelegramUsername(prefs.telegram_username ?? '')
           setTelegramFirstName(prefs.telegram_first_name ?? '')
           setTelegramBotUsername(prefs.telegram_bot_username ?? '')
@@ -138,7 +145,7 @@ export default function TelegramLinkSection() {
       .finally(() => setUnlinking(false))
   }
 
-  if (!loaded) return null
+  if (!loaded || (!telegramActive && !linked)) return null
 
   return (
     <ExtensionCard
