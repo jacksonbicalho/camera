@@ -56,6 +56,15 @@ func (s *Server) handleTelegramLink(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "telegram extension not configured", http.StatusServiceUnavailable)
 		return
 	}
+	active, err := db.GetExtensionActive(s.db, "telegram")
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !active {
+		http.Error(w, "telegram extension not active", http.StatusServiceUnavailable)
+		return
+	}
 	code, err := generateTelegramLinkCode()
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)

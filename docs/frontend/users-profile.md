@@ -24,6 +24,23 @@
   `ProfileChangePasswordPage` (self-service, `/profile/change-password`);
   trocar a senha de OUTRO usuário é o campo "Senha" (opcional — vazio mantém
   a atual) do `UserForm`, na edição em `/settings/users/edit/:id`.
+- `components/TelegramLinkSection.tsx` — renderizada em `/profile` (dado
+  pessoal do usuário logado — "vincular minha própria conta Telegram", no
+  mesmo espírito de "Alterar e-mail"/"Alterar senha", por isso fala com
+  `/api/me/*`, não `/api/settings/extensions/telegram`, que é só o toggle
+  "Ativado" system-wide, ver [extensions.md](extensions.md)). Lê
+  `telegram_active` de `GET /api/me/preferences` (mesmo campo que
+  `CameraMotionTelegramNotify` já consome) pra decidir se aparece: só
+  renderiza quando a extensão está ativa **ou** o usuário já tinha vinculado
+  a conta antes dela ser desativada — nesse segundo caso mostra só
+  "Desvincular" (nunca "Vincular"), pra não deixar um `chat_id` órfão no
+  banco sem forma de desvincular pela UI (história
+  `fix/gate-telegram-link-por-extensao-ativa`). Esse gate é só UX; a garantia
+  real é o backend (`handleTelegramLink`, ver
+  [internal/server](../go-modules/internal/server/README.md)) devolvendo 503
+  quando a extensão está desativada.
 
 ## Ver também
 - [routing-editing.md](routing-editing.md) — padrão de edição via rota, aplicado aqui
+- [extensions.md](extensions.md) — toggle "Ativado" da extensão Telegram, `telegram_active`
+- [internal/server](../go-modules/internal/server/README.md) — `handleTelegramLink`/`handleTelegramUnlink`, a validação real de `Active`

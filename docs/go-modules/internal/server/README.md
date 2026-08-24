@@ -46,6 +46,26 @@ independentemente sem um sobrescrever o outro. `notify_email` gateia o
 sender `email` de `internal/notifications` — hoje só setável via API, sem
 toggle na UI.
 
+## Vínculo de conta Telegram (`telegram_link.go`)
+`POST /api/me/telegram/link` (`authFull`) gera um código de uso único
+(`db.SetTelegramLinkCode`, TTL de 10min) e devolve o deep-link
+`t.me/<bot>?start=<código>` — abrir essa URL faz o Telegram enviar
+`/start <código>` pro bot, que um poller resolve de volta pro usuário
+autenticado. `POST /api/me/telegram/unlink` limpa o `chat_id` vinculado sem
+checar `Active` de propósito (ver abaixo). O handler de link valida, nessa
+ordem, `Available` (`Enabled && BotToken != ""`, config de instância) **e**
+`db.GetExtensionActive(s.db, "telegram")` (toggle "Ativado" em
+`Preferências > Extensões`, ver [internal/extensions](../extensions/README.md)),
+devolvendo 503 em qualquer um dos dois casos — história
+`fix/gate-telegram-link-por-extensao-ativa` fechou a checagem de `Active`,
+que faltava (dava pra vincular uma conta com o toggle desligado). O gate de
+visibilidade equivalente no front (`TelegramLinkSection`, ver
+[docs/frontend/users-profile.md](../../../frontend/users-profile.md)) é só
+UX — esta validação no handler é a garantia real. `handleTelegramUnlink`
+continua sem checar `Active` deliberadamente: desvincular precisa funcionar
+mesmo com a extensão desativada, senão um `chat_id` fica órfão no banco sem
+nenhuma forma de removê-lo.
+
 ## Movimento (SSE)
 Serve arquivos de gravação (incluindo snapshots `_motion.jpg`) e segmentos
 HLS. Endpoints SSE por câmera: `/api/cameras/{id}/motion/live` (eventos
@@ -153,4 +173,4 @@ Vite (esses continuam cacheáveis à vontade, já são imunes a staleness pelo
 próprio nome do arquivo).
 
 ## Ver também
-- [internal/notifications](../notifications/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md) — os domínios que este pacote expõe via HTTP.
+- [internal/notifications](../notifications/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md), [internal/extensions](../extensions/README.md) — os domínios que este pacote expõe via HTTP.
