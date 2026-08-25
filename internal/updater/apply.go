@@ -65,7 +65,6 @@ func ClearMarker(dir string) error {
 type Applier struct {
 	Dir            string
 	Target         string
-	BaseURL        string
 	DBPath         string
 	CurrentVersion string
 
@@ -75,17 +74,20 @@ type Applier struct {
 	Reexec   func(target string) error
 }
 
-// Apply baixa o binário da arquitetura, faz snapshot do DB, troca o binário,
+// Apply baixa o binário da arquitetura a partir de baseURL (a base de
+// download da release que o CALLER resolveu como "latest" — ver
+// release.Checker.DownloadBase; nunca um atalho fixo, já que a release
+// detectada pode não ser a estável), faz snapshot do DB, troca o binário,
 // grava o marcador (só após a troca) e re-executa. Em sucesso, Reexec não
 // retorna; qualquer erro antes do Replace não deixa efeitos.
-func (a *Applier) Apply(ctx context.Context, m release.Manifest) error {
+func (a *Applier) Apply(ctx context.Context, m release.Manifest, baseURL string) error {
 	asset, ok := AssetForArch(m)
 	if !ok {
 		return fmt.Errorf("nenhum binário para a arquitetura atual no manifesto")
 	}
 
 	newPath := filepath.Join(a.Dir, ".camera.new")
-	if err := a.Download(ctx, AssetURL(a.BaseURL, asset.Name), asset.SHA256, newPath); err != nil {
+	if err := a.Download(ctx, AssetURL(baseURL, asset.Name), asset.SHA256, newPath); err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
 

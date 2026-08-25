@@ -17,6 +17,7 @@ type fakeChecker struct{ st release.Status }
 
 func (f fakeChecker) Status() release.Status             { return f.st }
 func (f fakeChecker) Manifest() (release.Manifest, bool) { return release.Manifest{}, false }
+func (f fakeChecker) DownloadBase() string               { return "" }
 
 type fakeNotesFetcher struct {
 	notes map[string]string

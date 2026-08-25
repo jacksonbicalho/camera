@@ -169,6 +169,11 @@ type telegramSender interface {
 type updateStatuser interface {
 	Status() release.Status
 	Manifest() (release.Manifest, bool)
+	// DownloadBase é a base de download (URL terminada em "/") da release
+	// resolvida no último check — pode não ser a estável (ver
+	// release.Checker.DownloadBase). handleApplyUpdate passa isso pro
+	// applyRunner em vez de um atalho fixo pra "latest".
+	DownloadBase() string
 }
 
 // releaseNotesFetcher busca o changelog da release do GitHub correspondente a
@@ -180,9 +185,11 @@ type releaseNotesFetcher interface {
 	Notes(ctx context.Context, version string) (string, error)
 }
 
-// applyRunner aplica uma atualização a partir de um manifesto.
+// applyRunner aplica uma atualização a partir de um manifesto, baixando os
+// assets da baseURL informada (a release resolvida pelo updateStatuser, não
+// necessariamente a estável).
 type applyRunner interface {
-	Apply(ctx context.Context, m release.Manifest) error
+	Apply(ctx context.Context, m release.Manifest, baseURL string) error
 }
 
 func NewServer(cfg config.ServerConfig, timezone string, cameras []config.CameraConfig, log *slog.Logger, frontend fs.FS) *Server {
@@ -917,11 +924,12 @@ func (s *Server) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"error": "manifesto indisponível"})
 		return
 	}
+	base := s.updateChecker.DownloadBase()
 
 	// Apply baixa, troca o binário e re-executa (não retorna). Responde antes e
 	// roda em background para que a resposta saia.
 	go func() {
-		if err := s.applier.Apply(context.Background(), manifest); err != nil {
+		if err := s.applier.Apply(context.Background(), manifest, base); err != nil {
 			s.log.Error("apply update failed", "error", err)
 		}
 	}()

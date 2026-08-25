@@ -572,8 +572,9 @@ func main() {
 	if srv != nil {
 		srv.WithCleaner(cleaner)
 
-		updateChecker := release.NewChecker(release.DefaultManifestURL, version, nil)
+		updateChecker := release.NewChecker(release.DefaultReleasesAPIURL, version, nil)
 		updateChecker.OnCheck = srv.NotifyUpdateAvailable
+		updateChecker.CurrentBuiltAt = builtAt
 		srv.WithUpdateChecker(updateChecker)
 		go updateChecker.Run(ctx, 6*time.Hour)
 
@@ -584,7 +585,7 @@ func main() {
 		slog.Info("update environment detected", "apply_mode", updEnv.ApplyMode, "in_docker", updEnv.InDocker, "binary_writable", updEnv.BinaryWritable)
 
 		srv.WithApplier(&updater.Applier{
-			Dir: binDir, Target: exe, BaseURL: release.DefaultDownloadBase,
+			Dir: binDir, Target: exe,
 			DBPath: dbPath, CurrentVersion: version,
 			Download: func(ctx context.Context, url, sha, dest string) error {
 				return updater.Download(ctx, nil, url, sha, dest)
