@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ProfileLayout from '../components/ProfileLayout'
 import TelegramLinkSection from '../components/TelegramLinkSection'
+import PushSubscriptionSection from '../components/PushSubscriptionSection'
 import { authHeaders, onUnauthorized } from '../auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -229,6 +230,7 @@ export default function ProfilePage() {
         )}
 
         {profile && !editing && <TelegramLinkSection />}
+        {profile && !editing && <PushSubscriptionSection />}
 
         {error && (
           <p role="alert" className="text-danger text-sm">
