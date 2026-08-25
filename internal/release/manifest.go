@@ -1,8 +1,11 @@
 // Package release monta o manifesto version.json publicado em cada release.
 //
-// O manifesto é servido estaticamente via
-// github.com/<owner>/<repo>/releases/latest/download/version.json e consumido
-// pelo updater para descobrir a última versão, o changelog e os binários.
+// O manifesto é anexado como asset em TODA release publicada (estável ou
+// pré-release). O Checker descobre qual release é a mais recente via a API
+// REST de releases (DefaultReleasesAPIURL) — não existe atalho estático
+// equivalente a /latest/download/ que inclua pré-releases — e busca o
+// version.json daquela release especificamente (via browser_download_url do
+// próprio asset).
 package release
 
 import (

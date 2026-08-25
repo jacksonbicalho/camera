@@ -49,7 +49,7 @@ func manifest() release.Manifest {
 
 func newTestApplier(dir string, log *[]string) *Applier {
 	return &Applier{
-		Dir: dir, Target: filepath.Join(dir, "camera"), BaseURL: "https://dl/",
+		Dir: dir, Target: filepath.Join(dir, "camera"),
 		DBPath: filepath.Join(dir, "camera.db"), CurrentVersion: "v1.3.0-dev",
 		Download: func(ctx context.Context, url, sha, dest string) error {
 			*log = append(*log, "download:"+url+":"+sha+":"+filepath.Base(dest))
@@ -69,7 +69,7 @@ func TestApplyOrder(t *testing.T) {
 	var log []string
 	a := newTestApplier(dir, &log)
 
-	if err := a.Apply(context.Background(), manifest()); err != nil {
+	if err := a.Apply(context.Background(), manifest(), "https://dl/"); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -102,13 +102,31 @@ func TestApplyOrder(t *testing.T) {
 	}
 }
 
+// CA3: a base de download usada no download é a que foi PASSADA na chamada
+// (resolvida pelo caller a partir do release.Checker), nunca um valor fixo —
+// duas chamadas com bases diferentes baixam de URLs diferentes.
+func TestApplyUsesBaseURLFromCaller(t *testing.T) {
+	dir := t.TempDir()
+	var log []string
+	a := newTestApplier(dir, &log)
+
+	if err := a.Apply(context.Background(), manifest(), "https://dl.rc/v0.15.0-rc/"); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	wantPrefix := "download:https://dl.rc/v0.15.0-rc/camera-linux-" + runtime.GOARCH
+	if len(log) == 0 || log[0][:len(wantPrefix)] != wantPrefix {
+		t.Errorf("download deveria usar a base passada na chamada, log = %v", log)
+	}
+}
+
 func TestApplyNoAsset(t *testing.T) {
 	dir := t.TempDir()
 	var log []string
 	a := newTestApplier(dir, &log)
 
 	bad := release.Manifest{Latest: "v1.4", Assets: map[string]release.Asset{"linux-naoexiste": {}}}
-	if err := a.Apply(context.Background(), bad); err == nil {
+	if err := a.Apply(context.Background(), bad, "https://dl/"); err == nil {
 		t.Fatal("esperava erro sem asset da arch")
 	}
 	if len(log) != 0 {
@@ -125,7 +143,7 @@ func TestApplyDownloadError(t *testing.T) {
 	a := newTestApplier(dir, &log)
 	a.Download = func(ctx context.Context, url, sha, dest string) error { return errors.New("falhou") }
 
-	if err := a.Apply(context.Background(), manifest()); err == nil {
+	if err := a.Apply(context.Background(), manifest(), "https://dl/"); err == nil {
 		t.Fatal("esperava erro do download")
 	}
 	for _, step := range log {
