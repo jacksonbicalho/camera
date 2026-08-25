@@ -425,6 +425,32 @@ func setCORSHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 }
 
+// contentSecurityPolicy — worker-src precisa de blob: porque hls.js
+// (enableWorker default, ver frontend/src/components/Player.tsx) cria seu
+// Web Worker via URL.createObjectURL; sem isso o fallback HLS quebra
+// silenciosamente. style-src precisa de 'unsafe-inline' porque
+// react-grid-layout (grid do Live View) posiciona cada tile via style=""
+// inline (transform/width/height computados em runtime pelo drag) — nonce/
+// hash é inviável pra estilo calculado a cada frame. Sem stun:/turn: no
+// frontend (WebRTC não configura ICE servers externos), então connect-src
+// não precisa cobrir nenhum host de terceiro. img-src/media-src também
+// aceitam blob: como margem — nenhum uso hoje (usePlayerSnapshot.ts só cria
+// blob: pra um <a download>, fora do que essas diretivas regem; WebRTC usa
+// srcObject, não src=blob:), mas é o padrão de blob: mais comum em apps de
+// mídia e não amplia superfície de ataque (uma URL blob: só existe se a
+// própria página a criar, sempre same-origin).
+const contentSecurityPolicy = "default-src 'self'; " +
+	"script-src 'self'; " +
+	"style-src 'self' 'unsafe-inline'; " +
+	"img-src 'self' data: blob:; " +
+	"media-src 'self' blob:; " +
+	"connect-src 'self'; " +
+	"worker-src 'self' blob:; " +
+	"frame-ancestors 'none'; " +
+	"base-uri 'self'; " +
+	"form-action 'self'; " +
+	"object-src 'none'"
+
 // setSecurityHeaders aplica hardening incondicional pra TODA resposta —
 // sistema exposto publicamente (domínio + TLS próprios, não uma API interna
 // atrás de VPN), achado de uma auditoria Lighthouse contra a instalação real
@@ -435,6 +461,7 @@ func setSecurityHeaders(w http.ResponseWriter) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Content-Security-Policy", contentSecurityPolicy)
 	w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 }
 
