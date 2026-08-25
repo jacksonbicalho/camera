@@ -54,7 +54,7 @@ export default function Layout({
           </div>
         )}
         <div className="flex flex-1 flex-col min-w-0">
-          <div className={cn('flex-1', contentClassName)}>{children}</div>
+          <main className={cn('flex-1', contentClassName)}>{children}</main>
           <Footer id={footerId} />
         </div>
       </div>

@@ -99,6 +99,15 @@ describe('Layout', () => {
     expect(footer.parentElement?.className).toContain('flex-col')
   })
 
+  it('CA4: conteúdo fica dentro de um landmark <main>', () => {
+    renderLayout(
+      <Layout>
+        <p>conteúdo</p>
+      </Layout>,
+    )
+    expect(screen.getByRole('main').textContent).toContain('conteúdo')
+  })
+
   it('contentClassName vai no wrapper de conteúdo; root e Footer ficam sem padding (rodapé flush)', () => {
     renderLayout(
       <Layout contentClassName="p-4">
