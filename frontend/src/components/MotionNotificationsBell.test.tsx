@@ -220,6 +220,21 @@ describe('MotionNotificationsBell', () => {
     })
   })
 
+  describe('CA2 (lighthouse-hardening): aria-label do sino inclui a contagem de não lidas', () => {
+    it('unreadCount=3 → aria-label menciona "3"', () => {
+      unreadCount = 3
+      renderBell()
+      const btn = document.getElementById('motion-notifications')!
+      expect(btn.getAttribute('aria-label')).toContain('3')
+    })
+
+    it('unreadCount=0 → aria-label continua só "Eventos" (sem número)', () => {
+      renderBell()
+      const btn = document.getElementById('motion-notifications')!
+      expect(btn.getAttribute('aria-label')).toBe('Eventos')
+    })
+  })
+
   it('selecionar tudo e excluir mostra o ConfirmDialog acima do painel de eventos (z-index)', () => {
     notifications = [n]
     renderBell()

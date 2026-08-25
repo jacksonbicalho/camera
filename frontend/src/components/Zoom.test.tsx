@@ -95,4 +95,20 @@ describe('Zoom — componente reutilizável de controle de zoom no rodapé (− 
       expect(document.getElementById('p-zoom-in')?.hasAttribute('disabled')).toBe(true)
     })
   })
+
+  describe('CA3 (lighthouse-hardening): aria-label do botão de zoom inclui o percentual atual', () => {
+    it('escala 1 (100%) → aria-label menciona "100%"', () => {
+      render(<Zoom id="p" zoom={fakeZoom()} />)
+      expect(document.getElementById('p-zoom-level')?.getAttribute('aria-label')).toContain(
+        '100%',
+      )
+    })
+
+    it('escala 1.4 (140%) → aria-label menciona "140%"', () => {
+      render(<Zoom id="p" zoom={fakeZoom({ scale: 1.4, isZoomed: true, canZoomOut: true })} />)
+      expect(document.getElementById('p-zoom-level')?.getAttribute('aria-label')).toContain(
+        '140%',
+      )
+    })
+  })
 })
