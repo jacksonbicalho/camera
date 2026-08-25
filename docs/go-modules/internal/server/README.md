@@ -158,9 +158,21 @@ dispara automaticamente em background no cadastro
 `GET /api/about` expõe `version`/`commit`/`builtAt` (`-ldflags`) +
 `uptime_seconds`/`go_version` + `release_notes_version`/`release_notes_md`
 (a versão EXATA instalada, via `internal/release.NotesFetcher` — diferente
-do `updateChecker`, que só vê a "latest"). `commit` também é o valor que o
-frontend usa pra detectar build divergente (`useForceReloadOnStaleBuild`,
-ver [docs/frontend/README.md](../../../frontend/README.md)).
+do `updateChecker`, que resolve "a release mais recente publicada", de
+qualquer canal). `commit` também é o valor que o frontend usa pra detectar
+build divergente (`useForceReloadOnStaleBuild`, ver
+[docs/frontend/README.md](../../../frontend/README.md)).
+
+`GET /api/updates` (admin) devolve `s.updateChecker.Status()`.
+`POST /api/updates/apply` (admin, `handleApplyUpdate`) resolve o manifesto
+cacheado e chama `s.applier.Apply(ctx, manifest, s.updateChecker.DownloadBase())`
+em background — a base de download vem do que o checker efetivamente
+resolveu como release mais recente (ver [internal/release](../release/README.md)),
+nunca um atalho fixo pra "estável", senão a aplicação baixaria o binário
+errado sempre que a atualização detectada fosse uma pré-release. As
+interfaces `updateStatuser`/`applyRunner` (definidas no consumidor, não no
+produtor) refletem essa dependência: `DownloadBase() string` e
+`Apply(ctx, m, baseURL) error`.
 
 `spaHandler` (também em `server.go`) seta `Cache-Control: no-cache,
 must-revalidate` na resposta de `index.html` (não `no-store`: permite

@@ -11,13 +11,23 @@ Docker, binário gravável vira self-replace (`ApplySelfReplace`); sem escrita,
 `ApplyNotify` (só avisa com instruções, não aplica sozinho).
 
 ## Fluxo self-replace
-`apply.go` — `Applier`/`Apply(ctx, manifest)`: baixa o binário da arquitetura
-atual (`download.go`, valida SHA-256), faz snapshot do banco
-([internal/dbbackup](../dbbackup/README.md)), troca o binário
-(`replace.go`), grava um `Marker` (`.camera-update.json`, só APÓS a troca —
-qualquer erro antes dela não deixa efeito) e re-executa. As operações
-(`Download`/`Snapshot`/`Replace`/`Reexec`) são todas injetadas, testável sem
-rede/FS de binário/exec real.
+`apply.go` — `Applier`/`Apply(ctx, manifest, baseURL)`: baixa o binário da
+arquitetura atual a partir de `baseURL` (`download.go`, valida SHA-256), faz
+snapshot do banco ([internal/dbbackup](../dbbackup/README.md)), troca o
+binário (`replace.go`), grava um `Marker` (`.camera-update.json`, só APÓS a
+troca — qualquer erro antes dela não deixa efeito) e re-executa. As
+operações (`Download`/`Snapshot`/`Replace`/`Reexec`) são todas injetadas,
+testável sem rede/FS de binário/exec real.
+
+`baseURL` é recebido a cada chamada, não fixado no `Applier` — o caller
+(`internal/server.handleApplyUpdate`) resolve com
+[`release.Checker.DownloadBase()`](../release/README.md), a base da release
+que o checker efetivamente detectou como "latest" (estável ou pré-release).
+Antes, `Applier.BaseURL` era uma constante fixa (`release.DefaultDownloadBase`,
+sempre a estável) setada uma única vez no boot — o que quebrava a aplicação
+sempre que o checker detectava uma release não-estável como disponível
+(SHA-256 divergente: baixava o binário estável enquanto o manifesto
+prometido era o de outra release).
 
 ## Recuperação no boot
 `recover.go` — `EvaluateBoot(marker)`: `Attempts==0` é o **trial** (primeiro
