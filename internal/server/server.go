@@ -425,7 +425,22 @@ func setCORSHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 }
 
+// setSecurityHeaders aplica hardening incondicional pra TODA resposta —
+// sistema exposto publicamente (domínio + TLS próprios, não uma API interna
+// atrás de VPN), achado de uma auditoria Lighthouse contra a instalação real
+// do navigator. Sem X-Frame-Options/frame-ancestors, a tela de login seria
+// embutível num <iframe> de terceiros (clickjacking contra o admin).
+func setSecurityHeaders(w http.ResponseWriter) {
+	w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	setSecurityHeaders(w)
+
 	if strings.HasPrefix(r.URL.Path, "/api/") {
 		setCORSHeaders(w)
 		if r.Method == http.MethodOptions {
