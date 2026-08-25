@@ -33,7 +33,7 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await login(identifier, password, remember)
+      await login(identifier.trim(), password, remember)
       navigate(mustChangePassword() ? '/change-password' : from, { replace: true })
     } catch {
       setError('Usuário ou senha inválidos')

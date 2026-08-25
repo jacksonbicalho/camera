@@ -1647,6 +1647,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	// Espaço sobrando no início/fim (comum em autofill/mobile) não deveria
+	// impedir o login — GetUserByLogin faz match exato, mesmo padrão de
+	// handleUpdateMe (profile.go), que já dá TrimSpace no username.
+	creds.Username = strings.TrimSpace(creds.Username)
 
 	if s.db == nil {
 		http.Error(w, "database unavailable", http.StatusServiceUnavailable)

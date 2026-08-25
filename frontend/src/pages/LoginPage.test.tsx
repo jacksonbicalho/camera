@@ -135,6 +135,27 @@ describe('LoginPage', () => {
     await waitFor(() => expect(login).toHaveBeenCalledWith('admin@example.com', 'secret', true))
   })
 
+  it('CA3: envia o identifier sem espaço nas pontas, mesmo com espaço digitado no campo', async () => {
+    vi.mocked(login).mockResolvedValueOnce(undefined)
+    renderLogin()
+
+    // Valor único nesta suíte (não repetido por nenhum outro teste do
+    // arquivo) — o mock `login` não tem seu histórico de chamadas limpo
+    // entre testes (só `vi.restoreAllMocks()`, não `clearAllMocks()`), então
+    // reusar um identifier já testado em outro `it` faria essa asserção
+    // "passar" por acidente, casando com a chamada de um teste anterior em
+    // vez da chamada real deste.
+    fireEvent.change(screen.getByLabelText(/e-mail/i), {
+      target: { value: '  trim-unico@example.com  ' },
+    })
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'secret' } })
+    fireEvent.click(screen.getByRole('button', { name: /entrar/i }))
+
+    await waitFor(() =>
+      expect(login).toHaveBeenCalledWith('trim-unico@example.com', 'secret', false),
+    )
+  })
+
   it('redirects to / on mount when a valid token already exists', async () => {
     tokenValue = 'fake-token'
     mustChangePasswordValue = false
