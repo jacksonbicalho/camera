@@ -22,7 +22,14 @@ explicitamente em `main.go` e passados pro `Dispatcher`.
 ## Subpacotes
 - [application](application/README.md) — o canal que já existia antes deste módulo (persistência + push ao vivo).
 - [email](email/README.md) — opt-in por usuário, sobre [internal/email](../email/README.md).
-- Telegram/Firebase (citados na análise que originou o módulo) ficam de fora por enquanto — a interface `Sender` já os acomoda, mas exigem credencial real pra testar contra; viram histórias futuras.
+- `telegram` (sem doc própria ainda) — canal por chat_id vinculado, opt-in explícito por câmera (`db.ListCameraMotionTelegramNotifyPrefs`).
+- [webpush](webpush/README.md) — Web Push real (Service Worker + Push API), único canal que entrega com o app fechado; sem opt-in por câmera (a permissão do navegador já é o opt-in).
+
+`telegram` e `webpush` são os dois canais DEDICADOS de
+`Server.NotifyCameraMotion` (ver [internal/server](../server/README.md)) —
+nunca passam pelo `Dispatcher` genérico acima, que despacharia também pro
+sino sempre-ativo (`application`). Cada um resolve destinatários por si e
+falha independentemente do outro.
 
 ## Call sites migrados
 `NotifyUpdateAvailable` (update disponível, em

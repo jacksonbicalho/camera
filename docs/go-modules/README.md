@@ -45,6 +45,7 @@ completo, o conteúdo chega por cluster.
 - [internal/notifications](internal/notifications/README.md)
   - [internal/notifications/application](internal/notifications/application/README.md)
   - [internal/notifications/email](internal/notifications/email/README.md)
+  - [internal/notifications/webpush](internal/notifications/webpush/README.md)
 - [internal/email](internal/email/README.md)
 - [internal/release](internal/release/README.md)
 - [internal/updater](internal/updater/README.md)

@@ -1,9 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { getToken } from '../auth'
 import { useBrowserNotifications } from '../hooks/useBrowserNotifications'
-import { resolveEventRecordingUrl } from '../lib/eventNavigation'
 
 const STORAGE_KEY = 'camera_notifications'
 const MAX_NOTIFICATIONS = 100
@@ -58,22 +56,16 @@ function save(notifications: Notification[]) {
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>(load)
-  const navigate = useNavigate()
   const {
     supported: browserSupported,
     permission: browserPermission,
     enabled: browserEnabled,
     requestAndEnable: enableBrowserNotifications,
     disable: disableBrowserNotifications,
-    notify: browserNotify,
     closeBrowserNotification,
     closeAllBrowserNotifications,
   } = useBrowserNotifications()
 
-  const browserNotifyRef = useRef(browserNotify)
-  useEffect(() => {
-    browserNotifyRef.current = browserNotify
-  }, [browserNotify])
   const closeBrowserRef = useRef(closeBrowserNotification)
   useEffect(() => {
     closeBrowserRef.current = closeBrowserNotification
@@ -165,17 +157,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             save(next)
             return next
           })
-          browserNotifyRef.current(
-            id,
-            score,
-            label,
-            async () => {
-              markReadByEvent(id, time)
-              const url = await resolveEventRecordingUrl(id, time)
-              if (url) navigate(url)
-            },
-            payload.camera_name || undefined,
-          )
+          // Não dispara mais useBrowserNotifications().notify() aqui (história
+          // feat/web-push-notificacoes-movimento) — quem tiver Web Push ativo
+          // (PushSubscriptionSection, /profile) já recebe a notificação do SO
+          // via Service Worker (sw.js), que dispara mesmo com a aba em
+          // primeiro plano; disparar os dois duplicaria a notificação pra
+          // quem tem as duas coisas ativas. A SSE aqui só alimenta a lista/
+          // contagem do sino — não é mais a fonte do popup do SO.
+          //
+          // O toggle "notificações do navegador" (MotionNotificationsBell,
+          // useBrowserNotifications) continua existindo na UI mas fica sem
+          // efeito — era o único chamador de `notify`. Removê-lo por
+          // completo (toggle + hook) é limpeza fora do escopo desta
+          // história; registrado como follow-up.
         } catch {
           // ignore malformed events
         }
@@ -188,10 +182,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       window.removeEventListener('camera:token-changed', connect)
       if (es) es.close()
     }
-    // markReadByEvent tem identidade estável (useCallback, ver comentário lá) — incluí-la aqui
-    // não reabre a conexão SSE à toa; é só o eslint exhaustive-deps satisfeito honestamente,
-    // em vez de um ref indireto só pra escapar da lista de dependências.
-  }, [navigate, markReadByEvent])
+  }, [])
 
   function markAllRead() {
     closeAllBrowserRef.current()

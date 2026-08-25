@@ -256,6 +256,119 @@ func TestNotifyCameraMotion(t *testing.T) {
 		}
 	})
 
+	t.Run("CA3: webpush notifica todo usuário com acesso à câmera (admin sempre; viewer só com grant), sem precisar de opt-in por câmera", func(t *testing.T) {
+		database := openServerTestDB(t)
+		cameras := []config.CameraConfig{{ID: "cam1", Name: "Entrada", RTSPURL: "rtsp://fake1"}}
+		if _, err := db.CreateCamera(database, cameras[0], nil); err != nil {
+			t.Fatalf("seed camera: %v", err)
+		}
+		webpushFake := &fakeMotionSender{}
+		srv := server.NewServer(config.ServerConfig{}, "UTC", cameras, discardLogger(), nil).
+			WithDB(database).
+			WithWebpushSender(webpushFake)
+
+		adminID, err := db.CreateUser(database, "admin1", "pw", "admin", false)
+		if err != nil {
+			t.Fatalf("create admin: %v", err)
+		}
+		grantedID, err := db.CreateUser(database, "viewer-com-acesso", "pw", "viewer", false)
+		if err != nil {
+			t.Fatalf("create viewer com acesso: %v", err)
+		}
+		if err := db.SetUserCameras(database, grantedID, []string{"cam1"}); err != nil {
+			t.Fatalf("grant: %v", err)
+		}
+		if _, err := db.CreateUser(database, "viewer-sem-acesso", "pw", "viewer", false); err != nil {
+			t.Fatalf("create viewer sem acesso: %v", err)
+		}
+
+		srv.NotifyCameraMotion("cam1", time.Now(), 0.5, "", 0, 0)
+
+		if len(webpushFake.userIDs) != 2 {
+			t.Fatalf("esperava 2 destinatários (admin + viewer com grant), got %v", webpushFake.userIDs)
+		}
+		got := map[int64]bool{webpushFake.userIDs[0]: true, webpushFake.userIDs[1]: true}
+		if !got[adminID] || !got[grantedID] {
+			t.Errorf("destinatários = %v, esperava admin(%d) e viewer com grant(%d)", webpushFake.userIDs, adminID, grantedID)
+		}
+	})
+
+	t.Run("CA3: mensagem do webpush é texto plano (sem markup HTML do Telegram) e independe de opt-in do Telegram", func(t *testing.T) {
+		database := openServerTestDB(t)
+		cameras := []config.CameraConfig{{ID: "cam1", Name: "Entrada", RTSPURL: "rtsp://fake1"}}
+		if _, err := db.CreateCamera(database, cameras[0], nil); err != nil {
+			t.Fatalf("seed camera: %v", err)
+		}
+		webpushFake := &fakeMotionSender{}
+		srv := server.NewServer(config.ServerConfig{}, "UTC", cameras, discardLogger(), nil).
+			WithDB(database).
+			WithWebpushSender(webpushFake)
+		adminID, err := db.CreateUser(database, "admin1", "pw", "admin", false)
+		if err != nil {
+			t.Fatalf("create admin: %v", err)
+		}
+
+		srv.NotifyCameraMotion("cam1", time.Now(), 0.923, "", 0, 0)
+
+		if len(webpushFake.notifs) != 1 {
+			t.Fatalf("esperava 1 notificação, got %d", len(webpushFake.notifs))
+		}
+		msg := webpushFake.notifs[0].Message
+		if strings.Contains(msg, "<b>") || strings.Contains(msg, "<a href") {
+			t.Errorf("mensagem do webpush não deveria ter markup HTML do Telegram: %q", msg)
+		}
+		if !strings.Contains(msg, "Entrada") || !strings.Contains(msg, "92.3%") {
+			t.Errorf("mensagem = %q, esperava conter câmera e score", msg)
+		}
+		if webpushFake.userIDs[0] != adminID {
+			t.Errorf("userID = %d, quero %d", webpushFake.userIDs[0], adminID)
+		}
+	})
+
+	t.Run("CA3: telegram e webpush operam de forma independente — um sem o outro não impede nada", func(t *testing.T) {
+		database := openServerTestDB(t)
+		cameras := []config.CameraConfig{{ID: "cam1", Name: "Entrada", RTSPURL: "rtsp://fake1"}}
+		if _, err := db.CreateCamera(database, cameras[0], nil); err != nil {
+			t.Fatalf("seed camera: %v", err)
+		}
+		telegramFake := &fakeMotionSender{}
+		webpushFake := &fakeMotionSender{}
+		srv := server.NewServer(config.ServerConfig{}, "UTC", cameras, discardLogger(), nil).
+			WithDB(database).
+			WithTelegramSender(telegramFake).
+			WithWebpushSender(webpushFake)
+
+		telegramUID, err := db.CreateUser(database, "telegram-user", "pw", "viewer", false)
+		if err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		if err := db.SetUserCameras(database, telegramUID, []string{"cam1"}); err != nil {
+			t.Fatalf("grant: %v", err)
+		}
+		if err := db.SetUserCameraMotionTelegramNotify(database, telegramUID, "cam1", true, 0.0); err != nil {
+			t.Fatalf("SetUserCameraMotionTelegramNotify: %v", err)
+		}
+		// admin não tem opt-in de Telegram, mas TEM acesso (implícito) — deve
+		// receber via webpush mesmo sem nunca ter configurado nada de Telegram.
+		adminID, err := db.CreateUser(database, "admin1", "pw", "admin", false)
+		if err != nil {
+			t.Fatalf("create admin: %v", err)
+		}
+
+		srv.NotifyCameraMotion("cam1", time.Now(), 0.5, "", 0, 0)
+
+		if len(telegramFake.userIDs) != 1 || telegramFake.userIDs[0] != telegramUID {
+			t.Errorf("telegram recipients = %v, quero só [%d]", telegramFake.userIDs, telegramUID)
+		}
+		got := map[int64]bool{}
+		for _, uid := range webpushFake.userIDs {
+			got[uid] = true
+		}
+		if !got[telegramUID] || !got[adminID] || len(webpushFake.userIDs) != 2 {
+			t.Errorf("webpush recipients = %v, quero [%d %d]", webpushFake.userIDs, telegramUID, adminID)
+		}
+	})
+
 	t.Run("CA7: framePath vazio não define ImagePath nenhum", func(t *testing.T) {
 		srv, database, fake := motionNotifyServer(t)
 		uid, err := db.CreateUser(database, "u1", "pw", "viewer", false)

@@ -32,6 +32,7 @@ import (
 	"camera/internal/notifications/application"
 	notifyemail "camera/internal/notifications/email"
 	telegramnotify "camera/internal/notifications/telegram"
+	webpushnotify "camera/internal/notifications/webpush"
 	"camera/internal/recorder"
 	"camera/internal/release"
 	"camera/internal/server"
@@ -40,6 +41,8 @@ import (
 	"camera/internal/transmission/webrtc"
 	"camera/internal/updater"
 	"camera/internal/zones"
+
+	webpushgo "github.com/SherClockHolmes/webpush-go"
 )
 
 var version = "dev"
@@ -502,6 +505,15 @@ func main() {
 			// internal/server/server.go).
 			if telegramClient != nil {
 				srv.WithTelegramSender(telegramnotify.New(database, telegramClient))
+			}
+			// Canal Web Push DEDICADO, mesmo motivo do Telegram acima — nunca no
+			// Dispatcher genérico. Ao contrário do Telegram, não depende de
+			// nenhuma credencial externa configurada: as chaves VAPID são
+			// geradas (e persistidas) por este próprio processo no 1º uso.
+			if vapidPublic, vapidPrivate, err := webpushnotify.GetOrCreateVAPIDKeys(database); err == nil {
+				srv.WithWebpushSender(webpushnotify.New(database, vapidPublic, vapidPrivate, webpushgo.SendNotification))
+			} else {
+				slog.Warn("vapid keys unavailable, web push notifications disabled", "error", err)
 			}
 		}
 

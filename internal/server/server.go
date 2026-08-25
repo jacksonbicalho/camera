@@ -141,6 +141,7 @@ type Server struct {
 	emailSender           emailSender
 	notifications         *notifications.Dispatcher
 	telegramSender        telegramSender
+	webpushSender         webpushSender
 }
 
 // emailSender envia e-mail (esqueci-a-senha hoje). Definido aqui no
@@ -160,6 +161,15 @@ type emailSender interface {
 // (application.Sender, sempre ativo, sem opt-in), que nunca foi pedido pra
 // eventos de movimento (achado do navigator testando a branch real).
 type telegramSender interface {
+	Send(n notifications.Notification, userID int64) error
+}
+
+// webpushSender entrega uma notificação via Web Push (Service Worker + Push
+// API) pra um único usuário — mesmo formato de telegramSender/
+// notifications.Sender. Implementação real vive em
+// internal/notifications/webpush (Sender). Canal DEDICADO igual ao
+// Telegram, pelo mesmo motivo (nunca pelo Dispatcher genérico).
+type webpushSender interface {
 	Send(n notifications.Notification, userID int64) error
 }
 
@@ -245,6 +255,16 @@ func (s *Server) WithNotifications(d *notifications.Dispatcher) *Server {
 // telegramSender's doc comment). Without it, NotifyCameraMotion no-ops.
 func (s *Server) WithTelegramSender(sender telegramSender) *Server {
 	s.telegramSender = sender
+	return s
+}
+
+// WithWebpushSender wires the dedicated Web Push channel used by
+// NotifyCameraMotion — same rationale as WithTelegramSender (deliberately
+// NOT part of the shared Dispatcher). Without it, NotifyCameraMotion simply
+// skips the webpush recipient resolution/send (telegram, if wired, is
+// unaffected).
+func (s *Server) WithWebpushSender(sender webpushSender) *Server {
+	s.webpushSender = sender
 	return s
 }
 

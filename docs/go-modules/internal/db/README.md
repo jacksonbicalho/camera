@@ -7,7 +7,7 @@ accessors de um domínio (`cameras.go`, `users.go`, `recordings.go`,
 `motion_events.go`, `drives.go`, `device_info.go`, `zones.go`,
 `content_days.go`, `reports.go`, `config.go`, `logging.go`,
 `emailchange.go`, `passwordreset.go`, `theme.go`, `notifications.go`,
-`seed.go`).
+`push_subscriptions.go`, `seed.go`).
 
 ## Tabelas principais
 `cameras` (inclui as configs de gravação/motion básicas como colunas
@@ -55,6 +55,22 @@ get/set abaixo são wrappers finos sobre `getUserSetting`/`setUserSetting`
 - `password_reset` (`"<token>:<expiry-unix>"`) — recuperação de senha
   efêmera (`passwordreset.go`).
 
+## `push_subscriptions` — assinaturas de Web Push
+`(id, user_id, endpoint UNIQUE, p256dh, auth, created_at)`, FK `users` ON
+DELETE CASCADE (`push_subscriptions.go`). Um usuário pode ter várias linhas
+(uma por dispositivo/navegador assinado). `UpsertPushSubscription` faz
+`INSERT ... ON CONFLICT(endpoint) DO UPDATE` — assinar de novo a partir do
+mesmo dispositivo atualiza as chaves em vez de duplicar. Duas rotas de
+remoção com escopo diferente, de propósito: `DeletePushSubscriptionByEndpoint`
+(sem checar dono — usada só pela limpeza server-side quando o serviço de
+push confirma 404/410 pra aquele endpoint, ver
+[internal/notifications/webpush](../notifications/webpush/README.md)) vs.
+`DeletePushSubscriptionForUser` (escopada por `user_id` — usada pelo
+endpoint HTTP de unsubscribe, pra um usuário não conseguir remover a
+subscription de outro só reusando o endpoint). Consumida por
+[internal/notifications/webpush](../notifications/webpush/README.md) e por
+`internal/server/push.go`.
+
 ## Migrations
 **Nunca use `;` em comentários de migration** — `splitSQL` (`db.go`) divide
 naïvemente o script em `;` e quebra o parse.
@@ -62,4 +78,5 @@ naïvemente o script em `;` e quebra o parse.
 ## Ver também
 - [internal/db/migrations](migrations/README.md) — os arquivos `.sql` em si.
 - [internal/notifications/application](../notifications/application/README.md) — consome `InsertUserNotification`/`ListUserNotifications`.
+- [internal/notifications/webpush](../notifications/webpush/README.md) — consome `push_subscriptions`.
 - [internal/deviceinfo](../deviceinfo/README.md) — dono conceitual da tabela EAV `camera_device_info`.
