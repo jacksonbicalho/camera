@@ -482,6 +482,14 @@ func (s *Server) spaHandler() http.Handler {
 		// cru pelo FileServer.
 		if name != "index.html" {
 			if _, err := fs.Stat(s.frontend, name); err == nil {
+				// Arquivos sob assets/ têm hash de conteúdo no nome (convenção do
+				// Vite, ex. index-D2fLDSiK.js) — seguro cachear pra sempre, um build
+				// novo nunca reaproveita o mesmo nome. Outros estáticos na raiz do
+				// dist (favicon.svg, manifest.json) não têm hash e ficam sem esse
+				// header (comportamento default do FileServer).
+				if strings.HasPrefix(name, "assets/") {
+					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				}
 				fileServer.ServeHTTP(w, r)
 				return
 			}

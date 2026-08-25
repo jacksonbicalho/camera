@@ -58,12 +58,14 @@ func (s *Server) guard(rt route) http.HandlerFunc {
 	return rt.handler
 }
 
-// routeTable is the single source of truth for the /api surface.
+// routeTable is the single source of truth for exact-path routes (the /api
+// surface plus a couple of top-level exact paths like /robots.txt).
 //
 // Prefix-mounted file handlers (/stream/, /recordings/) and the SPA fallback
 // are not http.HandlerFunc and stay in routes().
 func (s *Server) routeTable() []route {
 	return []route{
+		{"GET", "/robots.txt", authPublic, s.handleRobotsTxt},
 		{"POST", "/api/auth/login", authPublic, s.handleLogin},
 		{"POST", "/api/auth/change-password", authChangePassword, s.handleChangePassword},
 		{"POST", "/api/auth/forgot-password", authPublic, s.handleForgotPassword},
