@@ -10,6 +10,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { NotificationProvider } from './contexts/NotificationContext'
 import { UserNotificationProvider } from './contexts/UserNotificationContext'
 import { MobileNavProvider } from './contexts/MobileNavContext'
+import { useForceReloadOnStaleBuild } from './hooks/useForceReloadOnStaleBuild'
 
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const ProfileChangePasswordPage = lazy(() => import('./pages/ProfileChangePasswordPage'))
@@ -27,6 +28,7 @@ function UnauthorizedHandler() {
 }
 
 export default function App() {
+  useForceReloadOnStaleBuild()
   return (
     <BrowserRouter>
       <ThemeProvider>

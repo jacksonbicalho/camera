@@ -472,6 +472,11 @@ func (s *Server) spaHandler() http.Handler {
 		origin := html.EscapeString(requestOrigin(r))
 		data = bytes.ReplaceAll(data, []byte(ogOriginPlaceholder), []byte(origin))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		// no-cache (não no-store): permite revalidação condicional, mas nunca
+		// serve uma cópia em cache sem checar o servidor primeiro — garante
+		// que o reload disparado por useForceReloadOnStaleBuild (frontend)
+		// realmente busque HTML fresco.
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 		w.Write(data)
 	})
 }
