@@ -46,6 +46,42 @@ independentemente sem um sobrescrever o outro. `notify_email` gateia o
 sender `email` de `internal/notifications` — hoje só setável via API, sem
 toggle na UI.
 
+## Notificações de movimento por canal dedicado (`motion_notify.go`)
+`NotifyCameraMotion` — chamado de `cmd/camera/main.go`'s `onMotionEvent`
+DEPOIS que `db.FindRecordingCoveringMotion` já confirmou que uma gravação
+cobre o evento (mesmo gate "só notifica quando tem gravação" do sino SSE e
+do badge Momentos) — despacha pros dois canais DEDICADOS wired em `Server`
+(`telegramSender`, `webpushSender`; nunca o `Dispatcher` genérico, que
+despacharia também pro sino sempre-ativo). Os dois canais resolvem
+destinatários de formas diferentes e falham independentemente (erro/
+ausência de um nunca bloqueia o outro): `telegramMotionRecipients` exige
+opt-in explícito por câmera com score mínimo
+(`db.ListCameraMotionTelegramNotifyPrefs`); `webpushMotionRecipients` não
+tem preferência por câmera — todo usuário com acesso (admin sempre, viewer
+com grant via `db.UserHasCamera`) é destinatário, já que a permissão do
+navegador concedida ao assinar push (ver
+[internal/notifications/webpush](../notifications/webpush/README.md)) É o
+opt-in. A mensagem também diverge por canal:
+`telegramMotionMessage` monta HTML (`parse_mode=HTML`, link só quando
+`PublicURL` está configurado); o corpo do Webpush é texto plano
+(`"<câmera> · <data/hora> · <score>%"`) — nunca a mesma string formatada
+pros dois, pra não vazar markup no popup do SO.
+
+## Web Push (`push.go`)
+`GET /api/me/push/vapid-public-key` (`authFull`) devolve a chave pública da
+instância, gerando-a (e persistindo) no primeiro uso via
+`webpush.GetOrCreateVAPIDKeys` — nunca regenerada depois (ver
+[internal/notifications/webpush](../notifications/webpush/README.md)).
+`POST /api/me/push/subscription` decodifica o objeto que
+`PushSubscription.toJSON()` do navegador produz (`{endpoint, keys:
+{p256dh, auth}}`) e chama `db.UpsertPushSubscription` pro usuário
+autenticado (upsert por endpoint — assinar de novo do mesmo dispositivo
+atualiza, não duplica). `DELETE /api/me/push/subscription` chama
+`db.DeletePushSubscriptionForUser(s.currentUserID(r), body.Endpoint)` —
+escopado pelo usuário autenticado de propósito, nunca por um endpoint livre
+no corpo, senão um usuário poderia remover a subscription de outro só
+reusando/adivinhando o endpoint.
+
 ## Vínculo de conta Telegram (`telegram_link.go`)
 `POST /api/me/telegram/link` (`authFull`) gera um código de uso único
 (`db.SetTelegramLinkCode`, TTL de 10min) e devolve o deep-link
@@ -185,4 +221,4 @@ Vite (esses continuam cacheáveis à vontade, já são imunes a staleness pelo
 próprio nome do arquivo).
 
 ## Ver também
-- [internal/notifications](../notifications/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md), [internal/extensions](../extensions/README.md) — os domínios que este pacote expõe via HTTP.
+- [internal/notifications](../notifications/README.md), [internal/notifications/webpush](../notifications/webpush/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md), [internal/extensions](../extensions/README.md) — os domínios que este pacote expõe via HTTP.

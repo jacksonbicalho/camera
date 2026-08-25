@@ -103,4 +103,21 @@ Ações disponíveis no painel de notificações:
 - Marcar como lida / não lida
 - Excluir individualmente ou em lote
 
+> O sino só atualiza com a aba aberta. Para receber um aviso do sistema operacional mesmo com o app fechado (celular ou desktop), ative as notificações push abaixo.
+
+### Notificações push (mesmo com o app fechado)
+
+Ative em **Perfil → Notificações push → Ativar notificações push**.
+
+1. Acesse **Perfil** (ícone do usuário)
+2. Na seção **Notificações push**, clique em **Ativar notificações push**
+3. Autorize a permissão de notificação pedida pelo navegador
+
+A partir daí, qualquer movimento detectado numa câmera à qual você tem acesso (todas, se for admin; só as liberadas, se for viewer) gera um aviso do sistema operacional nesse dispositivo — mesmo com a aba/app fechado. Clicar no aviso abre a gravação correspondente.
+
+Pontos importantes:
+- **Exige conexão segura (HTTPS ou `localhost`).** Em instalações acessadas por HTTP puro, a seção **Notificações push** não aparece no Perfil — não é um erro, é uma limitação do navegador.
+- **Por dispositivo/navegador.** Ative em cada celular, computador ou navegador onde quiser receber o aviso — não é uma preferência de conta única.
+- Pra parar de receber, volte em **Perfil → Notificações push** e clique em **Desativar**.
+
 Ver também: [Câmeras](cameras.md) | [Armazenamento](storage.md)

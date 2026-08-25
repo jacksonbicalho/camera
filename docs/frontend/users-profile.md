@@ -40,7 +40,52 @@
   [internal/server](../go-modules/internal/server/README.md)) devolvendo 503
   quando a extensão está desativada.
 
+- `components/PushSubscriptionSection.tsx` — renderizada em `/profile`, ao
+  lado de `TelegramLinkSection` (história
+  `feat/web-push-notificacoes-movimento`). Ao contrário do sino (SSE, só
+  funciona com a aba viva — ver [notifications.md](notifications.md)), é
+  Web Push de verdade: entrega notificação de movimento mesmo com o app
+  fechado/em background. Botão único "Ativar notificações push" ⇄
+  "Desativar", cujo estado vem de `usePushSubscription`
+  (`hooks/usePushSubscription.ts`). A seção inteira **some silenciosamente**
+  (retorna `null`) quando `!supported` — não é um "erro" pro usuário
+  resolver, é a mesma degradação limpa de qualquer feature condicionada a
+  browser API: Web Push exige contexto seguro (HTTPS ou `localhost`), então
+  em HTTP puro o botão simplesmente nunca aparece.
+- `hooks/usePushSubscription.ts` — `subscribe()`: pede permissão
+  (`Notification.requestPermission()`), busca a chave pública VAPID em
+  `GET /api/me/push/vapid-public-key`, registra `public/sw.js`
+  (`navigator.serviceWorker.register` — **lazy**, só no momento do
+  subscribe, não no boot do app: diferente de `useForceReloadOnStaleBuild`,
+  que registra/roda desde o mount, aqui o SW só existe depois que o usuário
+  efetivamente opta por notificações), assina via
+  `registration.pushManager.subscribe({ userVisibleOnly: true,
+  applicationServerKey })` e envia a subscription resultante por
+  `POST /api/me/push/subscription`. Se o POST falhar (401 ou qualquer status
+  não-ok), desfaz a subscription recém-criada no `PushManager`
+  (`sub.unsubscribe()`) antes de reportar erro — sem esse rollback, o
+  navegador ficaria com uma subscription "fantasma" que o backend nunca
+  saberia entregar. `unsubscribe()` faz o inverso: remove do `PushManager`
+  primeiro, depois `DELETE /api/me/push/subscription` (assimetria conhecida
+  — se o `DELETE` falhar depois do unsubscribe local, o estado React fica
+  desatualizado até reload; registrado como follow-up no code review do T4,
+  não bloqueante). No mount, `getRegistration('/sw.js')` +
+  `pushManager.getSubscription()` reflete se já havia uma subscription
+  válida (ex. reload de página) — sem side effect de registrar nada.
+  `supported` reflete `'serviceWorker' in navigator && 'PushManager' in
+  window && typeof Notification !== 'undefined'`.
+- `public/sw.js` — Service Worker mínimo, só dois listeners: `push` (extrai
+  `{title, body, link}` do payload JSON e chama
+  `self.registration.showNotification`) e `notificationclick` (foca uma aba
+  já aberta e navega pro `link`, ou abre uma nova). Deliberadamente **não
+  intercepta `fetch`/cache** — o app já resolve staleness de build de outro
+  jeito (`useForceReloadOnStaleBuild`, ver
+  [docs/frontend/README.md](README.md)); um SW com fetch handler reabriria
+  essa discussão sem necessidade.
+
 ## Ver também
 - [routing-editing.md](routing-editing.md) — padrão de edição via rota, aplicado aqui
 - [extensions.md](extensions.md) — toggle "Ativado" da extensão Telegram, `telegram_active`
-- [internal/server](../go-modules/internal/server/README.md) — `handleTelegramLink`/`handleTelegramUnlink`, a validação real de `Active`
+- [notifications.md](notifications.md) — sino/SSE; por que a notificação do SO passou a ser disparada só pelo Service Worker, não mais pela SSE
+- [internal/server](../go-modules/internal/server/README.md) — `handleTelegramLink`/`handleTelegramUnlink`, a validação real de `Active`; `push.go` (`handleGetPushVAPIDPublicKey`/`handleSubscribePush`/`handleUnsubscribePush`)
+- [internal/notifications/webpush](../go-modules/internal/notifications/webpush/README.md) — o Sender por trás da entrega real
