@@ -6,12 +6,16 @@ usa, e as camadas de navegação de `/settings/*`.
 ## Arquivos principais
 
 - `components/Layout.tsx` — shell de página: `TopBar` em cima (full-width,
-  `sticky top-0`) + uma linha `Sidebar` + conteúdo + `Footer` (rodapé
-  estático, "os-camera · monitoramento residencial", sem versão/uptime/
-  stats). `Sidebar` fica num wrapper `sticky top-14 h-[calc(100vh-3.5rem)]`
-  — gruda logo abaixo da `TopBar` e cobre o resto da altura da viewport.
-  `TopBar`/`Sidebar` só renderizam quando `hideNav` é falso (ex.: player em
-  tela cheia esconde os dois). Toda página do app usa esse shell.
+  `sticky top-0`) + uma linha `Sidebar` + conteúdo (dentro de um `<main>`,
+  único landmark `main` do app — achado Lighthouse `landmark-one-main`) +
+  `Footer` (rodapé estático, "os-camera · monitoramento residencial", sem
+  versão/uptime/stats). `Sidebar` fica num wrapper `sticky
+  top-14 h-[calc(100vh-3.5rem)]` — gruda logo abaixo da `TopBar` e cobre o
+  resto da altura da viewport. `TopBar`/`Sidebar` só renderizam quando
+  `hideNav` é falso (ex.: player em tela cheia esconde os dois). Toda
+  página do app usa esse shell — a troca do `<div>` de conteúdo pra
+  `<main>` resolve o landmark pra aplicação inteira de uma vez, sem
+  precisar tocar página por página.
 - `components/TopBar.tsx` — barra fixa full-width, altura `h-14`. Logo
   "os-camera" (id `logo-app`, link pra `/`) à esquerda; à direita, o grupo
   `AppHelpMenu` → `ThemeModeNav` (id do gatilho `color-mode`) →

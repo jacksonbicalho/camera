@@ -180,7 +180,7 @@ export default function MotionNotificationsBell({ showLabel }: { showLabel: bool
         type="button"
         onClick={toggle}
         title="Eventos"
-        aria-label="Eventos"
+        aria-label={unreadCount > 0 ? `Eventos, ${unreadCount} não lidas` : 'Eventos'}
         className={navItemClass(open, showLabel)}
       >
         <span className="relative inline-flex shrink-0">

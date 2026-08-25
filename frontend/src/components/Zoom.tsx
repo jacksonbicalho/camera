@@ -38,7 +38,7 @@ export default function Zoom({ id, zoom }: ZoomProps) {
         type="button"
         onClick={zoom.reset}
         disabled={!zoom.isZoomed}
-        aria-label="Redefinir zoom"
+        aria-label={`Redefinir zoom (${Math.round(zoom.scale * 100)}%)`}
         className="min-w-10 rounded px-1 text-center text-caption tabular-nums text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground"
       >
         {Math.round(zoom.scale * 100)}%

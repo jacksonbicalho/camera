@@ -15,6 +15,54 @@ tabela e aplica o middleware **derivado do `authLevel`**
 `http.Error`), não um envelope JSON — clientes programam contra o status,
 não o texto.
 
+## Headers de segurança (`setSecurityHeaders`, `server.go`)
+`ServeHTTP` chama `setSecurityHeaders(w)` incondicionalmente, antes de
+qualquer outra coisa (mesmo ponto onde `setCORSHeaders` já é aplicado pra
+`/api/*`) — vale pra TODA resposta do servidor, não só a API: HSTS
+(`max-age=31536000; includeSubDomains`), `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`,
+`Cross-Origin-Opener-Policy: same-origin` e a CSP (abaixo). Existe porque a
+instalação típica roda exposta publicamente com domínio + TLS próprios (não
+uma API interna atrás de VPN) — sem `frame-ancestors`/`X-Frame-Options` a
+tela de login seria embutível num `<iframe>` de terceiros (clickjacking
+contra o admin). O HSTS é enviado sem checar `r.TLS`: por spec (RFC 6797
+§7.2) o navegador ignora o header numa conexão não-segura, e checar
+`r.TLS != nil` seria pior aqui — o deployment típico termina TLS num reverse
+proxy, então `r.TLS` no processo Go fica `nil` mesmo em produção real, o que
+quebraria o HSTS justamente no caso que ele deveria cobrir.
+
+**CSP** (`contentSecurityPolicy`, mesma função): `default-src 'self';
+script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:
+blob:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:;
+frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src
+'none'`. Duas diretivas exigem justificativa não-óbvia: `worker-src blob:`
+porque `hls.js` (`Player.tsx`, fallback HLS, `enableWorker` default) cria
+seu Web Worker via `URL.createObjectURL`; `style-src 'unsafe-inline'` porque
+`react-grid-layout` (grid do Live View) posiciona cada tile via `style=""`
+inline computado em runtime (drag) — nonce/hash é inviável pra estilo
+recalculado a cada frame. `blob:` em `img-src`/`media-src` é margem
+deliberada sem uso real hoje (nenhum `<img src="blob:">`/`<video
+src="blob:">` no código — `usePlayerSnapshot.ts` só cria `blob:` pra um `<a
+download>`, fora do que essas diretivas regem; WebRTC usa `srcObject`, não
+`src=`); mantida porque não amplia superfície de ataque (uma URL `blob:` só
+existe se a própria página a criar, sempre same-origin). Sem `stun:`/`turn:`
+no frontend (WebRTC não configura ICE server externo), `connect-src 'self'`
+já cobre todo `fetch`/`EventSource` do app.
+
+## robots.txt e cache de assets (`robots.go`, `spaHandler`)
+`GET /robots.txt` (rota exata em `routeTable()` — tem precedência sobre o
+catch-all `/` no `net/http.ServeMux` do Go 1.22+, então nunca cai no
+`spaHandler`) devolve `text/plain` com `User-agent: *\nDisallow: /`:
+sistema privado (câmeras domésticas), nega indexação por completo. Sem essa
+rota o `GET /robots.txt` caía no `spaHandler` e devolvia `index.html`
+(HTML) em vez de um robots.txt de verdade. `spaHandler` também seta
+`Cache-Control: public, max-age=31536000, immutable` pros arquivos sob
+`assets/` (JS/CSS com hash de conteúdo no nome, convenção do Vite — um
+build novo nunca reaproveita o mesmo nome, seguro cachear pra sempre);
+outros estáticos na raiz do dist (`favicon.svg`, `manifest.json`, sem hash)
+continuam sem esse header — diferente do `Cache-Control: no-cache,
+must-revalidate` de `index.html` (ver "Build info e atualização" abaixo).
+
 ## Autenticação
 JWT HS256, segredo aleatório gerado a cada boot (tokens não sobrevivem a
 restart), aceito via header `Authorization: Bearer` ou `?token=` (necessário
