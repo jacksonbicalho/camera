@@ -71,6 +71,21 @@ subscription de outro só reusando o endpoint). Consumida por
 [internal/notifications/webpush](../notifications/webpush/README.md) e por
 `internal/server/push.go`.
 
+## `system_config` — toggle "Ativado" de extensões (`extensions.go`)
+`GetExtensionActive`/`SetExtensionActive` leem/escrevem a chave
+`extensions.<id>.enabled` em `system_config` (sufixo `enabled` mantido só
+por compatibilidade com dados já persistidos por versões anteriores — o
+nome do lado Go virou "Active" pra não colidir com
+`config.ExtensionsConfig.Enabled`, campo homônimo do `camera.yaml` que
+representa um conceito diferente: "permitida no sistema", não "o admin
+ligou o toggle"). Instância-wide, não por-usuário. Lido por
+`internal/server` (`GET/PUT /api/settings/extensions*`,
+`POST /api/me/telegram/link`) e por `internal/storage.Cleaner` (gate do
+upload S3). `internal/server.Server.SyncExtensionsFromConfig` chama
+`SetExtensionActive` uma vez no boot pra sobrescrever esse valor com o que
+o `camera.yaml` calcula como disponível pra cada extensão — ver
+[internal/server](../server/README.md).
+
 ## Migrations
 **Nunca use `;` em comentários de migration** — `splitSQL` (`db.go`) divide
 naïvemente o script em `;` e quebra o parse.
@@ -80,3 +95,4 @@ naïvemente o script em `;` e quebra o parse.
 - [internal/notifications/application](../notifications/application/README.md) — consome `InsertUserNotification`/`ListUserNotifications`.
 - [internal/notifications/webpush](../notifications/webpush/README.md) — consome `push_subscriptions`.
 - [internal/deviceinfo](../deviceinfo/README.md) — dono conceitual da tabela EAV `camera_device_info`.
+- [internal/server](../server/README.md) — sincroniza `system_config` de extensões com `camera.yaml` no boot (`SyncExtensionsFromConfig`).

@@ -21,7 +21,18 @@ morreu no meio") e em `internal/server` (`findChunkForTime`/`handleRecordings`
 sempre).
 
 ## Retenção e limpeza
-Ação configurável por categoria (`delete` ou `send_to_drive`):
+Ação configurável por categoria (`delete` ou `send_to_drive`): um drive S3
+só entra no mapa de destinos se `db.GetExtensionActive(c.db, "s3")` for
+`true` — mesmo com uma config de destino salva em `retention_extensions`,
+a extensão desativada (toggle "Ativado" em Preferências > Extensões) não
+deve fazer upload nenhum (achado real: antes dessa checagem,
+`loadDrives()` montava o drive só a partir da linha existir, ignorando o
+toggle por completo). Sem o drive no mapa, `cleanFromDB()` cai no mesmo
+fallback seguro de quando o drive referenciado não existe (arquivo fica
+retido, sem upload nem delete). Como `Cleaner` é construído no boot depois
+de `internal/server.Server.SyncExtensionsFromConfig` já ter reconciliado
+esse toggle com o `camera.yaml` (ver [internal/server](../server/README.md)),
+ele sempre lê o valor já corrigido, sem nenhuma lógica própria de sync.
 `uploadAndPurge()` faz upload S3, apaga o MP4 e chama `purgeMotionAssets()`
 (apaga JPEGs + linhas de `motion_events` órfãs — chamado também pelo caminho
 de chunk corrompido, pra nunca deixar um `_motion.jpg` órfão).
@@ -44,3 +55,4 @@ um MP4 corrompido/incompleto.
 - [internal/db](../db/README.md) — tabelas `recordings`/`motion_events` que este pacote sincroniza/limpa.
 - [internal/recorder](../recorder/README.md) — produz os MP4 que este pacote gerencia.
 - [internal/notifications](../notifications/README.md) — canal do aviso de disco quase cheio.
+- [internal/server](../server/README.md) — sincroniza o toggle "Ativado" da extensão S3 com `camera.yaml` no boot (`SyncExtensionsFromConfig`), antes deste pacote ser construído.
