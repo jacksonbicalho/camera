@@ -14,8 +14,16 @@ import (
 	"camera/internal/capturer/rtsp"
 	"camera/internal/config"
 	"camera/internal/core"
+	"camera/internal/events"
 	"camera/internal/exec"
 	"camera/internal/ffprobe"
+)
+
+// Tipos de evento publicados no events.Bus (ver WithEvents) — história
+// feat/modulo-eventos-centralizado.
+const (
+	EventStopped   = "transmission.stopped"
+	EventRecovered = "transmission.recovered"
 )
 
 type HLSStreamer struct {
@@ -25,6 +33,7 @@ type HLSStreamer struct {
 	commander exec.Commander
 	log       *slog.Logger
 	process   exec.Process
+	events    *events.Bus
 }
 
 func NewHLSStreamer(camera config.CameraConfig, server config.ServerConfig, stream ffprobe.StreamInfo, commander exec.Commander, log *slog.Logger) *HLSStreamer {
@@ -88,11 +97,31 @@ func (s *HLSStreamer) Start() error {
 	return nil
 }
 
+// WithEvents injeta o barramento de eventos operacionais — opcional (zero
+// value nil continua seguro, publish vira no-op), mesmo padrão chainable de
+// server.WithVersion/WithDB/etc.
+func (s *HLSStreamer) WithEvents(bus *events.Bus) *HLSStreamer {
+	s.events = bus
+	return s
+}
+
+func (s *HLSStreamer) publish(eventType string) {
+	if s.events == nil {
+		return
+	}
+	s.events.Publish(events.Event{Type: eventType, CameraID: s.camera.ID, At: time.Now()})
+}
+
 func (s *HLSStreamer) Run(ctx context.Context, reconnect time.Duration) {
+	stopped := false // true depois de um EventStopped ainda não seguido de EventRecovered
 	for {
 		if err := s.Start(); err != nil {
 			s.log.Error("hls: failed to start", "camera", s.camera.ID, "error", err)
 		} else {
+			if stopped {
+				s.publish(EventRecovered)
+				stopped = false
+			}
 			exited := make(chan struct{})
 			go func() { s.process.Wait(); close(exited) }()
 			select {
@@ -102,6 +131,8 @@ func (s *HLSStreamer) Run(ctx context.Context, reconnect time.Duration) {
 				return
 			case <-exited:
 				s.log.Warn("hls: process exited unexpectedly", "camera", s.camera.ID)
+				s.publish(EventStopped)
+				stopped = true
 			}
 		}
 		select {

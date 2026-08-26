@@ -18,11 +18,13 @@ import (
 	"time"
 
 	"camera/frontend"
+	"camera/internal/alerts"
 	"camera/internal/config"
 	"camera/internal/core"
 	"camera/internal/db"
 	"camera/internal/dbbackup"
 	"camera/internal/email"
+	"camera/internal/events"
 	"camera/internal/exec"
 	"camera/internal/extensions/telegram"
 	"camera/internal/ffprobe"
@@ -234,6 +236,12 @@ func main() {
 	// disk usage) out to every configured sender — shared by srv and the
 	// storage.Cleaner below, built once database is known.
 	var dispatcher *notifications.Dispatcher
+	// eventsBus é o barramento de eventos operacionais (recorder/transmissão
+	// parados ou recuperados) — construído sempre (independe de database),
+	// injetado em cada Recorder/HLSStreamer dentro de startCameraProcs;
+	// alerts.Subscribe só é chamado mais abaixo, depois que dispatcher
+	// existe.
+	eventsBus := events.NewBus()
 
 	// onMotionEvent's return value gates whether the event is broadcast to
 	// Events()/the SSE motion bell (see motion.New's doc comment) — only
@@ -342,7 +350,7 @@ func main() {
 		reconnect := cam.EffectiveReconnectInterval()
 
 		if cam.RecordingEnabled {
-			rec := recorder.NewRecorder(cam, cfg.Storage, stream, commander, slog)
+			rec := recorder.NewRecorder(cam, cfg.Storage, stream, commander, slog).WithEvents(eventsBus)
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -354,7 +362,7 @@ func main() {
 			// The HLS pipeline runs unless the camera is set to WebRTC-only and can
 			// actually use it (H.264) — that camera stops writing .ts entirely.
 			if webrtc.ShouldRunHLS(stream.VideoCodec, cam.EffectiveLiveTransport(), cam.EffectiveCaptureType(), cam.LiveEnabled) {
-				str := hls.NewHLSStreamer(cam, cfg.Server, stream, commander, slog)
+				str := hls.NewHLSStreamer(cam, cfg.Server, stream, commander, slog).WithEvents(eventsBus)
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -570,6 +578,9 @@ func main() {
 	// (sem live push, já que não há srv/notifHub pra isso).
 	if dispatcher == nil && database != nil {
 		dispatcher = notifications.NewDispatcher(slog, application.New(database, nil))
+	}
+	if dispatcher != nil && database != nil {
+		alerts.Subscribe(ctx, eventsBus, database, dispatcher, slog)
 	}
 	cleaner := storage.New(
 		cfg.Storage.Path,

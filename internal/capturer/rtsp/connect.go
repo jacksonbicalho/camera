@@ -13,12 +13,31 @@
 // feat/capture-hls-dominio).
 package rtsp
 
-import "camera/internal/core"
+import (
+	"strconv"
+	"time"
 
-// TransportArgs monta o par de flags do ffmpeg que força RTSP sobre TCP —
-// compartilhado por qualquer captura RTSP do projeto.
+	"camera/internal/core"
+)
+
+// StallTimeout limita quanto tempo o ffmpeg fica bloqueado numa leitura RTSP
+// travada antes de sair sozinho — sem isso, uma queda de rede no meio de uma
+// leitura deixa o processo pendurado indefinidamente, sem produzir saída e
+// sem sair, então o loop de reconexão de quem o supervisiona (Recorder.Run,
+// HLSStreamer.Run) nunca é acionado (incidente 2026-08-26: ~8h sem gravar
+// depois de um blip de rede de poucos minutos). Curto o bastante pra não
+// deixar a câmera muda por horas, longo o bastante pra não reiniciar à toa
+// num blip de rede normal.
+const StallTimeout = 15 * time.Second
+
+// TransportArgs monta as flags do ffmpeg que forçam RTSP sobre TCP com
+// timeout de leitura (StallTimeout) — compartilhado por qualquer captura
+// RTSP do projeto.
 func TransportArgs() []string {
-	return []string{"-rtsp_transport", "tcp"}
+	return []string{
+		"-rtsp_transport", "tcp",
+		"-rw_timeout", strconv.FormatInt(StallTimeout.Microseconds(), 10),
+	}
 }
 
 // ConnectArgs é o caso comum: TransportArgs + core.InputArgs, sem nada entre
