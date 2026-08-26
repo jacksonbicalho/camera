@@ -38,7 +38,20 @@ id" e o carve-out sempre-editável desta página.
   conteúdo interno. Campo de substream RTSP (`capture_type==='rtsp'`) mora
   aqui. Título/borda vivem num wrapper privado `MotionPanel`; sub-blocos
   usam `FieldGroup` (privado, sem `Card` próprio) em vez de `SettingsSection`
-  aninhado (evita painel-dentro-de-painel).
+  aninhado (evita painel-dentro-de-painel). Repassa `peak?.peak_raw_score`
+  (já buscado aqui via `useMotionPeak` para o `RatioGuide`) como prop
+  `dailyPeak` pro `MotionScoreChart` em ambos os pontos de uso
+  (`MotionReadOnly`/`MotionFormContent`) — ver invariante do teto do eixo
+  abaixo.
+- `components/MotionScoreChart.tsx` + `components/motionScoreChartUtils.ts`
+  — gráfico SVG "Score em tempo real" (scores brutos via SSE, escala
+  logarítmica, janela de 30s), usado só dentro de `CameraMotionSection`.
+  `computeLogMax(threshold, dailyPeak)` (util separado do componente por
+  causa do `eslint react-refresh/only-export-components`, mesmo padrão de
+  `cameraFormUtils.ts`) calcula o teto do eixo Y como a menor potência de
+  10 que fica ≥ 1.5× `max(threshold, dailyPeak, 0.001)` — depende só desses
+  dois valores, nunca de `samples`, então o eixo não "pula" a cada amostra
+  da linha ao vivo.
 - `pages/settings/CameraDetailSettingsPage.tsx` — branch **admin**: monta
   `CameraCaptureSection`+`CameraRecordingSection`+`CameraTransmissionSection`
   +`MotionFormContent`, as 4 seções sempre
@@ -79,6 +92,18 @@ id" e o carve-out sempre-editável desta página.
 
 ## Decisões e invariantes
 
+- **Teto do eixo Y do `MotionScoreChart` é dinâmico, não fixo em `1.0`**
+  (história `fix/eixo-dinamico-grafico-score-movimento`): o score bruto de
+  movimento (`internal/motion/diff.go`, `mean(|Δpixel|)/255`) quase nunca
+  ultrapassa a casa de centésimos em uso normal (ver faixa típica de
+  threshold em `docs/motion.md`) — chegar perto de `1.0` exigiria o frame
+  inteiro saturar de preto a branco entre dois frames consecutivos. Com o
+  teto antigo fixo em `10^0`, a linha ficava sempre "grudada" na metade
+  inferior do gráfico mesmo com o sistema calibrado e funcionando, o que já
+  foi lido por um navigator como sinal de bug. `LOG_MIN` (`-4`, piso do
+  eixo) continua fixo — o problema era só o topo. `computeLogMax` tem piso
+  próprio (`MIN_CEILING = 0.001`) pra não colapsar o eixo numa câmera
+  recém-instalada sem threshold/pico relevante ainda.
 - **O select de `capture_type` (`CaptureFields`) só oferece RTSP/HLS** — a
   opção MJPEG foi removida do formulário (história
   `chore/remover-mjpeg-frontend`), junto com os branches de label/placeholder

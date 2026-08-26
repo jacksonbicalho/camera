@@ -84,4 +84,5 @@ HTML em cache no meio do caminho e não resolver nada.
 `SettingsSection` (card com lista de campos label/valor), `ConfirmDialog`
 (modal fixo de confirmação pra ações destrutivas; prop `danger` alterna
 botão vermelho/azul), `MotionScoreChart` (gráfico SVG em tempo real dos
-scores brutos via SSE, escala logarítmica, janela de 30s).
+scores brutos via SSE, escala logarítmica, janela de 30s; teto do eixo Y
+dinâmico via `computeLogMax` — ver [camera-settings.md](camera-settings.md)).
