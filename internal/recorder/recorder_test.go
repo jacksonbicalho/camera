@@ -415,8 +415,10 @@ func TestRecorderRunRestartsAfterUnexpectedExit(t *testing.T) {
 
 // TestRecorderStallEvents cobre a história feat/modulo-eventos-centralizado
 // (incidente 2026-08-26: ffmpeg travado sem sair nunca avisava ninguém) —
-// aqui simulamos o "sai sozinho" (já corrigido no lado ffmpeg pelo
-// -rw_timeout de internal/capturer/rtsp, T2) e checamos que o Recorder
+// aqui simulamos o "sai sozinho" (já corrigido no lado ffmpeg pelo -timeout
+// de internal/capturer/rtsp, T2 — era -rw_timeout originalmente, mas essa
+// flag não é aceita pelo demuxer RTSP, corrigido no hotfix
+// fix/fix-rw-timeout-nao-suportado-ffmpeg) e checamos que o Recorder
 // publica os eventos correspondentes no bus.
 func TestRecorderStallEvents(t *testing.T) {
 	t.Run("CA3: recorder publica recorder.stopped quando o ffmpeg sai inesperadamente", func(t *testing.T) {
@@ -429,7 +431,7 @@ func TestRecorderStallEvents(t *testing.T) {
 		defer unsubscribe()
 
 		// fakeProcess.Wait() retorna na hora — simula o ffmpeg saindo
-		// sozinho (já corrigido pelo -rw_timeout, T2).
+		// sozinho (já corrigido pelo -timeout, T2).
 		cmd := &fakeCommander{}
 		rec := recorder.NewRecorder(camera, storage, ffprobe.StreamInfo{}, cmd, discardLogger()).WithEvents(bus)
 

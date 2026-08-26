@@ -7,7 +7,7 @@ snapshot avulso de `cmd/camera` agora vivem aqui.
 
 ## Arquivos principais
 - `connect.go` — `TransportArgs` (força RTSP sobre TCP, `-rtsp_transport tcp`,
-  e limita o tempo de leitura travada com `-rw_timeout
+  e limita o tempo de leitura travada com `-timeout
   <StallTimeout.Microseconds()>` — compartilhado por qualquer captura RTSP
   do projeto) e `ConnectArgs` (`TransportArgs` + `core.InputArgs`, o caso
   comum — usado por quem não precisa de flags extras de conexão, ex.
@@ -29,10 +29,16 @@ snapshot avulso de `cmd/camera` agora vivem aqui.
   reiniciar à toa num blip de rede normal. `webrtc.Publisher` nunca teve
   esse problema — não usa ffmpeg pra ler vídeo, lê RTP direto em Go com
   timeout próprio.
+- A flag certa é `-timeout`, não `-rw_timeout`: essa última chegou a ser
+  usada por algumas horas no mesmo dia do incidente acima, mas o demuxer
+  RTSP do ffmpeg não a aceita (`Option rw_timeout not found`, apesar de
+  existir em `ffmpeg -h full` como opção genérica de protocolo) — quebrava
+  recorder/HLS de qualquer instalação. Corrigido e confirmado contra ffmpeg
+  8.1.2 (mesma versão do `Dockerfile` do projeto).
 
 ## Ver também
 - [internal/capturer](../README.md) — visão geral do domínio de captura.
 - [internal/capturer/hls](../hls/README.md) — protocolo irmão.
 - [internal/core](../../core/README.md) — `TranscodeArgs`/`InputArgs`/`Executor`, a parte protocolo-agnóstica.
-- [internal/recorder](../../recorder/README.md) — consome `ConnectArgs` (via `TransportArgs`) e depende do `-rw_timeout` pro loop de reconexão funcionar.
-- [internal/transmission/hls](../../transmission/hls/README.md) — consome `TransportArgs` direto, mesma dependência do `-rw_timeout`.
+- [internal/recorder](../../recorder/README.md) — consome `ConnectArgs` (via `TransportArgs`) e depende do `-timeout` pro loop de reconexão funcionar.
+- [internal/transmission/hls](../../transmission/hls/README.md) — consome `TransportArgs` direto, mesma dependência do `-timeout`.

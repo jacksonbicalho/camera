@@ -26,11 +26,13 @@ Transporte universal (qualquer browser toca HLS), com piso de latência de
   tem sucesso.
 
 ## Decisões e invariantes
-- Reaproveita o mesmo `-rw_timeout` de `rtsp.TransportArgs()` que o
+- Reaproveita o mesmo `-timeout` de `rtsp.TransportArgs()` que o
   `internal/recorder` usa — sem isso o `ffmpeg` bloqueado numa leitura RTSP
   travada nunca sai sozinho e o loop de reconexão deste `Run` não é
   acionado. Não precisou de mudança própria: já vinha de `TransportArgs()`
-  chamado direto em `Start()`. Ver [internal/capturer/rtsp](../../capturer/rtsp/README.md).
+  chamado direto em `Start()`, então a correção de `-rw_timeout` (não
+  aceito pelo demuxer RTSP) pra `-timeout` em `TransportArgs()` bastou. Ver
+  [internal/capturer/rtsp](../../capturer/rtsp/README.md).
 - Usa `time.Now()` direto (não um campo `now` injetável como o
   `internal/recorder`) — este pacote não tem rollover diário, então injetar
   tempo só para os eventos seria abstração prematura sem segundo caso de
@@ -40,6 +42,6 @@ Transporte universal (qualquer browser toca HLS), com piso de latência de
 - [internal/transmission](../README.md) — visão geral do domínio de entrega ao vivo.
 - [internal/transmission/webrtc](../webrtc/README.md) — transporte irmão, baixa latência.
 - [internal/capturer](../../capturer/README.md) — builders de args por protocolo de captura.
-- [internal/capturer/rtsp](../../capturer/rtsp/README.md) — `StallTimeout`/`-rw_timeout`.
+- [internal/capturer/rtsp](../../capturer/rtsp/README.md) — `StallTimeout`/`-timeout`.
 - [internal/events](../../events/README.md) — barramento onde `EventStopped`/`EventRecovered` são publicados.
 - [internal/alerts](../../alerts/README.md) — assina esses eventos e vira notificação pra admins.

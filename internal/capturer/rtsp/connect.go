@@ -32,11 +32,19 @@ const StallTimeout = 15 * time.Second
 
 // TransportArgs monta as flags do ffmpeg que forçam RTSP sobre TCP com
 // timeout de leitura (StallTimeout) — compartilhado por qualquer captura
-// RTSP do projeto.
+// RTSP do projeto. `-timeout`, não `-rw_timeout`: essa última existe em
+// `ffmpeg -h full` (opção genérica de protocolo), mas o demuxer RTSP não a
+// aceita de verdade — ffmpeg sai na hora com "Option rw_timeout not found"
+// e nunca conecta (confirmado contra ffmpeg 8.1.2, a mesma versão do
+// Dockerfile do projeto — quebrou recorder/HLS de qualquer instalação por
+// algumas horas no dia em que a flag errada foi introduzida). `-timeout` é
+// o nome certo pro demuxer RTSP: confirmado conectando normalmente contra
+// uma câmera real e saindo no tempo certo (segundos, não min) contra um
+// host inalcançável.
 func TransportArgs() []string {
 	return []string{
 		"-rtsp_transport", "tcp",
-		"-rw_timeout", strconv.FormatInt(StallTimeout.Microseconds(), 10),
+		"-timeout", strconv.FormatInt(StallTimeout.Microseconds(), 10),
 	}
 }
 
