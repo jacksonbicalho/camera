@@ -130,6 +130,37 @@ escopado pelo usuário autenticado de propósito, nunca por um endpoint livre
 no corpo, senão um usuário poderia remover a subscription de outro só
 reusando/adivinhando o endpoint.
 
+## Extensões: `Available` vs `Active`, sincronizado no boot (`extensions.go`)
+`GET /api/settings/extensions` devolve `extensionsMeta()` — uma slice fixa
+(só 2 extensões existem hoje: `telegram`, `s3`; regra dos três, `CLAUDE.md`,
+nada de registry) de `extensionDTO{ID, Name, Category, Description,
+Available, Active}`. `Available` é calculado de `s.extensionsCfg` (o
+`camera.yaml` de bootstrap — "permitida nesta instância", ex.
+`Telegram.Enabled && BotToken != ""`); `Active` é o toggle "Ativado" que o
+admin liga/desliga em `Preferências > Extensões`
+(`PUT /api/settings/extensions/{id}`), persistido em `system_config` via
+`db.GetExtensionActive`/`SetExtensionActive` (ver
+[internal/db](../db/README.md)). Os dois são conceitos deliberadamente
+distintos — mudar o yaml sozinho não mexe no toggle persistido, que
+sobrevive a reinícios.
+
+`SyncExtensionsFromConfig()` reconcilia os dois no boot: para cada
+extensão, força `Active := Available`, nos DOIS sentidos (liga o que o
+yaml passou a habilitar, desliga o que deixou de habilitar) — mesmo que
+isso sobrescreva um toggle que o admin tinha ligado manualmente pela UI
+num boot anterior sem editar o yaml (efeito aceito: `camera.yaml` é a
+fonte de verdade a cada reinício, decisão do navigator). Chamada uma
+única vez em `cmd/camera/main.go`, logo após o server ganhar
+`WithExtensionsConfig`/`WithDB` e ANTES do `http.ListenAndServe` — evita
+corrida com um `PUT /api/settings/extensions/{id}` concorrente. Erro só
+gera `slog.Warn`, nunca é fatal (conveniência de coerência yaml↔banco, não
+crítica pro boot); sem `s.db` configurado, é no-op. Efeito colateral
+positivo: como `internal/storage.Cleaner` também lê
+`db.GetExtensionActive(c.db, "s3")` pra decidir sobre upload S3 (ver
+[internal/storage](../storage/README.md)) e é construído depois desse
+sync no fluxo de boot, ele já enxerga o valor corrigido automaticamente,
+sem nenhuma mudança própria.
+
 ## Vínculo de conta Telegram (`telegram_link.go`)
 `POST /api/me/telegram/link` (`authFull`) gera um código de uso único
 (`db.SetTelegramLinkCode`, TTL de 10min) e devolve o deep-link
@@ -139,7 +170,7 @@ autenticado. `POST /api/me/telegram/unlink` limpa o `chat_id` vinculado sem
 checar `Active` de propósito (ver abaixo). O handler de link valida, nessa
 ordem, `Available` (`Enabled && BotToken != ""`, config de instância) **e**
 `db.GetExtensionActive(s.db, "telegram")` (toggle "Ativado" em
-`Preferências > Extensões`, ver [internal/extensions](../extensions/README.md)),
+`Preferências > Extensões`, ver "Extensões: `Available` vs `Active`" acima),
 devolvendo 503 em qualquer um dos dois casos — história
 `fix/gate-telegram-link-por-extensao-ativa` fechou a checagem de `Active`,
 que faltava (dava pra vincular uma conta com o toggle desligado). O gate de
@@ -269,4 +300,4 @@ Vite (esses continuam cacheáveis à vontade, já são imunes a staleness pelo
 próprio nome do arquivo).
 
 ## Ver também
-- [internal/notifications](../notifications/README.md), [internal/notifications/webpush](../notifications/webpush/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md), [internal/extensions](../extensions/README.md) — os domínios que este pacote expõe via HTTP.
+- [internal/notifications](../notifications/README.md), [internal/notifications/webpush](../notifications/webpush/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md), [internal/extensions](../extensions/README.md), [internal/storage](../storage/README.md) — os domínios que este pacote expõe via HTTP.
