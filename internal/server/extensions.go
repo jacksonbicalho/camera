@@ -45,6 +45,27 @@ func (s *Server) extensionsMeta() []extensionDTO {
 	}
 }
 
+// SyncExtensionsFromConfig força o toggle "Ativado" (system_config, banco)
+// de cada extensão a refletir sua disponibilidade no camera.yaml
+// (extensionsMeta().Available) — chamado uma vez no boot, ANTES do server
+// aceitar requisições HTTP, pra evitar corrida com PUT
+// /api/settings/extensions/{id}. camera.yaml é a fonte de verdade a cada
+// reinício: liga o que o yaml habilita, desliga o que não habilita — mesmo
+// que um admin tenha mudado o toggle pela UI num boot anterior sem editar
+// o yaml (efeito colateral aceito, decisão do navigator, ver
+// work_progress/analysis). Sem `s.db` (instância sem banco), é no-op.
+func (s *Server) SyncExtensionsFromConfig() error {
+	if s.db == nil {
+		return nil
+	}
+	for _, e := range s.extensionsMeta() {
+		if err := db.SetExtensionActive(s.db, e.ID, e.Available); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Server) handleGetExtensionsConfig(w http.ResponseWriter, r *http.Request) {
 	if !s.requireDB(w) {
 		return

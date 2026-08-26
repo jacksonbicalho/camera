@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"camera/internal/config"
+	"camera/internal/db"
 	"camera/internal/server"
 )
 
@@ -189,5 +190,72 @@ func TestExtensionsListed_S3(t *testing.T) {
 				t.Error("expected available=true with extensions.s3.enabled=true")
 			}
 		})
+	})
+}
+
+// TestSyncExtensionsFromConfig cobre a história
+// fix/sync-extensao-active-boot-camera-yaml: no boot, camera.yaml deve
+// prevalecer sobre o toggle "Ativado" persistido em system_config, nos
+// dois sentidos — inclusive religando uma extensão que o admin tinha
+// desligado manualmente pela UI, se o yaml disser enabled: true (decisão
+// do navigator, ver work_progress/analysis).
+func TestSyncExtensionsFromConfig(t *testing.T) {
+	t.Run("CA2: yaml enabled=false força Active=false mesmo partindo de true no banco", func(t *testing.T) {
+		database := openServerTestDB(t)
+		if err := db.SetExtensionActive(database, "telegram", true); err != nil {
+			t.Fatalf("seed active=true: %v", err)
+		}
+		srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).
+			WithExtensionsConfig(config.ExtensionsConfig{
+				Telegram: config.TelegramConfig{Enabled: false},
+			}).
+			WithDB(database)
+
+		if err := srv.SyncExtensionsFromConfig(); err != nil {
+			t.Fatalf("SyncExtensionsFromConfig: %v", err)
+		}
+
+		active, err := db.GetExtensionActive(database, "telegram")
+		if err != nil {
+			t.Fatalf("GetExtensionActive: %v", err)
+		}
+		if active {
+			t.Error("esperava active=false depois do sync (yaml enabled=false), got true")
+		}
+	})
+
+	t.Run("CA2: yaml enabled=true (+ bot token) força Active=true mesmo partindo de false no banco", func(t *testing.T) {
+		database := openServerTestDB(t)
+		if err := db.SetExtensionActive(database, "telegram", false); err != nil {
+			t.Fatalf("seed active=false: %v", err)
+		}
+		srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).
+			WithExtensionsConfig(config.ExtensionsConfig{
+				Telegram: config.TelegramConfig{Enabled: true, BotToken: "tok"},
+			}).
+			WithDB(database)
+
+		if err := srv.SyncExtensionsFromConfig(); err != nil {
+			t.Fatalf("SyncExtensionsFromConfig: %v", err)
+		}
+
+		active, err := db.GetExtensionActive(database, "telegram")
+		if err != nil {
+			t.Fatalf("GetExtensionActive: %v", err)
+		}
+		if !active {
+			t.Error("esperava active=true depois do sync (yaml enabled=true + bot token), got false")
+		}
+	})
+
+	t.Run("CA2: sem DB configurado, não quebra o boot (no-op)", func(t *testing.T) {
+		srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).
+			WithExtensionsConfig(config.ExtensionsConfig{
+				Telegram: config.TelegramConfig{Enabled: true, BotToken: "tok"},
+			})
+
+		if err := srv.SyncExtensionsFromConfig(); err != nil {
+			t.Errorf("esperava nil sem DB configurado, got %v", err)
+		}
 	})
 }

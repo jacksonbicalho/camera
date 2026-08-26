@@ -487,6 +487,9 @@ func main() {
 			WithCameraCallbacks(startCameraProcs, stopCameraProcs).
 			WithDB(database).
 			WithProber(prober)
+		if err := srv.SyncExtensionsFromConfig(); err != nil {
+			slog.Warn("failed to sync extensions active state from config", "error", err)
+		}
 		var smtpSender *email.SMTPSender
 		if cfg.SMTP.Host != "" {
 			smtpSender = email.NewSMTPSender(cfg.SMTP)
