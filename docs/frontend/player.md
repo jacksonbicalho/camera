@@ -101,6 +101,41 @@ dispara toda vez que o node MUDA, inclusive quando passa a existir num
 render posterior. `ResizeObserver` não existe no jsdom dos testes — degrada
 graciosamente pra sem teto.
 
+## `HistoryTimeline`: régua de 24h com rolagem contida no próprio container
+
+Abaixo do player em `HistoryPage`, `components/HistoryTimeline.tsx` desenha
+uma régua horizontal com um card por hora do dia (só horas com pelo menos
+uma gravação). O card fica dentro de `#history-timeline-scroll`
+(`overflow-x-auto overflow-y-hidden` — rola só no eixo horizontal, de
+propósito). Ao trocar de gravação selecionada (clique na própria régua, na
+lista lateral, ou seleção automática ao trocar de dia), a linha ativa
+precisa entrar na área visível horizontal.
+
+- **Nunca usar `elemento.scrollIntoView({block, inline})` num container que
+  trava um eixo (`overflow-y: hidden`).** Pedir ajuste num eixo que o
+  container mais próximo não consegue satisfazer faz o browser escalar a
+  busca por um ancestral scrollável NESSE eixo até achar um — no limite, a
+  própria `window`, rolando a página inteira a cada clique numa gravação
+  (bug real, medido com Playwright antes do fix —
+  `fix/historytimeline-scroll-vazamento-janela`). A correção calcula
+  `scrollLeft` manualmente (`getBoundingClientRect()` do container e da
+  linha ativa + `container.scrollLeft` atual) e só chama
+  `container.scrollTo({left, behavior:'smooth'})` quando a linha sai da
+  faixa visível — nunca delega a busca a nenhum ancestral. O
+  `scrollIntoView` irmão da lista lateral (`HistoryPage.tsx`,
+  `activeCardRef`, dentro de um container que É rolável no eixo pedido)
+  não tem esse problema e ficou intocado.
+- Esse comportamento entre ancestrais reais não é verificável em teste de
+  componente/jsdom (que não simula scroll/layout de verdade) — coberto por
+  um spec e2e dedicado (`e2e/tests/history-timeline-scroll.spec.ts`) em vez
+  de só `HistoryTimeline.test.tsx`.
+- `suppressScrollRef` (prop opcional, mesmo ref que `HistoryPage` usa pra
+  sua própria lista lateral) suprime esse ajuste durante o avanço
+  automático da reprodução contínua. O componente só LÊ a flag, nunca a
+  reseta: React descarrega effects de filho pra pai dentro do mesmo commit,
+  e `HistoryTimeline` é filho de `HistoryPage` — resetar aqui apagaria o
+  sinal antes do pai (dono da flag) conseguir lê-lo.
+
 ## Ver também
 - [pages.md](pages.md) — `HistoryPage`/`VideoBrowserPage`/`RecordingsPage` usando estes componentes
 - [design-system.md](design-system.md) — regra "theme-aware, nunca cor fixa"

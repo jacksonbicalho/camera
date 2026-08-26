@@ -796,12 +796,16 @@ describe('HistoryTimeline', () => {
         expect(scroll.contains(document.getElementById('history-timeline-headers'))).toBe(true)
       })
 
-      it('selecionar uma gravação (ex.: clique na lista lateral, fora do próprio timeline) rola a régua até a linha correspondente entrar em vista', () => {
-        // Mesmo padrão de `activeCardRef`/`scrollIntoView` em HistoryPage.tsx (lista lateral) —
-        // pedido do navigator: clicar numa gravação na lista deve trazer a posição
-        // correspondente na régua horizontal pra dentro da área visível.
+      it('selecionar uma gravação (ex.: clique na lista lateral, fora do próprio timeline) rola a régua até a linha correspondente entrar em vista — SEM tocar em scrollIntoView (vazaria pra window, ver história fix/historytimeline-scroll-vazamento-janela)', () => {
+        // `#history-timeline-scroll` tem overflow-y:hidden de propósito (só rola na
+        // horizontal) — scrollIntoView({block:'nearest'}) nesse container escalava a busca
+        // até a window, rolando a PÁGINA INTEIRA a cada seleção (bug real, medido com
+        // Playwright). O componente ajusta `scrollLeft` manualmente em vez disso; este
+        // teste garante que scrollIntoView nunca mais é chamado por nenhum elemento da
+        // régua, e que o `scrollTo` do container é calculado pela geometria real (não um
+        // valor arbitrário).
         const scrollIntoView = vi.fn()
-        const original = Element.prototype.scrollIntoView
+        const originalScrollIntoView = Element.prototype.scrollIntoView
         Element.prototype.scrollIntoView = scrollIntoView
         try {
           const items = [
@@ -811,7 +815,45 @@ describe('HistoryTimeline', () => {
           const { rerender } = render(
             <HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />,
           )
-          expect(scrollIntoView).not.toHaveBeenCalled()
+          const scrollContainer = document.getElementById('history-timeline-scroll')!
+          // Container "visível" de 200px, começando em x=0.
+          vi.spyOn(scrollContainer, 'getBoundingClientRect').mockReturnValue({
+            left: 0,
+            width: 200,
+            top: 0,
+            right: 200,
+            bottom: 24,
+            height: 24,
+            x: 0,
+            y: 0,
+            toJSON() {
+              return {}
+            },
+          } as DOMRect)
+          Object.defineProperty(scrollContainer, 'clientWidth', { value: 200, configurable: true })
+          const scrollTo = vi.fn()
+          scrollContainer.scrollTo = scrollTo
+          // Linha da gravação 2 (hora 18) já existe no DOM (ambos os itens sempre
+          // renderizam — só o `ref`/efeito depende de `selectedId`), posicionada bem fora
+          // da área visível (x=500), como numa régua com muitas horas antes dela.
+          const line = document.getElementById('history-timeline-hour-18-rec-2')!
+          vi.spyOn(line, 'getBoundingClientRect').mockReturnValue({
+            left: 500,
+            width: 5,
+            top: 0,
+            right: 505,
+            bottom: 24,
+            height: 24,
+            x: 500,
+            y: 0,
+            toJSON() {
+              return {}
+            },
+          } as DOMRect)
+
+          // Único rerender que muda `selectedId` — o efeito só dispara nessa transição
+          // (dependência `[selectedId, suppressScrollRef]`), por isso todos os mocks acima
+          // precisam estar prontos ANTES dele.
           rerender(
             <HistoryTimeline
               recordingItems={items}
@@ -820,11 +862,104 @@ describe('HistoryTimeline', () => {
               selectedId={2}
             />,
           )
-          expect(scrollIntoView).toHaveBeenCalledWith(
-            expect.objectContaining({ inline: 'nearest', block: 'nearest' }),
-          )
+
+          expect(scrollIntoView).not.toHaveBeenCalled()
+          // lineLeft=500, lineRight=505 > visibleRight=200 -> target = 505 - 200 = 305.
+          expect(scrollTo).toHaveBeenCalledWith({ left: 305, behavior: 'smooth' })
         } finally {
-          Element.prototype.scrollIntoView = original
+          Element.prototype.scrollIntoView = originalScrollIntoView
+        }
+      })
+
+      it('linha já visível na faixa horizontal atual: não chama scrollTo (evita ajuste desnecessário a cada seleção)', () => {
+        const items = [
+          item(1, '2026-07-05T05:00:00Z', 'continua'),
+          item(2, '2026-07-05T18:00:00Z', 'movimento'),
+        ]
+        const { rerender } = render(
+          <HistoryTimeline recordingItems={items} onSelect={vi.fn()} cameraId="cam1" />,
+        )
+        const scrollContainer = document.getElementById('history-timeline-scroll')!
+        vi.spyOn(scrollContainer, 'getBoundingClientRect').mockReturnValue({
+          left: 0,
+          width: 200,
+          top: 0,
+          right: 200,
+          bottom: 24,
+          height: 24,
+          x: 0,
+          y: 0,
+          toJSON() {
+            return {}
+          },
+        } as DOMRect)
+        Object.defineProperty(scrollContainer, 'clientWidth', { value: 200, configurable: true })
+        const scrollTo = vi.fn()
+        scrollContainer.scrollTo = scrollTo
+        // Linha já dentro da faixa visível (0-200): left=50, right=55.
+        const line = document.getElementById('history-timeline-hour-18-rec-2')!
+        vi.spyOn(line, 'getBoundingClientRect').mockReturnValue({
+          left: 50,
+          width: 5,
+          top: 0,
+          right: 55,
+          bottom: 24,
+          height: 24,
+          x: 50,
+          y: 0,
+          toJSON() {
+            return {}
+          },
+        } as DOMRect)
+
+        rerender(
+          <HistoryTimeline
+            recordingItems={items}
+            onSelect={vi.fn()}
+            cameraId="cam1"
+            selectedId={2}
+          />,
+        )
+
+        expect(scrollTo).not.toHaveBeenCalled()
+      })
+
+      it('suppressScrollRef.current=true (avanço automático da reprodução contínua): não ajusta scrollLeft nem chama scrollIntoView', () => {
+        const scrollIntoView = vi.fn()
+        const originalScrollIntoView = Element.prototype.scrollIntoView
+        Element.prototype.scrollIntoView = scrollIntoView
+        try {
+          const items = [
+            item(1, '2026-07-05T05:00:00Z', 'continua'),
+            item(2, '2026-07-05T18:00:00Z', 'movimento'),
+          ]
+          const suppressScrollRef = { current: true }
+          const { rerender } = render(
+            <HistoryTimeline
+              recordingItems={items}
+              onSelect={vi.fn()}
+              cameraId="cam1"
+              suppressScrollRef={suppressScrollRef}
+            />,
+          )
+          const scrollContainer = document.getElementById('history-timeline-scroll')!
+          const scrollTo = vi.fn()
+          scrollContainer.scrollTo = scrollTo
+
+          rerender(
+            <HistoryTimeline
+              recordingItems={items}
+              onSelect={vi.fn()}
+              cameraId="cam1"
+              selectedId={2}
+              suppressScrollRef={suppressScrollRef}
+            />,
+          )
+
+          expect(scrollTo).not.toHaveBeenCalled()
+          expect(scrollIntoView).not.toHaveBeenCalled()
+        } finally {
+          Element.prototype.scrollIntoView = originalScrollIntoView
         }
       })
     })

@@ -130,21 +130,38 @@ export default function HistoryTimeline({
   // precisamos deste ref pra ler `getBoundingClientRect().left` sob demanda nos handlers
   // de clique/arraste (posição do elemento na viewport), nunca pra largura/conteúdo.
   const trackRef = useRef<HTMLDivElement | null>(null)
-  // Rola a régua até a linha selecionada entrar em vista — mesmo padrão já usado pela
-  // lista lateral de gravações (`activeCardRef`, HistoryPage.tsx), espelhado aqui pro eixo
-  // horizontal: pedido do navigator, clicar numa gravação na lista deve trazer a posição
-  // correspondente na régua pra dentro da área visível, não deixar o usuário rolando à mão
-  // até achar o card certo. `inline: 'nearest'` (equivalente horizontal do `block: 'nearest'`
-  // da lista) só move o scroll o mínimo necessário — não pula/centraliza à toa quando a
-  // linha já está visível.
+  // Rola a régua até a linha selecionada entrar em vista — mesmo pedido do navigator já
+  // atendido pela lista lateral de gravações (`activeCardRef`, HistoryPage.tsx), espelhado
+  // aqui pro eixo horizontal. Ajuste MANUAL de `scrollLeft` no próprio container
+  // (`#history-timeline-scroll`, ver `scrollContainerRef` abaixo) em vez de
+  // `elemento.scrollIntoView({block:'nearest', ...})`: esse container tem `overflow-y:
+  // hidden` de propósito (só rola na horizontal) — pedir ajuste vertical (`block`) a um
+  // container que não é scrollável nesse eixo faz o browser escalar a busca até a
+  // window, rolando a PÁGINA INTEIRA a cada clique numa gravação (bug real, medido com
+  // Playwright — história fix/historytimeline-scroll-vazamento-janela). Calcular e aplicar
+  // `scrollLeft` direto no container nunca escala pra ancestrais.
   const activeLineRef = useRef<HTMLSpanElement | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     if (suppressScrollRef?.current) return
-    activeLineRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      inline: 'nearest',
-      block: 'nearest',
-    })
+    const container = scrollContainerRef.current
+    const line = activeLineRef.current
+    if (!container || !line) return
+    const containerRect = container.getBoundingClientRect()
+    const lineRect = line.getBoundingClientRect()
+    const lineLeft = lineRect.left - containerRect.left + container.scrollLeft
+    const lineRight = lineLeft + lineRect.width
+    const visibleLeft = container.scrollLeft
+    const visibleRight = container.scrollLeft + container.clientWidth
+    let target = container.scrollLeft
+    if (lineLeft < visibleLeft) {
+      target = lineLeft
+    } else if (lineRight > visibleRight) {
+      target = lineRight - container.clientWidth
+    }
+    if (target !== container.scrollLeft) {
+      container.scrollTo({ left: target, behavior: 'smooth' })
+    }
   }, [selectedId, suppressScrollRef])
   // Deslocamento horizontal do scroll da régua (`#history-timeline-scroll`) — o preview
   // (miniatura + horário no hover) fica FORA do container que rola, pra não ser cortado
@@ -446,6 +463,7 @@ export default function HistoryTimeline({
             barra vertical indesejada. */}
         <div
           id="history-timeline-scroll"
+          ref={scrollContainerRef}
           // Sem `pt-*` — os CABEÇALHOS são o 1º filho, ocupando naturalmente o espaço
           // logo acima da trilha (onde a bolinha da alça, `-top-2.5`, sobe sem ser
           // cortada por `overflow-y-hidden`). Um padding extra aqui só afastaria o resumo
