@@ -31,16 +31,20 @@ enquanto ainda está sendo gravado (ver `internal/server/server.go`,
   `EventStopped`).
 
 ## Decisões e invariantes
-- **`-rw_timeout` no ffmpeg (via `rtsp.TransportArgs`) é o que faz este
+- **`-timeout` no ffmpeg (via `rtsp.TransportArgs`) é o que faz este
   loop de reconexão funcionar em queda de rede.** Sem ele, um `ffmpeg`
   bloqueado numa leitura RTSP travada não morre nem produz saída — fica
   pendurado indefinidamente e o `<-exited:` deste `Run` nunca dispara
   (incidente 2026-08-26: ~8h sem gravar depois de um blip de rede de
-  poucos minutos). Ver [internal/capturer/rtsp](../capturer/rtsp/README.md).
+  poucos minutos). A flag chegou a ser `-rw_timeout` por algumas horas no
+  mesmo dia — corrigida pra `-timeout` porque o demuxer RTSP do ffmpeg não
+  aceita `-rw_timeout` (`Option rw_timeout not found`), o que fazia
+  recorder/HLS de qualquer instalação falhar na hora. Ver
+  [internal/capturer/rtsp](../capturer/rtsp/README.md).
 
 ## Ver também
 - [internal/capturer](../capturer/README.md) — builders de args por protocolo.
-- [internal/capturer/rtsp](../capturer/rtsp/README.md) — `StallTimeout`/`-rw_timeout`, o que garante que o processo sai sozinho numa leitura travada.
+- [internal/capturer/rtsp](../capturer/rtsp/README.md) — `StallTimeout`/`-timeout`, o que garante que o processo sai sozinho numa leitura travada.
 - [internal/exec](../exec/README.md) — gerência do processo ffmpeg de longa duração.
 - [internal/events](../events/README.md) — barramento onde `EventStopped`/`EventRecovered` são publicados.
 - [internal/alerts](../alerts/README.md) — assina esses eventos e vira notificação pra admins.
