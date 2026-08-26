@@ -11,8 +11,16 @@ import (
 	"camera/internal/capturer/rtsp"
 	"camera/internal/config"
 	"camera/internal/core"
+	"camera/internal/events"
 	"camera/internal/exec"
 	"camera/internal/ffprobe"
+)
+
+// Tipos de evento publicados no events.Bus (ver WithEvents) — história
+// feat/modulo-eventos-centralizado.
+const (
+	EventStopped   = "recorder.stopped"
+	EventRecovered = "recorder.recovered"
 )
 
 type Recorder struct {
@@ -23,6 +31,7 @@ type Recorder struct {
 	log       *slog.Logger
 	process   exec.Process
 	now       func() time.Time
+	events    *events.Bus
 }
 
 func NewRecorder(camera config.CameraConfig, storage config.StorageConfig, stream ffprobe.StreamInfo, commander exec.Commander, log *slog.Logger) *Recorder {
@@ -79,12 +88,32 @@ func (r *Recorder) needsTranscode() bool {
 	return core.NeedsTranscode(r.camera.RecordVideoMode, r.stream.VideoCodec)
 }
 
+// WithEvents injeta o barramento de eventos operacionais — opcional (zero
+// value nil continua seguro, publish vira no-op), mesmo padrão chainable de
+// server.WithVersion/WithDB/etc.
+func (r *Recorder) WithEvents(bus *events.Bus) *Recorder {
+	r.events = bus
+	return r
+}
+
+func (r *Recorder) publish(eventType string) {
+	if r.events == nil {
+		return
+	}
+	r.events.Publish(events.Event{Type: eventType, CameraID: r.camera.ID, At: r.now()})
+}
+
 func (r *Recorder) Run(ctx context.Context, reconnect time.Duration) {
+	stopped := false // true depois de um EventStopped ainda não seguido de EventRecovered
 	for {
 		start := r.now()
 		if err := r.Start(start); err != nil {
 			r.log.Error("recorder: failed to start", "camera", r.camera.ID, "error", err)
 		} else {
+			if stopped {
+				r.publish(EventRecovered)
+				stopped = false
+			}
 			exited := make(chan struct{})
 			proc := r.process
 			go func() { proc.Wait(); close(exited) }()
@@ -99,6 +128,8 @@ func (r *Recorder) Run(ctx context.Context, reconnect time.Duration) {
 				return
 			case <-exited:
 				r.log.Warn("recorder: process exited unexpectedly", "camera", r.camera.ID)
+				r.publish(EventStopped)
+				stopped = true
 			case <-rollover:
 				r.log.Info("recorder: rolling output directory at day boundary", "camera", r.camera.ID)
 				r.Stop()

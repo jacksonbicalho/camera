@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"camera/internal/config"
+	"camera/internal/events"
 	"camera/internal/exec"
 	"camera/internal/ffprobe"
 	"camera/internal/recorder"
@@ -410,6 +411,80 @@ func TestRecorderRunRestartsAfterUnexpectedExit(t *testing.T) {
 	}
 	cancel()
 	<-done
+}
+
+// TestRecorderStallEvents cobre a história feat/modulo-eventos-centralizado
+// (incidente 2026-08-26: ffmpeg travado sem sair nunca avisava ninguém) —
+// aqui simulamos o "sai sozinho" (já corrigido no lado ffmpeg pelo
+// -rw_timeout de internal/capturer/rtsp, T2) e checamos que o Recorder
+// publica os eventos correspondentes no bus.
+func TestRecorderStallEvents(t *testing.T) {
+	t.Run("CA3: recorder publica recorder.stopped quando o ffmpeg sai inesperadamente", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		camera := config.CameraConfig{ID: "cam1", RTSPURL: "rtsp://192.168.1.10:554/stream"}
+		storage := config.StorageConfig{Path: tmpDir}
+
+		bus := events.NewBus()
+		stopped, unsubscribe := bus.Subscribe(recorder.EventStopped)
+		defer unsubscribe()
+
+		// fakeProcess.Wait() retorna na hora — simula o ffmpeg saindo
+		// sozinho (já corrigido pelo -rw_timeout, T2).
+		cmd := &fakeCommander{}
+		rec := recorder.NewRecorder(camera, storage, ffprobe.StreamInfo{}, cmd, discardLogger()).WithEvents(bus)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			rec.Run(ctx, 10*time.Millisecond)
+		}()
+
+		select {
+		case ev := <-stopped:
+			if ev.CameraID != "cam1" {
+				t.Errorf("CameraID = %q, want %q", ev.CameraID, "cam1")
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("esperava receber recorder.stopped após o ffmpeg sair inesperadamente")
+		}
+		cancel()
+		<-done
+	})
+
+	t.Run("CA3: recorder publica recorder.recovered ao reiniciar com sucesso após uma parada", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		camera := config.CameraConfig{ID: "cam1", RTSPURL: "rtsp://192.168.1.10:554/stream"}
+		storage := config.StorageConfig{Path: tmpDir}
+
+		bus := events.NewBus()
+		recovered, unsubscribe := bus.Subscribe(recorder.EventRecovered)
+		defer unsubscribe()
+
+		// toda chamada a Start() "funciona" e o processo sai logo em seguida
+		// (fakeProcess) — o 2º Start() bem-sucedido já conta como
+		// recuperação de uma parada anterior.
+		cmd := newCountingCommander(2, func(n int) exec.Process { return &fakeProcess{} })
+		rec := recorder.NewRecorder(camera, storage, ffprobe.StreamInfo{}, cmd, discardLogger()).WithEvents(bus)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			rec.Run(ctx, 10*time.Millisecond)
+		}()
+
+		select {
+		case ev := <-recovered:
+			if ev.CameraID != "cam1" {
+				t.Errorf("CameraID = %q, want %q", ev.CameraID, "cam1")
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("esperava receber recorder.recovered após reiniciar com sucesso")
+		}
+		cancel()
+		<-done
+	})
 }
 
 func TestDurationUntilNextDay(t *testing.T) {
