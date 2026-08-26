@@ -26,6 +26,12 @@ export default defineConfig({
     // CPU, sempre um teste diferente, sempre passando isolado). Limitar a
     // concorrência troca wall-clock por confiabilidade — ver
     // work_progress/analysis (história chore/limpeza-followups-e-flakiness-testes).
-    maxWorkers: 4,
+    // No CI (runners ubuntu-latest do GitHub Actions, 2 vCPUs reais) o `4`
+    // local é 2x oversubscription — mesma classe de flakiness, confirmada
+    // de novo no job Frontend do PR #708 (história
+    // fix/maxworkers-ci-flakiness-frontend). `process.env.CI` é mais
+    // confiável que introspecção de hardware (os.cpus() pode reportar o
+    // host inteiro, não a cota real do container/runner).
+    maxWorkers: process.env.CI ? 2 : 4,
   },
 })
