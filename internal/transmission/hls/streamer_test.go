@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"camera/internal/config"
+	"camera/internal/events"
 	"camera/internal/exec"
 	"camera/internal/ffprobe"
 	"camera/internal/transmission/hls"
@@ -543,6 +544,74 @@ func TestHLSStreamerRunRestartsAfterUnexpectedExit(t *testing.T) {
 	}
 	cancel()
 	<-done
+}
+
+// TestHLSStreamerStallEvents cobre a história
+// feat/modulo-eventos-centralizado — mesmo padrão de
+// internal/recorder/recorder_test.go:TestRecorderStallEvents, ver lá pro
+// contexto do incidente que motivou.
+func TestHLSStreamerStallEvents(t *testing.T) {
+	t.Run("CA4: streamer publica transmission.stopped quando o ffmpeg sai inesperadamente", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		camera := config.CameraConfig{ID: "cam1", RTSPURL: "rtsp://192.168.1.10:554/stream"}
+		server := config.ServerConfig{SegmentsPath: tmpDir}
+
+		bus := events.NewBus()
+		stopped, unsubscribe := bus.Subscribe(hls.EventStopped)
+		defer unsubscribe()
+
+		cmd := &fakeCommander{}
+		s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger()).WithEvents(bus)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			s.Run(ctx, 10*time.Millisecond)
+		}()
+
+		select {
+		case ev := <-stopped:
+			if ev.CameraID != "cam1" {
+				t.Errorf("CameraID = %q, want %q", ev.CameraID, "cam1")
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("esperava receber transmission.stopped após o ffmpeg sair inesperadamente")
+		}
+		cancel()
+		<-done
+	})
+
+	t.Run("CA4: streamer publica transmission.recovered ao reiniciar com sucesso após uma parada", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		camera := config.CameraConfig{ID: "cam1", RTSPURL: "rtsp://192.168.1.10:554/stream"}
+		server := config.ServerConfig{SegmentsPath: tmpDir}
+
+		bus := events.NewBus()
+		recovered, unsubscribe := bus.Subscribe(hls.EventRecovered)
+		defer unsubscribe()
+
+		cmd := newCountingCommander(2, func(n int) exec.Process { return &fakeProcess{} })
+		s := hls.NewHLSStreamer(camera, server, ffprobe.StreamInfo{}, cmd, discardLogger()).WithEvents(bus)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			s.Run(ctx, 10*time.Millisecond)
+		}()
+
+		select {
+		case ev := <-recovered:
+			if ev.CameraID != "cam1" {
+				t.Errorf("CameraID = %q, want %q", ev.CameraID, "cam1")
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("esperava receber transmission.recovered após reiniciar com sucesso")
+		}
+		cancel()
+		<-done
+	})
 }
 
 func TestHLSStreamerRunStopsOnContextCancel(t *testing.T) {
