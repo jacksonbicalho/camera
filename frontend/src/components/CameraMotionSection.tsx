@@ -210,7 +210,11 @@ export function MotionReadOnly({
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
             Score em tempo real
           </p>
-          <MotionScoreChart cameraId={id} threshold={motion.threshold} />
+          <MotionScoreChart
+            cameraId={id}
+            threshold={motion.threshold}
+            dailyPeak={peak?.peak_raw_score}
+          />
         </div>
         {peak !== null && (
           <FieldGroup
@@ -408,7 +412,12 @@ export function MotionFormContent({ cam, id, peak, reload }: MotionFormContentPr
 
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-3">Score em tempo real</p>
-              <MotionScoreChart key={saveCount} cameraId={id} threshold={effectiveThreshold} />
+              <MotionScoreChart
+                key={saveCount}
+                cameraId={id}
+                threshold={effectiveThreshold}
+                dailyPeak={peak?.peak_raw_score}
+              />
             </div>
 
             {peak !== null && (

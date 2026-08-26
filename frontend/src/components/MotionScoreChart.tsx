@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useEventSource } from '../hooks/useEventSource'
+import { computeLogMax } from './motionScoreChartUtils'
 
 interface Sample {
   time: number // Date.now()
@@ -9,17 +10,17 @@ interface Sample {
 interface Props {
   cameraId: string
   threshold: number
+  dailyPeak?: number
   windowMs?: number // visible time window; default 30s
 }
 
 const DEFAULT_WINDOW = 30_000
 const LOG_MIN = -4 // log10(0.0001)
-const LOG_MAX = 0 // log10(1.0)
-const Y_TICKS = [0.0001, 0.001, 0.01, 0.1, 1.0]
 
 export default function MotionScoreChart({
   cameraId,
   threshold,
+  dailyPeak,
   windowMs = DEFAULT_WINDOW,
 }: Props) {
   const [samples, setSamples] = useState<Sample[]>([])
@@ -62,10 +63,13 @@ export default function MotionScoreChart({
   const now = tick
   const timeMin = now - windowMs
 
+  const logMax = computeLogMax(threshold, dailyPeak ?? 0)
+  const yTicks = Array.from({ length: logMax - LOG_MIN + 1 }, (_, i) => 10 ** (LOG_MIN + i))
+
   function toLogY(score: number): number {
     if (score <= 0) return padTop + chartH
-    const logVal = Math.max(LOG_MIN, Math.min(LOG_MAX, Math.log10(score)))
-    return padTop + chartH - ((logVal - LOG_MIN) / (LOG_MAX - LOG_MIN)) * chartH
+    const logVal = Math.max(LOG_MIN, Math.min(logMax, Math.log10(score)))
+    return padTop + chartH - ((logVal - LOG_MIN) / (logMax - LOG_MIN)) * chartH
   }
 
   function toX(time: number): number {
@@ -91,7 +95,7 @@ export default function MotionScoreChart({
       <rect x={padLeft} y={padTop} width={chartW} height={chartH} fill="#111827" rx="4" />
 
       {/* y-axis grid lines at each tick */}
-      {Y_TICKS.map((v) => (
+      {yTicks.map((v) => (
         <line
           key={v}
           x1={padLeft}
@@ -154,7 +158,7 @@ export default function MotionScoreChart({
       )}
 
       {/* y-axis labels */}
-      {Y_TICKS.map((v) => (
+      {yTicks.map((v) => (
         <text
           key={v}
           x={padLeft - 3}

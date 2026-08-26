@@ -4,7 +4,16 @@ import { MotionFormContent, MotionReadOnly } from './CameraMotionSection'
 import type { Camera } from './cameraFormUtils'
 import type { CameraSettings } from '../hooks/useSettings'
 
-vi.mock('./MotionScoreChart', () => ({ default: () => <div id="motion-score-chart" /> }))
+vi.mock('./MotionScoreChart', () => ({
+  default: (props: { cameraId: string; threshold: number; dailyPeak?: number }) => (
+    <div
+      id="motion-score-chart"
+      data-camera-id={props.cameraId}
+      data-threshold={props.threshold}
+      data-daily-peak={props.dailyPeak ?? ''}
+    />
+  ),
+}))
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 vi.mock('../auth', () => ({ authHeaders: () => ({}) }))
@@ -189,5 +198,41 @@ describe('MotionReadOnly não duplica o título "Detecção de movimento"', () =
       />,
     )
     expect(screen.getAllByText('Detecção de movimento')).toHaveLength(1)
+  })
+})
+
+describe('CA3: MotionScoreChart recebe o pico do dia como dailyPeak', () => {
+  function viewerCam(over: Partial<CameraSettings> = {}): CameraSettings {
+    return {
+      id: 'cam-1',
+      name: 'Corredor',
+      motion: { enabled: true, threshold: 0.009, fps: 2, cooldown_seconds: 30 },
+      ...over,
+    } as CameraSettings
+  }
+
+  it('MotionReadOnly repassa peak.peak_raw_score', () => {
+    render(<MotionReadOnly cam={viewerCam()} id="cam-1" peak={{ peak_raw_score: 0.017 }} />)
+    const chart = document.getElementById('motion-score-chart')
+    expect(chart?.getAttribute('data-daily-peak')).toBe('0.017')
+  })
+
+  it('MotionReadOnly com peak null deixa dailyPeak indefinido (sem quebrar)', () => {
+    render(<MotionReadOnly cam={viewerCam()} id="cam-1" peak={null} />)
+    const chart = document.getElementById('motion-score-chart')
+    expect(chart?.getAttribute('data-daily-peak')).toBe('')
+  })
+
+  it('MotionFormContent repassa peak.peak_raw_score', () => {
+    render(
+      <MotionFormContent
+        cam={baseCam()}
+        id="cam-1"
+        peak={{ peak_raw_score: 0.017 }}
+        reload={() => {}}
+      />,
+    )
+    const chart = document.getElementById('motion-score-chart')
+    expect(chart?.getAttribute('data-daily-peak')).toBe('0.017')
   })
 })
