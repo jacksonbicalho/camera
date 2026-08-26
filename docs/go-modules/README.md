@@ -20,6 +20,7 @@ completo, o conteúdo chega por cluster.
 - [internal/exec](internal/exec/README.md)
 - [internal/ffprobe](internal/ffprobe/README.md)
 - [internal/logger](internal/logger/README.md)
+- [internal/events](internal/events/README.md)
 
 ## Captura, gravação, transmissão e movimento
 - [internal/capturer](internal/capturer/README.md)
@@ -46,6 +47,7 @@ completo, o conteúdo chega por cluster.
   - [internal/notifications/application](internal/notifications/application/README.md)
   - [internal/notifications/email](internal/notifications/email/README.md)
   - [internal/notifications/webpush](internal/notifications/webpush/README.md)
+- [internal/alerts](internal/alerts/README.md)
 - [internal/email](internal/email/README.md)
 - [internal/release](internal/release/README.md)
 - [internal/updater](internal/updater/README.md)
