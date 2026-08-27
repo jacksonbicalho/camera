@@ -996,6 +996,14 @@ func (s *Server) handleUpdates(w http.ResponseWriter, r *http.Request) {
 const (
 	EventUpdateApplied = "update.applied"
 	EventUpdateFailed  = "update.failed"
+
+	// EventUpdateStep é o progresso granular de um apply em andamento
+	// ("downloading"/"snapshot"/"replacing"/"restarting", ver
+	// updater.Applier.OnStep) — deliberadamente um tipo à parte de
+	// EventUpdateApplied/Failed: o mapa de tradução de internal/alerts é
+	// fechado por tipo, então um step intermediário nunca vira notificação
+	// espúria por engano. Só handleUpdateApplyLive assina isso.
+	EventUpdateStep = "update.step"
 )
 
 func (s *Server) publishEvent(eventType string) {
@@ -1039,7 +1047,13 @@ func (s *Server) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		if err := s.applier.Apply(context.Background(), manifest, base); err != nil {
 			s.log.Error("apply update failed", "error", err)
-			s.publishEvent(EventUpdateFailed)
+			// Data carrega a mensagem real (não só o tipo, como publishEvent
+			// faria) — handleUpdateApplyLive repassa isso ao front, que
+			// mostra o motivo de verdade da falha em vez de um texto
+			// genérico.
+			if s.events != nil {
+				s.events.Publish(events.Event{Type: EventUpdateFailed, Data: err.Error(), At: time.Now()})
+			}
 			return
 		}
 		s.publishEvent(EventUpdateApplied)
@@ -1047,6 +1061,65 @@ func (s *Server) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]string{"status": "applying", "to": manifest.Latest})
+}
+
+// updateProgressEvent é o payload do SSE de progresso do apply — Step vem
+// preenchido pra um EventUpdateStep; Failed/Error só pro EventUpdateFailed
+// (o sucesso nunca chega por aqui: em sucesso o Reexec mata o processo, e a
+// própria queda de conexão — esperada, ver internal/updater.Applier.OnStep
+// "restarting" — É o sinal; o front confirma reconectando depois).
+type updateProgressEvent struct {
+	Step   string `json:"step,omitempty"`
+	Failed bool   `json:"failed,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+// handleUpdateApplyLive é o SSE de progresso de um apply em andamento —
+// mescla EventUpdateStep (fases granulares) e EventUpdateFailed (erro
+// explícito, ex. download com checksum inválido) num único stream. Ao
+// contrário de handleNotificationsLive, não é por usuário: só um admin
+// aplica update por vez, processo único.
+func (s *Server) handleUpdateApplyLive(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+	if s.events == nil {
+		http.Error(w, "eventos indisponíveis", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	steps, unsubSteps := s.events.Subscribe(EventUpdateStep)
+	defer unsubSteps()
+	failures, unsubFailures := s.events.Subscribe(EventUpdateFailed)
+	defer unsubFailures()
+
+	write := func(ev updateProgressEvent) {
+		data, _ := json.Marshal(ev)
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
+	}
+
+	for {
+		select {
+		case ev := <-steps:
+			step, _ := ev.Data.(string)
+			write(updateProgressEvent{Step: step})
+		case ev := <-failures:
+			errMsg, _ := ev.Data.(string)
+			if errMsg == "" {
+				errMsg = "falha ao aplicar a atualização"
+			}
+			write(updateProgressEvent{Failed: true, Error: errMsg})
+		case <-r.Context().Done():
+			return
+		}
+	}
 }
 
 func (s *Server) handleClientConfig(w http.ResponseWriter, r *http.Request) {
