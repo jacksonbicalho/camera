@@ -118,6 +118,7 @@ A partir daí, qualquer movimento detectado numa câmera à qual você tem acess
 Pontos importantes:
 - **Exige conexão segura (HTTPS ou `localhost`).** Em instalações acessadas por HTTP puro, a seção **Notificações push** não aparece no Perfil — não é um erro, é uma limitação do navegador.
 - **Por dispositivo/navegador.** Ative em cada celular, computador ou navegador onde quiser receber o aviso — não é uma preferência de conta única.
+- **No Android, para o aviso mostrar o ícone do os-camera** (em vez do ícone genérico do Chrome), instale o app na tela inicial primeiro (menu do navegador → **Instalar app**/**Adicionar à tela inicial**) e só depois ative as notificações push.
 - Pra parar de receber, volte em **Perfil → Notificações push** e clique em **Desativar**.
 
 Ver também: [Câmeras](cameras.md) | [Armazenamento](storage.md)
