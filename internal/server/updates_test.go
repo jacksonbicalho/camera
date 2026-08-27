@@ -15,9 +15,16 @@ import (
 
 type fakeChecker struct{ st release.Status }
 
-func (f fakeChecker) Status() release.Status             { return f.st }
-func (f fakeChecker) Manifest() (release.Manifest, bool) { return release.Manifest{}, false }
-func (f fakeChecker) DownloadBase() string               { return "" }
+func (f fakeChecker) Status() release.Status { return f.st }
+
+// Check satisfaz updateStatuser (história fix/apply-update-recheck-fresco)
+// sem simular recheck nenhum — os testes deste arquivo nunca chamam
+// handleApplyUpdate (ver apply_test.go pra isso).
+func (f fakeChecker) Check(ctx context.Context) (release.Manifest, error) {
+	return release.Manifest{}, nil
+}
+
+func (f fakeChecker) DownloadBase() string { return "" }
 
 type fakeNotesFetcher struct {
 	notes map[string]string

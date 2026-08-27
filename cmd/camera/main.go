@@ -486,7 +486,8 @@ func main() {
 			WithFrameExtractor(extractFrame).
 			WithCameraCallbacks(startCameraProcs, stopCameraProcs).
 			WithDB(database).
-			WithProber(prober)
+			WithProber(prober).
+			WithEvents(eventsBus)
 		if err := srv.SyncExtensionsFromConfig(); err != nil {
 			slog.Warn("failed to sync extensions active state from config", "error", err)
 		}

@@ -26,6 +26,7 @@ import (
 	"camera/internal/config"
 	"camera/internal/db"
 	"camera/internal/deviceinfo"
+	"camera/internal/events"
 	"camera/internal/ffprobe"
 	"camera/internal/motion"
 	"camera/internal/notifications"
@@ -142,6 +143,7 @@ type Server struct {
 	notifications         *notifications.Dispatcher
 	telegramSender        telegramSender
 	webpushSender         webpushSender
+	events                *events.Bus
 }
 
 // emailSender envia e-mail (esqueci-a-senha hoje). Definido aqui no
@@ -173,12 +175,21 @@ type webpushSender interface {
 	Send(n notifications.Notification, userID int64) error
 }
 
-// updateStatuser fornece o snapshot da checagem de versão e o manifesto cacheado
-// (consumidos por handleUpdates/handleApplyUpdate). Definido aqui no consumidor
-// para manter o acoplamento mínimo.
+// updateStatuser fornece o snapshot da checagem de versão (consumido por
+// handleUpdates) e força um recheck fresco contra a API do GitHub
+// (consumido por handleApplyUpdate). Definido aqui no consumidor para
+// manter o acoplamento mínimo.
 type updateStatuser interface {
 	Status() release.Status
-	Manifest() (release.Manifest, bool)
+	// Check busca a release mais recente agora, sem usar o cache do Run
+	// periódico, e atualiza esse cache com o resultado (Status()/
+	// DownloadBase() já refletem o novo valor logo em seguida).
+	// handleApplyUpdate chama isso antes de decidir se aplica — sem isso,
+	// republicar a tag flutuante -rc (scripts/release-candidate.sh) entre
+	// dois checks periódicos deixa o apply preso num checksum stale até o
+	// próximo tick do interval (achado em produção, ver
+	// work_progress/analysis/202608262048_apply-update-recheck-fresco.md).
+	Check(ctx context.Context) (release.Manifest, error)
 	// DownloadBase é a base de download (URL terminada em "/") da release
 	// resolvida no último check — pode não ser a estável (ver
 	// release.Checker.DownloadBase). handleApplyUpdate passa isso pro
@@ -330,6 +341,14 @@ func (s *Server) WithApplyMode(mode string) *Server {
 
 func (s *Server) WithApplier(a applyRunner) *Server {
 	s.applier = a
+	return s
+}
+
+// WithEvents injeta o barramento de eventos operacionais — opcional (zero
+// value nil continua seguro, publish vira no-op), mesmo padrão chainable de
+// recorder.Recorder.WithEvents/hls.HLSStreamer.WithEvents.
+func (s *Server) WithEvents(bus *events.Bus) *Server {
+	s.events = bus
 	return s
 }
 
@@ -970,6 +989,22 @@ func (s *Server) handleUpdates(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(updatesResponse{Status: st, ApplyMode: s.applyMode})
 }
 
+// Tipos de evento publicados no events.Bus (ver WithEvents) quando a
+// goroutine de apply termina — mesmo padrão de recorder.EventStopped/
+// hls.EventStopped (história feat/modulo-eventos-centralizado);
+// internal/alerts traduz em notificação pra todo admin.
+const (
+	EventUpdateApplied = "update.applied"
+	EventUpdateFailed  = "update.failed"
+)
+
+func (s *Server) publishEvent(eventType string) {
+	if s.events == nil {
+		return
+	}
+	s.events.Publish(events.Event{Type: eventType, At: time.Now()})
+}
+
 func (s *Server) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -983,15 +1018,18 @@ func (s *Server) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"error": "atualização não disponível"})
 		return
 	}
+
+	// Recheca contra a API do GitHub agora, em vez de confiar no cache do
+	// Run periódico (ver comentário em updateStatuser.Check).
+	manifest, err := s.updateChecker.Check(r.Context())
+	if err != nil {
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": "falha ao checar atualização: " + err.Error()})
+		return
+	}
 	if !s.updateChecker.Status().UpdateAvailable {
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(map[string]string{"error": "nenhuma atualização disponível"})
-		return
-	}
-	manifest, ok := s.updateChecker.Manifest()
-	if !ok {
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"error": "manifesto indisponível"})
 		return
 	}
 	base := s.updateChecker.DownloadBase()
@@ -1001,7 +1039,10 @@ func (s *Server) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		if err := s.applier.Apply(context.Background(), manifest, base); err != nil {
 			s.log.Error("apply update failed", "error", err)
+			s.publishEvent(EventUpdateFailed)
+			return
 		}
+		s.publishEvent(EventUpdateApplied)
 	}()
 
 	w.WriteHeader(http.StatusAccepted)
