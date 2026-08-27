@@ -72,6 +72,18 @@ type Applier struct {
 	Snapshot func() (string, error)
 	Replace  func(src, target, backup string) error
 	Reexec   func(target string) error
+
+	// OnStep, se não-nil, é chamado com o nome da fase logo ANTES dela
+	// rodar ("downloading"/"snapshot"/"replacing"/"restarting") — permite
+	// ao caller expor progresso granular (ver internal/server, endpoint SSE
+	// de progresso do apply) sem acoplar este pacote a HTTP/SSE.
+	OnStep func(step string)
+}
+
+func (a *Applier) onStep(step string) {
+	if a.OnStep != nil {
+		a.OnStep(step)
+	}
 }
 
 // Apply baixa o binário da arquitetura a partir de baseURL (a base de
@@ -86,16 +98,19 @@ func (a *Applier) Apply(ctx context.Context, m release.Manifest, baseURL string)
 		return fmt.Errorf("nenhum binário para a arquitetura atual no manifesto")
 	}
 
+	a.onStep("downloading")
 	newPath := filepath.Join(a.Dir, ".camera.new")
 	if err := a.Download(ctx, AssetURL(baseURL, asset.Name), asset.SHA256, newPath); err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
 
+	a.onStep("snapshot")
 	snap, err := a.Snapshot()
 	if err != nil {
 		return fmt.Errorf("snapshot do db: %w", err)
 	}
 
+	a.onStep("replacing")
 	backup := filepath.Join(a.Dir, "camera.old")
 	if err := a.Replace(newPath, a.Target, backup); err != nil {
 		return fmt.Errorf("troca do binário: %w", err)
@@ -115,5 +130,6 @@ func (a *Applier) Apply(ctx context.Context, m release.Manifest, baseURL string)
 		return fmt.Errorf("gravar marcador: %w", err)
 	}
 
+	a.onStep("restarting")
 	return a.Reexec(a.Target)
 }

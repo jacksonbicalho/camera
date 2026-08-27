@@ -19,6 +19,14 @@ troca — qualquer erro antes dela não deixa efeito) e re-executa. As
 operações (`Download`/`Snapshot`/`Replace`/`Reexec`) são todas injetadas,
 testável sem rede/FS de binário/exec real.
 
+`Applier.OnStep func(step string)` (opcional, nil-safe) é chamado logo
+ANTES de cada uma das 4 fases (`"downloading"`/`"snapshot"`/`"replacing"`/
+`"restarting"`) — existe pra deixar o caller expor progresso granular sem
+acoplar este pacote a HTTP/SSE. `internal/server` é quem usa isso hoje,
+publicando cada step recebido no `events.Bus` (`EventUpdateStep`) pra
+alimentar o modal de progresso do apply (ver
+[docs/go-modules/internal/server/README.md](../server/README.md)).
+
 `baseURL` é recebido a cada chamada, não fixado no `Applier` — o caller
 (`internal/server.handleApplyUpdate`) resolve com
 [`release.Checker.DownloadBase()`](../release/README.md), a base da release

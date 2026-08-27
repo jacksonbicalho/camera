@@ -4,6 +4,8 @@ import PageHeader from '../../components/PageHeader'
 import SettingsSection from '../../components/SettingsSection'
 import ReleaseNotesMarkdown from '../../components/ReleaseNotesMarkdown'
 import { Button } from '../../components/ui/button'
+import { ChevronDown } from '../../components/Icons'
+import UpdateProgressModal from '../../components/UpdateProgressModal'
 import { useAbout, type AboutInfo } from '../../hooks/useSettings'
 import { useUpdates } from '../../hooks/useUpdates'
 import { getRole } from '../../auth'
@@ -17,89 +19,107 @@ function fmtUptime(seconds: number): string {
   return `${s}s`
 }
 
-function UpdatesSection() {
+// UpdateAlertRow — última linha do card "Informações do servidor" (pedido do
+// navigator: o alerta de atualização deixou de ser uma seção própria abaixo
+// do card). O resumo + botão "Atualizar agora" ficam na mesma linha
+// (data-update-row); o changelog (ReleaseNotesMarkdown) fica atrás de um
+// disclosure colapsado por padrão — antes aparecia sempre expandido.
+function UpdateAlertRow() {
   const { status, applyUpdate } = useUpdates()
-  const [applying, setApplying] = useState(false)
-  const [applyMsg, setApplyMsg] = useState('')
-  const [applyErr, setApplyErr] = useState('')
+  const [starting, setStarting] = useState(false)
+  const [startErr, setStartErr] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
-  // A seção só existe quando há de fato uma atualização disponível: sem update,
+  // A linha só existe quando há de fato uma atualização disponível: sem update,
   // em dia ou com erro de checagem, fica em silêncio (não renderiza nada).
   if (getRole() !== 'admin' || !status || status.error || !status.update_available) {
     return null
   }
 
+  // O modal (progresso linha a linha via SSE) assume a partir daqui — este
+  // clique só dispara o apply no servidor e abre a tela bloqueante.
   const onApply = async () => {
-    setApplying(true)
-    setApplyErr('')
+    setStarting(true)
+    setStartErr('')
     const res = await applyUpdate()
     if (res.ok) {
-      setApplyMsg('Atualizando… o servidor vai reiniciar em instantes.')
+      setModalOpen(true)
     } else {
-      setApplyErr(res.error || 'Falha ao iniciar a atualização.')
-      setApplying(false)
+      setStartErr(res.error || 'Falha ao iniciar a atualização.')
     }
+    setStarting(false)
   }
 
   return (
-    <section id="updates-section" className="mt-8">
-      <h3 className="text-h3 font-semibold text-foreground mb-3">Atualizações</h3>
+    <div className="border-t border-border px-5 py-3">
+      <div data-update-row className="flex items-center justify-between gap-3">
+        {status.notes_md ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((e) => !e)}
+            aria-expanded={expanded}
+            aria-controls="update-notes"
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          >
+            <ChevronDown
+              className={`w-4 h-4 text-faint transition-transform shrink-0 ${expanded ? 'rotate-180' : ''}`}
+            />
+            <span className="truncate text-sm font-medium text-foreground">
+              Nova versão <span className="font-mono">{status.latest}</span> disponível
+            </span>
+          </button>
+        ) : (
+          <span className="truncate text-sm font-medium text-foreground">
+            Nova versão <span className="font-mono">{status.latest}</span> disponível
+          </span>
+        )}
 
-      {applyMsg ? (
-        <p id="update-applying" className="text-sm text-foreground">
-          {applyMsg}
-        </p>
-      ) : (
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <p className="text-sm font-medium text-foreground">
-            Nova versão <span className="font-mono">{status.latest}</span> disponível.
-          </p>
+        {status.apply_mode === 'self-replace' && (
+          <Button
+            id="update-apply-button"
+            variant="default"
+            size="sm"
+            onClick={onApply}
+            disabled={starting}
+          >
+            {starting ? 'Iniciando…' : 'Atualizar agora'}
+          </Button>
+        )}
+      </div>
 
-          {status.notes_md && (
-            <div id="update-notes" className="mt-3">
-              <ReleaseNotesMarkdown md={status.notes_md} />
-            </div>
-          )}
-
-          {status.apply_mode === 'self-replace' && (
-            <Button
-              id="update-apply-button"
-              variant="default"
-              size="sm"
-              onClick={onApply}
-              disabled={applying}
-              className="mt-4"
-            >
-              {applying ? 'Atualizando…' : 'Atualizar agora'}
-            </Button>
-          )}
-
-          {status.apply_mode === 'docker' && (
-            <div id="update-docker" className="mt-4 text-xs text-muted-foreground">
-              <p>Atualize a imagem Docker e recrie o container:</p>
-              <pre className="mt-1 rounded bg-surface-2 p-2 font-mono text-foreground">
-                docker compose pull && docker compose up -d
-              </pre>
-              <p className="mt-1">
-                Imagem: <span className="font-mono">{status.image}</span>
-              </p>
-            </div>
-          )}
-
-          {status.apply_mode === 'notify' && (
-            <p id="update-notify" className="mt-4 text-xs text-muted-foreground">
-              Atualização automática indisponível neste ambiente — baixe a nova versão manualmente.
-            </p>
-          )}
-
-          {applyErr && (
-            <p id="update-apply-error" className="mt-3 text-sm text-danger">
-              {applyErr}
-            </p>
-          )}
+      {expanded && status.notes_md && (
+        <div id="update-notes" className="mt-3">
+          <ReleaseNotesMarkdown md={status.notes_md} />
         </div>
       )}
-    </section>
+
+      {status.apply_mode === 'docker' && (
+        <div id="update-docker" className="mt-3 text-xs text-muted-foreground">
+          <p>Atualize a imagem Docker e recrie o container:</p>
+          <pre className="mt-1 rounded bg-surface-2 p-2 font-mono text-foreground">
+            docker compose pull && docker compose up -d
+          </pre>
+          <p className="mt-1">
+            Imagem: <span className="font-mono">{status.image}</span>
+          </p>
+        </div>
+      )}
+
+      {status.apply_mode === 'notify' && (
+        <p id="update-notify" className="mt-3 text-xs text-muted-foreground">
+          Atualização automática indisponível neste ambiente — baixe a nova versão manualmente.
+        </p>
+      )}
+
+      {startErr && (
+        <p id="update-apply-error" className="mt-3 text-sm text-danger">
+          {startErr}
+        </p>
+      )}
+
+      <UpdateProgressModal open={modalOpen} onDone={() => setModalOpen(false)} />
+    </div>
   )
 }
 
@@ -147,9 +167,10 @@ export default function AboutPage() {
             { label: 'Ativo há', value: fmtUptime(about.uptime_seconds) },
             { label: 'Go', value: about.go_version },
           ]}
-        />
+        >
+          <UpdateAlertRow />
+        </SettingsSection>
       )}
-      <UpdatesSection />
       {about && <ReleaseNotesSection about={about} />}
     </SettingsLayout>
   )

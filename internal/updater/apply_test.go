@@ -64,6 +64,45 @@ func newTestApplier(dir string, log *[]string) *Applier {
 	}
 }
 
+// TestApplyPublishesSteps corresponde ao CA2 da história
+// feat/update-progress-modal: OnStep permite ao caller (o servidor) expor o
+// progresso granular do apply — cada fase publica seu nome ANTES de rodar,
+// na mesma ordem que TestApplyOrder já prova pras operações em si.
+func TestApplyPublishesSteps(t *testing.T) {
+	t.Run("CA2: Applier.Apply invoca OnStep antes de cada fase, na ordem", func(t *testing.T) {
+		dir := t.TempDir()
+		var log []string
+		a := newTestApplier(dir, &log)
+
+		var steps []string
+		a.OnStep = func(step string) { steps = append(steps, step) }
+
+		if err := a.Apply(context.Background(), manifest(), "https://dl/"); err != nil {
+			t.Fatalf("Apply: %v", err)
+		}
+
+		want := []string{"downloading", "snapshot", "replacing", "restarting"}
+		if len(steps) != len(want) {
+			t.Fatalf("steps = %v, quero %v", steps, want)
+		}
+		for i := range want {
+			if steps[i] != want[i] {
+				t.Errorf("step %d = %q, quero %q", i, steps[i], want[i])
+			}
+		}
+	})
+
+	t.Run("CA2: OnStep nil (padrão) não quebra o Apply", func(t *testing.T) {
+		dir := t.TempDir()
+		var log []string
+		a := newTestApplier(dir, &log)
+
+		if err := a.Apply(context.Background(), manifest(), "https://dl/"); err != nil {
+			t.Fatalf("Apply: %v", err)
+		}
+	})
+}
+
 func TestApplyOrder(t *testing.T) {
 	dir := t.TempDir()
 	var log []string

@@ -75,6 +75,7 @@ func (s *Server) routeTable() []route {
 		{"GET", "/api/about", authFull, s.handleAbout},
 		{"GET", "/api/updates", authAdmin, s.handleUpdates},
 		{"POST", "/api/updates/apply", authAdmin, s.handleApplyUpdate},
+		{"GET", "/api/updates/apply/live", authAdmin, s.handleUpdateApplyLive},
 		{"GET", "/api/cameras", authFull, s.handleCameras},
 
 		{"GET", "/api/discover", authAdmin, s.handleDiscover},

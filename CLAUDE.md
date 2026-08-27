@@ -49,6 +49,7 @@ SPA React/Vite/Tailwind embutida no binário via `go:embed`. Páginas principais
 | Extensões (Preferências > Extensões, Telegram, S3) | [docs/frontend/extensions.md](docs/frontend/extensions.md) |
 | Usuários e perfil | [docs/frontend/users-profile.md](docs/frontend/users-profile.md) |
 | Notificações (sino) | [docs/frontend/notifications.md](docs/frontend/notifications.md) |
+| Sobre e atualização (`AboutPage`, alerta de update, `UpdateProgressModal`) | [docs/frontend/about-updates.md](docs/frontend/about-updates.md) |
 
 ```bash
 make frontend # builda o frontend via Docker (node:20-alpine) — gera frontend/dist

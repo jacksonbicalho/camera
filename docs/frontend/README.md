@@ -55,16 +55,21 @@ repita o mesmo erro, mantenha, mas em 1-2 frases, não um parágrafo.
 - [camera-settings.md](camera-settings.md) — `CameraForm`, seções sempre-editáveis de câmera, `CameraDetailSettingsPage`, `CamerasSettingsPage`
 - [extensions.md](extensions.md) — `PreferencesExtensionsPage`, `ExtensionCard`/`ExtensionActiveToggle` (chrome compartilhado), `TelegramExtensionCard`, `S3ExtensionCard`
 - [users-profile.md](users-profile.md) — `UsersSettingsPage`, `ProfileLayout`, `ChangePasswordPage`
+- [about-updates.md](about-updates.md) — `AboutPage`, `UpdateAlertRow`, `UpdateProgressModal`
 
 ### Notificações
 - [notifications.md](notifications.md) — `NotificationContext`, `MotionNotificationsBell`
 
 ## Hooks e componentes compartilhados (sem doc própria — self-explanatory)
 
-`useEventSource(path, onMessage)` — abre um `EventSource` autenticado via
-`?token=` e chama `onMessage` a cada evento; `path = null` fecha sem abrir.
-`useStats()` — busca `/api/stats` com polling de 30s. `useSettings()` /
-`useAbout()` — buscam `/api/settings` e `/api/about`.
+`useEventSource(path, onMessage, options?)` — abre um `EventSource`
+autenticado via `?token=` e chama `onMessage` a cada evento; `path = null`
+fecha sem abrir. `options.onOpen`/`options.onError` (opcionais,
+retrocompatíveis) repassam os handlers nativos do `EventSource` — usados
+por `UpdateProgressModal` (ver [about-updates.md](about-updates.md)) pra
+detectar queda/retomada de conexão; todo outro chamador continua só com
+`path`/`onMessage`. `useStats()` — busca `/api/stats` com polling de 30s.
+`useSettings()` / `useAbout()` — buscam `/api/settings` e `/api/about`.
 
 `useForceReloadOnStaleBuild()` (`hooks/useForceReloadOnStaleBuild.ts`,
 montado uma vez em `App.tsx`) — resolve um PWA reaberto do ícone da tela

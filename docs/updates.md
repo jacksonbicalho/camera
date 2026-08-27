@@ -25,7 +25,13 @@ Quando uma atualização é detectada, todos os usuários **admin** recebem uma 
 
 ## Aplicar a atualização
 
-O que aparece em **Sobre** depende de como esta instalação pode se atualizar sozinha — detectado por capacidade, não por adivinhar o ambiente:
+Quando há atualização disponível, o resumo ("Nova versão X disponível")
+aparece como última linha do card "Informações do servidor". Se houver
+notas de versão, o resumo é clicável e expande/recolhe o changelog logo
+abaixo (colapsado por padrão).
+
+O que aparece ao lado do resumo depende de como esta instalação pode se
+atualizar sozinha — detectado por capacidade, não por adivinhar o ambiente:
 
 | Modo | Quando | O que aparece |
 |---|---|---|
@@ -37,11 +43,19 @@ Docker tem precedência sobre escrita: mesmo com o binário gravável, trocar o 
 
 ### O que acontece no self-replace
 
+Clicar em **Atualizar agora** abre uma tela de progresso que fica aberta
+até o fim (não dá pra fechar antes de terminar) e mostra, em tempo real,
+cada uma das etapas conforme o servidor as executa:
+
 1. Baixa o binário da arquitetura atual e confere o checksum (SHA-256).
 2. Faz um snapshot do banco SQLite antes de trocar qualquer coisa.
 3. Substitui o binário e grava um marcador de "atualização em trial".
-4. Reinicia o processo sozinho.
-5. Se o próximo boot também falhar em confirmar o trial (ex.: crash logo na subida), o processo seguinte faz **rollback automático** — binário anterior e snapshot do banco voltam juntos, antes de qualquer outra coisa tocar no banco.
+4. Reinicia o processo sozinho — a tela mostra "Reiniciando o servidor…
+   reconectando" enquanto o processo novo ainda está subindo, e "Atualização
+   concluída com sucesso!" assim que ele volta a responder.
+5. Se algo falhar antes da reinicialização (ex.: checksum inválido), a tela
+   mostra o motivo do erro em vez de travar; nada é aplicado.
+6. Se o próximo boot também falhar em confirmar o trial (ex.: crash logo na subida), o processo seguinte faz **rollback automático** — binário anterior e snapshot do banco voltam juntos, antes de qualquer outra coisa tocar no banco.
 
 ## Ver também
 

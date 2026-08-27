@@ -317,7 +317,31 @@ motivo (checksum, rede, disco cheio no self-replace). `internal/alerts`
 assina os dois e traduz em notificação pra todo admin (ver
 [internal/alerts](../alerts/README.md)), fechando o incidente também pro
 sintoma: antes disso um `Apply()` que falhasse só ia pro log, e a tela
-ficava presa em "Atualizando…" sem o usuário nunca saber o motivo.
+ficava presa em "Atualizando…" sem o usuário nunca saber o motivo. O `Data`
+do `EventUpdateFailed` carrega a mensagem real do erro (`err.Error()`), não
+só o tipo — quem assina o SSE de progresso (abaixo) repassa isso ao
+frontend em vez de um texto genérico.
+
+**Progresso granular do apply via SSE** (`GET /api/updates/apply/live`,
+admin, `handleUpdateApplyLive`): mescla num único stream o
+`EventUpdateStep` (const deste pacote, publicado por `cmd/camera/main.go`
+a cada chamada do `updater.Applier.OnStep` — ver
+[internal/updater](../updater/README.md) — com o nome de cada fase:
+`downloading`/`snapshot`/`replacing`/`restarting`) e o `EventUpdateFailed`
+já existente. Mesmo esqueleto de `handleNotificationsLive`/
+`handleMotionLive` (headers SSE, `Subscribe`/`defer unsubscribe`, `select`
+com `r.Context().Done()`), mas sem roteamento por usuário: só um apply
+roda por vez, é um processo único, não precisa isolar por quem está
+olhando. `EventUpdateStep` é deliberadamente um tipo à parte de
+`EventUpdateApplied`/`EventUpdateFailed` — o mapa de tradução de
+`internal/alerts` é fechado por tipo, então um step intermediário nunca
+vira notificação espúria por engano; só este handler assina esse tipo. O
+sucesso do apply nunca chega por este SSE: em self-replace o `Reexec` mata
+o processo depois do step `restarting`, e é a própria queda de conexão
+(esperada) que o frontend usa como sinal — a confirmação real é o
+`EventSource` reconectando sozinho contra o processo novo já de pé (ver
+`UpdateProgressModal` em
+[docs/frontend/about-updates.md](../../../frontend/about-updates.md)).
 
 `spaHandler` (também em `server.go`) seta `Cache-Control: no-cache,
 must-revalidate` na resposta de `index.html` (não `no-store`: permite
@@ -331,5 +355,5 @@ próprio nome do arquivo).
 
 ## Ver também
 - [internal/notifications](../notifications/README.md), [internal/notifications/webpush](../notifications/webpush/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md), [internal/extensions](../extensions/README.md), [internal/storage](../storage/README.md) — os domínios que este pacote expõe via HTTP.
-- [internal/events](../events/README.md) — barramento que este pacote publica via `WithEvents`/`publishEvent` (hoje só `EventUpdateApplied`/`EventUpdateFailed`).
+- [internal/events](../events/README.md) — barramento que este pacote publica via `WithEvents`/`publishEvent` (`EventUpdateApplied`/`EventUpdateFailed`/`EventUpdateStep`).
 - [internal/alerts](../alerts/README.md) — assina esses eventos e importa este pacote só pelas consts de tipo (sem ciclo: `server` não importa `alerts`).

@@ -622,6 +622,9 @@ func main() {
 			},
 			Replace: updater.Replace,
 			Reexec:  updater.ReexecSelf,
+			OnStep: func(step string) {
+				eventsBus.Publish(events.Event{Type: server.EventUpdateStep, Data: step, At: time.Now()})
+			},
 		})
 
 		// Confirma o trial de update (limpa o marcador) após o boot ficar saudável.

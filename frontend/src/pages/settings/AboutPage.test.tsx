@@ -11,6 +11,14 @@ vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
+// UpdateProgressModal tem cobertura própria (UpdateProgressModal.test.tsx,
+// incl. SSE real via EventSource stub) — aqui só interessa que AboutPage o
+// abre no lugar certo, não o comportamento interno dele.
+vi.mock('../../components/UpdateProgressModal', () => ({
+  default: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="update-progress-modal" /> : null,
+}))
+
 let mockAbout: AboutInfo = {
   version: 'v1.3.0-dev',
   commit: 'abc',
@@ -72,11 +80,11 @@ describe('AboutPage updates section', () => {
     renderPage()
 
     expect(screen.getByText(/v1\.4\.0-dev/)).toBeTruthy()
-    expect(screen.getByText(/coisa nova/)).toBeTruthy()
+    expect(screen.queryByText(/coisa nova/)).toBeNull() // colapsado por padrão (CA4)
 
     fireEvent.click(screen.getByText('Atualizar agora'))
     expect(applyUpdate).toHaveBeenCalled()
-    await waitFor(() => expect(screen.getByText(/reiniciar/i)).toBeTruthy())
+    await waitFor(() => expect(screen.getByTestId('update-progress-modal')).toBeTruthy())
   })
 
   it('docker: instruções sem botão', () => {
@@ -112,6 +120,30 @@ describe('AboutPage updates section', () => {
     renderPage()
 
     expect(screen.queryByText(/Atualiza/i)).toBeNull()
+  })
+})
+
+describe('AboutPage — alerta de atualização integrado ao card', () => {
+  it('CA4: última linha do card, changelog colapsado por padrão e expansível; botão ao lado do resumo', () => {
+    mockRole = 'admin'
+    mockStatus = { ...base }
+    renderPage()
+
+    const card = screen.getByText('Informações do servidor').closest('div')!
+    const withinCard = within(card)
+
+    // changelog colapsado por padrão
+    expect(withinCard.queryByText(/coisa nova/)).toBeNull()
+
+    // resumo da atualização e o botão vivem na mesma linha, dentro do card
+    const toggle = withinCard.getByRole('button', { name: /nova versão/i })
+    const row = toggle.closest('[data-update-row]')
+    expect(row).not.toBeNull()
+    expect(within(row as HTMLElement).getByText('Atualizar agora')).toBeTruthy()
+
+    // expande o changelog ao clicar no resumo
+    fireEvent.click(toggle)
+    expect(withinCard.getByText(/coisa nova/)).toBeTruthy()
   })
 })
 
