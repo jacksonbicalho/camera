@@ -11,6 +11,14 @@ vi.mock('../../components/SettingsLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
+// UpdateProgressModal tem cobertura própria (UpdateProgressModal.test.tsx,
+// incl. SSE real via EventSource stub) — aqui só interessa que AboutPage o
+// abre no lugar certo, não o comportamento interno dele.
+vi.mock('../../components/UpdateProgressModal', () => ({
+  default: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="update-progress-modal" /> : null,
+}))
+
 let mockAbout: AboutInfo = {
   version: 'v1.3.0-dev',
   commit: 'abc',
@@ -76,7 +84,7 @@ describe('AboutPage updates section', () => {
 
     fireEvent.click(screen.getByText('Atualizar agora'))
     expect(applyUpdate).toHaveBeenCalled()
-    await waitFor(() => expect(screen.getByText(/reiniciar/i)).toBeTruthy())
+    await waitFor(() => expect(screen.getByTestId('update-progress-modal')).toBeTruthy())
   })
 
   it('docker: instruções sem botão', () => {
