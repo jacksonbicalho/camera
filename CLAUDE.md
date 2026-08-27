@@ -47,6 +47,7 @@ SPA React/Vite/Tailwind embutida no binário via `go:embed`. Páginas principais
 | Páginas principais (`LivePage`/`HistoryPage`/`VideoBrowserPage`/`RecordingsPage`/`ReportsPage`/`LiveViewPage`) | [docs/frontend/pages.md](docs/frontend/pages.md) |
 | Configuração de câmera (`CameraForm`, seções sempre-editáveis, `CameraDetailSettingsPage`) | [docs/frontend/camera-settings.md](docs/frontend/camera-settings.md) |
 | Extensões (Preferências > Extensões, Telegram, S3) | [docs/frontend/extensions.md](docs/frontend/extensions.md) |
+| Testes (Preferências > Testes, notificação Telegram/Web Push) | [docs/frontend/preferences-tests.md](docs/frontend/preferences-tests.md) |
 | Usuários e perfil | [docs/frontend/users-profile.md](docs/frontend/users-profile.md) |
 | Notificações (sino) | [docs/frontend/notifications.md](docs/frontend/notifications.md) |
 | Sobre e atualização (`AboutPage`, alerta de update, `UpdateProgressModal`) | [docs/frontend/about-updates.md](docs/frontend/about-updates.md) |

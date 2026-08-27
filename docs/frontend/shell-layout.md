@@ -44,13 +44,20 @@ usa, e as camadas de navegação de `/settings/*`.
   mostra a hierarquia completa; uma 2ª coluna idêntica seria redundância).
 - `components/CameraSettingsTabs.tsx` — só as abas Câmera/Zonas no topo das
   páginas de configuração por câmera (`/settings/cameras/<seção>/:id`).
-- `components/PreferencesLayout.tsx` — submenu LATERAL de Preferências: só 3
+- `components/PreferencesLayout.tsx` — submenu LATERAL de Preferências:
   links fixos e estáticos — Extensões (`/settings/preferences/extensions`),
   Aparência (`/settings/preferences/appearance`), Armazenamento
-  (`/settings/preferences/storage`) — sem fetch, sem agrupamento, sem
-  sub-navegação por extensão. Prop `active` destaca o item atual via
-  `aria-current="page"`. Renderizado DENTRO do `SettingsLayout`/`PageHeader`
-  de cada página-filha, não um wrapper que os substitui.
+  (`/settings/preferences/storage`), Testes
+  (`/settings/preferences/tests`, ver
+  [preferences-tests.md](preferences-tests.md)) — sem fetch, sem
+  agrupamento, sem sub-navegação por extensão. Prop `active` destaca o item
+  atual via `aria-current="page"`. Renderizado DENTRO do
+  `SettingsLayout`/`PageHeader` de cada página-filha, não um wrapper que os
+  substitui. O limite de "só 3 links" já foi um invariante deliberado desta
+  história (`refactor/preferencias-submenu-lateral-storage`); o próprio
+  navigator o expandiu depois (`feat/preferencias-testes-notificacao`) — a
+  regra que sobrevive não é "3 no máximo", é "cada link é uma seção inteira
+  própria, nunca sub-navegação por item dentro de uma seção".
 - `components/ProfileLayout.tsx` — layout do Perfil (chegada via
   `UserMenu`): coluna com 3 links (Perfil / Alterar e-mail / Alterar senha)
   sobre o `Layout`, sem lista de seções administrativas.
@@ -112,3 +119,4 @@ estarem acoplados ao `VideoPlayer`.
 - [pages.md](pages.md) — páginas que consomem este shell
 - [design-system.md](design-system.md) — tokens usados aqui
 - [notifications.md](notifications.md) — `MotionNotificationsBell` na `TopBar`
+- [preferences-tests.md](preferences-tests.md) — página do link "Testes" em `PreferencesLayout`
