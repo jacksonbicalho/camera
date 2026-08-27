@@ -59,7 +59,14 @@ func (s *Sender) Send(n notifications.Notification, userID int64) error {
 		return err
 	}
 
-	opts := &webpushgo.Options{VAPIDPublicKey: s.vapidPublicKey, VAPIDPrivateKey: s.vapidPrivateKey}
+	// TTL: sem isso o header HTTP vai "TTL: 0" (zero-value), e o RFC 8030
+	// instrui o serviço de push a só entregar se o dispositivo estiver
+	// conectado NAQUELE INSTANTE — descartando a notificação sem fila/retry
+	// (e sem erro nenhum: o serviço ainda responde 2xx) sempre que o
+	// dispositivo está momentaneamente offline (tela apagada, Doze mode,
+	// blip de rede). 1h dá tempo de sobra pra reconectar sem tornar o
+	// alerta de movimento obsoleto.
+	opts := &webpushgo.Options{VAPIDPublicKey: s.vapidPublicKey, VAPIDPrivateKey: s.vapidPrivateKey, TTL: 3600}
 	for _, sub := range subs {
 		resp, err := s.send(body, &webpushgo.Subscription{
 			Endpoint: sub.Endpoint,
