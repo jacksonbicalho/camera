@@ -9,6 +9,7 @@ import (
 
 	"camera/internal/db"
 	"camera/internal/extensions/telegram"
+	"camera/internal/notifications"
 )
 
 // telegramLinkCodeTTL mirrors passwordResetTokenTTL's spirit (short-lived,
@@ -94,6 +95,65 @@ func (s *Server) handleTelegramUnlink(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := db.ClearUserTelegramChatID(s.db, s.currentUserID(r)); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// telegramGateStatus resolves the 3 pieces of state that decide whether
+// userID can receive a Telegram motion notification at all — shared by
+// handleGetPreferences (GET /api/me/preferences, informs the frontend
+// whether to show the "Testes" button as available) and handleTelegramTest
+// (rechecks the same gate server-side before actually sending).
+func (s *Server) telegramGateStatus(userID int64) (active bool, chatID string, hasCamera bool, err error) {
+	active, err = db.GetExtensionActive(s.db, "telegram")
+	if err != nil {
+		return false, "", false, err
+	}
+	chatID, _, _, _, err = db.GetUserTelegramChatInfo(s.db, userID)
+	if err != nil {
+		return false, "", false, err
+	}
+	hasCamera, err = db.UserHasAnyCameraMotionTelegramNotifyEnabled(s.db, userID)
+	if err != nil {
+		return false, "", false, err
+	}
+	return active, chatID, hasCamera, nil
+}
+
+// handleTelegramTest sends a test notification to the authenticated user's
+// linked Telegram chat — the "Testes" section in Preferences. Rechecks the
+// full gate server-side (extension active + account linked + at least one
+// camera with motion-notify enabled) instead of trusting the frontend
+// already filtered: telegramSender.Send silently no-ops when the first two
+// aren't met, which would otherwise look like a successful test that
+// delivered nothing.
+func (s *Server) handleTelegramTest(w http.ResponseWriter, r *http.Request) {
+	if !s.requireDB(w) {
+		return
+	}
+	userID := s.currentUserID(r)
+
+	active, chatID, hasCamera, err := s.telegramGateStatus(userID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !active || chatID == "" || !hasCamera {
+		http.Error(w, "telegram não está totalmente configurado — vincule a conta, ative a extensão e habilite a notificação de movimento em pelo menos uma câmera", http.StatusConflict)
+		return
+	}
+	if s.telegramSender == nil {
+		http.Error(w, "telegram indisponível nesta instância", http.StatusConflict)
+		return
+	}
+
+	n := notifications.Notification{
+		Title:   "Teste de notificação",
+		Message: "Esta é uma notificação de teste do os-camera.",
+	}
+	if err := s.telegramSender.Send(n, userID); err != nil {
+		http.Error(w, "falha ao enviar: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

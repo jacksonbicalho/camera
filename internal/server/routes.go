@@ -100,10 +100,12 @@ func (s *Server) routeTable() []route {
 		{"PUT", "/api/me/preferences", authFull, s.handleUpdatePreferences},
 		{"POST", "/api/me/telegram/link", authFull, s.handleTelegramLink},
 		{"POST", "/api/me/telegram/unlink", authFull, s.handleTelegramUnlink},
+		{"POST", "/api/me/telegram/test", authFull, s.handleTelegramTest},
 
 		{"GET", "/api/me/push/vapid-public-key", authFull, s.handleGetPushVAPIDPublicKey},
 		{"POST", "/api/me/push/subscription", authFull, s.handleSubscribePush},
 		{"DELETE", "/api/me/push/subscription", authFull, s.handleUnsubscribePush},
+		{"POST", "/api/me/push/test", authFull, s.handlePushTest},
 
 		// Perfil: dados do usuário + troca de e-mail com código de confirmação.
 		{"GET", "/api/me", authFull, s.handleGetMe},

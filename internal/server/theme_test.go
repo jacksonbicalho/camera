@@ -206,6 +206,98 @@ func TestPreferences_TelegramActiveReflectsExtensionState(t *testing.T) {
 	})
 }
 
+func TestPreferences_TelegramMotionNotifyAndPushSubscribed(t *testing.T) {
+	t.Run("CA3: telegram_motion_notify_enabled é false sem nenhuma câmera habilitada", func(t *testing.T) {
+		srv, token := themeServer(t)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/me/preferences", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var r struct {
+			TelegramMotionNotifyEnabled bool `json:"telegram_motion_notify_enabled"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if r.TelegramMotionNotifyEnabled {
+			t.Error("expected telegram_motion_notify_enabled=false sem nenhuma câmera habilitada")
+		}
+	})
+
+	t.Run("CA3: telegram_motion_notify_enabled reflete UserHasAnyCameraMotionTelegramNotifyEnabled", func(t *testing.T) {
+		database := openServerTestDB(t)
+		uid, err := db.CreateUser(database, "u2", "pw", "viewer", false)
+		if err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		if err := db.SetUserCameraMotionTelegramNotify(database, uid, "cam-1", true, 0.05); err != nil {
+			t.Fatalf("set notify: %v", err)
+		}
+		srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
+		token := loginAndGetToken(t, srv, "u2", "pw")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/me/preferences", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var r struct {
+			TelegramMotionNotifyEnabled bool `json:"telegram_motion_notify_enabled"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if !r.TelegramMotionNotifyEnabled {
+			t.Error("expected telegram_motion_notify_enabled=true com cam-1 habilitada")
+		}
+	})
+
+	t.Run("CA3: push_subscribed é false sem nenhuma subscription salva", func(t *testing.T) {
+		srv, token := themeServer(t)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/me/preferences", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var r struct {
+			PushSubscribed bool `json:"push_subscribed"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if r.PushSubscribed {
+			t.Error("expected push_subscribed=false sem nenhuma subscription")
+		}
+	})
+
+	t.Run("CA3: push_subscribed reflete ListPushSubscriptionsForUser", func(t *testing.T) {
+		database := openServerTestDB(t)
+		uid, err := db.CreateUser(database, "u3", "pw", "viewer", false)
+		if err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		if err := db.UpsertPushSubscription(database, uid, "https://push.example/x", "p", "a"); err != nil {
+			t.Fatalf("upsert subscription: %v", err)
+		}
+		srv := server.NewServer(config.ServerConfig{}, "UTC", nil, discardLogger(), nil).WithDB(database)
+		token := loginAndGetToken(t, srv, "u3", "pw")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/me/preferences", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		var r struct {
+			PushSubscribed bool `json:"push_subscribed"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if !r.PushSubscribed {
+			t.Error("expected push_subscribed=true com uma subscription salva")
+		}
+	})
+}
+
 func TestPreferences_TelegramChatInfo(t *testing.T) {
 	t.Run("CA2: telegram_username/telegram_first_name vêm vazios antes de vincular", func(t *testing.T) {
 		srv, token := themeServer(t)

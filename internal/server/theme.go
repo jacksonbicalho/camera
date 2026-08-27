@@ -35,12 +35,21 @@ func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load preferences", http.StatusInternalServerError)
 		return
 	}
-	chatID, telegramUsername, telegramFirstName, _, err := db.GetUserTelegramChatInfo(s.db, s.currentUserID(r))
+	_, telegramUsername, telegramFirstName, _, err := db.GetUserTelegramChatInfo(s.db, s.currentUserID(r))
 	if err != nil {
 		http.Error(w, "failed to load preferences", http.StatusInternalServerError)
 		return
 	}
-	telegramActive, err := db.GetExtensionActive(s.db, "telegram")
+	// telegram_motion_notify_enabled/push_subscribed alimentam o gate da
+	// seção "Testes" em Preferências — decide se cada botão de teste vem
+	// habilitado, sem o frontend precisar confiar em estado local (ex. o
+	// registro do Service Worker, que já provou divergir do backend).
+	telegramActive, chatID, telegramMotionNotifyEnabled, err := s.telegramGateStatus(s.currentUserID(r))
+	if err != nil {
+		http.Error(w, "failed to load preferences", http.StatusInternalServerError)
+		return
+	}
+	pushSubs, err := db.ListPushSubscriptionsForUser(s.db, s.currentUserID(r))
 	if err != nil {
 		http.Error(w, "failed to load preferences", http.StatusInternalServerError)
 		return
@@ -57,14 +66,16 @@ func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"theme":                 theme,
-		"accent":                accent,
-		"notify_email":          notifyEmail,
-		"telegram_linked":       chatID != "",
-		"telegram_active":       telegramActive,
-		"telegram_username":     telegramUsername,
-		"telegram_first_name":   telegramFirstName,
-		"telegram_bot_username": telegramBotUsername,
+		"theme":                          theme,
+		"accent":                         accent,
+		"notify_email":                   notifyEmail,
+		"telegram_linked":                chatID != "",
+		"telegram_active":                telegramActive,
+		"telegram_username":              telegramUsername,
+		"telegram_first_name":            telegramFirstName,
+		"telegram_bot_username":          telegramBotUsername,
+		"telegram_motion_notify_enabled": telegramMotionNotifyEnabled,
+		"push_subscribed":                len(pushSubs) > 0,
 	})
 }
 

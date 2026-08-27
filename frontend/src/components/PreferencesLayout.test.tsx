@@ -7,7 +7,7 @@ afterEach(() => {
   cleanup()
 })
 
-function renderLayout(active: 'extensions' | 'appearance' | 'storage') {
+function renderLayout(active: 'extensions' | 'appearance' | 'storage' | 'tests') {
   return render(
     <MemoryRouter>
       <PreferencesLayout active={active}>
@@ -17,13 +17,13 @@ function renderLayout(active: 'extensions' | 'appearance' | 'storage') {
   )
 }
 
-describe('CA2: PreferencesLayout mostra só 3 links fixos — Extensões, Aparência, Armazenamento', () => {
-  it('mostra exatamente os 3 links, sem categorias/sub-itens por extensão', () => {
+describe('CA2: PreferencesLayout mostra os links fixos — Extensões, Aparência, Armazenamento, Testes', () => {
+  it('mostra exatamente os 4 links, sem categorias/sub-itens por extensão', () => {
     renderLayout('extensions')
 
     const submenu = document.getElementById('preferences-submenu')!
     const links = Array.from(submenu.querySelectorAll('a')).map((a) => a.textContent)
-    expect(links).toEqual(['Extensões', 'Aparência', 'Armazenamento'])
+    expect(links).toEqual(['Extensões', 'Aparência', 'Armazenamento', 'Testes'])
   })
 
   it('renderiza o conteúdo (children)', () => {

@@ -94,6 +94,17 @@ independentemente sem um sobrescrever o outro. `notify_email` gateia o
 sender `email` de `internal/notifications` — hoje só setável via API, sem
 toggle na UI.
 
+`GET /api/me/preferences` também devolve `telegram_motion_notify_enabled`
+(via `telegramGateStatus`, ver "Vínculo de conta Telegram" abaixo — reflete
+se o usuário tem pelo menos 1 câmera com notificação de movimento por
+Telegram habilitada, `db.UserHasAnyCameraMotionTelegramNotifyEnabled`) e
+`push_subscribed` (`len(db.ListPushSubscriptionsForUser(...)) > 0`). Os dois
+alimentam a seção `Preferências > Testes` do frontend (ver
+[docs/frontend/preferences-tests.md](../../../frontend/preferences-tests.md)),
+que decide se cada botão de teste vem habilitado sem precisar confiar em
+estado local do navegador (ex. o registro do Service Worker, que já provou
+divergir do que o backend tem salvo).
+
 ## Notificações de movimento por canal dedicado (`motion_notify.go`)
 `NotifyCameraMotion` — chamado de `cmd/camera/main.go`'s `onMotionEvent`
 DEPOIS que `db.FindRecordingCoveringMotion` já confirmou que uma gravação
@@ -129,6 +140,13 @@ atualiza, não duplica). `DELETE /api/me/push/subscription` chama
 escopado pelo usuário autenticado de propósito, nunca por um endpoint livre
 no corpo, senão um usuário poderia remover a subscription de outro só
 reusando/adivinhando o endpoint.
+
+`POST /api/me/push/test` (`authFull`, `Preferências > Testes`) rechecha
+server-side que existe pelo menos 1 subscription salva (409 se não houver,
+ou se `s.webpushSender` for `nil` nesta instância) antes de chamar
+`s.webpushSender.Send` com uma notificação de teste genérica — nunca confia
+que o frontend já filtrou, mesmo espírito do recheck de
+`fix/apply-update-recheck-fresco`.
 
 ## Extensões: `Available` vs `Active`, sincronizado no boot (`extensions.go`)
 `GET /api/settings/extensions` devolve `extensionsMeta()` — uma slice fixa
@@ -180,6 +198,19 @@ UX — esta validação no handler é a garantia real. `handleTelegramUnlink`
 continua sem checar `Active` deliberadamente: desvincular precisa funcionar
 mesmo com a extensão desativada, senão um `chat_id` fica órfão no banco sem
 nenhuma forma de removê-lo.
+
+`telegramGateStatus(userID)` resolve os 3 pedaços de estado que decidem se
+um usuário pode receber notificação de movimento por Telegram — extensão
+ativa (`db.GetExtensionActive`), conta vinculada (`chat_id` via
+`db.GetUserTelegramChatInfo`) e pelo menos 1 câmera com opt-in
+(`db.UserHasAnyCameraMotionTelegramNotifyEnabled`) — e é o único ponto que
+lê essa combinação: `handleGetPreferences` reusa pra informar o frontend
+(ver "Preferências do usuário" acima) e `handleTelegramTest`
+(`POST /api/me/telegram/test`, `authFull`, `Preferências > Testes`) reusa
+pra rechecar o gate completo antes de enviar de verdade, devolvendo 409 com
+mensagem clara (ou se `s.telegramSender` for `nil` nesta instância) em vez
+de deixar `telegramSender.Send` silenciosamente não fazer nada e parecer um
+teste bem-sucedido que não entregou nada.
 
 ## Movimento (SSE)
 Serve arquivos de gravação (incluindo snapshots `_motion.jpg`) e segmentos
@@ -357,3 +388,4 @@ próprio nome do arquivo).
 - [internal/notifications](../notifications/README.md), [internal/notifications/webpush](../notifications/webpush/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md), [internal/extensions](../extensions/README.md), [internal/storage](../storage/README.md) — os domínios que este pacote expõe via HTTP.
 - [internal/events](../events/README.md) — barramento que este pacote publica via `WithEvents`/`publishEvent` (`EventUpdateApplied`/`EventUpdateFailed`/`EventUpdateStep`).
 - [internal/alerts](../alerts/README.md) — assina esses eventos e importa este pacote só pelas consts de tipo (sem ciclo: `server` não importa `alerts`).
+- [docs/frontend/preferences-tests.md](../../../frontend/preferences-tests.md) — consumidor de `telegramGateStatus`/`handleTelegramTest`/`handlePushTest`.
