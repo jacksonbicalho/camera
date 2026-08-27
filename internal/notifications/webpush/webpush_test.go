@@ -144,6 +144,31 @@ func TestSenderSend(t *testing.T) {
 		}
 	})
 
+	t.Run("CA2: define TTL: 3600 em toda chamada de envio", func(t *testing.T) {
+		database := openTestDB(t)
+		uid, err := db.CreateUser(database, "u1", "pw", "viewer", false)
+		if err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		if err := db.UpsertPushSubscription(database, uid, "https://push.example/x", "p", "a"); err != nil {
+			t.Fatalf("upsert: %v", err)
+		}
+
+		var gotTTL int
+		sender := webpush.New(database, "vapid-pub", "vapid-priv",
+			func(message []byte, s *webpushgo.Subscription, options *webpushgo.Options) (*http.Response, error) {
+				gotTTL = options.TTL
+				return &http.Response{StatusCode: http.StatusCreated, Body: io.NopCloser(nil)}, nil
+			},
+		)
+		if err := sender.Send(notifications.Notification{Title: "t", Message: "m"}, uid); err != nil {
+			t.Fatalf("Send: %v", err)
+		}
+		if gotTTL != 3600 {
+			t.Errorf("TTL = %d, esperava 3600 — sem isso o serviço de push descarta a notificação em vez de enfileirar quando o dispositivo está desconectado", gotTTL)
+		}
+	})
+
 	t.Run("CA3: send nil (VAPID indisponível) — no-op, sem panic", func(t *testing.T) {
 		database := openTestDB(t)
 		uid, err := db.CreateUser(database, "u1", "pw", "viewer", false)
