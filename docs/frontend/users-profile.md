@@ -76,12 +76,21 @@
   window && typeof Notification !== 'undefined'`.
 - `public/sw.js` — Service Worker mínimo, só dois listeners: `push` (extrai
   `{title, body, link}` do payload JSON e chama
-  `self.registration.showNotification`) e `notificationclick` (foca uma aba
-  já aberta e navega pro `link`, ou abre uma nova). Deliberadamente **não
-  intercepta `fetch`/cache** — o app já resolve staleness de build de outro
-  jeito (`useForceReloadOnStaleBuild`, ver
-  [docs/frontend/README.md](README.md)); um SW com fetch handler reabriria
-  essa discussão sem necessidade.
+  `self.registration.showNotification`, sempre com `icon: '/icon-192.png'`)
+  e `notificationclick` (foca uma aba já aberta e navega pro `link`, ou abre
+  uma nova). Deliberadamente **não intercepta `fetch`/cache** — o app já
+  resolve staleness de build de outro jeito (`useForceReloadOnStaleBuild`,
+  ver [docs/frontend/README.md](README.md)); um SW com fetch handler
+  reabriria essa discussão sem necessidade.
+- `public/manifest.json` — precisa de pelo menos um ícone PNG **>=512x512**
+  no array `icons` (`icon-512.png`, `purpose: "any"`, história
+  `fix/pwa-icon-512`) além do SVG maskable e do PNG 192x192: sem essa
+  entrada, o Chrome no Android instala o os-camera como atalho/bookmark em
+  vez de um WebAPK completo, e as notificações Web Push caem de volta pro
+  ícone genérico do navegador em vez do ícone que `sw.js` pede em
+  `showNotification` — o SVG não conta pro requisito de tamanho do WebAPK,
+  só PNG. `frontend/src/lib/manifestIcons.test.ts` trava essa entrada
+  (existe no manifest **e** o arquivo referenciado existe em disco).
 
 ## Ver também
 - [routing-editing.md](routing-editing.md) — padrão de edição via rota, aplicado aqui
