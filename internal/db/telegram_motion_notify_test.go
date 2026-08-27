@@ -81,6 +81,79 @@ func TestUserCameraMotionTelegramNotify(t *testing.T) {
 	})
 }
 
+func TestUserHasAnyCameraMotionTelegramNotifyEnabled(t *testing.T) {
+	t.Run("CA2: sem nenhum opt-in configurado, devolve false", func(t *testing.T) {
+		database := openTestDB(t)
+		id := mkUser(t, database, "telegram-any-empty")
+
+		has, err := db.UserHasAnyCameraMotionTelegramNotifyEnabled(database, id)
+		if err != nil {
+			t.Fatalf("UserHasAnyCameraMotionTelegramNotifyEnabled: %v", err)
+		}
+		if has {
+			t.Error("expected false sem nenhuma câmera configurada")
+		}
+	})
+
+	t.Run("CA2: opt-in desabilitado em todas as câmeras configuradas devolve false", func(t *testing.T) {
+		database := openTestDB(t)
+		id := mkUser(t, database, "telegram-any-disabled")
+
+		if err := db.SetUserCameraMotionTelegramNotify(database, id, "cam-1", false, 0.1); err != nil {
+			t.Fatalf("Set cam-1: %v", err)
+		}
+		if err := db.SetUserCameraMotionTelegramNotify(database, id, "cam-2", false, 0.1); err != nil {
+			t.Fatalf("Set cam-2: %v", err)
+		}
+
+		has, err := db.UserHasAnyCameraMotionTelegramNotifyEnabled(database, id)
+		if err != nil {
+			t.Fatalf("UserHasAnyCameraMotionTelegramNotifyEnabled: %v", err)
+		}
+		if has {
+			t.Error("expected false quando todas as câmeras configuradas estão desabilitadas")
+		}
+	})
+
+	t.Run("CA2: devolve true quando pelo menos 1 câmera está habilitada", func(t *testing.T) {
+		database := openTestDB(t)
+		id := mkUser(t, database, "telegram-any-enabled")
+
+		if err := db.SetUserCameraMotionTelegramNotify(database, id, "cam-1", false, 0.1); err != nil {
+			t.Fatalf("Set cam-1: %v", err)
+		}
+		if err := db.SetUserCameraMotionTelegramNotify(database, id, "cam-2", true, 0.05); err != nil {
+			t.Fatalf("Set cam-2: %v", err)
+		}
+
+		has, err := db.UserHasAnyCameraMotionTelegramNotifyEnabled(database, id)
+		if err != nil {
+			t.Fatalf("UserHasAnyCameraMotionTelegramNotifyEnabled: %v", err)
+		}
+		if !has {
+			t.Error("expected true com cam-2 habilitada")
+		}
+	})
+
+	t.Run("CA2: opt-in de outro usuário não afeta o resultado", func(t *testing.T) {
+		database := openTestDB(t)
+		id := mkUser(t, database, "telegram-any-isolated")
+		other := mkUser(t, database, "telegram-any-other")
+
+		if err := db.SetUserCameraMotionTelegramNotify(database, other, "cam-1", true, 0.1); err != nil {
+			t.Fatalf("Set other: %v", err)
+		}
+
+		has, err := db.UserHasAnyCameraMotionTelegramNotifyEnabled(database, id)
+		if err != nil {
+			t.Fatalf("UserHasAnyCameraMotionTelegramNotifyEnabled: %v", err)
+		}
+		if has {
+			t.Error("expected false — opt-in habilitado é de outro usuário")
+		}
+	})
+}
+
 func TestListCameraMotionTelegramNotifyPrefs(t *testing.T) {
 	t.Run("CA2: lista todos os usuários com opt-in configurado para a câmera, ignorando outras câmeras", func(t *testing.T) {
 		database := openTestDB(t)

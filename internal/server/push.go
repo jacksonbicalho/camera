@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"camera/internal/db"
+	"camera/internal/notifications"
 	"camera/internal/notifications/webpush"
 )
 
@@ -73,6 +74,43 @@ func (s *Server) handleUnsubscribePush(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := db.DeletePushSubscriptionForUser(s.db, s.currentUserID(r), body.Endpoint); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// handlePushTest sends a test Web Push notification to every subscription
+// the authenticated user has saved — the "Testes" section in Preferences.
+// Rechecks server-side that a subscription actually exists instead of
+// trusting the frontend already filtered (the local usePushSubscription
+// hook only reflects the browser's own Service Worker registration, which
+// can diverge from what the backend has saved).
+func (s *Server) handlePushTest(w http.ResponseWriter, r *http.Request) {
+	if !s.requireDB(w) {
+		return
+	}
+	userID := s.currentUserID(r)
+
+	subs, err := db.ListPushSubscriptionsForUser(s.db, userID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if len(subs) == 0 {
+		http.Error(w, "nenhuma inscrição de push encontrada", http.StatusConflict)
+		return
+	}
+	if s.webpushSender == nil {
+		http.Error(w, "push indisponível nesta instância", http.StatusConflict)
+		return
+	}
+
+	n := notifications.Notification{
+		Title:   "Teste de notificação",
+		Message: "Esta é uma notificação de teste do os-camera.",
+	}
+	if err := s.webpushSender.Send(n, userID); err != nil {
+		http.Error(w, "falha ao enviar: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

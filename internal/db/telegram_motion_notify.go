@@ -56,6 +56,39 @@ type CameraMotionTelegramNotifyPref struct {
 	MinScore float64
 }
 
+// UserHasAnyCameraMotionTelegramNotifyEnabled reports whether userID has
+// Telegram motion-notify enabled for at least one camera — the gate the
+// "Testes" section in Preferences uses to decide whether the Telegram test
+// button is available (in addition to being linked + the extension active,
+// checked separately). Unlike ListCameraMotionTelegramNotifyPrefs (keyed by
+// a single camera), this scans every notify:telegram:motion:* key for the
+// user across all cameras.
+func UserHasAnyCameraMotionTelegramNotifyEnabled(db *DB, userID int64) (bool, error) {
+	rows, err := db.Query(
+		`SELECT value FROM user_settings WHERE user_id=? AND key LIKE ?`,
+		userID, telegramMotionNotifyKeyPrefix+"%",
+	)
+	if err != nil {
+		return false, fmt.Errorf("user has any camera motion telegram notify enabled: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return false, err
+		}
+		var v telegramMotionNotifyValue
+		if err := json.Unmarshal([]byte(raw), &v); err != nil {
+			return false, fmt.Errorf("unmarshal telegram motion notify pref: %w", err)
+		}
+		if v.Enabled {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
+}
+
 // ListCameraMotionTelegramNotifyPrefs returns every user's Telegram
 // motion-notify opt-in configured for cameraID (regardless of Enabled) —
 // used to resolve notification recipients when a motion event fires.
