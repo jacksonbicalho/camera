@@ -14,6 +14,7 @@ import (
 	"camera/internal/events"
 	"camera/internal/notifications"
 	"camera/internal/recorder"
+	"camera/internal/server"
 	"camera/internal/transmission/hls"
 )
 
@@ -137,6 +138,58 @@ func TestSubscribe(t *testing.T) {
 		got := waitForNotification(t, spy)
 		if !containsUserID(got.UserIDs, adminID) {
 			t.Errorf("UserIDs = %v, esperava conter o admin %d", got.UserIDs, adminID)
+		}
+	})
+
+	t.Run("CA4: update.applied publicado no bus vira Notification de sucesso pra todo admin", func(t *testing.T) {
+		database := openTestDB(t)
+		adminID, err := db.CreateUser(database, "adm", "pw", "admin", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		spy := &spySender{}
+		dispatcher := notifications.NewDispatcher(discardLogger(), spy)
+		bus := events.NewBus()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		alerts.Subscribe(ctx, bus, database, dispatcher, discardLogger())
+
+		bus.Publish(events.Event{Type: server.EventUpdateApplied, At: time.Now()})
+
+		got := waitForNotification(t, spy)
+		if !containsUserID(got.UserIDs, adminID) {
+			t.Errorf("UserIDs = %v, esperava conter o admin %d", got.UserIDs, adminID)
+		}
+		if got.Type != "success" {
+			t.Errorf("Type = %q, quero success", got.Type)
+		}
+	})
+
+	t.Run("CA4: update.failed publicado no bus vira Notification de aviso pra todo admin", func(t *testing.T) {
+		database := openTestDB(t)
+		adminID, err := db.CreateUser(database, "adm", "pw", "admin", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		spy := &spySender{}
+		dispatcher := notifications.NewDispatcher(discardLogger(), spy)
+		bus := events.NewBus()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		alerts.Subscribe(ctx, bus, database, dispatcher, discardLogger())
+
+		bus.Publish(events.Event{Type: server.EventUpdateFailed, At: time.Now()})
+
+		got := waitForNotification(t, spy)
+		if !containsUserID(got.UserIDs, adminID) {
+			t.Errorf("UserIDs = %v, esperava conter o admin %d", got.UserIDs, adminID)
+		}
+		if got.Type != "warning" {
+			t.Errorf("Type = %q, quero warning", got.Type)
 		}
 	})
 

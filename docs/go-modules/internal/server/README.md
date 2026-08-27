@@ -278,16 +278,46 @@ qualquer canal). `commit` também é o valor que o frontend usa pra detectar
 build divergente (`useForceReloadOnStaleBuild`, ver
 [docs/frontend/README.md](../../../frontend/README.md)).
 
-`GET /api/updates` (admin) devolve `s.updateChecker.Status()`.
-`POST /api/updates/apply` (admin, `handleApplyUpdate`) resolve o manifesto
-cacheado e chama `s.applier.Apply(ctx, manifest, s.updateChecker.DownloadBase())`
-em background — a base de download vem do que o checker efetivamente
-resolveu como release mais recente (ver [internal/release](../release/README.md)),
-nunca um atalho fixo pra "estável", senão a aplicação baixaria o binário
-errado sempre que a atualização detectada fosse uma pré-release. As
-interfaces `updateStatuser`/`applyRunner` (definidas no consumidor, não no
-produtor) refletem essa dependência: `DownloadBase() string` e
-`Apply(ctx, m, baseURL) error`.
+`GET /api/updates` (admin) devolve `s.updateChecker.Status()` (cache do
+`Run` periódico do checker — atualizado só a cada `interval`, em horas).
+
+`POST /api/updates/apply` (admin, `handleApplyUpdate`) **não confia nesse
+cache** pra decidir se aplica: primeiro chama `s.updateChecker.Check(ctx)`
+síncrono, no próprio request, forçando uma busca fresca contra a API do
+GitHub (que também atualiza o cache interno do checker como efeito
+colateral). Só depois lê `Status().UpdateAvailable` e monta o `Apply()`
+com o `manifest` que `Check` acabou de retornar (nunca o cacheado) e
+`s.updateChecker.DownloadBase()` — a base de download vem do que o checker
+efetivamente resolveu como release mais recente (ver
+[internal/release](../release/README.md)), nunca um atalho fixo pra
+"estável", senão a aplicação baixaria o binário errado sempre que a
+atualização detectada fosse uma pré-release. As interfaces
+`updateStatuser`/`applyRunner` (definidas no consumidor, não no produtor)
+refletem essa dependência: `Check(ctx) (release.Manifest, error)`,
+`DownloadBase() string` e `Apply(ctx, m, baseURL) error`.
+
+**Por que o recheck é síncrono no clique, não só no `Run` periódico:**
+`scripts/release-candidate.sh` recorta a mesma tag flutuante `-rc` de novo
+(`git push --force` + upsert da release no GitHub) sem trocar de versão —
+se isso acontece entre dois checks periódicos, o manifesto cacheado aponta
+pro checksum ANTIGO. Clicar em "Atualizar agora" baixava o binário NOVO mas
+validava contra o checksum VELHO: `applier.Apply` falhava (só logado) e a
+tela ficava presa em "Atualizando…" pra sempre, sem o servidor reiniciar
+(incidente real em produção, história `fix/apply-update-recheck-fresco`).
+O recheck fresco elimina a causa: a decisão "há atualização?" e o manifesto
+usado no `Apply()` sempre refletem o estado do GitHub no exato momento do
+clique, nunca um snapshot de até `interval` horas atrás.
+
+**Resultado do apply vira evento** (`EventUpdateApplied`/`EventUpdateFailed`,
+consts deste pacote): a goroutine que chama `s.applier.Apply(...)` publica
+um dos dois no `events.Bus` (`WithEvents`, mesmo padrão chainable de
+`recorder.Recorder`/`hls.HLSStreamer`; `s.events == nil` é no-op seguro,
+publish nunca é obrigatório) ao terminar — sucesso ou falha por qualquer
+motivo (checksum, rede, disco cheio no self-replace). `internal/alerts`
+assina os dois e traduz em notificação pra todo admin (ver
+[internal/alerts](../alerts/README.md)), fechando o incidente também pro
+sintoma: antes disso um `Apply()` que falhasse só ia pro log, e a tela
+ficava presa em "Atualizando…" sem o usuário nunca saber o motivo.
 
 `spaHandler` (também em `server.go`) seta `Cache-Control: no-cache,
 must-revalidate` na resposta de `index.html` (não `no-store`: permite
@@ -301,3 +331,5 @@ próprio nome do arquivo).
 
 ## Ver também
 - [internal/notifications](../notifications/README.md), [internal/notifications/webpush](../notifications/webpush/README.md), [internal/db](../db/README.md), [internal/release](../release/README.md), [internal/deviceinfo](../deviceinfo/README.md), [internal/extensions](../extensions/README.md), [internal/storage](../storage/README.md) — os domínios que este pacote expõe via HTTP.
+- [internal/events](../events/README.md) — barramento que este pacote publica via `WithEvents`/`publishEvent` (hoje só `EventUpdateApplied`/`EventUpdateFailed`).
+- [internal/alerts](../alerts/README.md) — assina esses eventos e importa este pacote só pelas consts de tipo (sem ciclo: `server` não importa `alerts`).

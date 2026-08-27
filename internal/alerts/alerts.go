@@ -15,6 +15,7 @@ import (
 	"camera/internal/events"
 	"camera/internal/notifications"
 	"camera/internal/recorder"
+	"camera/internal/server"
 	"camera/internal/transmission/hls"
 )
 
@@ -51,6 +52,20 @@ var specs = map[string]alertSpec{
 		title:     "Transmissão recuperada",
 		message: func(cameraID string) string {
 			return fmt.Sprintf("A transmissão ao vivo da câmera %s voltou.", cameraID)
+		},
+	},
+	server.EventUpdateApplied: {
+		notifType: "success",
+		title:     "Atualização aplicada",
+		message: func(_ string) string {
+			return "O sistema foi atualizado e reiniciado com sucesso."
+		},
+	},
+	server.EventUpdateFailed: {
+		notifType: "warning",
+		title:     "Falha ao atualizar",
+		message: func(_ string) string {
+			return "Não foi possível aplicar a atualização. Veja os logs do servidor para mais detalhes."
 		},
 	},
 }
