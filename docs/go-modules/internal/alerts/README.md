@@ -2,23 +2,42 @@
 
 Único assinante dos eventos operacionais publicados em
 [internal/events](../events/README.md) (recorder/transmissão parados ou
-recuperados) — traduz cada um numa `notifications.Notification` entregue a
-todo usuário `admin` via `notifications.Dispatcher`. Reaproveita 100% do
-`Dispatcher` existente: antes só `storage.Cleaner` e
-`server.NotifyUpdateAvailable` chamavam `Notify` direto, cada um resolvendo
-"quem avisar" com sua própria lógica de listar admins.
+recuperados, resultado de uma atualização aplicada) — traduz cada um numa
+`notifications.Notification` entregue a todo usuário `admin` via
+`notifications.Dispatcher`. Reaproveita 100% do `Dispatcher` existente:
+antes só `storage.Cleaner` e `server.NotifyUpdateAvailable` chamavam
+`Notify` direto, cada um resolvendo "quem avisar" com sua própria lógica de
+listar admins.
 
 ## Arquivos principais
-- `alerts.go` — `Subscribe(ctx, bus, database, dispatcher, log)`: assina os 4
+- `alerts.go` — `Subscribe(ctx, bus, database, dispatcher, log)`: assina os 6
   tipos de evento (`recorder.EventStopped`/`EventRecovered`,
-  `hls.EventStopped`/`EventRecovered`), cada um numa goroutine própria que
+  `hls.EventStopped`/`EventRecovered`, `server.EventUpdateApplied`/
+  `EventUpdateFailed`), cada um numa goroutine própria que
   roda até `ctx.Done()` (desinscreve e retorna). Cada evento recebido resolve
   todos os `db.ListUsers` com `Role == "admin"` e chama
   `dispatcher.Notify` com título/mensagem fixos por tipo (`specs`,
-  `CameraID` do evento entra na mensagem). Sem usuários admin, ou erro ao
-  listar, não notifica (loga o erro e segue).
+  `CameraID` do evento entra na mensagem quando o tipo tem um — os dois
+  eventos de update não são por câmera, `message` simplesmente ignora o
+  argumento). Sem usuários admin, ou erro ao listar, não notifica (loga o
+  erro e segue).
 
 ## Decisões e invariantes
+- **Importa `internal/server` só pelas consts de tipo de evento**
+  (`server.EventUpdateApplied`/`EventUpdateFailed`), mesmo padrão já usado
+  pra `recorder`/`hls`. Confirmado sem ciclo: nem `server` nem
+  `recorder`/`hls` importam `alerts` — quem liga as duas pontas é sempre
+  `cmd/camera/main.go`.
+- Os eventos de update não carregam `CameraID` (não são por câmera,
+  diferente de `recorder`/`hls`) — `message` ignora o argumento. Mesmo
+  padrão de `notifType` dos demais (`"success"` pra `EventUpdateApplied`,
+  `"warning"` pra `EventUpdateFailed`, espelhando `EventRecovered`/
+  `EventStopped`). Existem pra fechar o incidente de `POST /api/updates/apply` de
+  ponta a ponta (ver [internal/server](../server/README.md)): mesmo depois
+  do recheck fresco eliminar a causa raiz (checksum stale), um `Apply()`
+  ainda pode falhar por outro motivo (rede, disco cheio) — sem esse
+  evento, isso só ia pro log e a tela do admin ficava presa em
+  "Atualizando…" sem nenhum aviso.
 - Listar admins duplica a lógica já existente em
   `storage/cleaner.go:notifyDiskHigh` **de propósito** — só 2 usos no
   projeto até aqui, não atinge a regra de três que justificaria extrair um
@@ -43,4 +62,5 @@ todo usuário `admin` via `notifications.Dispatcher`. Reaproveita 100% do
 - [internal/notifications](../notifications/README.md) — o `Dispatcher` acionado aqui.
 - [internal/recorder](../recorder/README.md) — produtor de `recorder.stopped`/`recorder.recovered`.
 - [internal/transmission/hls](../transmission/hls/README.md) — produtor de `transmission.stopped`/`transmission.recovered`.
+- [internal/server](../server/README.md) — produtor de `update.applied`/`update.failed` (`handleApplyUpdate`, `POST /api/updates/apply`).
 - [internal/storage](../storage/README.md) — outro call site do `Dispatcher`, com sua própria lógica de resolver admins.
