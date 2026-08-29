@@ -121,6 +121,57 @@ func TestEnsureStorageDefaults_DoesNotOverrideExisting(t *testing.T) {
 	}
 }
 
+func TestSaneamentoRetencaoStorageNegativa(t *testing.T) {
+	t.Run("CA2: StorageSettingsFromDB descarta valores negativos/fora de faixa persistidos e cai pro default", func(t *testing.T) {
+		cases := []struct {
+			name string
+			key  string
+			val  string
+		}{
+			{"with_motion_minutes negativo", "storage.with_motion_minutes", "-7200"},
+			{"without_motion_minutes negativo", "storage.without_motion_minutes", "-1440"},
+			{"interval_minutes negativo", "storage.interval_minutes", "-30"},
+			{"max_size_gb negativo", "storage.max_size_gb", "-10"},
+			{"warn_percent negativo", "storage.warn_percent", "-5"},
+			{"warn_percent acima de 100", "storage.warn_percent", "150"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				database := openTestDB(t)
+				if err := db.SetConfig(database, tc.key, tc.val); err != nil {
+					t.Fatalf("SetConfig: %v", err)
+				}
+
+				got := db.StorageSettingsFromDB(database)
+				want := db.DefaultStorageSettings
+
+				switch tc.key {
+				case "storage.with_motion_minutes":
+					if got.WithMotionMinutes != want.WithMotionMinutes {
+						t.Errorf("WithMotionMinutes: got %d, want default %d (valor negativo persistido não deveria ter efeito)", got.WithMotionMinutes, want.WithMotionMinutes)
+					}
+				case "storage.without_motion_minutes":
+					if got.WithoutMotionMinutes != want.WithoutMotionMinutes {
+						t.Errorf("WithoutMotionMinutes: got %d, want default %d (valor negativo persistido não deveria ter efeito)", got.WithoutMotionMinutes, want.WithoutMotionMinutes)
+					}
+				case "storage.interval_minutes":
+					if got.IntervalMinutes != want.IntervalMinutes {
+						t.Errorf("IntervalMinutes: got %d, want default %d (valor negativo persistido não deveria ter efeito)", got.IntervalMinutes, want.IntervalMinutes)
+					}
+				case "storage.max_size_gb":
+					if got.MaxSizeGB != want.MaxSizeGB {
+						t.Errorf("MaxSizeGB: got %f, want default %f (valor negativo persistido não deveria ter efeito)", got.MaxSizeGB, want.MaxSizeGB)
+					}
+				case "storage.warn_percent":
+					if got.WarnPercent != want.WarnPercent {
+						t.Errorf("WarnPercent: got %f, want default %f (valor fora de 0-100 persistido não deveria ter efeito)", got.WarnPercent, want.WarnPercent)
+					}
+				}
+			})
+		}
+	})
+}
+
 func TestGetAllConfig(t *testing.T) {
 	database := openTestDB(t)
 

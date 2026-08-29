@@ -86,6 +86,34 @@ upload S3). `internal/server.Server.SyncExtensionsFromConfig` chama
 o `camera.yaml` calcula como disponível pra cada extensão — ver
 [internal/server](../server/README.md).
 
+## `system_config` — configurações de armazenamento (`config.go`)
+`StorageSettingsFromDB(database *DB) ResolvedStorageSettings` é o único ponto
+de leitura dos 5 campos numéricos de retenção/limite persistidos em
+`system_config` (`storage.with_motion_minutes`/`without_motion_minutes`/
+`interval_minutes`/`max_size_gb`/`warn_percent`) — consumido por
+`GET/PUT /api/settings/storage` (ver [internal/server](../server/README.md)),
+pelo boot (`cmd/camera/main.go`) e por `internal/storage.Cleaner`. Uma chave
+ausente, não-parseável, **ou fora de faixa** (negativo nos 4 primeiros campos,
+`warn_percent` fora de `[0, 100]`) é tratada como inválida e cai pro valor de
+`DefaultStorageSettings` — mesmo tratamento dado a um erro de parse. Existe
+porque `PUT /api/settings/storage` só passou a validar faixa recentemente
+(história `fix/validacao-storage-negativo`); um valor negativo gravado antes
+dessa validação ficava preso em `system_config` para sempre, exibido como
+`-5 d` na UI e, em `storage.Cleaner`, silenciosamente interpretado como
+"retenção desativada" (história `fix/saneamento-retencao-storage-negativa`).
+Sanitizar no ponto único de leitura autocura o dado legado na próxima leitura,
+sem precisar de migration. `state_history_minutes` fica de fora dessa
+sanitização de faixa (campo interno, não exposto ao usuário).
+
+`StorageNonNegativeIntOverride(all map[string]string, key string) (int, bool)`
+é o helper exportado que implementa essa regra pros 3 campos inteiros de
+minutos (`max_size_gb`/`warn_percent` são `float64` e continuam com
+`ParseFloat` inline, checando faixa separadamente) — `ok=false` cobre "chave
+ausente", "não-parseável" e "negativo" com o mesmo peso, deixando o chamador
+livre pra decidir o próprio fallback (`StorageSettingsFromDB` cai pro default
+global; `storage.Cleaner` cai pro valor de construção, ver
+[internal/storage](../storage/README.md)).
+
 ## Migrations
 **Nunca use `;` em comentários de migration** — `splitSQL` (`db.go`) divide
 naïvemente o script em `;` e quebra o parse.

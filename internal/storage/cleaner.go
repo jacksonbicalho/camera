@@ -301,15 +301,16 @@ func (c *Cleaner) effectiveRetentionMinutes() (withMotion, withoutMotion int) {
 	if err != nil {
 		return
 	}
-	if v, ok := all["storage.with_motion_minutes"]; ok {
-		if n, err := strconv.Atoi(v); err == nil {
-			withMotion = n
-		}
+	// db.StorageNonNegativeIntOverride é a mesma validação usada por
+	// StorageSettingsFromDB: uma chave ausente OU um valor negativo legado
+	// (persistido antes da validação existir no PUT) reportam ok=false, e o
+	// Cleaner mantém o valor de construção — nunca propaga um negativo como
+	// se fosse "retenção desativada".
+	if n, ok := db.StorageNonNegativeIntOverride(all, "storage.with_motion_minutes"); ok {
+		withMotion = n
 	}
-	if v, ok := all["storage.without_motion_minutes"]; ok {
-		if n, err := strconv.Atoi(v); err == nil {
-			withoutMotion = n
-		}
+	if n, ok := db.StorageNonNegativeIntOverride(all, "storage.without_motion_minutes"); ok {
+		withoutMotion = n
 	}
 	return
 }

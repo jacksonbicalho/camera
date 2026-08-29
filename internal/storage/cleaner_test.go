@@ -1675,6 +1675,49 @@ func TestClean_SweepOrphanedMotionDirsUsesLiveDBOverride(t *testing.T) {
 	}
 }
 
+// TestSaneamentoRetencaoStorageNegativa cobre o caso de um valor de retenção
+// negativo já persistido em system_config de antes da validação existir
+// (fix/validacao-storage-negativo só bloqueia entradas novas no PUT, nunca
+// saneou o que já estava gravado) — ver
+// work_progress/analysis/202608290730_saneamento-retencao-storage-negativa.md.
+func TestSaneamentoRetencaoStorageNegativa(t *testing.T) {
+	t.Run("CA3: cleaner não trata retenção negativa legada como desativada — cai pro default", func(t *testing.T) {
+		dir := t.TempDir()
+		database := openTestDB(t)
+		createTestCameraWithMotion(t, database, "cam1", 30, 10)
+
+		// Valor legado negativo gravado direto em system_config — simula dado
+		// salvo antes da validação existir, bypassando handleUpdateStorageSettings
+		// de propósito (é exatamente assim que o dado ficou preso no banco real).
+		if err := db.SetConfig(database, "storage.with_motion_minutes", "-7200"); err != nil {
+			t.Fatalf("SetConfig: %v", err)
+		}
+
+		// Construção usa o default (7 dias / 10080min) — igual ao boot real via
+		// cmd/camera/main.go, que também lê StorageSettingsFromDB.
+		c := storage.New(dir, 10080, 10080, 5*time.Minute, 0, 0, database, discardLogger())
+
+		// chunkA com motion, 8 dias atrás: além do default de 7 dias, que deve
+		// prevalecer sobre o override negativo. Com o bug (negativo == "retenção
+		// desativada", checagem `> 0`), este chunk sobreviveria pra sempre.
+		base := time.Now().UTC().Add(-8 * 24 * time.Hour).Truncate(time.Second)
+		chunkA := base
+		chunkB := base.Add(1 * time.Minute) // fecha o chunkA (ended_at)
+
+		pathA := mp4WithTimestamp(dir, "cam1", chunkA)
+		pathB := mp4WithTimestamp(dir, "cam1", chunkB)
+		writeFile(t, pathA, chunkA)
+		writeFile(t, pathB, chunkB)
+		addMotionEvent(t, database, "cam1", chunkA.Add(10*time.Second), 0.1)
+
+		c.Clean()
+
+		if _, err := os.Stat(pathA); !os.IsNotExist(err) {
+			t.Error("valor negativo legado deveria cair pro default (7 dias) e deletar o chunk expirado, não tratá-lo como retenção desativada")
+		}
+	})
+}
+
 // Ao cruzar o limite de Alerta(%), cada admin recebe uma notificação; viewers não.
 // Edge-triggered: não duplica enquanto continua acima.
 func TestCheckSize_NotifiesAdminsOnThresholdCrossing(t *testing.T) {

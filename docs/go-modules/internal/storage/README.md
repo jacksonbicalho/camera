@@ -21,6 +21,21 @@ morreu no meio") e em `internal/server` (`findChunkForTime`/`handleRecordings`
 sempre).
 
 ## Retenção e limpeza
+`effectiveRetentionMinutes` lê `storage.with_motion_minutes`/
+`without_motion_minutes` de `system_config` via `db.StorageNonNegativeIntOverride`
+(em vez de reimplementar o parse cru com `strconv.Atoi`) — chave ausente,
+não-parseável ou **negativa** todas caem pro valor de construção do `Cleaner`
+(`c.withMotionMinutes`/`c.withoutMotionMinutes`). Existe porque um valor
+negativo já persistido de antes da validação existir no `PUT
+/api/settings/storage` era lido com `> 0` e tratado como "retenção
+desativada" — o oposto da intenção provável do admin (limitar, não
+desativar) — deixando a categoria "com movimento" de ser limpa
+silenciosamente, sem qualquer aviso na UI (história
+`fix/saneamento-retencao-storage-negativa`). `effectiveSizeSettings`
+(`max_size_gb`/`warn_percent`) e `effectiveInterval` (`interval_minutes`)
+ainda reimplementam o parse bruto de `system_config` — mesma duplicação, fora
+do escopo dessa história.
+
 Ação configurável por categoria (`delete` ou `send_to_drive`): um drive S3
 só entra no mapa de destinos se `db.GetExtensionActive(c.db, "s3")` for
 `true` — mesmo com uma config de destino salva em `retention_extensions`,
