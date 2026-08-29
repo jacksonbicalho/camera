@@ -4,12 +4,10 @@
 # Uso: scripts/functional-check.sh [story]
 #
 # Todo CA é um teste nomeado dentro da suíte nativa correspondente (frontend:
-# describe('CAn: ...'); Go: t.Run("CAn: ..."); Python: def test_caN_...();
-# e2e/infra: named checks num script permanente reusável) — nunca um script
-# avulso por CA. A story só ANOTA qual comando prova o critério:
-# `(auto: <comando>)` — qualquer texto livre entre "auto:" e o `)` de
-# fechamento (pode ter env var prefixada, ex.: `E2E_PDF_REPORT=on bash
-# scripts/e2e-pdf-report-check.sh`).
+# describe('CAn: ...'); Go: t.Run("CAn: ..."); Python: def test_caN_...()) —
+# nunca um script avulso por CA. A story só ANOTA qual comando prova o
+# critério: `(auto: <comando>)` — qualquer texto livre entre "auto:" e o `)`
+# de fechamento.
 #
 # 1. Roda `bash scripts/check.sh` (sempre — é o comando universal, cobre
 #    CA1 e qualquer outro CA anotado `(auto: scripts/check.sh)`).
@@ -89,8 +87,8 @@ while IFS= read -r cmd; do
   # commands_file que este `while read` está lendo (fd 0 compartilhado entre
   # o loop e o subshell do eval) — o loop então perde as linhas seguintes e
   # sai silenciosamente sem erro, deixando comandos (e os CAs que dependem
-  # deles) sem rodar. Achado real: com 2 comandos `e2e-spec-check.sh`
-  # distintos na mesma story, só o primeiro rodava.
+  # deles) sem rodar. Achado real: com 2 comandos que liam stdin numa mesma
+  # story, só o primeiro rodava.
   if (eval "$cmd" </dev/null); then
     mark_command_criteria "$story" "$cmd"
   else

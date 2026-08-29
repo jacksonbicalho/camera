@@ -155,13 +155,8 @@ id" e o carve-out sempre-editável desta página.
   de affordance visual, não de comportamento de interação. O botão que era
   "Editar" (ícone `Pencil`) virou "Configurar" (ícone `Settings`), mesmo
   rótulo/ícone que `S3ExtensionCard` já usa.
-  `e2e/tests/cameras-settings-mobile.spec.ts` (CA7 de
-  `feat/badge-cards-responsivo`) foi adaptado pro novo id
-  (`camera-card-<id>`) e pro novo risco: como o card já é vertical por
-  construção, a asserção deixou de provar "quebra em linhas" (só fazia
-  sentido pra linha horizontal antiga) e passou a provar que o card
-  (`max-w-md` ~448px) e o bloco de ações não vazam da viewport mobile
-  (375px).
+  O card usa `camera-card-<id>` como id e, na viewport mobile (375px),
+  o card (`max-w-md` ~448px) e o bloco de ações não vazam da tela.
 
 ## Ver também
 - [routing-editing.md](routing-editing.md) — padrão de rota e o carve-out sempre-editável

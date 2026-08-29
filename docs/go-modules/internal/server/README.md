@@ -245,7 +245,7 @@ de `validateMotionConfig` (`cameras.go:18-38`): os 4 primeiros exigem `>= 0`,
 `min={0}`/`max={100}` dos inputs em `StorageSettingsPage.tsx` é só validação
 client-side (HTML, contornável) — sem checagem server-side um valor negativo
 era aceito e persistido sem erro (história
-`fix/validacao-storage-negativo`, achado durante e2e do CA-07). A validação
+`fix/validacao-storage-negativo`). A validação
 roda sobre o `input` inteiro antes do primeiro `db.SetConfig`, garantindo que
 nenhum dos 5 campos do payload é parcialmente persistido se outro campo do
 mesmo request falhar.

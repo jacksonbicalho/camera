@@ -126,9 +126,8 @@ precisa entrar na área visível horizontal.
   `activeCardRef`, dentro de um container que É rolável no eixo pedido)
   não tem esse problema e ficou intocado.
 - Esse comportamento entre ancestrais reais não é verificável em teste de
-  componente/jsdom (que não simula scroll/layout de verdade) — coberto por
-  um spec e2e dedicado (`e2e/tests/history-timeline-scroll.spec.ts`) em vez
-  de só `HistoryTimeline.test.tsx`.
+  componente/jsdom (que não simula scroll/layout de verdade) — `HistoryTimeline.test.tsx`
+  cobre a lógica de cálculo, não o scroll real em browser.
 - `suppressScrollRef` (prop opcional, mesmo ref que `HistoryPage` usa pra
   sua própria lista lateral) suprime esse ajuste durante o avanço
   automático da reprodução contínua. O componente só LÊ a flag, nunca a

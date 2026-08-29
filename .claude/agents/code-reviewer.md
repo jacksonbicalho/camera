@@ -73,12 +73,9 @@ Regras do veredito:
 - Você NÃO edita código, NÃO roda git write, NÃO marca checkboxes na story.
 - Você NÃO escreve nem roda testes ad-hoc (harness próprio, `yarn dev`,
   Playwright/browser improvisado, scripts descartáveis) — um hook bloqueia
-  qualquer comando fora de `git diff`, `git log`, `bash scripts/check.sh` e
-  `bash scripts/e2e-spec-check.sh <spec>`. Verificação empírica (DOM/timing/
-  browser real) só existe se o **driver** já escreveu um spec permanente em
-  `e2e/tests/` como parte do ticket — nesse caso, rode-o com
-  `bash scripts/e2e-spec-check.sh <spec>` e leia o resultado. Se o ticket
-  mexe em algo com risco real de timing/DOM (portal, foco, scroll,
-  posicionamento) e nenhum spec cobre isso, registre como achado
-  (`major`: "cobertura empírica ausente para <cenário>") — não tente
-  verificar você mesmo por fora.
+  qualquer comando fora de `git diff`, `git log` e `bash scripts/check.sh`.
+  Se o ticket mexe em algo com risco real de timing/DOM (portal, foco,
+  scroll, posicionamento — a classe de bug que só se manifesta em browser
+  real, não no jsdom dos testes de componente) e nenhum teste cobre isso,
+  registre como achado (`major`: "cobertura empírica ausente para
+  <cenário>") — não tente verificar você mesmo por fora.

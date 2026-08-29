@@ -54,12 +54,7 @@ suja `develop` nem exige commit nenhum):
      `- [] CAn: <critério> (auto: <comando>)`, onde `<comando>` roda a suíte
      onde o teste nomeado vive: `scripts/check.sh` pra frontend
      (`describe('CAn: ...')`), Go (`t.Run("CAn: ...")`) e Python
-     (`def test_caN_...()`); pra e2e/infra que só existe depois que a suíte
-     Playwright inteira roda (ex.: conteúdo de um artefato gerado no
-     `onEnd()` de um reporter), um script permanente e reusável em
-     `scripts/` (não descartável, nunca em `tests/functional/`) com o
-     comando exato, ex. `(auto: E2E_PDF_REPORT=on bash
-     scripts/e2e-pdf-report-check.sh)`. Uma única linha nunca tem mais de um
+     (`def test_caN_...()`). Uma única linha nunca tem mais de um
      `(auto: ...)` — se um CA precisar de 2 comandos distintos, é 2 CAs.
    - `## Gates`:
      ```
