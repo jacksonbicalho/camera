@@ -2,6 +2,8 @@
 !/internal/storage
 /models/*.pt
 camera.yaml
+camera.teste.yaml
+/storage-teste-camera/
 /camera
 dist/
 frontend/dist/

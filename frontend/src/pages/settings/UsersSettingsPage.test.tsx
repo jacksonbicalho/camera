@@ -119,6 +119,46 @@ describe('UsersSettingsPage', () => {
     })
   })
 
+  describe('CA2: erro do backend ao remover usuário aparece no banner da página em vez de ser engolido silenciosamente', () => {
+    it('DELETE falhando (500) mostra a mensagem do backend, sem remover o usuário da lista', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string, init?: RequestInit) => {
+          if (init?.method === 'DELETE')
+            return Promise.resolve({
+              ok: false,
+              status: 500,
+              text: () => Promise.resolve('falha ao remover usuário'),
+            })
+          if (url.startsWith('/api/users'))
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(users) })
+          if (url.startsWith('/api/cameras'))
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+      renderAt('/settings/users')
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('jackson')
+      })
+      const removeButton = [...document.querySelectorAll('#user-row-1-actions button')].find(
+        (b) => b.textContent === 'Remover',
+      )!
+      fireEvent.click(removeButton)
+      await waitFor(() => {
+        expect(document.getElementById('confirm-dialog-confirm')).toBeTruthy()
+      })
+      fireEvent.click(document.getElementById('confirm-dialog-confirm')!)
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('falha ao remover usuário')
+      })
+      // usuário continua na lista — a remoção não "deu certo" silenciosamente.
+      expect(document.getElementById('user-row-1')).toBeTruthy()
+    })
+  })
+
   describe('CA4: cada linha da lista de usuários usa um grid de colunas fixas alinhadas', () => {
     it('o wrapper de cada linha tem classe de grid e as 5 células (username/nome/role/câmeras/ações) sempre existem', async () => {
       stubFetch()
