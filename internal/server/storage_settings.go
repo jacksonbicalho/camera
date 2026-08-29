@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -23,19 +24,44 @@ func (s *Server) effectiveStorageSettings() (withMotion, withoutMotion, interval
 	return r.WithMotionMinutes, r.WithoutMotionMinutes, r.IntervalMinutes, r.MaxSizeGB, r.WarnPercent
 }
 
+type storageSettingsInput struct {
+	WithMotionMinutes    *int     `json:"with_motion_minutes"`
+	WithoutMotionMinutes *int     `json:"without_motion_minutes"`
+	IntervalMinutes      *int     `json:"interval_minutes"`
+	MaxSizeGB            *float64 `json:"max_size_gb"`
+	WarnPercent          *float64 `json:"warn_percent"`
+}
+
+func validateStorageSettings(input storageSettingsInput) error {
+	if input.WithMotionMinutes != nil && *input.WithMotionMinutes < 0 {
+		return fmt.Errorf("with_motion_minutes must be >= 0 (got %d)", *input.WithMotionMinutes)
+	}
+	if input.WithoutMotionMinutes != nil && *input.WithoutMotionMinutes < 0 {
+		return fmt.Errorf("without_motion_minutes must be >= 0 (got %d)", *input.WithoutMotionMinutes)
+	}
+	if input.IntervalMinutes != nil && *input.IntervalMinutes < 0 {
+		return fmt.Errorf("interval_minutes must be >= 0 (got %d)", *input.IntervalMinutes)
+	}
+	if input.MaxSizeGB != nil && *input.MaxSizeGB < 0 {
+		return fmt.Errorf("max_size_gb must be >= 0 (got %.2f)", *input.MaxSizeGB)
+	}
+	if input.WarnPercent != nil && (*input.WarnPercent < 0 || *input.WarnPercent > 100) {
+		return fmt.Errorf("warn_percent must be between 0 and 100 (got %.2f)", *input.WarnPercent)
+	}
+	return nil
+}
+
 func (s *Server) handleUpdateStorageSettings(w http.ResponseWriter, r *http.Request) {
 	if !s.requireDB(w) {
 		return
 	}
-	var input struct {
-		WithMotionMinutes    *int     `json:"with_motion_minutes"`
-		WithoutMotionMinutes *int     `json:"without_motion_minutes"`
-		IntervalMinutes      *int     `json:"interval_minutes"`
-		MaxSizeGB            *float64 `json:"max_size_gb"`
-		WarnPercent          *float64 `json:"warn_percent"`
-	}
+	var input storageSettingsInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if err := validateStorageSettings(input); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	set := func(key string, val any) error {

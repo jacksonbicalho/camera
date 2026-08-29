@@ -233,6 +233,23 @@ responde `409` pro front cair pro HLS. `POST /api/settings/cameras/detect-stream
 estática registrada antes de `PUT .../{id}` pra ter precedência no mux do Go
 1.22+) reordena em lote; `display_order` não é aceito em create/update.
 
+## Configurações de armazenamento (`storage_settings.go`)
+`PUT /api/settings/storage` recebe os 5 campos numéricos de retenção/limite
+(`with_motion_minutes`, `without_motion_minutes`, `interval_minutes`,
+`max_size_gb`, `warn_percent`, todos ponteiros — `nil` = campo não enviado,
+não sobrescreve o que já está persistido) e valida via
+`validateStorageSettings` **antes** de qualquer `db.SetConfig`, mesmo padrão
+de `validateMotionConfig` (`cameras.go:18-38`): os 4 primeiros exigem `>= 0`,
+`warn_percent` exige `[0, 100]`; a primeira violação encontrada vira `400`
+(`text/plain`) citando o campo e o valor recebido. Existe porque o
+`min={0}`/`max={100}` dos inputs em `StorageSettingsPage.tsx` é só validação
+client-side (HTML, contornável) — sem checagem server-side um valor negativo
+era aceito e persistido sem erro (história
+`fix/validacao-storage-negativo`, achado durante e2e do CA-07). A validação
+roda sobre o `input` inteiro antes do primeiro `db.SetConfig`, garantindo que
+nenhum dos 5 campos do payload é parcialmente persistido se outro campo do
+mesmo request falhar.
+
 ## Gravações e conteúdo (`recordings_global.go`, `content_days.go`, `moments.go`)
 `GET /api/stats` usa `SUM(size_bytes)` de `recordings`.
 `GET /api/cameras/{id}/content-days?kind=` (por câmera) e
