@@ -57,8 +57,33 @@ var DefaultStorageSettings = ResolvedStorageSettings{
 	StateHistoryMinutes:  129600, // 90 days — thumbs outlive video retention on purpose, but not forever
 }
 
+// StorageNonNegativeIntOverride returns the parsed value of a non-negative
+// integer storage config key from a system_config snapshot (as returned by
+// GetAllConfig), and whether it is present and valid. A missing key, an
+// unparseable value, or a negative value (legacy data persisted before
+// validation existed on the write path) all report ok=false, so callers keep
+// whatever value they'd otherwise use — same treatment for "absent" and
+// "invalid". Exported so callers with their own fallback semantics (e.g.
+// storage.Cleaner, which falls back to a construction-time value instead of
+// DefaultStorageSettings) can reuse this single validation rule instead of
+// re-parsing storage config keys themselves.
+func StorageNonNegativeIntOverride(all map[string]string, key string) (int, bool) {
+	v, ok := all[key]
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
+}
+
 // StorageSettingsFromDB reads storage settings from the database, falling back to
-// DefaultStorageSettings for any key that is missing or unparseable.
+// DefaultStorageSettings for any key that is missing, unparseable, or out of range
+// (negative minutes/GB, warn_percent outside [0, 100]) — legacy data persisted
+// before validation existed on the write path is sanitized the same way as a
+// parse error, rather than surfaced as-is.
 // If database is nil, returns DefaultStorageSettings.
 func StorageSettingsFromDB(database *DB) ResolvedStorageSettings {
 	result := DefaultStorageSettings
@@ -69,28 +94,22 @@ func StorageSettingsFromDB(database *DB) ResolvedStorageSettings {
 	if err != nil {
 		return result
 	}
-	if v, ok := all["storage.with_motion_minutes"]; ok {
-		if n, err := strconv.Atoi(v); err == nil {
-			result.WithMotionMinutes = n
-		}
+	if n, ok := StorageNonNegativeIntOverride(all, "storage.with_motion_minutes"); ok {
+		result.WithMotionMinutes = n
 	}
-	if v, ok := all["storage.without_motion_minutes"]; ok {
-		if n, err := strconv.Atoi(v); err == nil {
-			result.WithoutMotionMinutes = n
-		}
+	if n, ok := StorageNonNegativeIntOverride(all, "storage.without_motion_minutes"); ok {
+		result.WithoutMotionMinutes = n
 	}
-	if v, ok := all["storage.interval_minutes"]; ok {
-		if n, err := strconv.Atoi(v); err == nil {
-			result.IntervalMinutes = n
-		}
+	if n, ok := StorageNonNegativeIntOverride(all, "storage.interval_minutes"); ok {
+		result.IntervalMinutes = n
 	}
 	if v, ok := all["storage.max_size_gb"]; ok {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 {
 			result.MaxSizeGB = f
 		}
 	}
 	if v, ok := all["storage.warn_percent"]; ok {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 && f <= 100 {
 			result.WarnPercent = f
 		}
 	}
