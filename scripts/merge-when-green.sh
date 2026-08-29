@@ -96,7 +96,7 @@ if [[ "$MARKED" -eq 1 ]]; then
     # Mesma convenção de resolve_story (scripts/lib/story.sh): slug direto da
     # branch, SEM normalizar hífen→underscore — o nome do arquivo usa o
     # mesmo slug da branch, hífens inclusive (ex.: branch
-    # test/e2e-playwright-harness ↔ stories/*_e2e-playwright-harness.md). A
+    # fix/algum-bug-com-hifen ↔ stories/*_algum-bug-com-hifen.md). A
     # normalização antiga quebrava esse match sempre que o slug tinha hífen
     # (bug real, confirmado: arquivo da story ficava órfão após o merge).
     slug=${HEAD#*/}

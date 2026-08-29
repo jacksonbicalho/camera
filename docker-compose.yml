@@ -1,11 +1,6 @@
 # Nomes de serviço não-produção usam prefixo (<contexto>-<coisa>): `camera`
 # (produção, único sem qualificador) permanece como está; `dev-camera` é o
-# ambiente de desenvolvimento local (live reload); `e2e-camera`/`e2e-playwright`
-# (incluídos abaixo via `include:`, profile `development`) são a suíte e2e
-# em modo dev-iterativo — ver e2e/docker-compose.yml e CLAUDE.md.
-include:
-  - e2e/docker-compose.yml
-
+# ambiente de desenvolvimento local (live reload).
 services:
   camera:
     profiles: [production]
@@ -43,42 +38,5 @@ services:
     command: sh -c "cd frontend && yarn build && cd .. && go run -ldflags=\"-X main.version=$$VERSION\" ./cmd/camera --config /app/camera.yaml"
     restart: "no"
 
-  # Overrides dev-profile do e2e (base em e2e/docker-compose.yml, incluída
-  # acima): opt-in via --profile development, igual ao dev-camera. Troca o
-  # command one-shot original (scripts/e2e.sh/CI) por um keep-alive — instala
-  # bun deps + Chromium uma vez e fica idle, permitindo `docker compose exec
-  # e2e-playwright bunx playwright test <arquivo>` repetidamente sem reinstalar
-  # nada a cada execução.
-  e2e-camera:
-    profiles: [development]
-
-  e2e-playwright:
-    profiles: [development]
-    # Compose concatena listas ao mesclar `include:` — os volumes do serviço
-    # base (código-fonte + cache do bun, ambos relativos a e2e/docker-compose.yml)
-    # já valem aqui; só o volume novo do cache do Chromium precisa ser somado.
-    volumes:
-      - e2e-playwright-browsers:/root/.cache/ms-playwright
-    # O marcador + healthcheck existem pra refletir na tela quando a instalação
-    # (bun install + download do Chromium, minutos na 1ª subida) realmente
-    # terminou — sem isso, `docker compose up -d` retorna assim que o container
-    # inicia, e um `exec` disparado antes do fim da instalação falha (chromium
-    # ainda não gravado no volume). `docker compose up -d --wait` bloqueia até
-    # `healthy`; `docker compose ps` mostra `starting`→`healthy` a qualquer momento.
-    command: sh -c "bun install && bunx playwright install --with-deps chromium && touch /tmp/e2e-playwright-ready && tail -f /dev/null"
-    healthcheck:
-      test: ['CMD', 'test', '-f', '/tmp/e2e-playwright-ready']
-      interval: 5s
-      timeout: 3s
-      # retries=180 (15min de teto): rede lenta/cache frio pode deixar o
-      # `apt install` de deps do Chromium (--with-deps) bem mais lento que os
-      # ~30s do caminho comum. Se mesmo assim estourar, "unhealthy" é um
-      # falso-negativo — a instalação segue rodando em background; re-rode
-      # `docker compose up -d --wait` ou acompanhe `docker compose logs -f
-      # e2e-playwright`.
-      retries: 180
-      start_period: 5s
-
 volumes:
   frontend_node_modules:
-  e2e-playwright-browsers:

@@ -48,10 +48,10 @@ func TestMarkCheckShCriteriaLeavesOtherCommandCriteriaAlone(t *testing.T) {
 	got := markCheckShCriteria(t, strings.Join([]string{
 		"## Critérios de Aceitação",
 		"- [x] CA1: Backend e frontend verdes (auto: scripts/check.sh)",
-		"- [] CA3: PDF report (auto: E2E_PDF_REPORT=on bash scripts/e2e-pdf-report-check.sh)",
+		"- [] CA3: PDF report (auto: REPORT_MODE=on bash scripts/report-check.sh)",
 	}, "\n"))
 
-	if !strings.Contains(got, "- [] CA3: PDF report (auto: E2E_PDF_REPORT=on bash scripts/e2e-pdf-report-check.sh)") {
+	if !strings.Contains(got, "- [] CA3: PDF report (auto: REPORT_MODE=on bash scripts/report-check.sh)") {
 		t.Errorf("CA3 (comando diferente de scripts/check.sh) não deveria ter sido tocado; story:\n%s", got)
 	}
 }
@@ -103,10 +103,10 @@ func TestMarkCommandCriteriaMarksGenericCommand(t *testing.T) {
 	got := markCommandCriteria(t, strings.Join([]string{
 		"## Critérios de Aceitação",
 		"- [x] CA1: Backend e frontend verdes (auto: scripts/check.sh)",
-		"- [] CA3: PDF report tem conteúdo detalhado (auto: E2E_PDF_REPORT=on bash scripts/e2e-pdf-report-check.sh)",
-	}, "\n"), "E2E_PDF_REPORT=on bash scripts/e2e-pdf-report-check.sh")
+		"- [] CA3: PDF report tem conteúdo detalhado (auto: REPORT_MODE=on bash scripts/report-check.sh)",
+	}, "\n"), "REPORT_MODE=on bash scripts/report-check.sh")
 
-	if !strings.Contains(got, "- [x] CA3: PDF report tem conteúdo detalhado (auto: E2E_PDF_REPORT=on bash scripts/e2e-pdf-report-check.sh)") {
+	if !strings.Contains(got, "- [x] CA3: PDF report tem conteúdo detalhado (auto: REPORT_MODE=on bash scripts/report-check.sh)") {
 		t.Errorf("CA3 (comando genérico com env var) não foi marcado; story:\n%s", got)
 	}
 }
@@ -115,10 +115,10 @@ func TestMarkCommandCriteriaLeavesOtherCommandsAlone(t *testing.T) {
 	got := markCommandCriteria(t, strings.Join([]string{
 		"## Critérios de Aceitação",
 		"- [x] CA1: Backend e frontend verdes (auto: scripts/check.sh)",
-		"- [] CA4: harness e2e sobe (auto: bash scripts/e2e.sh)",
-	}, "\n"), "E2E_PDF_REPORT=on bash scripts/e2e-pdf-report-check.sh")
+		"- [] CA4: harness sobe (auto: bash scripts/other-check.sh)",
+	}, "\n"), "REPORT_MODE=on bash scripts/report-check.sh")
 
-	if !strings.Contains(got, "- [] CA4: harness e2e sobe (auto: bash scripts/e2e.sh)") {
+	if !strings.Contains(got, "- [] CA4: harness sobe (auto: bash scripts/other-check.sh)") {
 		t.Errorf("CA4 (comando diferente do que foi marcado) não deveria ter sido tocado; story:\n%s", got)
 	}
 }
@@ -129,7 +129,7 @@ func TestExtractAutoCommandsParsesMultipleDistinctCommands(t *testing.T) {
 		"## Critérios de Aceitação",
 		"- [x] CA1: Backend e frontend verdes (auto: scripts/check.sh)",
 		"- [] CA2: retenção nomeada (auto: scripts/check.sh)",
-		"- [] CA3: PDF report (auto: E2E_PDF_REPORT=on bash scripts/e2e-pdf-report-check.sh)",
+		"- [] CA3: PDF report (auto: REPORT_MODE=on bash scripts/report-check.sh)",
 	}, "\n")
 	if err := os.WriteFile(story, []byte(contents), 0o644); err != nil {
 		t.Fatalf("escrever story: %v", err)
@@ -143,7 +143,7 @@ func TestExtractAutoCommandsParsesMultipleDistinctCommands(t *testing.T) {
 	for _, want := range []string{
 		"CA1|scripts/check.sh",
 		"CA2|scripts/check.sh",
-		"CA3|E2E_PDF_REPORT=on bash scripts/e2e-pdf-report-check.sh",
+		"CA3|REPORT_MODE=on bash scripts/report-check.sh",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("extract_auto_commands não encontrou %q; saída:\n%s", want, out)

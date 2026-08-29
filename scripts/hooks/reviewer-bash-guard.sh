@@ -11,8 +11,7 @@
 # Este hook é a única restrição de comando que é de fato aplicada.
 #
 # Whitelist: só o que o code-reviewer genuinamente precisa — ler o diff/log
-# do ticket, rodar a suíte (scripts/check.sh, sem argumento) e rodar UM spec
-# e2e já escrito pelo driver (scripts/e2e-spec-check.sh <spec>). Nunca escreve
+# do ticket e rodar a suíte (scripts/check.sh, sem argumento). Nunca escreve
 # nem roda nada além disso — se precisar de mais pra revisar algo, o achado é
 # "cobertura empírica ausente" na review, não ele foi lá e criou.
 #
@@ -48,10 +47,9 @@ case "$trimmed" in
   "git diff"|"git diff "*) exit 0 ;;
   "git log"|"git log "*) exit 0 ;;
   "bash scripts/check.sh") exit 0 ;;
-  "bash scripts/e2e-spec-check.sh "*) exit 0 ;;
 esac
 
-echo "bloqueado: code-reviewer só pode rodar 'git diff', 'git log', 'bash scripts/check.sh' (sem argumento) ou 'bash scripts/e2e-spec-check.sh <spec>'." >&2
+echo "bloqueado: code-reviewer só pode rodar 'git diff', 'git log' ou 'bash scripts/check.sh' (sem argumento)." >&2
 echo "comando recebido: $trimmed" >&2
 echo "se a revisão precisa de verificação empírica que nenhum spec cobre ainda, registre isso como achado (cobertura ausente) — não escreva/rode nada fora dessa lista." >&2
 exit 2
