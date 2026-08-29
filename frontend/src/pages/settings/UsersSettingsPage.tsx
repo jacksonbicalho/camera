@@ -96,8 +96,16 @@ export default function UsersSettingsPage() {
 
   const handleDelete = async () => {
     if (deleteId == null) return
+    setError(null)
     try {
-      await fetch(`/api/users/${deleteId}`, { method: 'DELETE', headers: authHeaders() })
+      const res = await fetch(`/api/users/${deleteId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      })
+      if (!res.ok) {
+        setError((await res.text()).trim() || 'Erro ao remover usuário')
+        return
+      }
       await loadUsers()
     } finally {
       setDeleteId(null)
