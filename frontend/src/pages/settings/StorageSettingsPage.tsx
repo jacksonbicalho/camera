@@ -124,6 +124,7 @@ export default function StorageSettingsPage() {
   const [overrides, setOverrides] = useState<StorageOverrides>({})
   const [storageSaving, setStorageSaving] = useState(false)
   const [storageSaved, setStorageSaved] = useState(false)
+  const [storageError, setStorageError] = useState('')
 
   const loadRetentionExtensions = () =>
     fetch('/api/retention-extensions', { headers: authHeaders() })
@@ -165,6 +166,7 @@ export default function StorageSettingsPage() {
   const set = (patch: StorageOverrides) => {
     setOverrides((o) => ({ ...o, ...patch }))
     setStorageSaved(false)
+    setStorageError('')
   }
 
   const retentionFor = (category: string): RetentionConfig =>
@@ -187,6 +189,7 @@ export default function StorageSettingsPage() {
     if (!form) return
     setStorageSaving(true)
     setStorageSaved(false)
+    setStorageError('')
     fetch('/api/settings/storage', {
       method: 'PUT',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
@@ -198,18 +201,20 @@ export default function StorageSettingsPage() {
         warn_percent: form.warnPercent,
       }),
     })
-      .then(() => {
+      .then((res) => {
+        if (!res.ok) return res.text().then((msg) => Promise.reject(new Error(msg)))
         setOverrides({})
         reload()
         setStorageSaved(true)
         navigate('/settings/preferences/storage')
       })
-      .catch(() => {})
+      .catch((err: Error) => setStorageError(err.message || 'Falha ao salvar'))
       .finally(() => setStorageSaving(false))
   }
 
   const cancelStorageEdit = () => {
     setOverrides({})
+    setStorageError('')
     navigate('/settings/preferences/storage')
   }
 
@@ -452,6 +457,11 @@ export default function StorageSettingsPage() {
               )
             })}
 
+            {storageError && (
+              <p id="storage-error" className="text-xs text-red-500 text-right pt-1">
+                {storageError}
+              </p>
+            )}
             <div className="flex justify-end items-center gap-3 pt-1">
               {storageSaved && <span className="text-xs text-green-400">Salvo</span>}
               <Button id="storage-cancel" variant="outline" onClick={cancelStorageEdit}>

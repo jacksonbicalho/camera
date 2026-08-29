@@ -201,6 +201,48 @@ describe('StorageSettingsPage', () => {
     })
   })
 
+  describe('CA3: erro de validação no save exibe a mensagem do backend e não navega/marca "Salvo"', () => {
+    it('PUT retorna 400: mostra o erro, permanece no formulário de edição, não persiste', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string, init?: RequestInit) => {
+          if (url === '/api/settings/storage' && init?.method === 'PUT')
+            return Promise.resolve({
+              ok: false,
+              status: 400,
+              text: () => Promise.resolve('with_motion_minutes must be >= 0 (got -5)'),
+            })
+          if (url === '/api/settings/extensions')
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
+          if (url.startsWith('/api/settings'))
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(settings) })
+          if (url.startsWith('/api/drives'))
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
+          if (url.startsWith('/api/retention'))
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
+          if (url.startsWith('/api/stats'))
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(stats) })
+          return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+        }),
+      )
+      render(
+        <MemoryRouter initialEntries={['/settings/preferences/storage/edit']}>
+          <StorageSettingsPage />
+        </MemoryRouter>,
+      )
+      await waitFor(() => {
+        expect(document.getElementById('storage-save')).toBeTruthy()
+      })
+      fireEvent.click(document.getElementById('storage-save')!)
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('with_motion_minutes must be >= 0')
+      })
+      // continua em modo edição — não navegou de volta pra visualização, não marcou "Salvo"
+      expect(document.getElementById('storage-save')).toBeTruthy()
+      expect(document.body.textContent).not.toContain('Salvo')
+    })
+  })
+
   it('mostra o card "Uso de disco" (Total/Gravações/Disponível), migrado de StatsPage', async () => {
     stubFetch()
     render(
