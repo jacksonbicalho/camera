@@ -4,11 +4,13 @@ import { useEscapeKey } from '../hooks/useEscapeKey'
 import { Button } from '@/components/ui/button'
 
 interface ConfirmDialogProps {
+  id?: string
   open: boolean
   title: string
   message: string
   confirmLabel?: string
   cancelLabel?: string
+  confirmId?: string
   danger?: boolean
   children?: ReactNode
   onConfirm: () => void
@@ -24,11 +26,13 @@ interface ConfirmDialogProps {
 // já são portais pra body com zIndex 9999). z-10000 > 9999 garante a ordem
 // certa entre os dois quando ambos são portais-irmãos de body.
 export default function ConfirmDialog({
+  id,
   open,
   title,
   message,
   confirmLabel = 'Confirmar',
   cancelLabel = 'Cancelar',
+  confirmId = 'confirm-dialog-confirm',
   danger = false,
   children,
   onConfirm,
@@ -40,7 +44,10 @@ export default function ConfirmDialog({
 
   return createPortal(
     <div className="fixed inset-0 z-10000 flex items-center justify-center bg-black/60">
-      <div className="bg-surface-2 border border-border rounded-lg shadow-xl p-6 w-80 flex flex-col gap-4">
+      <div
+        id={id}
+        className="bg-surface-2 border border-border rounded-lg shadow-xl p-6 w-80 flex flex-col gap-4"
+      >
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         <p className="text-xs text-muted-foreground">{message}</p>
         {children}
@@ -48,12 +55,7 @@ export default function ConfirmDialog({
           <Button id="confirm-dialog-cancel" size="sm" variant="outline" onClick={onCancel}>
             {cancelLabel}
           </Button>
-          <Button
-            id="confirm-dialog-confirm"
-            size="sm"
-            variant={danger ? 'destructive' : 'default'}
-            onClick={onConfirm}
-          >
+          <Button id={confirmId} size="sm" variant={danger ? 'destructive' : 'default'} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </div>

@@ -3,6 +3,7 @@
 /models/*.pt
 camera.yaml
 camera.teste.yaml
+camera-testing.yaml
 /storage-teste-camera/
 /camera
 dist/

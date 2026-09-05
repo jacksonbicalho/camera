@@ -19,6 +19,7 @@ services:
   dev-camera:
     profiles: [development]
     image: camera:development
+    container_name: camera_teste2
     build:
       context: .
       target: development
@@ -37,6 +38,36 @@ services:
       - HOME=/tmp
     command: sh -c "cd frontend && yarn build && cd .. && go run -ldflags=\"-X main.version=$$VERSION\" ./cmd/camera --config /app/camera.yaml"
     restart: "no"
+
+  testing-camera:
+    profiles: [development]
+    image: camera:development
+    container_name: testing_camera
+    build:
+      context: .
+      target: development
+    network_mode: host
+    #user: "${UID}:${GID}"
+    volumes:
+      - .:/app
+      - /data
+      #- frontend_node_modules:/app/frontend/node_modules
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - VERSION=${VERSION:-dev}
+      - GOCACHE=/app/.cache/go-build
+      - HOME=/tmp
+    command: sh -c "cd frontend && yarn build && cd .. && go run -ldflags=\"-X main.version=$$VERSION\" ./cmd/camera --config /app/camera-testing.yaml"
+    restart: "no"
+
+
+
+
+
+
+
 
 volumes:
   frontend_node_modules:

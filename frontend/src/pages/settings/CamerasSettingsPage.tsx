@@ -271,10 +271,12 @@ export default function CamerasSettingsPage() {
         ))}
 
       <ConfirmDialog
+        id="delete-camera-modal"
         open={deleteId != null}
         title="Remover câmera"
         message={`Remover câmera "${camToDelete?.name || camToDelete?.id}"?`}
         confirmLabel="Remover"
+        confirmId="delete-camera-confirm"
         danger
         onConfirm={handleDelete}
         onCancel={() => {
@@ -282,8 +284,9 @@ export default function CamerasSettingsPage() {
           setDeleteData(false)
         }}
       >
-        <label className="flex items-center gap-2 cursor-pointer">
+        <label htmlFor="delete-camera-data-checkbox" className="flex items-center gap-2 cursor-pointer">
           <input
+            id="delete-camera-data-checkbox"
             type="checkbox"
             checked={deleteData}
             onChange={(e) => setDeleteData(e.target.checked)}
